@@ -159,25 +159,6 @@
     .sidebar.open{transform:translateX(0);}
     .sidebar-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:65;}
     .sidebar-backdrop.show{display:block;}
-
-    /* Bảng nhiều cột -> thẻ xếp dọc, cuộn dọc thay vì kéo ngang */
-    .rtable{ min-width:0 !important; }
-    .rtable thead{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); border:0; padding:0; margin:-1px; }
-    .rtable tr{
-      display:block; margin-bottom:12px; border:1px solid var(--line); border-radius:var(--radius-s);
-      padding:2px 12px; background:var(--panel);
-    }
-    .rtable tr.total-row{ border:2px solid var(--accent); }
-    .rtable td, .rtable th{
-      display:flex; justify-content:space-between; align-items:center; gap:14px;
-      text-align:right; padding:7px 0; border-bottom:1px solid var(--line);
-      white-space:normal; width:auto; flex-wrap:wrap;
-    }
-    .rtable tr td:last-child{ border-bottom:none; }
-    .rtable td::before{
-      content: attr(data-label);
-      font-weight:600; color:var(--ink-soft); text-align:left; font-size:12px; flex-shrink:0;
-    }
   }
 
   table{width:100%; border-collapse:collapse; font-size:11.5px;}
@@ -1363,12 +1344,14 @@ function applyReportsDatePreset(preset){
   renderMgrReports();
 }
 function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
-let reportsSort = {col:'date', dir:'desc'};
+let reportsSort = {col:'branch', dir:'asc'};
 let historySort = {col:'date', dir:'desc'};
 function reportSortValue(r, col){
   switch(col){
     case 'date': return r.date;
     case 'submittedAt': return r.submittedAt;
+    case 'branch': return branchName(r.branchId);
+    case 'user': return userName(r.userId);
     case 'newdata': return r.newDataCount;
     case 'selffound': return r.selfFoundDataCount;
     case 'consulted': return r.consultedCount;
@@ -1388,8 +1371,11 @@ function reportSortValue(r, col){
 function sortReports(rows, state){
   return rows.sort((a,b)=>{
     const va=reportSortValue(a, state.col), vb=reportSortValue(b, state.col);
-    if(typeof va==='string') return state.dir==='desc' ? vb.localeCompare(va) : va.localeCompare(vb);
-    return state.dir==='desc' ? vb-va : va-vb;
+    let cmp;
+    if(typeof va==='string') cmp = state.dir==='desc' ? vb.localeCompare(va,'vi') : va.localeCompare(vb,'vi');
+    else cmp = state.dir==='desc' ? vb-va : va-vb;
+    if(cmp!==0) return cmp;
+    return b.date.localeCompare(a.date); // cùng giá trị -> ưu tiên ngày mới nhất lên trước
   });
 }
 function thReportsSort(label, col, numeric){ return `<th class="sortable${numeric?' num':''}" onclick="sortReportsBy('${col}')">${label}${sortArrow(reportsSort,col)}</th>`; }
@@ -1426,7 +1412,7 @@ function renderMgrReports(){
     return acc;
   }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, groupposts:0, wallposts:0, fbposts:0});
 
-  table.innerHTML = `<thead><tr>${thReportsSort('Ngày','date')}${thReportsSort('Nộp lúc','submittedAt')}<th>Người nộp</th><th>Chi nhánh</th>${thReportsSort('Data mới','newdata',true)}${thReportsSort('Data tự tìm','selffound',true)}${thReportsSort('Đã tư vấn','consulted',true)}${thReportsSort('Tiềm năng','potential',true)}${thReportsSort('Đơn chốt','orders',true)}${thReportsSort('Doanh thu','revenue',true)}${thReportsSort('Tỷ lệ chốt','closerate',true)}${thReportsSort('TB/đơn','avgorder',true)}${thReportsSort('Quay lại','returning',true)}${thReportsSort('Tỷ lệ quay lại','returnrate',true)}${thReportsSort('Bài nhóm (Zalo)','groupposts',true)}${thReportsSort('Bài tường (Zalo)','wallposts',true)}${thReportsSort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr>${thReportsSort('Ngày','date')}${thReportsSort('Nộp lúc','submittedAt')}${thReportsSort('Người nộp','user')}${thReportsSort('Chi nhánh','branch')}${thReportsSort('Data mới','newdata',true)}${thReportsSort('Data tự tìm','selffound',true)}${thReportsSort('Đã tư vấn','consulted',true)}${thReportsSort('Tiềm năng','potential',true)}${thReportsSort('Đơn chốt','orders',true)}${thReportsSort('Doanh thu','revenue',true)}${thReportsSort('Tỷ lệ chốt','closerate',true)}${thReportsSort('TB/đơn','avgorder',true)}${thReportsSort('Quay lại','returning',true)}${thReportsSort('Tỷ lệ quay lại','returnrate',true)}${thReportsSort('Bài nhóm (Zalo)','groupposts',true)}${thReportsSort('Bài tường (Zalo)','wallposts',true)}${thReportsSort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
       <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
