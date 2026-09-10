@@ -293,22 +293,20 @@
           </div>
           <div class="grid-3">
             <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
+            <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Khách đã tư vấn</label><input id="f_consulted" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Khách tiềm năng</label><input id="f_potential" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đơn chốt</label><input id="f_orders" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Doanh thu (VNĐ)</label><input id="f_revenue" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
-            <div class="field"><label>Khách quay lại</label><input id="f_returning" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Khách quay lại</label><input id="f_returning" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Đăng bài nhóm (Zalo)</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đăng bài tường (Zalo)</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
-          </div>
-          <label style="font-weight:600; color:var(--ink); font-size:13.5px; display:block; margin:4px 0 10px;">Tự khai thác thêm</label>
-          <div class="grid-2" style="margin-bottom:14px;">
-            <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Số lượng đăng bài FB</label><input id="f_fbposts" type="number" min="0" placeholder="0"></div>
           </div>
-          <div class="grid-2" style="margin-bottom:14px;">
+          <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới)</div><div class="stat-value" id="previewCloseRate">—</div></div>
             <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
+            <div class="stat-box"><div class="stat-label">Tỷ lệ khách quay lại (quay lại / đơn chốt)</div><div class="stat-value" id="previewReturnRate">—</div></div>
           </div>
           <div class="field"><label>Ghi chú</label><input id="f_note" placeholder="Ghi chú thêm (không bắt buộc)"></div>
           <button class="btn-primary" onclick="submitReport()">Lưu báo cáo hôm nay</button>
@@ -705,8 +703,10 @@ function updateReportPreview(){
   const newdata=Number(document.getElementById('f_newdata').value)||0;
   const orders=Number(document.getElementById('f_orders').value)||0;
   const revenue=Number(document.getElementById('f_revenue').value)||0;
+  const returning=Number(document.getElementById('f_returning').value)||0;
   document.getElementById('previewCloseRate').textContent = pct(orders, newdata);
   document.getElementById('previewAvgOrder').textContent = avgPerOrder(revenue, orders);
+  document.getElementById('previewReturnRate').textContent = pct(returning, orders);
 }
 function renderStaffReport(){
   const user=currentUser();
@@ -791,7 +791,7 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td class="num">${r.newDataCount}</td>
@@ -803,6 +803,7 @@ function renderStaffHistory(){
       <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
       <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num">${r.returningCustomers}</td>
+      <td class="num">${pct(r.returningCustomers, r.orderCount)}</td>
       <td class="num">${r.groupPostCount}</td>
       <td class="num">${r.wallPostCount}</td>
       <td class="num">${r.fbPostCount}</td>
@@ -869,6 +870,7 @@ function renderMgrDashboard(){
     statBox('Khách đã tư vấn', totals.consulted) +
     statBox('Khách tiềm năng', totals.potential) +
     statBox('Khách quay lại', totals.returning) +
+    statBox('Tỷ lệ quay lại', pct(totals.returning, totals.orders)) +
     statBox('Đăng bài nhóm', totals.groupposts) +
     statBox('Đăng bài tường', totals.wallposts) +
     statBox('Đăng bài FB', totals.fbposts);
@@ -931,7 +933,7 @@ function renderMgrDashboard(){
     acc.count++;
     return acc;
   }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
-  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th></tr>` +
+  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th></tr>` +
     ids.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(id=>{
       const u=state.users.find(u=>u.id===id); const b=byUser[id];
       const rowStyle = b.count===0 ? ' style="color:var(--ink-soft);"' : '';
@@ -940,14 +942,14 @@ function renderMgrDashboard(){
         <td class="num">${b.newdata}</td><td class="num">${b.selffound}</td><td class="num">${b.consulted}</td><td class="num">${b.potential}</td>
         <td class="num">${b.orders}</td><td class="num">${fmtMoney(b.revenue)}</td>
         <td class="num">${pct(b.orders,b.newdata)}</td><td class="num">${avgPerOrder(b.revenue,b.orders)}</td>
-        <td class="num">${b.returning}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td><td class="num">${b.fbposts}</td></tr>`;
+        <td class="num">${b.returning}</td><td class="num">${pct(b.returning,b.orders)}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td><td class="num">${b.fbposts}</td></tr>`;
     }).join('') +
     `<tr class="total-row"><td>TỔNG CỘNG</td><td>—</td>
       <td class="num">${grand.count}</td>
       <td class="num">${grand.newdata}</td><td class="num">${grand.selffound}</td><td class="num">${grand.consulted}</td><td class="num">${grand.potential}</td>
       <td class="num">${grand.orders}</td><td class="num">${fmtMoney(grand.revenue)}</td>
       <td class="num">${pct(grand.orders,grand.newdata)}</td><td class="num">${avgPerOrder(grand.revenue,grand.orders)}</td>
-      <td class="num">${grand.returning}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td><td class="num">${grand.fbposts}</td></tr>`;
+      <td class="num">${grand.returning}</td><td class="num">${pct(grand.returning,grand.orders)}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td><td class="num">${grand.fbposts}</td></tr>`;
 }
 
 let revenueChartInstance=null;
@@ -1002,7 +1004,7 @@ function renderMgrReports(){
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td>${userName(r.userId)}</td>
@@ -1016,6 +1018,7 @@ function renderMgrReports(){
       <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
       <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num">${r.returningCustomers}</td>
+      <td class="num">${pct(r.returningCustomers, r.orderCount)}</td>
       <td class="num">${r.groupPostCount}</td>
       <td class="num">${r.wallPostCount}</td>
       <td class="num">${r.fbPostCount}</td>
