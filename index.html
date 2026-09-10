@@ -373,6 +373,14 @@
       <div id="page-mgrDashboard" class="page" style="display:none;">
         <div class="page-head"><div><h1>Tổng quan</h1><p>Số liệu toàn đội</p></div></div>
 
+        <div class="chip-row" style="margin-bottom:16px;">
+          <div class="chip" id="dashPreset_today" onclick="applyDashboardPreset('today')">Hôm nay</div>
+          <div class="chip" id="dashPreset_yesterday" onclick="applyDashboardPreset('yesterday')">Hôm qua</div>
+          <div class="chip" id="dashPreset_week" onclick="applyDashboardPreset('week')">Tuần qua</div>
+          <div class="chip" id="dashPreset_month" onclick="applyDashboardPreset('month')">Tháng qua</div>
+          <div class="chip selected" id="dashPreset_all" onclick="applyDashboardPreset('all')">Toàn thời gian</div>
+        </div>
+
         <div class="card" id="mgrReminderCard">
           <h2>Hôm nay còn ai chưa nộp báo cáo?</h2>
           <div id="mgrReminderList" style="margin-top:10px;"></div>
@@ -403,6 +411,13 @@
       <!-- ---------- MANAGER: danh sách báo cáo ---------- -->
       <div id="page-mgrReports" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách báo cáo</h1><p>Lọc và xem chi tiết từng báo cáo</p></div></div>
+        <div class="chip-row" style="margin-bottom:12px;">
+          <div class="chip" onclick="applyReportsDatePreset('today')">Hôm nay</div>
+          <div class="chip" onclick="applyReportsDatePreset('yesterday')">Hôm qua</div>
+          <div class="chip" onclick="applyReportsDatePreset('week')">Tuần qua</div>
+          <div class="chip" onclick="applyReportsDatePreset('month')">Tháng qua</div>
+          <div class="chip" onclick="applyReportsDatePreset('all')">Toàn bộ</div>
+        </div>
         <div class="toolbar">
           <div class="field"><label>Chi nhánh</label><select id="filterBranch" onchange="renderMgrReports()"></select></div>
           <div class="field"><label>Người nộp</label><select id="filterUser" onchange="renderMgrReports()"></select></div>
@@ -987,27 +1002,41 @@ function renderStaffHistory(){
 function staffUsersInBranch(branchId){
   return state.users.filter(u=>u.role==='staff' && (!branchId || u.branchId===branchId));
 }
+// Nhân viên + Quản lý team (cả 2 vai trò đều tự nộp báo cáo hằng ngày) — dùng cho nhắc nhở "chưa nộp"
+function reportableUsersInBranch(branchId){
+  return state.users.filter(u=>(u.role==='staff' || u.role==='team_manager') && (!branchId || u.branchId===branchId));
+}
 // Phạm vi dữ liệu theo vai trò: Quản lý team chỉ thấy chi nhánh của mình (trả về branchId),
 // Quản lý chung thấy toàn bộ (trả về null = không giới hạn).
 function scopeBranchId(){
   const u=currentUser();
   return (u && u.role==='team_manager') ? u.branchId : null;
 }
+let dashDateFrom = null, dashDateTo = null, dashPreset = 'all';
+function applyDashboardPreset(preset){
+  dashPreset = preset;
+  const [from, to] = dateRangeFor(preset);
+  dashDateFrom = from; dashDateTo = to;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('dashPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMgrDashboard();
+}
 function renderMgrDashboard(){
   const scope=scopeBranchId();
   document.getElementById('mgrBranchSummaryCard').style.display = scope ? 'none' : 'block';
 
-  // nhắc nhở chưa nộp hôm nay
+  // nhắc nhở chưa nộp hôm nay (gồm cả Nhân viên và Quản lý team)
   const today=todayStr();
-  const staff=staffUsersInBranch(scope);
+  const staff=reportableUsersInBranch(scope);
   const notSubmitted = staff.filter(u=>!myReportForDate(u.id, today));
   const listEl=document.getElementById('mgrReminderList');
   if(staff.length===0){
-    listEl.innerHTML='<div class="empty-note">Chưa có nhân viên nào đăng ký.</div>';
+    listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
   } else if(notSubmitted.length===0){
     listEl.innerHTML='<span class="badge badge-ok">Mọi người đã nộp báo cáo hôm nay</span>';
   } else {
-    listEl.innerHTML = notSubmitted.map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name} · ${branchName(u.branchId)}</span>`).join('');
+    listEl.innerHTML = notSubmitted.map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''} · ${branchName(u.branchId)}</span>`).join('');
   }
 
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
@@ -1021,7 +1050,13 @@ function renderMgrDashboard(){
   try{ drawChart(days, chartTotals); }catch(e){ console.error('Lỗi vẽ biểu đồ (đã bỏ qua để không ảnh hưởng phần còn lại):', e); }
 
   // Tổng cộng (toàn thời gian, theo phạm vi vai trò)
-  const allInScope = state.reports.filter(r => !scope || r.branchId===scope);
+  const allInScope = state.reports.filter(r =>
+    (!scope || r.branchId===scope) &&
+    (!dashDateFrom || r.date>=dashDateFrom) &&
+    (!dashDateTo || r.date<=dashDateTo)
+  );
+  const periodLabels = {today:'hôm nay', yesterday:'hôm qua', week:'tuần qua (7 ngày)', month:'tháng qua (30 ngày)', all:'toàn bộ thời gian'};
+  document.getElementById('mgrTotalsSub').textContent = 'Cộng dồn báo cáo trong: ' + periodLabels[dashPreset];
   document.getElementById('mgrTotalsTitle').textContent = scope ? `Tổng của team ${branchName(scope)}` : 'Tổng toàn công ty';
   const totals = allInScope.reduce((acc,r)=>{
     acc.revenue+=r.revenue; acc.orders+=r.orderCount;
@@ -1174,6 +1209,22 @@ function resetFilters(){
   document.getElementById('filterUser').value='';
   document.getElementById('filterFrom').value='';
   document.getElementById('filterTo').value='';
+  renderMgrReports();
+}
+// Trả về [từ, đến] dạng YYYY-MM-DD theo mốc chọn nhanh
+function dateRangeFor(preset){
+  const today=todayStr();
+  const d=(offset)=>{ const x=new Date(); x.setDate(x.getDate()-offset); return x.toISOString().slice(0,10); };
+  if(preset==='today') return [today, today];
+  if(preset==='yesterday') return [d(1), d(1)];
+  if(preset==='week') return [d(6), today];   // 7 ngày gần nhất, kể cả hôm nay
+  if(preset==='month') return [d(29), today]; // 30 ngày gần nhất, kể cả hôm nay
+  return [null, null]; // 'all'
+}
+function applyReportsDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  document.getElementById('filterFrom').value = from || '';
+  document.getElementById('filterTo').value = to || '';
   renderMgrReports();
 }
 function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
