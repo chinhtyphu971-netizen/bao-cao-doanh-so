@@ -130,6 +130,15 @@
   .sidebar-foot .who{color:#fff; font-weight:600; font-size:13.5px; margin-bottom:2px;}
   .logout-link{color:#E4B7A2; cursor:pointer; margin-top:8px; display:inline-block; font-size:13px;}
 
+  .hamburger-btn{
+    display:none;
+    position:fixed; top: calc(14px + var(--safe-top)); left:14px; z-index:75;
+    width:42px; height:42px; border-radius:8px;
+    background:var(--brand); color:#fff; border:none;
+    align-items:center; justify-content:center; font-size:20px; cursor:pointer;
+  }
+  .sidebar-backdrop{display:none;}
+
   .main{flex:1; padding: calc(24px + var(--safe-top)) 28px 40px; max-width:1100px;}
   .page-head{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:18px;}
   .page-head p{color:var(--ink-soft); font-size:13.5px; margin:0;}
@@ -140,17 +149,24 @@
   .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
   @media (max-width:720px){
     .grid-2, .grid-3{grid-template-columns:1fr;}
-    .sidebar{width:76px; padding-left:8px; padding-right:8px;}
-    .sidebar .brand-title, .sidebar .brand-sub, .nav-item span.label, .sidebar-foot{display:none;}
-    .nav-item{justify-content:center;}
-    .main{padding-left:16px; padding-right:16px;}
+    .main{padding-left:16px; padding-right:16px; padding-top: calc(64px + var(--safe-top));}
+    .hamburger-btn{display:flex;}
+    .sidebar{
+      position:fixed; top:0; left:0; height:100vh; z-index:70;
+      transform:translateX(-100%); transition:transform .2s ease;
+      box-shadow:2px 0 16px rgba(0,0,0,.25);
+    }
+    .sidebar.open{transform:translateX(0);}
+    .sidebar-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:65;}
+    .sidebar-backdrop.show{display:block;}
   }
 
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
   th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
   th{color:var(--ink-soft); font-weight:600; font-size:12.5px;}
   tr:last-child td{border-bottom:none;}
-  .table-wrap{overflow-x:auto;}
+  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .table-wrap select{min-width:150px;}
   .num{text-align:right; font-variant-numeric:tabular-nums;}
   .empty-note{color:var(--ink-soft); font-size:13.5px; padding:10px 0;}
 
@@ -187,6 +203,11 @@
   .modal{background:var(--panel); border-radius:var(--radius-m); padding:22px; max-width:360px; width:100%;}
   .modal p{font-size:14px; color:var(--ink-soft);}
   .modal .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+  .history-row{padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .history-row:last-child{border-bottom:none;}
+  .history-row .history-label{font-weight:600;}
+  .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
+  .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -257,7 +278,8 @@
 
 <!-- ============== APP SCREEN ============== -->
 <div id="appScreen">
-  <div class="shell">
+  <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Mở menu">☰</button>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>  <div class="shell">
     <div class="sidebar">
       <div class="brand-title">Báo cáo doanh số</div>
       <div class="brand-sub" id="sidebarBranch">—</div>
@@ -424,6 +446,17 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="historyModal">
+  <div class="modal" style="max-width:380px;">
+    <h2>Lịch sử báo cáo</h2>
+    <p id="historyModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
+    <div id="historyModalBody" style="max-height:320px; overflow-y:auto; margin-top:10px;"></div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeHistoryModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    FIREBASE — đồng bộ dữ liệu real-time giữa nhiều thiết bị/nhiều người
@@ -565,6 +598,20 @@ function askConfirm(title,text,onOk){
   pendingConfirm=onOk;
 }
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); pendingConfirm=null; }
+
+function openHistoryModal(reportId){
+  const r = state.reports.find(x=>x.id===reportId) || state.trash.find(x=>x.id===reportId);
+  if(!r) return;
+  document.getElementById('historyModalSub').textContent = `${userName(r.userId)} — báo cáo ngày ${fmtDate(r.date)}`;
+  const hist = (r.history && r.history.length) ? r.history.slice().sort((a,b)=>b.at-a.at) : [{at:r.submittedAt, label:'Nộp lần đầu'}];
+  document.getElementById('historyModalBody').innerHTML = hist.map(h=>`
+    <div class="history-row">
+      <div class="history-label">${h.label}</div>
+      <div class="history-time">${new Date(h.at).toLocaleString('vi-VN')}</div>
+    </div>`).join('');
+  document.getElementById('historyModal').classList.add('show');
+}
+function closeHistoryModal(){ document.getElementById('historyModal').classList.remove('show'); }
 document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
 
 /* =========================== LOGIN FLOW =========================== */
@@ -698,8 +745,17 @@ function enterApp(){
   if(user.role==='staff'){ goPage('staffReport'); } else { goPage('mgrDashboard'); }
 }
 
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('show');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('show');
+}
 function goPage(pageId){
   currentPageId = pageId;
+  closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
   document.getElementById('page-'+pageId).style.display='block';
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId));
@@ -794,13 +850,18 @@ function submitReport(){
   if(existing){
     Object.assign(existing, data);
     existing.editedAt = Date.now();
+    if(!existing.history) existing.history = [{at: existing.submittedAt, label:'Nộp lần đầu'}];
+    existing.history.push({at: existing.editedAt, label:'Chỉnh sửa'});
     fbSetReport(existing);
     confirmText = '✓ Đã cập nhật báo cáo ngày '+fmtDate(date)+' lúc '+new Date().toLocaleTimeString('vi-VN');
     showToast('Đã cập nhật báo cáo ngày '+fmtDate(date));
   } else {
+    const submittedAt = Date.now();
     const newReport = {
       id:uid(), date, userId:user.id, branchId:user.branchId,
-      submittedAt: Date.now(), editedAt:null, ...data
+      submittedAt, editedAt:null,
+      history: [{at: submittedAt, label:'Nộp lần đầu'}],
+      ...data
     };
     state.reports.push(newReport);
     fbSetReport(newReport);
@@ -817,9 +878,10 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
+      <td>${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
       <td class="num">${r.newDataCount}</td>
       <td class="num">${r.selfFoundDataCount}</td>
       <td class="num">${r.consultedCount}</td>
@@ -834,6 +896,7 @@ function renderStaffHistory(){
       <td class="num">${r.wallPostCount}</td>
       <td class="num">${r.fbPostCount}</td>
       <td>${r.note||''}</td>
+      <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
     </tr>`).join('');
 }
 
@@ -1030,9 +1093,10 @@ function renderMgrReports(){
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th><th></th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
+      <td>${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
       <td>${userName(r.userId)}</td>
       <td>${branchName(r.branchId)}</td>
       <td class="num">${r.newDataCount}</td>
@@ -1049,6 +1113,7 @@ function renderMgrReports(){
       <td class="num">${r.wallPostCount}</td>
       <td class="num">${r.fbPostCount}</td>
       <td>${r.note||''}</td>
+      <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
       <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
     </tr>`).join('');
 }
