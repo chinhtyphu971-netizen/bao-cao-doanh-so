@@ -342,7 +342,7 @@
           </div>
           <div class="grid-3">
             <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
-            <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Khách đã tư vấn</label><input id="f_consulted" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Khách tiềm năng</label><input id="f_potential" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đơn chốt</label><input id="f_orders" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
@@ -353,7 +353,7 @@
             <div class="field"><label>Số lượng đăng bài FB</label><input id="f_fbposts" type="number" min="0" placeholder="0"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
-            <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới)</div><div class="stat-value" id="previewCloseRate">—</div></div>
+            <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới + tự tìm)</div><div class="stat-value" id="previewCloseRate">—</div></div>
             <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
             <div class="stat-box"><div class="stat-label">Tỷ lệ khách quay lại (quay lại / đơn chốt)</div><div class="stat-value" id="previewReturnRate">—</div></div>
           </div>
@@ -842,10 +842,11 @@ function avgPerOrder(revenue, orders){
 }
 function updateReportPreview(){
   const newdata=Number(document.getElementById('f_newdata').value)||0;
+  const selffound=Number(document.getElementById('f_selffound').value)||0;
   const orders=Number(document.getElementById('f_orders').value)||0;
   const revenue=Number(document.getElementById('f_revenue').value)||0;
   const returning=Number(document.getElementById('f_returning').value)||0;
-  document.getElementById('previewCloseRate').textContent = pct(orders, newdata);
+  document.getElementById('previewCloseRate').textContent = pct(orders, newdata+selffound);
   document.getElementById('previewAvgOrder').textContent = avgPerOrder(revenue, orders);
   document.getElementById('previewReturnRate').textContent = pct(returning, orders);
 }
@@ -953,7 +954,7 @@ function renderStaffHistory(){
       <td class="num" data-label="Tiềm năng">${r.potentialCustomers}</td>
       <td class="num" data-label="Đơn chốt">${r.orderCount}</td>
       <td class="num" data-label="Doanh thu">${fmtMoney(r.revenue)}</td>
-      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount + r.selfFoundDataCount)}</td>
       <td class="num" data-label="TB/đơn">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num" data-label="Quay lại">${r.returningCustomers}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(r.returningCustomers, r.orderCount)}</td>
@@ -971,7 +972,7 @@ function renderStaffHistory(){
       <td class="num" data-label="Tiềm năng">${grand.potential}</td>
       <td class="num" data-label="Đơn chốt">${grand.orders}</td>
       <td class="num" data-label="Doanh thu">${fmtMoney(grand.revenue)}</td>
-      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders, grand.newdata)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders, grand.newdata + grand.selffound)}</td>
       <td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue, grand.orders)}</td>
       <td class="num" data-label="Quay lại">${grand.returning}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning, grand.orders)}</td>
@@ -1034,7 +1035,7 @@ function renderMgrDashboard(){
   document.getElementById('mgrTotalsGrid').innerHTML =
     statBox('Tổng doanh thu', fmtMoney(totals.revenue)+' đ') +
     statBox('Tổng đơn chốt', totals.orders) +
-    statBox('Tỷ lệ chốt', pct(totals.orders, totals.newdata)) +
+    statBox('Tỷ lệ chốt', pct(totals.orders, totals.newdata + totals.selffound)) +
     statBox('Doanh thu TB/đơn', avgPerOrder(totals.revenue, totals.orders)) +
     statBox('Data khách mới', totals.newdata) +
     statBox('Data tự tìm', totals.selffound) +
@@ -1052,12 +1053,13 @@ function renderMgrDashboard(){
   // tổng hợp theo chi nhánh/team (toàn thời gian, chỉ Quản lý chung)
   if(!scope){
     const byBranch={};
-    state.branches.forEach(b=>{ byBranch[b.id] = {revenue:0, orders:0, newdata:0, count:0}; });
+    state.branches.forEach(b=>{ byBranch[b.id] = {revenue:0, orders:0, newdata:0, selffound:0, count:0}; });
     recent.forEach(r=>{
-      byBranch[r.branchId] = byBranch[r.branchId] || {revenue:0, orders:0, newdata:0, count:0};
+      byBranch[r.branchId] = byBranch[r.branchId] || {revenue:0, orders:0, newdata:0, selffound:0, count:0};
       byBranch[r.branchId].revenue += r.revenue;
       byBranch[r.branchId].orders += r.orderCount;
       byBranch[r.branchId].newdata += r.newDataCount;
+      byBranch[r.branchId].selffound += r.selfFoundDataCount;
       byBranch[r.branchId].count++;
     });
     const bTable=document.getElementById('mgrBranchSummaryTable');
@@ -1065,16 +1067,16 @@ function renderMgrDashboard(){
     if(bIds.length===0){ bTable.innerHTML='<tr><td class="empty-note">Chưa có chi nhánh nào.</td></tr>'; }
     else {
       const bGrand = Object.values(byBranch).reduce((acc,bb)=>{
-        acc.revenue+=bb.revenue; acc.orders+=bb.orders; acc.newdata+=bb.newdata; acc.count+=bb.count;
+        acc.revenue+=bb.revenue; acc.orders+=bb.orders; acc.newdata+=bb.newdata; acc.selffound+=bb.selffound; acc.count+=bb.count;
         return acc;
-      }, {revenue:0,orders:0,newdata:0,count:0});
+      }, {revenue:0,orders:0,newdata:0,selffound:0,count:0});
       bTable.innerHTML = `<tr><th>Team / chi nhánh</th><th class="num">Số báo cáo</th><th class="num">Tổng doanh thu</th><th class="num">Tổng đơn</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th></tr>` +
         bIds.sort((a,b)=>byBranch[b].revenue-byBranch[a].revenue).map(id=>{
           const bb=byBranch[id];
           const rowStyle = bb.count===0 ? ' style="color:var(--ink-soft);"' : '';
-          return `<tr${rowStyle}><td data-label="Team / chi nhánh">${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+          return `<tr${rowStyle}><td data-label="Team / chi nhánh">${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
         }).join('') +
-        `<tr class="total-row"><td data-label="Team / chi nhánh">TỔNG CỘNG</td><td class="num" data-label="Số báo cáo">${bGrand.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bGrand.revenue)}</td><td class="num" data-label="Tổng đơn">${bGrand.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bGrand.orders,bGrand.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr>`;
+        `<tr class="total-row"><td data-label="Team / chi nhánh">TỔNG CỘNG</td><td class="num" data-label="Số báo cáo">${bGrand.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bGrand.revenue)}</td><td class="num" data-label="Tổng đơn">${bGrand.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bGrand.orders,bGrand.newdata+bGrand.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr>`;
     }
   }
 
@@ -1112,14 +1114,14 @@ function renderMgrDashboard(){
         <td class="num" data-label="Số ngày nộp">${b.count}</td>
         <td class="num" data-label="Data mới">${b.newdata}</td><td class="num" data-label="Data tự tìm">${b.selffound}</td><td class="num" data-label="Đã tư vấn">${b.consulted}</td><td class="num" data-label="Tiềm năng">${b.potential}</td>
         <td class="num" data-label="Đơn chốt">${b.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(b.revenue)}</td>
-        <td class="num" data-label="Tỷ lệ chốt">${pct(b.orders,b.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(b.revenue,b.orders)}</td>
+        <td class="num" data-label="Tỷ lệ chốt">${pct(b.orders,b.newdata+b.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(b.revenue,b.orders)}</td>
         <td class="num" data-label="Quay lại">${b.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(b.returning,b.orders)}</td><td class="num" data-label="Bài nhóm (Zalo)">${b.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${b.wallposts}</td><td class="num" data-label="Bài FB">${b.fbposts}</td></tr>`;
     }).join('') +
     `<tr class="total-row"><td data-label="Người nộp">TỔNG CỘNG</td><td data-label="Chi nhánh">—</td>
       <td class="num" data-label="Số ngày nộp">${grand.count}</td>
       <td class="num" data-label="Data mới">${grand.newdata}</td><td class="num" data-label="Data tự tìm">${grand.selffound}</td><td class="num" data-label="Đã tư vấn">${grand.consulted}</td><td class="num" data-label="Tiềm năng">${grand.potential}</td>
       <td class="num" data-label="Đơn chốt">${grand.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(grand.revenue)}</td>
-      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders,grand.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue,grand.orders)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders,grand.newdata+grand.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue,grand.orders)}</td>
       <td class="num" data-label="Quay lại">${grand.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning,grand.orders)}</td><td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td><td class="num" data-label="Bài FB">${grand.fbposts}</td></tr>`;
 }
 
@@ -1216,7 +1218,7 @@ function renderMgrReports(){
       <td class="num" data-label="Tiềm năng">${r.potentialCustomers}</td>
       <td class="num" data-label="Đơn chốt">${r.orderCount}</td>
       <td class="num" data-label="Doanh thu">${fmtMoney(r.revenue)}</td>
-      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount + r.selfFoundDataCount)}</td>
       <td class="num" data-label="TB/đơn">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num" data-label="Quay lại">${r.returningCustomers}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(r.returningCustomers, r.orderCount)}</td>
@@ -1235,7 +1237,7 @@ function renderMgrReports(){
       <td class="num" data-label="Tiềm năng">${filterTotal.potential}</td>
       <td class="num" data-label="Đơn chốt">${filterTotal.orders}</td>
       <td class="num" data-label="Doanh thu">${fmtMoney(filterTotal.revenue)}</td>
-      <td class="num" data-label="Tỷ lệ chốt">${pct(filterTotal.orders, filterTotal.newdata)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(filterTotal.orders, filterTotal.newdata+filterTotal.selffound)}</td>
       <td class="num" data-label="TB/đơn">${avgPerOrder(filterTotal.revenue, filterTotal.orders)}</td>
       <td class="num" data-label="Quay lại">${filterTotal.returning}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(filterTotal.returning, filterTotal.orders)}</td>
