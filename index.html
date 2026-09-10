@@ -626,7 +626,7 @@ function checkNameAndProceed(){
     errEl.textContent='Nhập tên và mã PIN gồm đúng 4 số.'; return;
   }
   errEl.textContent='';
-  const existing = state.users.find(u=>u.name.trim().toLowerCase()===name.toLowerCase());
+  const existing = state.users.find(u=>u.name.trim().normalize('NFC').toLowerCase()===name.normalize('NFC').toLowerCase());
   if(existing){
     if(existing.pin!==pin){ errEl.textContent='Sai mã PIN cho tên này.'; return; }
     state.session = {userId:existing.id};
@@ -690,7 +690,7 @@ function selectRole(role){
   }
 }
 function createUserAndLogin(branchId){
-  const user = {id:uid(), name:pendingName, pin:pendingPin, role:loginRole, branchId:branchId};
+  const user = {id:uid(), name:pendingName.normalize('NFC'), pin:pendingPin, role:loginRole, branchId:branchId};
   state.users.push(user);
   fbSetUser(user);
   state.session = {userId:user.id};
