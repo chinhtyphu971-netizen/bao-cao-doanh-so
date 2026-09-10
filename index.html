@@ -372,8 +372,12 @@
         </div>
 
         <div class="card" id="mgrReminderCard">
-          <h2>Hôm nay còn ai chưa nộp báo cáo?</h2>
-          <div id="mgrReminderList" style="margin-top:10px;"></div>
+          <h2 id="mgrReminderTitle">Hôm nay còn ai chưa nộp báo cáo?</h2>
+          <div class="toolbar" style="margin-top:10px; margin-bottom:0;">
+            <div class="field" style="max-width:200px;"><label>Xem theo ngày</label><input type="date" id="reminderDate" onchange="onReminderDateChange()"></div>
+            <button class="btn-ghost" onclick="resetReminderDate()">Hôm nay</button>
+          </div>
+          <div id="mgrReminderList" style="margin-top:14px;"></div>
         </div>
 
         <div class="card" id="mgrTotalsCard">
@@ -1058,6 +1062,11 @@ function toggleBranchExpand(id){
   expandedBranchId = (expandedBranchId===id) ? null : id;
   renderMgrDashboard();
 }
+function onReminderDateChange(){ renderMgrDashboard(); }
+function resetReminderDate(){
+  document.getElementById('reminderDate').value = todayStr();
+  renderMgrDashboard();
+}
 function sortArrow(state, col){
   if(state.col!==col) return '';
   return state.dir==='desc' ? ' <span class="sort-arrow">▼</span>' : ' <span class="sort-arrow">▲</span>';
@@ -1104,15 +1113,21 @@ function renderMgrDashboard(){
   const scope=scopeBranchId();
   document.getElementById('mgrBranchSummaryCard').style.display = scope ? 'none' : 'block';
 
-  // nhắc nhở chưa nộp hôm nay (gồm cả Nhân viên và Quản lý team)
-  const today=todayStr();
+  // nhắc nhở chưa nộp theo ngày được chọn (mặc định hôm nay), gồm cả Nhân viên và Quản lý team
+  const dateInput=document.getElementById('reminderDate');
+  if(!dateInput.value) dateInput.value = todayStr();
+  const reminderDate = dateInput.value;
+  const isReminderToday = reminderDate===todayStr();
+  document.getElementById('mgrReminderTitle').textContent = isReminderToday
+    ? 'Hôm nay còn ai chưa nộp báo cáo?'
+    : `Ngày ${fmtDate(reminderDate)} còn ai chưa nộp báo cáo?`;
   const staff=reportableUsersInBranch(scope);
-  const notSubmitted = staff.filter(u=>!myReportForDate(u.id, today));
+  const notSubmitted = staff.filter(u=>!myReportForDate(u.id, reminderDate));
   const listEl=document.getElementById('mgrReminderList');
   if(staff.length===0){
     listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
   } else if(notSubmitted.length===0){
-    listEl.innerHTML='<span class="badge badge-ok">Mọi người đã nộp báo cáo hôm nay</span>';
+    listEl.innerHTML=`<span class="badge badge-ok">Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}</span>`;
   } else {
     // Nhóm theo chi nhánh/team, mỗi team hiện trên 1 hàng riêng
     const byBranchGroup={};
