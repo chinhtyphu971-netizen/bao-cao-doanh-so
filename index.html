@@ -1513,6 +1513,11 @@ function restoreReport(id){
   showToast('Đã khôi phục báo cáo');
 }
 
+let expandedSettingsBranchId = null;
+function toggleSettingsBranchExpand(id){
+  expandedSettingsBranchId = (expandedSettingsBranchId===id) ? null : id;
+  renderMgrSettings();
+}
 function renderMgrSettings(){
   const scope=scopeBranchId();
   document.getElementById('settingsAddBranchForm').style.display = scope ? 'none' : 'flex';
@@ -1525,16 +1530,29 @@ function renderMgrSettings(){
   const listEl=document.getElementById('settingsBranchList');
   listEl.innerHTML = branchesToShow.map(b=>{
     const teamMgr = state.users.find(u=>u.role==='team_manager' && u.branchId===b.id);
-    const memberCount = state.users.filter(u=>u.branchId===b.id && (u.role==='staff'||u.role==='team_manager')).length;
-    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
-      <span>${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— QL: ${teamMgr.name}</span>`:''}</span>
-      <span style="color:var(--ink-soft); font-size:12.5px;">${memberCount} người</span>
+    const members = state.users.filter(u=>u.branchId===b.id && (u.role==='staff'||u.role==='team_manager'));
+    const isOpen = expandedSettingsBranchId===b.id;
+    const mainRow = `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;" onclick="toggleSettingsBranchExpand('${b.id}')">
+      <span>${isOpen?'▾':'▸'} ${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— QL: ${teamMgr.name}</span>`:''}</span>
+      <span style="color:var(--ink-soft); font-size:12.5px;">${members.length} người</span>
     </div>`;
+    let expandBlock = '';
+    if(isOpen){
+      const memberHtml = members.length
+        ? members.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(u=>`<div class="detail-row"><span class="k">${u.name}</span><span class="v">${roleLabel(u.role)}</span></div>`).join('')
+        : '<div class="empty-note">Chưa có ai trong team này.</div>';
+      expandBlock = `<div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">${memberHtml}</div>`;
+    }
+    return mainRow + expandBlock;
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
   if(!scope && branchesToShow.length>0){
     const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager').length;
+    const totalAdmins = state.users.filter(u=>u.role==='general_manager').length;
     listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; font-weight:700;">
       <span>Tổng cộng</span><span>${totalMembers} người</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0 0; color:var(--ink-soft); font-size:13px;">
+      <span>Quản trị viên (Quản lý chung)</span><span>${totalAdmins} người</span>
     </div>`;
   }
 
