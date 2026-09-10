@@ -690,7 +690,7 @@ function selectRole(role){
   }
 }
 function createUserAndLogin(branchId){
-  const user = {id:uid(), name:pendingName.normalize('NFC'), pin:pendingPin, role:loginRole, branchId:branchId};
+  const user = {id:uid(), name:pendingName.normalize('NFC'), pin:pendingPin, role:loginRole, branchId:branchId, createdAt:Date.now()};
   state.users.push(user);
   fbSetUser(user);
   state.session = {userId:user.id};
@@ -1174,15 +1174,41 @@ function renderMgrSettings(){
     </div>`;
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
 
-  const usersToShow = scope ? state.users.filter(u=>u.branchId===scope) : state.users;
+  const usersToShow = (scope ? state.users.filter(u=>u.branchId===scope) : state.users)
+    .slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const table=document.getElementById('settingsUserTable');
   if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
   else {
-    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th></tr>`+
-      usersToShow.map(u=>`<tr><td>${u.name}</td><td>${roleLabel(u.role)}</td><td>${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td></tr>`).join('');
+    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
+      usersToShow.map(u=>`<tr>
+        <td>${u.name}</td>
+        <td>${roleLabel(u.role)}</td>
+        <td>${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
+        <td>${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
+        ${scope ? '' : `<td><button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
+      </tr>`).join('');
   }
 
   if(!scope) renderPermissionsTable();
+}
+function deleteUser(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  if(u.role==='general_manager'){
+    const otherAdmins = state.users.filter(x=>x.role==='general_manager' && x.id!==u.id);
+    if(otherAdmins.length===0){
+      showToast('Không thể xoá Quản lý chung cuối cùng trong hệ thống');
+      return;
+    }
+  }
+  const isSelf = currentUser() && currentUser().id===u.id;
+  askConfirm('Xoá người dùng', `Xoá tài khoản "${u.name}" khỏi hệ thống? Các báo cáo cũ của người này vẫn được giữ lại, chỉ tài khoản đăng nhập bị xoá.`, ()=>{
+    const idx=state.users.findIndex(x=>x.id===userId);
+    if(idx>-1) state.users.splice(idx,1);
+    fbUsers.child(userId).remove();
+    showToast(`Đã xoá tài khoản "${u.name}"`);
+    if(isSelf){ logout(); } else { renderMgrSettings(); }
+  });
 }
 
 function renderPermissionsTable(){
