@@ -298,8 +298,8 @@
             <div class="field"><label>Đơn chốt</label><input id="f_orders" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Doanh thu (VNĐ)</label><input id="f_revenue" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Khách quay lại</label><input id="f_returning" type="number" min="0" placeholder="0"></div>
-            <div class="field"><label>Đăng bài nhóm</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
-            <div class="field"><label>Đăng bài tường</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Đăng bài nhóm (Zalo)</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Đăng bài tường (Zalo)</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
           </div>
           <label style="font-weight:600; color:var(--ink); font-size:13.5px; display:block; margin:4px 0 10px;">Tự khai thác thêm</label>
           <div class="grid-2" style="margin-bottom:14px;">
@@ -791,7 +791,7 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td class="num">${r.newDataCount}</td>
@@ -931,7 +931,7 @@ function renderMgrDashboard(){
     acc.count++;
     return acc;
   }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
-  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th></tr>` +
+  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th></tr>` +
     ids.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(id=>{
       const u=state.users.find(u=>u.id===id); const b=byUser[id];
       const rowStyle = b.count===0 ? ' style="color:var(--ink-soft);"' : '';
@@ -1002,7 +1002,7 @@ function renderMgrReports(){
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td>${userName(r.userId)}</td>
