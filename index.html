@@ -215,6 +215,11 @@
   .history-row .history-label{font-weight:600;}
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
+  .pin-mask{
+    display:inline-block; min-width:44px; font-variant-numeric:tabular-nums; letter-spacing:2px;
+    cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--bg); border:1px dashed var(--line);
+  }
+  .pin-mask:hover{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); letter-spacing:normal;}
   .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
   .detail-row:last-child{border-bottom:none;}
   .detail-row .k{color:var(--ink-soft);}
@@ -620,6 +625,24 @@ function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
 function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
 
+function copyPin(pin, name){
+  const done = ()=>showToast(`Đã copy mã PIN của ${name}`);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(pin).then(done).catch(()=>fallbackCopy(pin, done));
+  } else {
+    fallbackCopy(pin, done);
+  }
+}
+function fallbackCopy(text, done){
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    done();
+  }catch(e){ showToast('Không copy được, vui lòng chép tay: '+text); }
+}
 function showToast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
@@ -1476,11 +1499,15 @@ function renderMgrSettings(){
   const table=document.getElementById('settingsUserTable');
   if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
   else {
-    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
+    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map(u=>`<tr>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
+        <td data-label="Mã PIN">
+          <span class="pin-mask" onmouseenter="this.textContent=this.dataset.pin" onmouseleave="this.textContent='••••'" data-pin="${u.pin}">••••</span>
+          <span class="history-link" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">Copy</span>
+        </td>
         <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
         ${scope ? '' : `<td><button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
