@@ -388,31 +388,6 @@
 
         <div class="card">
           <h2>Tổng hợp theo người</h2>
-          <div class="toolbar" style="margin-top:10px;">
-            <div class="field">
-              <label>Lọc theo cột</label>
-              <select id="userFilterCol" onchange="renderMgrDashboard()">
-                <option value="">— Không lọc —</option>
-                <option value="count">Số ngày nộp</option>
-                <option value="newdata">Data mới</option>
-                <option value="selffound">Data tự tìm</option>
-                <option value="consulted">Đã tư vấn</option>
-                <option value="potential">Tiềm năng</option>
-                <option value="orders">Đơn chốt</option>
-                <option value="revenue">Doanh thu</option>
-                <option value="closerate">Tỷ lệ chốt (%)</option>
-                <option value="avgorder">TB/đơn (VNĐ)</option>
-                <option value="returning">Khách quay lại</option>
-                <option value="returnrate">Tỷ lệ quay lại (%)</option>
-                <option value="groupposts">Bài nhóm (Zalo)</option>
-                <option value="wallposts">Bài tường (Zalo)</option>
-                <option value="fbposts">Bài FB</option>
-              </select>
-            </div>
-            <div class="field"><label>Từ (tối thiểu)</label><input type="number" id="userFilterMin" placeholder="Không giới hạn" oninput="renderMgrDashboard()"></div>
-            <div class="field"><label>Đến (tối đa)</label><input type="number" id="userFilterMax" placeholder="Không giới hạn" oninput="renderMgrDashboard()"></div>
-            <button class="btn-ghost" onclick="clearUserFilters()">Xoá lọc</button>
-          </div>
           <div class="table-wrap"><table id="mgrSummaryTable" class="rtable"></table></div>
         </div>
       </div>
@@ -1062,18 +1037,7 @@ function toggleSort(state, col){
   if(state.col===col){ state.dir = state.dir==='desc' ? 'asc' : 'desc'; }
   else { state.col=col; state.dir='desc'; }
 }
-function userFilterValue(b, col){
-  const v = userSortValue(b, col);
-  if(col==='closerate' || col==='returnrate') return Math.round(v*100);
-  return v;
-}
 function sortUserBy(col){ toggleSort(userSort, col); renderMgrDashboard(); }
-function clearUserFilters(){
-  document.getElementById('userFilterCol').value='';
-  document.getElementById('userFilterMin').value='';
-  document.getElementById('userFilterMax').value='';
-  renderMgrDashboard();
-}
 function sortBranchBy(col){ toggleSort(branchSort, col); renderMgrDashboard(); }
 function userSortValue(b, col){
   switch(col){
@@ -1230,20 +1194,8 @@ function renderMgrDashboard(){
     b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
   });
   const table=document.getElementById('mgrSummaryTable');
-  const filterCol = document.getElementById('userFilterCol').value;
-  const minRaw = document.getElementById('userFilterMin').value;
-  const maxRaw = document.getElementById('userFilterMax').value;
-  const filterMin = minRaw==='' ? null : Number(minRaw);
-  const filterMax = maxRaw==='' ? null : Number(maxRaw);
-  const ids=Object.keys(byUser).filter(id=>{
-    if(!filterCol) return true;
-    const val = userFilterValue(byUser[id], filterCol);
-    if(filterMin!==null && val<filterMin) return false;
-    if(filterMax!==null && val>filterMax) return false;
-    return true;
-  });
-  if(Object.keys(byUser).length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
-  if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Không có ai khớp bộ lọc.</td></tr>'; return; }
+  const ids=Object.keys(byUser);
+  if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
   const grand = ids.reduce((acc,id)=>{
     const r=byUser[id];
     acc.revenue+=r.revenue; acc.orders+=r.orders;
