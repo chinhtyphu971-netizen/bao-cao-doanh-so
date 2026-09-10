@@ -377,7 +377,16 @@
             <div class="field" style="max-width:200px;"><label>Xem theo ngày</label><input type="date" id="reminderDate" onchange="onReminderDateChange()"></div>
             <button class="btn-ghost" onclick="resetReminderDate()">Hôm nay</button>
           </div>
-          <div id="mgrReminderList" style="margin-top:14px;"></div>
+          <div class="grid-2" style="margin-top:14px; align-items:start;">
+            <div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Chưa nộp</div>
+              <div id="mgrReminderList"></div>
+            </div>
+            <div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Đã nộp</div>
+              <div id="mgrSubmittedList"></div>
+            </div>
+          </div>
         </div>
 
         <div class="card" id="mgrTotalsCard">
@@ -1127,25 +1136,32 @@ function renderMgrDashboard(){
     : `Ngày ${fmtDate(reminderDate)} còn ai chưa nộp báo cáo?`;
   const staff=reportableUsersInBranch(scope);
   const notSubmitted = staff.filter(u=>!myReportForDate(u.id, reminderDate));
+  const submitted = staff.filter(u=>myReportForDate(u.id, reminderDate));
   const listEl=document.getElementById('mgrReminderList');
-  if(staff.length===0){
-    listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
-  } else if(notSubmitted.length===0){
-    listEl.innerHTML=`<span class="badge badge-ok">Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}</span>`;
-  } else {
-    // Nhóm theo chi nhánh/team, mỗi team hiện trên 1 hàng riêng
+  const submittedEl=document.getElementById('mgrSubmittedList');
+
+  function renderGrouped(users, badgeClass, emptyMsg){
+    if(users.length===0) return `<div class="empty-note">${emptyMsg}</div>`;
     const byBranchGroup={};
-    notSubmitted.forEach(u=>{
+    users.forEach(u=>{
       const key=u.branchId||'—';
       byBranchGroup[key]=byBranchGroup[key]||[];
       byBranchGroup[key].push(u);
     });
     const branchKeys=Object.keys(byBranchGroup).sort((a,b)=>branchName(a).localeCompare(branchName(b),'vi'));
-    listEl.innerHTML = branchKeys.map(bId=>`
+    return branchKeys.map(bId=>`
       <div style="margin-bottom:10px;">
         <div style="font-weight:600; font-size:13px; color:var(--ink-soft); margin-bottom:6px;">${branchName(bId)}</div>
-        <div>${byBranchGroup[bId].map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>
+        <div>${byBranchGroup[bId].map(u=>`<span class="badge ${badgeClass}" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>
       </div>`).join('');
+  }
+
+  if(staff.length===0){
+    listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
+    submittedEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
+  } else {
+    listEl.innerHTML = renderGrouped(notSubmitted, 'badge-warn', `Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)} 🎉`);
+    submittedEl.innerHTML = renderGrouped(submitted, 'badge-ok', `Chưa có ai nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}`);
   }
 
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
