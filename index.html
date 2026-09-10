@@ -379,11 +379,11 @@
           </div>
           <div class="grid-2" style="margin-top:14px; align-items:start;">
             <div>
-              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Chưa nộp</div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Chưa nộp <span id="notSubmittedCount" style="color:var(--danger);"></span></div>
               <div id="mgrReminderList"></div>
             </div>
             <div>
-              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Đã nộp</div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Đã nộp <span id="submittedCount" style="color:var(--success);"></span></div>
               <div id="mgrSubmittedList"></div>
             </div>
           </div>
@@ -1156,6 +1156,8 @@ function renderMgrDashboard(){
       </div>`).join('');
   }
 
+  document.getElementById('notSubmittedCount').textContent = `(${notSubmitted.length})`;
+  document.getElementById('submittedCount').textContent = `(${submitted.length})`;
   if(staff.length===0){
     listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
     submittedEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
