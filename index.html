@@ -581,8 +581,25 @@ function initFirebase(){
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
-  fbReports.on('value',  snap=>{ state.reports  = Object.values(snap.val()||{}); markLoaded('reports');  onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
+
+  // "reports" là kho lớn nhất và tăng dần mỗi ngày — thay vì tải lại TOÀN BỘ mỗi khi có 1
+  // người thêm/sửa 1 báo cáo (rất tốn dung lượng Firebase khi dữ liệu nhiều lên theo thời gian),
+  // ở đây chỉ tải đủ 1 lần lúc mở app, sau đó chỉ nhận đúng PHẦN THAY ĐỔI (child_added/
+  // child_changed/child_removed) — mỗi lần chỉ tải đúng 1 báo cáo bị thêm/sửa/xoá.
+  const reportsMap = {};
+  fbReports.once('value').then(snap=>{
+    Object.assign(reportsMap, snap.val()||{});
+    state.reports = Object.values(reportsMap);
+    markLoaded('reports');
+    onDataChanged();
+    fbReports.on('child_added', s=>{ reportsMap[s.key]=s.val(); state.reports=Object.values(reportsMap); onDataChanged(); });
+    fbReports.on('child_changed', s=>{ reportsMap[s.key]=s.val(); state.reports=Object.values(reportsMap); onDataChanged(); });
+    fbReports.on('child_removed', s=>{ delete reportsMap[s.key]; state.reports=Object.values(reportsMap); onDataChanged(); });
+  }).catch(err=>{
+    console.error('Lỗi tải dữ liệu báo cáo:', err);
+    markLoaded('reports'); // vẫn cho app chạy tiếp dù lỗi, tránh kẹt màn hình loading mãi
+  });
 
   // "Làm mới cho tất cả": bỏ qua giá trị đọc được lần đầu (đó là lệnh làm mới cũ từ trước,
   // không phải lệnh mới) — chỉ tự tải lại trang khi có lệnh MỚI được phát ra sau khi trang đã mở.
