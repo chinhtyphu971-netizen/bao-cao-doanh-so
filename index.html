@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Báo cáo doanh số hằng ngày</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg: #F5F1E8;
+    --panel: #FFFFFF;
+    --ink: #21261F;
+    --ink-soft: #5B6259;
+    --line: #E3DCCB;
+    --brand: #1E3A34;
+    --brand-ink: #F5F1E8;
+    --brand-soft: #2C4B44;
+    --accent: #A8451B;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #F0DCC9;
+    --success: #3F7D4F;
+    --danger: #B23A3A;
+    --warn: #B8791F;
+    --radius-s: 6px;
+    --radius-m: 10px;
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  h1,h2,h3{margin:0 0 4px 0; font-weight:700; letter-spacing:-0.01em;}
+  button{
+    font-family:inherit;
+    cursor:pointer;
+    border:none;
+    border-radius:var(--radius-s);
+    min-height:40px;
+    padding:0 16px;
+    font-size:14.5px;
+    font-weight:600;
+  }
+  input, select{
+    font-family:inherit;
+    font-size:15px;
+    padding:9px 11px;
+    border:1px solid var(--line);
+    border-radius:var(--radius-s);
+    background:var(--panel);
+    color:var(--ink);
+    min-height:40px;
+    width:100%;
+  }
+  input:focus, select:focus, button:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  label{font-size:13px; color:var(--ink-soft); display:block; margin-bottom:4px;}
+  .field{margin-bottom:14px;}
+  .btn-primary{background:var(--accent); color:var(--accent-ink);}
+  .btn-primary:hover{background:#8f3a16;}
+  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--line);}
+  .btn-ghost:hover{background:#EFEADF;}
+  .btn-danger{background:var(--danger); color:#fff;}
+  .btn-small{min-height:32px; padding:0 12px; font-size:13px;}
+
+  /* ---- LOGIN ---- */
+  #loginScreen{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: calc(24px + var(--safe-top)) 20px 24px;
+  }
+  .login-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius-m);
+    padding:28px 24px;
+    max-width:380px;
+    width:100%;
+  }
+  .login-card h1{font-size:21px;}
+  .login-sub{color:var(--ink-soft); font-size:13.5px; margin-bottom:20px;}
+  .step-dots{display:flex; gap:6px; margin-bottom:18px;}
+  .step-dots span{height:4px; flex:1; border-radius:2px; background:var(--line);}
+  .step-dots span.active{background:var(--accent);}
+  .chip-row{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:999px;
+    padding:9px 16px;
+    font-size:14px;
+    cursor:pointer;
+    min-height:40px;
+  }
+  .chip.selected{border-color:var(--accent); background:var(--accent-soft); color:var(--accent);}
+  .login-error{color:var(--danger); font-size:13.5px; margin-top:6px; min-height:18px;}
+
+  /* ---- APP SHELL ---- */
+  #appScreen{display:none; min-height:100vh;}
+  .shell{display:flex; min-height:100vh;}
+  .sidebar{
+    width:220px; flex-shrink:0;
+    background:var(--brand); color:var(--brand-ink);
+    padding: calc(20px + var(--safe-top)) 16px 20px;
+    display:flex; flex-direction:column;
+  }
+  .sidebar .brand-title{font-size:16px; font-weight:700; margin-bottom:2px;}
+  .sidebar .brand-sub{font-size:12.5px; color:#B9C6C0; margin-bottom:22px;}
+  .nav-item{
+    display:flex; align-items:center; gap:8px;
+    padding:10px 12px; border-radius:var(--radius-s);
+    color:#E4E9E2; font-size:14px; cursor:pointer; margin-bottom:2px;
+  }
+  .nav-item:hover{background:var(--brand-soft);}
+  .nav-item.active{background:var(--brand-soft); color:#fff; font-weight:600;}
+  .sidebar-foot{margin-top:auto; font-size:12.5px; color:#B9C6C0;}
+  .sidebar-foot .who{color:#fff; font-weight:600; font-size:13.5px; margin-bottom:2px;}
+  .logout-link{color:#E4B7A2; cursor:pointer; margin-top:8px; display:inline-block; font-size:13px;}
+
+  .main{flex:1; padding: calc(24px + var(--safe-top)) 28px 40px; max-width:1100px;}
+  .page-head{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:18px;}
+  .page-head p{color:var(--ink-soft); font-size:13.5px; margin:0;}
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-m); padding:20px; margin-bottom:20px;}
+  .card h2{font-size:16px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:720px){
+    .grid-2, .grid-3{grid-template-columns:1fr;}
+    .sidebar{width:76px; padding-left:8px; padding-right:8px;}
+    .sidebar .brand-title, .sidebar .brand-sub, .nav-item span.label, .sidebar-foot{display:none;}
+    .nav-item{justify-content:center;}
+    .main{padding-left:16px; padding-right:16px;}
+  }
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  th{color:var(--ink-soft); font-weight:600; font-size:12.5px;}
+  tr:last-child td{border-bottom:none;}
+  .table-wrap{overflow-x:auto;}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .empty-note{color:var(--ink-soft); font-size:13.5px; padding:10px 0;}
+
+  .stat-box{background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-s); padding:14px 16px;}
+  .stat-box .stat-label{font-size:12.5px; color:var(--ink-soft); margin-bottom:4px;}
+  .stat-box .stat-value{font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;}
+
+  tr.total-row td{background:var(--accent-soft); font-weight:700; border-top:2px solid var(--accent); border-bottom:none;}
+
+  .badge{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600;}
+  .badge-warn{background:#F5E3C6; color:var(--warn);}
+  .badge-ok{background:#DCEBDF; color:var(--success);}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:flex-end;}
+  .toolbar .field{margin-bottom:0; min-width:150px;}
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:18px;}
+  .tab{padding:10px 14px; font-size:14px; color:var(--ink-soft); cursor:pointer; border-bottom:2px solid transparent; font-weight:600;}
+  .tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--brand); color:#fff; padding:11px 18px; border-radius:999px;
+    font-size:13.5px; box-shadow:0 6px 20px rgba(0,0,0,.18); z-index:50;
+    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+
+  .row-actions{display:flex; gap:6px;}
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(20,24,20,.4);
+    display:none; align-items:center; justify-content:center; z-index:60; padding:20px;
+  }
+  .modal-backdrop.show{display:flex;}
+  .modal{background:var(--panel); border-radius:var(--radius-m); padding:22px; max-width:360px; width:100%;}
+  .modal p{font-size:14px; color:var(--ink-soft);}
+  .modal .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+</style>
+</head>
+<body>
+
+<!-- ============== LOADING (chờ đồng bộ Firebase) ============== -->
+<div id="loadingOverlay" style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center;">
+  <div style="max-width:360px;">
+    <div style="font-weight:700; font-size:17px; margin-bottom:8px;">Đang tải dữ liệu…</div>
+    <div id="loadingText" style="color:var(--ink-soft); font-size:13.5px;">Đang kết nối tới máy chủ dữ liệu.</div>
+  </div>
+</div>
+
+<!-- ============== LOGIN SCREEN ============== -->
+<div id="loginScreen" style="display:none;">
+  <div class="login-card">
+    <h1>Báo cáo doanh số</h1>
+    <div class="login-sub">Đăng nhập nhẹ — không cần email, chỉ cần tên và mã PIN riêng.</div>
+    <div class="step-dots">
+      <span id="dot1" class="active"></span><span id="dot2"></span><span id="dot3"></span>
+    </div>
+
+    <!-- Step 1: tên + PIN (luôn là bước đầu, dùng để nhận diện tài khoản có sẵn) -->
+    <div id="stepAuth">
+      <div class="field">
+        <label>Tên của bạn</label>
+        <input id="authName" placeholder="VD: Nguyễn Văn A" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Mã PIN (4 số)</label>
+        <input id="authPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button class="btn-primary" style="width:100%;" onclick="checkNameAndProceed()">Tiếp tục</button>
+      <p style="font-size:12px; color:var(--ink-soft); margin-top:14px;">
+        Nếu tên này đã có tài khoản, nhập đúng PIN là vào thẳng app (đúng vai trò hiện tại của bạn, kể cả nếu vừa được cấp quyền Quản lý). Nếu là tên mới, bước sau bạn sẽ chọn chi nhánh để đăng ký.
+      </p>
+    </div>
+
+    <!-- Step 2: chọn vai trò (chỉ hiện khi là tên mới VÀ hệ thống chưa có Quản lý chung) -->
+    <div id="stepRole" style="display:none;">
+      <label>Vai trò</label>
+      <div class="chip-row" id="roleChips"></div>
+      <p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">
+        Chọn "Quản lý chung" nếu đây là lần thiết lập app đầu tiên cho cả team.
+      </p>
+      <div style="margin-top:16px;">
+        <button class="btn-ghost" onclick="goStep(1)">← Quay lại</button>
+      </div>
+    </div>
+
+    <!-- Step 3: chọn chi nhánh (tên mới, đăng ký làm nhân viên) -->
+    <div id="stepBranch" style="display:none;">
+      <label>Chọn chi nhánh / nhóm</label>
+      <div class="chip-row" id="branchChips"></div>
+      <div class="field" style="margin-top:14px;">
+        <label>Hoặc thêm chi nhánh mới (nếu là chi nhánh đầu tiên)</label>
+        <div style="display:flex; gap:8px;">
+          <input id="newBranchName" placeholder="VD: Chi nhánh Quận 1">
+          <button class="btn-ghost" onclick="addBranch()">Thêm</button>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn-ghost" onclick="goBackFromBranch()">← Quay lại</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============== APP SCREEN ============== -->
+<div id="appScreen">
+  <div class="shell">
+    <div class="sidebar">
+      <div class="brand-title">Báo cáo doanh số</div>
+      <div class="brand-sub" id="sidebarBranch">—</div>
+
+      <div id="navPersonal" style="display:none;">
+        <div class="nav-item active" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
+        <div class="nav-item" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">Lịch sử của tôi</span></div>
+      </div>
+      <div id="navManager" style="display:none;">
+        <div class="nav-item" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">Tổng quan</span></div>
+        <div class="nav-item" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
+        <div class="nav-item" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
+        <div class="nav-item" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="who" id="sidebarWho">—</div>
+        <div id="sidebarRole">—</div>
+        <span class="logout-link" onclick="logout()">Đăng xuất</span>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- ---------- STAFF: nộp báo cáo ---------- -->
+      <div id="page-staffReport" class="page">
+        <div class="page-head">
+          <div><h1 id="staffReportTitle">Báo cáo hôm nay</h1><p id="staffReportSub"></p></div>
+        </div>
+        <div class="card">
+          <div class="grid-3">
+            <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
+            <div class="field"><label>Khách đã tư vấn</label><input id="f_consulted" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Khách tiềm năng</label><input id="f_potential" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Đơn chốt</label><input id="f_orders" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
+            <div class="field"><label>Doanh thu (VNĐ)</label><input id="f_revenue" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
+            <div class="field"><label>Khách quay lại</label><input id="f_returning" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Đăng bài nhóm</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Đăng bài tường</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
+          </div>
+          <div class="grid-2" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới)</div><div class="stat-value" id="previewCloseRate">—</div></div>
+            <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
+          </div>
+          <div class="field"><label>Ghi chú</label><input id="f_note" placeholder="Ghi chú thêm (không bắt buộc)"></div>
+          <button class="btn-primary" onclick="submitReport()">Lưu báo cáo hôm nay</button>
+          <span class="login-error" id="staffReportMsg"></span>
+        </div>
+      </div>
+
+      <!-- ---------- STAFF: lịch sử ---------- -->
+      <div id="page-staffHistory" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Lịch sử của tôi</h1><p>Các báo cáo bạn đã nộp</p></div></div>
+        <div class="card"><div class="table-wrap"><table id="staffHistoryTable"></table></div></div>
+      </div>
+
+      <!-- ---------- MANAGER: tổng quan ---------- -->
+      <div id="page-mgrDashboard" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Tổng quan</h1><p>Số liệu toàn đội</p></div></div>
+
+        <div class="card" id="mgrReminderCard">
+          <h2>Hôm nay còn ai chưa nộp báo cáo?</h2>
+          <div id="mgrReminderList" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card" id="mgrTotalsCard">
+          <h2 id="mgrTotalsTitle">Tổng cộng</h2>
+          <p id="mgrTotalsSub" style="margin-top:-2px;">Cộng dồn toàn bộ báo cáo từ trước đến nay</p>
+          <div class="grid-3" id="mgrTotalsGrid" style="margin-top:14px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Doanh số theo thời gian</h2>
+          <canvas id="revenueChart" height="90"></canvas>
+        </div>
+
+        <div class="card" id="mgrBranchSummaryCard" style="display:none;">
+          <h2>Tổng hợp theo team / chi nhánh</h2>
+          <div class="table-wrap"><table id="mgrBranchSummaryTable"></table></div>
+        </div>
+
+        <div class="card">
+          <h2>Tổng hợp theo người</h2>
+          <div class="table-wrap"><table id="mgrSummaryTable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER: danh sách báo cáo ---------- -->
+      <div id="page-mgrReports" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Danh sách báo cáo</h1><p>Lọc và xem chi tiết từng báo cáo</p></div></div>
+        <div class="toolbar">
+          <div class="field"><label>Chi nhánh</label><select id="filterBranch" onchange="renderMgrReports()"></select></div>
+          <div class="field"><label>Người nộp</label><select id="filterUser" onchange="renderMgrReports()"></select></div>
+          <div class="field"><label>Từ ngày</label><input id="filterFrom" type="date" onchange="renderMgrReports()"></div>
+          <div class="field"><label>Đến ngày</label><input id="filterTo" type="date" onchange="renderMgrReports()"></div>
+          <button class="btn-ghost" onclick="resetFilters()">Xoá lọc</button>
+        </div>
+        <div class="card"><div class="table-wrap"><table id="mgrReportsTable"></table></div></div>
+      </div>
+
+      <!-- ---------- MANAGER: thùng rác ---------- -->
+      <div id="page-mgrTrash" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Thùng rác</h1><p>Báo cáo đã xoá — có thể khôi phục</p></div></div>
+        <div class="card"><div class="table-wrap"><table id="mgrTrashTable"></table></div></div>
+      </div>
+
+      <!-- ---------- MANAGER: chi nhánh & nhân sự ---------- -->
+      <div id="page-mgrSettings" class="page" style="display:none;">
+        <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Chi nhánh</h2>
+            <div id="settingsBranchList" style="margin:12px 0;"></div>
+            <div id="settingsAddBranchForm" style="display:flex; gap:8px;">
+              <input id="settingsNewBranch" placeholder="Tên chi nhánh mới">
+              <button class="btn-ghost" onclick="settingsAddBranch()">Thêm</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Người dùng đã đăng ký</h2>
+            <div class="table-wrap"><table id="settingsUserTable"></table></div>
+          </div>
+        </div>
+
+        <div class="card" id="permissionsCard" style="display:none;">
+          <h2>Phân quyền</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">
+            Chỉ Quản lý chung mới cấp được quyền. Đổi vai trò của một người sẽ có hiệu lực ngay lần đăng nhập tiếp theo của họ.
+          </p>
+          <div class="table-wrap"><table id="permissionsTable"></table></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal">
+    <h2 id="confirmTitle">Xác nhận</h2>
+    <p id="confirmText"></p>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeConfirm()">Huỷ</button>
+      <button class="btn-danger" id="confirmOkBtn">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   FIREBASE — đồng bộ dữ liệu real-time giữa nhiều thiết bị/nhiều người
+   Cách kết nối (làm 1 lần):
+   1) Vào https://console.firebase.google.com → Add project (miễn phí, không cần thẻ)
+   2) Trong project: Build → Realtime Database → Create Database
+      → chọn khu vực gần Việt Nam (vd Singapore) → bắt đầu ở "Test mode"
+   3) Vào Project settings (biểu tượng bánh răng) → phần "Your apps"
+      → bấm biểu tượng </> (Web) → đặt tên bất kỳ → copy đoạn "firebaseConfig"
+      hiện ra → dán ĐÈ vào biến FIREBASE_CONFIG ngay bên dưới → lưu file
+      → kéo-thả lên GitHub → Vercel tự deploy lại là xong.
+   4) Vào tab "Rules" của Realtime Database, dán:
+        { "rules": { ".read": true, ".write": true } }
+      (Lưu ý bảo mật: rules này cho phép AI đọc/ghi công khai nếu có link
+       database — phù hợp demo nội bộ nhóm tin tưởng nhau. Muốn chặn thật
+       theo từng vai trò cần thêm Firebase Authentication, là bước nâng cấp
+       tiếp theo, không nằm trong bản này.)
+   ========================================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCGx1gp5ZD-pWFN08aFMB_0HuXOA129DIA",
+  authDomain: "bao-cao-doanh-so.firebaseapp.com",
+  databaseURL: "https://bao-cao-doanh-so-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bao-cao-doanh-so",
+};
+
+// Chỉ trạng thái "đang đăng nhập máy này là ai" là lưu riêng theo máy (localStorage).
+// Toàn bộ dữ liệu dùng chung (chi nhánh/người dùng/báo cáo/thùng rác) lấy từ Firebase.
+const LocalDB = {
+  read(key, fallback){
+    try{ const raw=localStorage.getItem('ttk_'+key); return raw?JSON.parse(raw):fallback; }
+    catch(e){ return fallback; }
+  },
+  write(key, value){
+    try{ localStorage.setItem('ttk_'+key, JSON.stringify(value)); }
+    catch(e){ console.error('Không lưu được', e); }
+  }
+};
+
+let state = {
+  branches: [], users: [], reports: [], trash: [],
+  session: LocalDB.read('session', null),
+};
+function persistSession(){ LocalDB.write('session', state.session); }
+
+let fbBranches, fbUsers, fbReports, fbTrash;
+const loaded = {branches:false, users:false, reports:false, trash:false};
+let appReady = false;
+
+function isFirebaseConfigured(){
+  return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('YOUR_') !== 0;
+}
+
+function initFirebase(){
+  if(!isFirebaseConfigured()){
+    document.getElementById('loadingText').innerHTML =
+      'Chưa kết nối Firebase.<br>Mở file <code>index.html</code>, tìm <code>FIREBASE_CONFIG</code> ở gần đầu thẻ &lt;script&gt; cuối file, dán config dự án Firebase của bạn vào, lưu lại và deploy lại.';
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.database();
+  fbBranches = db.ref('branches');
+  fbUsers = db.ref('users');
+  fbReports = db.ref('reports');
+  fbTrash = db.ref('trash');
+
+  fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
+  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
+  fbReports.on('value',  snap=>{ state.reports  = Object.values(snap.val()||{}); markLoaded('reports');  onDataChanged(); });
+  fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
+}
+function markLoaded(key){
+  loaded[key]=true;
+  if(!appReady && Object.values(loaded).every(Boolean)) onReady();
+}
+function onReady(){
+  appReady=true;
+  document.getElementById('loadingOverlay').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  goStep(1);
+  const user=currentUser();
+  if(user) enterApp();
+}
+let currentPageId=null;
+// Khi dữ liệu trên Firebase đổi (do người khác thao tác), tự làm mới màn
+// đang xem — trừ form "Nộp báo cáo" để không xoá mất số đang gõ dở.
+function onDataChanged(){
+  if(!appReady) return;
+  if(state.session && currentUser()){
+    if(currentPageId && currentPageId!=='staffReport') goPage(currentPageId);
+  } else if(!state.session){
+    if(loginStep===1) renderRoleChips();
+    if(loginStep===2) renderBranchChips();
+  }
+}
+
+// Ghi dữ liệu: mỗi thao tác chỉ ghi ĐÚNG PHẦN thay đổi (theo id), không ghi
+// đè cả kho — để 2 người thao tác cùng lúc không mất dữ liệu của nhau.
+function fbSetBranch(b){ fbBranches.child(b.id).set(b); }
+function fbSetUser(u){ fbUsers.child(u.id).set(u); }
+function fbUpdateUser(id, patch){ fbUsers.child(id).update(patch); }
+function fbSetReport(r){ fbReports.child(r.id).set(r); }
+function fbRemoveReport(id){ fbReports.child(id).remove(); }
+function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
+function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+let pendingConfirm=null;
+function askConfirm(title,text,onOk){
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmText').textContent=text;
+  document.getElementById('confirmModal').classList.add('show');
+  pendingConfirm=onOk;
+}
+function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); pendingConfirm=null; }
+document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
+
+/* =========================== LOGIN FLOW =========================== */
+let loginStep=1, loginBranchId=null, loginRole=null;
+let pendingName=null, pendingPin=null, skippedRoleStep=false;
+
+function checkNameAndProceed(){
+  const name=document.getElementById('authName').value.trim();
+  const pin=document.getElementById('authPin').value.trim();
+  const errEl=document.getElementById('loginError');
+  if(!name || !/^\d{4}$/.test(pin)){
+    errEl.textContent='Nhập tên và mã PIN gồm đúng 4 số.'; return;
+  }
+  errEl.textContent='';
+  const existing = state.users.find(u=>u.name.trim().toLowerCase()===name.toLowerCase());
+  if(existing){
+    if(existing.pin!==pin){ errEl.textContent='Sai mã PIN cho tên này.'; return; }
+    state.session = {userId:existing.id};
+    persistSession();
+    enterApp();
+    return;
+  }
+  // Tên chưa từng đăng ký -> lưu tạm, sang bước chọn vai trò/chi nhánh để tạo tài khoản mới
+  pendingName=name; pendingPin=pin;
+  const hasAdmin = state.users.some(u=>u.role==='general_manager');
+  if(hasAdmin){
+    loginRole='staff';
+    skippedRoleStep=true;
+    goStep(3);
+  } else {
+    skippedRoleStep=false;
+    goStep(2);
+  }
+}
+function renderBranchChips(){
+  const wrap=document.getElementById('branchChips');
+  wrap.innerHTML='';
+  state.branches.forEach(b=>{
+    const el=document.createElement('div');
+    el.className='chip'+(loginBranchId===b.id?' selected':'');
+    el.textContent=b.name;
+    el.onclick=()=>{ createUserAndLogin(b.id); };
+    wrap.appendChild(el);
+  });
+  if(state.branches.length===0){
+    const p=document.createElement('div');
+    p.style.cssText='color:var(--ink-soft); font-size:13.5px;';
+    p.textContent='Chưa có chi nhánh nào — thêm chi nhánh đầu tiên bên dưới.';
+    wrap.appendChild(p);
+  }
+}
+function addBranch(){
+  const input=document.getElementById('newBranchName');
+  const name=input.value.trim();
+  if(!name) return;
+  const b={id:uid(), name};
+  state.branches.push(b); fbSetBranch(b);
+  input.value='';
+  createUserAndLogin(b.id);
+}
+const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', general_manager:'Quản lý chung'};
+function roleLabel(role){ return ROLE_LABELS[role] || role; }
+
+function renderRoleChips(){
+  const wrap=document.getElementById('roleChips');
+  wrap.innerHTML = `<div class="chip" data-role="staff" onclick="selectRole('staff')">Nhân viên</div>
+    <div class="chip" data-role="general_manager" onclick="selectRole('general_manager')">Quản lý chung (thiết lập lần đầu)</div>`;
+}
+function selectRole(role){
+  loginRole=role;
+  document.querySelectorAll('#stepRole .chip').forEach(c=>c.classList.toggle('selected', c.dataset.role===role));
+  if(role==='general_manager'){
+    createUserAndLogin(null);
+  } else {
+    goStep(3);
+  }
+}
+function createUserAndLogin(branchId){
+  const user = {id:uid(), name:pendingName, pin:pendingPin, role:loginRole, branchId:branchId};
+  state.users.push(user);
+  fbSetUser(user);
+  state.session = {userId:user.id};
+  persistSession();
+  pendingName=null; pendingPin=null;
+  enterApp();
+}
+function goStep(n){
+  loginStep=n;
+  document.getElementById('stepAuth').style.display = n===1?'block':'none';
+  document.getElementById('stepRole').style.display = n===2?'block':'none';
+  document.getElementById('stepBranch').style.display = n===3?'block':'none';
+  [1,2,3].forEach(i=>document.getElementById('dot'+i).classList.toggle('active', i<=n));
+  document.getElementById('loginError').textContent='';
+  if(n===2) renderRoleChips();
+  if(n===3) renderBranchChips();
+}
+function goBackFromBranch(){
+  goStep(skippedRoleStep ? 1 : 2);
+}
+function logout(){
+  state.session=null; persistSession();
+  document.getElementById('appScreen').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  loginStep=1; loginBranchId=null; loginRole=null; pendingName=null; pendingPin=null;
+  document.getElementById('authName').value=''; document.getElementById('authPin').value='';
+  goStep(1);
+}
+
+/* =========================== APP SHELL =========================== */
+function currentUser(){
+  if(!state.session) return null;
+  return state.users.find(u=>u.id===state.session.userId) || null;
+}
+function branchName(id){ const b=state.branches.find(b=>b.id===id); return b?b.name:'—'; }
+function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'(đã xoá)'; }
+
+function enterApp(){
+  const user=currentUser();
+  if(!user){ logout(); return; }
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appScreen').style.display='block';
+  document.getElementById('sidebarBranch').textContent = user.branchId ? branchName(user.branchId) : 'Toàn hệ thống';
+  document.getElementById('sidebarWho').textContent=user.name;
+  document.getElementById('sidebarRole').textContent = roleLabel(user.role);
+
+  const isManagerRole = user.role==='team_manager' || user.role==='general_manager';
+  document.getElementById('navPersonal').style.display = 'block';
+  document.getElementById('navManager').style.display = isManagerRole ? 'block' : 'none';
+  document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
+
+  if(user.role==='staff'){ goPage('staffReport'); } else { goPage('mgrDashboard'); }
+}
+
+function goPage(pageId){
+  currentPageId = pageId;
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.getElementById('page-'+pageId).style.display='block';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId));
+  if(pageId==='staffReport') renderStaffReport();
+  if(pageId==='staffHistory') renderStaffHistory();
+  if(pageId==='mgrDashboard') renderMgrDashboard();
+  if(pageId==='mgrReports') renderMgrReportsPage();
+  if(pageId==='mgrTrash') renderMgrTrash();
+  if(pageId==='mgrSettings') renderMgrSettings();
+}
+
+/* =========================== STAFF: NỘP BÁO CÁO =========================== */
+function myReportForDate(userId, date){
+  return state.reports.find(r=>r.userId===userId && r.date===date);
+}
+// Công thức dùng chung, khớp với file Sheet cũ:
+// Tỷ lệ chốt = Đơn chốt / Data khách mới ; Doanh thu TB/đơn = Doanh thu / Đơn chốt
+function pct(numerator, denominator){
+  if(!denominator) return '—';
+  return Math.round((numerator/denominator)*100)+'%';
+}
+function avgPerOrder(revenue, orders){
+  if(!orders) return '—';
+  return fmtMoney(Math.round(revenue/orders))+' đ';
+}
+function updateReportPreview(){
+  const newdata=Number(document.getElementById('f_newdata').value)||0;
+  const orders=Number(document.getElementById('f_orders').value)||0;
+  const revenue=Number(document.getElementById('f_revenue').value)||0;
+  document.getElementById('previewCloseRate').textContent = pct(orders, newdata);
+  document.getElementById('previewAvgOrder').textContent = avgPerOrder(revenue, orders);
+}
+function renderStaffReport(){
+  const user=currentUser();
+  const existing = myReportForDate(user.id, todayStr());
+  document.getElementById('staffReportSub').textContent =
+    existing ? `Bạn đã nộp lúc ${new Date(existing.submittedAt).toLocaleTimeString('vi-VN')} — sửa và lưu lại nếu cần chỉnh.`
+             : `Chưa nộp — điền số liệu ngày ${fmtDate(todayStr())} bên dưới.`;
+  const fields=['revenue','orders','groupposts','wallposts','newdata','consulted','potential','returning','note'];
+  fields.forEach(f=>{ document.getElementById('f_'+f).value = existing ? (existing[keyFor(f)] ?? '') : ''; });
+  document.getElementById('staffReportMsg').textContent='';
+  updateReportPreview();
+}
+function keyFor(f){
+  return {
+    revenue:'revenue', orders:'orderCount', groupposts:'groupPostCount', wallposts:'wallPostCount',
+    newdata:'newDataCount', consulted:'consultedCount', potential:'potentialCustomers',
+    returning:'returningCustomers', note:'note'
+  }[f];
+}
+function submitReport(){
+  const user=currentUser();
+  const date=todayStr();
+  const data = {
+    revenue: Number(document.getElementById('f_revenue').value)||0,
+    orderCount: Number(document.getElementById('f_orders').value)||0,
+    groupPostCount: Number(document.getElementById('f_groupposts').value)||0,
+    wallPostCount: Number(document.getElementById('f_wallposts').value)||0,
+    newDataCount: Number(document.getElementById('f_newdata').value)||0,
+    consultedCount: Number(document.getElementById('f_consulted').value)||0,
+    potentialCustomers: Number(document.getElementById('f_potential').value)||0,
+    returningCustomers: Number(document.getElementById('f_returning').value)||0,
+    note: document.getElementById('f_note').value.trim(),
+  };
+  let existing = myReportForDate(user.id, date);
+  if(existing){
+    Object.assign(existing, data);
+    existing.editedAt = Date.now();
+    fbSetReport(existing);
+    showToast('Đã cập nhật báo cáo hôm nay');
+  } else {
+    const newReport = {
+      id:uid(), date, userId:user.id, branchId:user.branchId,
+      submittedAt: Date.now(), editedAt:null, ...data
+    };
+    state.reports.push(newReport);
+    fbSetReport(newReport);
+    showToast('Đã nộp báo cáo hôm nay');
+  }
+  renderStaffReport();
+}
+
+function renderStaffHistory(){
+  const user=currentUser();
+  const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const table=document.getElementById('staffHistoryTable');
+  if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
+  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th>Ghi chú</th></tr>` +
+    rows.map(r=>`<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td class="num">${r.newDataCount}</td>
+      <td class="num">${r.consultedCount}</td>
+      <td class="num">${r.potentialCustomers}</td>
+      <td class="num">${r.orderCount}</td>
+      <td class="num">${fmtMoney(r.revenue)}</td>
+      <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
+      <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
+      <td class="num">${r.returningCustomers}</td>
+      <td class="num">${r.groupPostCount}</td>
+      <td class="num">${r.wallPostCount}</td>
+      <td>${r.note||''}</td>
+    </tr>`).join('');
+}
+
+/* =========================== MANAGER =========================== */
+function staffUsersInBranch(branchId){
+  return state.users.filter(u=>u.role==='staff' && (!branchId || u.branchId===branchId));
+}
+// Phạm vi dữ liệu theo vai trò: Quản lý team chỉ thấy chi nhánh của mình (trả về branchId),
+// Quản lý chung thấy toàn bộ (trả về null = không giới hạn).
+function scopeBranchId(){
+  const u=currentUser();
+  return (u && u.role==='team_manager') ? u.branchId : null;
+}
+function renderMgrDashboard(){
+  const scope=scopeBranchId();
+  document.getElementById('mgrBranchSummaryCard').style.display = scope ? 'none' : 'block';
+
+  // nhắc nhở chưa nộp hôm nay
+  const today=todayStr();
+  const staff=staffUsersInBranch(scope);
+  const notSubmitted = staff.filter(u=>!myReportForDate(u.id, today));
+  const listEl=document.getElementById('mgrReminderList');
+  if(staff.length===0){
+    listEl.innerHTML='<div class="empty-note">Chưa có nhân viên nào đăng ký.</div>';
+  } else if(notSubmitted.length===0){
+    listEl.innerHTML='<span class="badge badge-ok">Mọi người đã nộp báo cáo hôm nay</span>';
+  } else {
+    listEl.innerHTML = notSubmitted.map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name} · ${branchName(u.branchId)}</span>`).join('');
+  }
+
+  // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
+  const days=[]; const chartTotals=[];
+  for(let i=13;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const ds=d.toISOString().slice(0,10);
+    days.push(ds.slice(5));
+    chartTotals.push(state.reports.filter(r=>r.date===ds && (!scope || r.branchId===scope)).reduce((s,r)=>s+r.revenue,0));
+  }
+  drawChart(days, chartTotals);
+
+  // Tổng cộng (toàn thời gian, theo phạm vi vai trò)
+  const allInScope = state.reports.filter(r => !scope || r.branchId===scope);
+  document.getElementById('mgrTotalsTitle').textContent = scope ? `Tổng của team ${branchName(scope)}` : 'Tổng toàn công ty';
+  const totals = allInScope.reduce((acc,r)=>{
+    acc.revenue+=r.revenue; acc.orders+=r.orderCount;
+    acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount;
+    acc.newdata+=r.newDataCount; acc.consulted+=r.consultedCount;
+    acc.potential+=r.potentialCustomers; acc.returning+=r.returningCustomers;
+    return acc;
+  }, {revenue:0,orders:0,groupposts:0,wallposts:0,newdata:0,consulted:0,potential:0,returning:0});
+  const statBox = (label,value)=>`<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
+  document.getElementById('mgrTotalsGrid').innerHTML =
+    statBox('Tổng doanh thu', fmtMoney(totals.revenue)+' đ') +
+    statBox('Tổng đơn chốt', totals.orders) +
+    statBox('Tỷ lệ chốt', pct(totals.orders, totals.newdata)) +
+    statBox('Doanh thu TB/đơn', avgPerOrder(totals.revenue, totals.orders)) +
+    statBox('Data khách mới', totals.newdata) +
+    statBox('Khách đã tư vấn', totals.consulted) +
+    statBox('Khách tiềm năng', totals.potential) +
+    statBox('Khách quay lại', totals.returning) +
+    statBox('Đăng bài nhóm', totals.groupposts) +
+    statBox('Đăng bài tường', totals.wallposts);
+
+  // tổng hợp theo người (toàn thời gian)
+  const recent = allInScope;
+
+  // tổng hợp theo chi nhánh/team (toàn thời gian, chỉ Quản lý chung)
+  if(!scope){
+    const byBranch={};
+    state.branches.forEach(b=>{ byBranch[b.id] = {revenue:0, orders:0, newdata:0, count:0}; });
+    recent.forEach(r=>{
+      byBranch[r.branchId] = byBranch[r.branchId] || {revenue:0, orders:0, newdata:0, count:0};
+      byBranch[r.branchId].revenue += r.revenue;
+      byBranch[r.branchId].orders += r.orderCount;
+      byBranch[r.branchId].newdata += r.newDataCount;
+      byBranch[r.branchId].count++;
+    });
+    const bTable=document.getElementById('mgrBranchSummaryTable');
+    const bIds=Object.keys(byBranch);
+    if(bIds.length===0){ bTable.innerHTML='<tr><td class="empty-note">Chưa có chi nhánh nào.</td></tr>'; }
+    else {
+      const bGrand = Object.values(byBranch).reduce((acc,bb)=>{
+        acc.revenue+=bb.revenue; acc.orders+=bb.orders; acc.newdata+=bb.newdata; acc.count+=bb.count;
+        return acc;
+      }, {revenue:0,orders:0,newdata:0,count:0});
+      bTable.innerHTML = `<tr><th>Team / chi nhánh</th><th class="num">Số báo cáo</th><th class="num">Tổng doanh thu</th><th class="num">Tổng đơn</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th></tr>` +
+        bIds.sort((a,b)=>byBranch[b].revenue-byBranch[a].revenue).map(id=>{
+          const bb=byBranch[id];
+          const rowStyle = bb.count===0 ? ' style="color:var(--ink-soft);"' : '';
+          return `<tr${rowStyle}><td>${branchName(id)}</td><td class="num">${bb.count}</td><td class="num">${fmtMoney(bb.revenue)}</td><td class="num">${bb.orders}</td><td class="num">${pct(bb.orders,bb.newdata)}</td><td class="num">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+        }).join('') +
+        `<tr class="total-row"><td>TỔNG CỘNG</td><td class="num">${bGrand.count}</td><td class="num">${fmtMoney(bGrand.revenue)}</td><td class="num">${bGrand.orders}</td><td class="num">${pct(bGrand.orders,bGrand.newdata)}</td><td class="num">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr>`;
+    }
+  }
+
+  const byUser={};
+  // Khởi tạo sẵn TẤT CẢ người thuộc phạm vi (kể cả chưa nộp báo cáo nào) để quản lý thấy đủ đội của mình
+  state.users.filter(u => !scope || u.branchId===scope).forEach(u=>{
+    byUser[u.id] = {revenue:0, orders:0, groupposts:0, wallposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+  });
+  recent.forEach(r=>{
+    byUser[r.userId] = byUser[r.userId] || {revenue:0, orders:0, groupposts:0, wallposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+    const b=byUser[r.userId];
+    b.revenue+=r.revenue; b.orders+=r.orderCount;
+    b.groupposts+=r.groupPostCount; b.wallposts+=r.wallPostCount;
+    b.newdata+=r.newDataCount; b.consulted+=r.consultedCount;
+    b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
+  });
+  const table=document.getElementById('mgrSummaryTable');
+  const ids=Object.keys(byUser);
+  if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
+  const grand = recent.reduce((acc,r)=>{
+    acc.revenue+=r.revenue; acc.orders+=r.orderCount;
+    acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount;
+    acc.newdata+=r.newDataCount; acc.consulted+=r.consultedCount;
+    acc.potential+=r.potentialCustomers; acc.returning+=r.returningCustomers;
+    acc.count++;
+    return acc;
+  }, {revenue:0,orders:0,groupposts:0,wallposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
+  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th></tr>` +
+    ids.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(id=>{
+      const u=state.users.find(u=>u.id===id); const b=byUser[id];
+      const rowStyle = b.count===0 ? ' style="color:var(--ink-soft);"' : '';
+      return `<tr${rowStyle}><td>${u?u.name:'—'}</td><td>${u?branchName(u.branchId):'—'}</td>
+        <td class="num">${b.count}</td>
+        <td class="num">${b.newdata}</td><td class="num">${b.consulted}</td><td class="num">${b.potential}</td>
+        <td class="num">${b.orders}</td><td class="num">${fmtMoney(b.revenue)}</td>
+        <td class="num">${pct(b.orders,b.newdata)}</td><td class="num">${avgPerOrder(b.revenue,b.orders)}</td>
+        <td class="num">${b.returning}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td></tr>`;
+    }).join('') +
+    `<tr class="total-row"><td>TỔNG CỘNG</td><td>—</td>
+      <td class="num">${grand.count}</td>
+      <td class="num">${grand.newdata}</td><td class="num">${grand.consulted}</td><td class="num">${grand.potential}</td>
+      <td class="num">${grand.orders}</td><td class="num">${fmtMoney(grand.revenue)}</td>
+      <td class="num">${pct(grand.orders,grand.newdata)}</td><td class="num">${avgPerOrder(grand.revenue,grand.orders)}</td>
+      <td class="num">${grand.returning}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td></tr>`;
+}
+
+let revenueChartInstance=null;
+function drawChart(labels, data){
+  const ctx=document.getElementById('revenueChart');
+  if(revenueChartInstance) revenueChartInstance.destroy();
+  revenueChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Doanh thu', data, backgroundColor:'#A8451B', borderRadius:4 }] },
+    options:{
+      responsive:true,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ ticks:{ callback:v=>fmtMoney(v) } } }
+    }
+  });
+}
+
+function populateFilterOptions(){
+  const scope=scopeBranchId();
+  const bSel=document.getElementById('filterBranch');
+  const uSel=document.getElementById('filterUser');
+  if(scope){
+    bSel.innerHTML=`<option value="${scope}">${branchName(scope)}</option>`;
+    bSel.value=scope;
+    bSel.disabled=true;
+  } else {
+    bSel.disabled=false;
+    bSel.innerHTML='<option value="">Tất cả chi nhánh</option>'+state.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  }
+  uSel.innerHTML='<option value="">Tất cả người nộp</option>'+staffUsersInBranch(scope).map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+}
+function resetFilters(){
+  if(!scopeBranchId()) document.getElementById('filterBranch').value='';
+  document.getElementById('filterUser').value='';
+  document.getElementById('filterFrom').value='';
+  document.getElementById('filterTo').value='';
+  renderMgrReports();
+}
+function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
+function renderMgrReports(){
+  const scope=scopeBranchId();
+  const branchId=scope || document.getElementById('filterBranch').value;
+  const userId=document.getElementById('filterUser').value;
+  const from=document.getElementById('filterFrom').value;
+  const to=document.getElementById('filterTo').value;
+  let rows = state.reports.slice();
+  if(branchId) rows=rows.filter(r=>r.branchId===branchId);
+  if(userId) rows=rows.filter(r=>r.userId===userId);
+  if(from) rows=rows.filter(r=>r.date>=from);
+  if(to) rows=rows.filter(r=>r.date<=to);
+  rows.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const table=document.getElementById('mgrReportsTable');
+  if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
+  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th>Ghi chú</th><th></th></tr>` +
+    rows.map(r=>`<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td>${userName(r.userId)}</td>
+      <td>${branchName(r.branchId)}</td>
+      <td class="num">${r.newDataCount}</td>
+      <td class="num">${r.consultedCount}</td>
+      <td class="num">${r.potentialCustomers}</td>
+      <td class="num">${r.orderCount}</td>
+      <td class="num">${fmtMoney(r.revenue)}</td>
+      <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
+      <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
+      <td class="num">${r.returningCustomers}</td>
+      <td class="num">${r.groupPostCount}</td>
+      <td class="num">${r.wallPostCount}</td>
+      <td>${r.note||''}</td>
+      <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
+    </tr>`).join('');
+}
+function deleteReport(id){
+  askConfirm('Xoá báo cáo', 'Báo cáo sẽ chuyển vào thùng rác, có thể khôi phục sau.', ()=>{
+    const idx=state.reports.findIndex(r=>r.id===id);
+    if(idx===-1) return;
+    const [r]=state.reports.splice(idx,1);
+    const manager=currentUser();
+    const trashed = {...r, deletedBy:manager.name, deletedAt:Date.now()};
+    state.trash.push(trashed);
+    fbRemoveReport(id);
+    fbSetTrash(trashed);
+    renderMgrReports();
+    showToast('Đã chuyển vào thùng rác');
+  });
+}
+function renderMgrTrash(){
+  const scope=scopeBranchId();
+  const table=document.getElementById('mgrTrashTable');
+  const rows=state.trash.filter(r=>!scope || r.branchId===scope).sort((a,b)=>b.deletedAt-a.deletedAt);
+  if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Thùng rác trống.</td></tr>'; return; }
+  table.innerHTML=`<tr><th>Ngày báo cáo</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Doanh thu</th><th>Xoá bởi</th><th>Lúc xoá</th><th></th></tr>`+
+    rows.map(r=>`<tr>
+      <td>${fmtDate(r.date)}</td><td>${userName(r.userId)}</td><td>${branchName(r.branchId)}</td>
+      <td class="num">${fmtMoney(r.revenue)}</td><td>${r.deletedBy}</td>
+      <td>${new Date(r.deletedAt).toLocaleString('vi-VN')}</td>
+      <td><button class="btn-ghost btn-small" onclick="restoreReport('${r.id}')">Khôi phục</button></td>
+    </tr>`).join('');
+}
+function restoreReport(id){
+  const idx=state.trash.findIndex(r=>r.id===id);
+  if(idx===-1) return;
+  const [r]=state.trash.splice(idx,1);
+  delete r.deletedBy; delete r.deletedAt;
+  state.reports.push(r);
+  fbRemoveTrash(id);
+  fbSetReport(r);
+  renderMgrTrash();
+  showToast('Đã khôi phục báo cáo');
+}
+
+function renderMgrSettings(){
+  const scope=scopeBranchId();
+  document.getElementById('settingsAddBranchForm').style.display = scope ? 'none' : 'flex';
+  document.getElementById('settingsPageTitle').textContent = scope ? 'Đội của tôi' : 'Chi nhánh & nhân sự';
+  document.getElementById('settingsPageSub').textContent = scope ? 'Xem danh sách chi nhánh và người trong đội của bạn' : 'Quản lý danh sách chi nhánh, người dùng và phân quyền';
+  document.getElementById('permissionsCard').style.display = scope ? 'none' : 'block';
+
+  const branchesToShow = scope ? state.branches.filter(b=>b.id===scope) : state.branches;
+  const listEl=document.getElementById('settingsBranchList');
+  listEl.innerHTML = branchesToShow.map(b=>{
+    const teamMgr = state.users.find(u=>u.role==='team_manager' && u.branchId===b.id);
+    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
+      <span>${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— QL: ${teamMgr.name}</span>`:''}</span>
+      <span style="color:var(--ink-soft); font-size:12.5px;">${staffUsersInBranch(b.id).length} nhân viên</span>
+    </div>`;
+  }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
+
+  const usersToShow = scope ? state.users.filter(u=>u.branchId===scope) : state.users;
+  const table=document.getElementById('settingsUserTable');
+  if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
+  else {
+    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th></tr>`+
+      usersToShow.map(u=>`<tr><td>${u.name}</td><td>${roleLabel(u.role)}</td><td>${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td></tr>`).join('');
+  }
+
+  if(!scope) renderPermissionsTable();
+}
+
+function renderPermissionsTable(){
+  const table = document.getElementById('permissionsTable');
+  const rows = state.users;
+  if(rows.length===0){ table.innerHTML = '<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; return; }
+  if(state.branches.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Cần có ít nhất 1 chi nhánh trước khi phân quyền Quản lý team.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh phụ trách</th><th></th></tr>` +
+    rows.map(u=>{
+      const roleSel = `<select id="roleSel_${u.id}" onchange="onPermissionRoleChange('${u.id}')">` +
+        ['staff','team_manager','general_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
+        `</select>`;
+      const branchSel = `<select id="branchSel_${u.id}" ${u.role==='general_manager'?'style="display:none;"':''}>` +
+        state.branches.map(b=>`<option value="${b.id}" ${u.branchId===b.id?'selected':''}>${b.name}</option>`).join('') +
+        `</select>`;
+      return `<tr>
+        <td>${u.name}</td>
+        <td>${roleSel}</td>
+        <td>${branchSel}</td>
+        <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
+      </tr>`;
+    }).join('');
+}
+function onPermissionRoleChange(userId){
+  const sel=document.getElementById('roleSel_'+userId);
+  document.getElementById('branchSel_'+userId).style.display = sel.value==='general_manager' ? 'none' : 'inline-block';
+}
+function applyPermissionChange(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const newRole = document.getElementById('roleSel_'+userId).value;
+  const branchSel = document.getElementById('branchSel_'+userId);
+  const newBranchId = newRole==='general_manager' ? null : branchSel.value;
+
+  if(newRole!=='general_manager' && !newBranchId){
+    showToast('Cần chọn chi nhánh phụ trách'); return;
+  }
+  if(u.role==='general_manager' && newRole!=='general_manager'){
+    const otherAdmins = state.users.filter(x=>x.role==='general_manager' && x.id!==u.id);
+    if(otherAdmins.length===0){
+      showToast('Không thể bỏ quyền của Quản lý chung cuối cùng trong hệ thống');
+      renderPermissionsTable();
+      return;
+    }
+  }
+  const isSelf = currentUser() && currentUser().id===u.id;
+  const desc = newRole==='team_manager' ? `${roleLabel(newRole)} (chi nhánh ${branchName(newBranchId)})` : roleLabel(newRole);
+  askConfirm('Đổi quyền', `Đổi vai trò của ${u.name} thành ${desc}?`, ()=>{
+    u.role = newRole;
+    u.branchId = newBranchId;
+    fbUpdateUser(u.id, {role:newRole, branchId:newBranchId});
+    showToast(`Đã cập nhật quyền cho ${u.name}`);
+    if(isSelf){ enterApp(); } else { renderMgrSettings(); }
+  });
+}
+function settingsAddBranch(){
+  const input=document.getElementById('settingsNewBranch');
+  const name=input.value.trim();
+  if(!name) return;
+  const b={id:uid(), name};
+  state.branches.push(b);
+  fbSetBranch(b);
+  input.value='';
+  renderMgrSettings();
+  showToast('Đã thêm chi nhánh');
+}
+
+/* =========================== KHỞI ĐỘNG =========================== */
+initFirebase();
+</script>
+</body>
+</html>
