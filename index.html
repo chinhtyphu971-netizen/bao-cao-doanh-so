@@ -513,6 +513,25 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="editUserModal">
+  <div class="modal" style="max-width:340px;">
+    <h2>Sửa thông tin</h2>
+    <div class="field">
+      <label>Tên</label>
+      <input id="editUserName" placeholder="Tên hiển thị">
+    </div>
+    <div class="field">
+      <label>Mã PIN mới (4 số)</label>
+      <input id="editUserPin" type="text" inputmode="numeric" maxlength="4" placeholder="••••">
+    </div>
+    <div class="login-error" id="editUserError"></div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeEditUserModal()">Huỷ</button>
+      <button class="btn-primary" onclick="saveEditUser()">Lưu</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    FIREBASE — đồng bộ dữ liệu real-time giữa nhiều thiết bị/nhiều người
@@ -1613,11 +1632,46 @@ function renderMgrSettings(){
           <span class="history-link" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">Copy</span>
         </td>
         <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
-        ${scope ? '' : `<td><button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
+        ${scope ? '' : `<td><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
   }
 
   if(!scope) renderPermissionsTable();
+}
+let editingUserId = null;
+function openEditUserModal(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  editingUserId = userId;
+  document.getElementById('editUserName').value = u.name;
+  document.getElementById('editUserPin').value = u.pin;
+  document.getElementById('editUserError').textContent = '';
+  document.getElementById('editUserModal').classList.add('show');
+}
+function closeEditUserModal(){
+  document.getElementById('editUserModal').classList.remove('show');
+  editingUserId = null;
+}
+function saveEditUser(){
+  const u = state.users.find(x=>x.id===editingUserId);
+  const errEl = document.getElementById('editUserError');
+  if(!u){ closeEditUserModal(); return; }
+  const newName = document.getElementById('editUserName').value.trim().normalize('NFC');
+  const newPin = document.getElementById('editUserPin').value.trim();
+  if(!newName){ errEl.textContent = 'Vui lòng nhập tên.'; return; }
+  if(!/^\d{4}$/.test(newPin)){ errEl.textContent = 'Mã PIN phải gồm đúng 4 số.'; return; }
+  const nameTaken = state.users.some(x=>x.id!==u.id && x.name.trim().normalize('NFC').toLowerCase()===newName.toLowerCase());
+  if(nameTaken){ errEl.textContent = 'Đã có người khác dùng tên này, chọn tên khác để tránh nhầm khi đăng nhập.'; return; }
+  const isSelf = currentUser() && currentUser().id===u.id;
+  u.name = newName;
+  u.pin = newPin;
+  fbUpdateUser(u.id, {name:newName, pin:newPin});
+  showToast(`Đã cập nhật thông tin của ${newName}`);
+  closeEditUserModal();
+  if(isSelf){
+    document.getElementById('sidebarWho').textContent = newName;
+  }
+  renderMgrSettings();
 }
 function deleteUser(userId){
   const u = state.users.find(x=>x.id===userId);
