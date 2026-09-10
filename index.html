@@ -395,6 +395,16 @@
           </p>
           <div class="table-wrap"><table id="permissionsTable"></table></div>
         </div>
+
+        <div class="card" id="refreshAllCard" style="display:none;">
+          <h2>Đồng bộ</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">
+            Sau khi bạn cập nhật app (deploy bản mới lên Vercel), bấm nút này để mọi người đang mở app —
+            kể cả những ai đã thêm icon ra màn hình chính điện thoại — tự động tải lại đúng bản mới nhất,
+            không cần nhắn từng người.
+          </p>
+          <button class="btn-primary" onclick="broadcastRefresh()">Làm mới cho tất cả</button>
+        </div>
       </div>
 
     </div>
@@ -458,7 +468,7 @@ let state = {
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem;
 const loaded = {branches:false, users:false, reports:false, trash:false};
 let appReady = false;
 
@@ -478,11 +488,27 @@ function initFirebase(){
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
+  fbSystem = db.ref('system/forceReload');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbReports.on('value',  snap=>{ state.reports  = Object.values(snap.val()||{}); markLoaded('reports');  onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
+
+  // "Làm mới cho tất cả": bỏ qua giá trị đọc được lần đầu (đó là lệnh làm mới cũ từ trước,
+  // không phải lệnh mới) — chỉ tự tải lại trang khi có lệnh MỚI được phát ra sau khi trang đã mở.
+  let systemLoaded = false, lastReloadAt = 0;
+  fbSystem.on('value', snap=>{
+    const v = snap.val() || 0;
+    if(!systemLoaded){ systemLoaded = true; lastReloadAt = v; return; }
+    if(v > lastReloadAt){ lastReloadAt = v; location.reload(); }
+  });
+}
+function broadcastRefresh(){
+  askConfirm('Làm mới cho tất cả', 'Mọi người đang mở app (kể cả ai đã thêm icon ra màn hình chính) sẽ tự động tải lại trang trong vài giây. Tiếp tục?', ()=>{
+    fbSystem.set(Date.now());
+    showToast('Đã gửi lệnh làm mới cho tất cả');
+  });
 }
 function markLoaded(key){
   loaded[key]=true;
@@ -1071,6 +1097,7 @@ function renderMgrSettings(){
   document.getElementById('settingsPageTitle').textContent = scope ? 'Đội của tôi' : 'Chi nhánh & nhân sự';
   document.getElementById('settingsPageSub').textContent = scope ? 'Xem danh sách chi nhánh và người trong đội của bạn' : 'Quản lý danh sách chi nhánh, người dùng và phân quyền';
   document.getElementById('permissionsCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('refreshAllCard').style.display = scope ? 'none' : 'block';
 
   const branchesToShow = scope ? state.branches.filter(b=>b.id===scope) : state.branches;
   const listEl=document.getElementById('settingsBranchList');
