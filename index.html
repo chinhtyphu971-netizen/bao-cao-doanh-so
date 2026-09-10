@@ -421,17 +421,17 @@
       <div id="page-mgrReports" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách báo cáo</h1><p>Lọc và xem chi tiết từng báo cáo</p></div></div>
         <div class="chip-row" style="margin-bottom:12px;">
-          <div class="chip" onclick="applyReportsDatePreset('today')">Hôm nay</div>
-          <div class="chip" onclick="applyReportsDatePreset('yesterday')">Hôm qua</div>
-          <div class="chip" onclick="applyReportsDatePreset('week')">Tuần qua</div>
-          <div class="chip" onclick="applyReportsDatePreset('month')">Tháng qua</div>
-          <div class="chip" onclick="applyReportsDatePreset('all')">Toàn bộ</div>
+          <div class="chip" id="reportsPreset_today" onclick="applyReportsDatePreset('today')">Hôm nay</div>
+          <div class="chip" id="reportsPreset_yesterday" onclick="applyReportsDatePreset('yesterday')">Hôm qua</div>
+          <div class="chip" id="reportsPreset_week" onclick="applyReportsDatePreset('week')">Tuần qua</div>
+          <div class="chip" id="reportsPreset_month" onclick="applyReportsDatePreset('month')">Tháng qua</div>
+          <div class="chip" id="reportsPreset_all" onclick="applyReportsDatePreset('all')">Toàn bộ</div>
         </div>
         <div class="toolbar">
           <div class="field"><label>Chi nhánh</label><select id="filterBranch" onchange="renderMgrReports()"></select></div>
           <div class="field"><label>Người nộp</label><select id="filterUser" onchange="renderMgrReports()"></select></div>
-          <div class="field"><label>Từ ngày</label><input id="filterFrom" type="date" onchange="renderMgrReports()"></div>
-          <div class="field"><label>Đến ngày</label><input id="filterTo" type="date" onchange="renderMgrReports()"></div>
+          <div class="field"><label>Từ ngày</label><input id="filterFrom" type="date" onchange="clearReportsPresetSelection(); renderMgrReports()"></div>
+          <div class="field"><label>Đến ngày</label><input id="filterTo" type="date" onchange="clearReportsPresetSelection(); renderMgrReports()"></div>
           <button class="btn-ghost" onclick="resetFilters()">Xoá lọc</button>
         </div>
         <div class="card"><div class="table-wrap"><table id="mgrReportsTable" class="rtable"></table></div></div>
@@ -1325,6 +1325,7 @@ function resetFilters(){
   document.getElementById('filterUser').value='';
   document.getElementById('filterFrom').value='';
   document.getElementById('filterTo').value='';
+  clearReportsPresetSelection();
   renderMgrReports();
 }
 // Trả về [từ, đến] dạng YYYY-MM-DD theo mốc chọn nhanh
@@ -1341,7 +1342,15 @@ function applyReportsDatePreset(preset){
   const [from, to] = dateRangeFor(preset);
   document.getElementById('filterFrom').value = from || '';
   document.getElementById('filterTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('reportsPreset_'+p).classList.toggle('selected', p===preset);
+  });
   renderMgrReports();
+}
+function clearReportsPresetSelection(){
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('reportsPreset_'+p).classList.remove('selected');
+  });
 }
 function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
 let reportsSort = {col:'branch', dir:'asc'};
