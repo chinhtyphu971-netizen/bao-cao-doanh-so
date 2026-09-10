@@ -1017,7 +1017,7 @@ function renderMgrDashboard(){
     days.push(ds.slice(5));
     chartTotals.push(state.reports.filter(r=>r.date===ds && (!scope || r.branchId===scope)).reduce((s,r)=>s+r.revenue,0));
   }
-  drawChart(days, chartTotals);
+  try{ drawChart(days, chartTotals); }catch(e){ console.error('Lỗi vẽ biểu đồ (đã bỏ qua để không ảnh hưởng phần còn lại):', e); }
 
   // Tổng cộng (toàn thời gian, theo phạm vi vai trò)
   const allInScope = state.reports.filter(r => !scope || r.branchId===scope);
@@ -1125,9 +1125,24 @@ function renderMgrDashboard(){
 
 let revenueChartInstance=null;
 function drawChart(labels, data){
-  const ctx=document.getElementById('revenueChart');
+  const canvas=document.getElementById('revenueChart');
+  const wrap=canvas.parentElement;
+  const existingMsg=document.getElementById('chartFallbackMsg');
+  if(typeof Chart === 'undefined'){
+    canvas.style.display='none';
+    if(!existingMsg){
+      const msg=document.createElement('div');
+      msg.id='chartFallbackMsg';
+      msg.className='empty-note';
+      msg.textContent='Không tải được thư viện vẽ biểu đồ (có thể do mạng đang chặn cdnjs.cloudflare.com). Các số liệu khác bên dưới vẫn hiển thị bình thường.';
+      wrap.appendChild(msg);
+    }
+    return;
+  }
+  canvas.style.display='block';
+  if(existingMsg) existingMsg.remove();
   if(revenueChartInstance) revenueChartInstance.destroy();
-  revenueChartInstance = new Chart(ctx, {
+  revenueChartInstance = new Chart(canvas, {
     type:'bar',
     data:{ labels, datasets:[{ label:'Doanh thu', data, backgroundColor:'#A8451B', borderRadius:4 }] },
     options:{
