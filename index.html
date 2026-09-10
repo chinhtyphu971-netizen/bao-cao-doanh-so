@@ -407,6 +407,31 @@
 
         <div class="card">
           <h2>Tổng hợp theo người</h2>
+          <div class="toolbar" style="margin-top:10px;">
+            <div class="field">
+              <label>Lọc theo cột</label>
+              <select id="userFilterCol" onchange="renderMgrDashboard()">
+                <option value="">— Không lọc —</option>
+                <option value="count">Số ngày nộp</option>
+                <option value="newdata">Data mới</option>
+                <option value="selffound">Data tự tìm</option>
+                <option value="consulted">Đã tư vấn</option>
+                <option value="potential">Tiềm năng</option>
+                <option value="orders">Đơn chốt</option>
+                <option value="revenue">Doanh thu</option>
+                <option value="closerate">Tỷ lệ chốt (%)</option>
+                <option value="avgorder">TB/đơn (VNĐ)</option>
+                <option value="returning">Khách quay lại</option>
+                <option value="returnrate">Tỷ lệ quay lại (%)</option>
+                <option value="groupposts">Bài nhóm (Zalo)</option>
+                <option value="wallposts">Bài tường (Zalo)</option>
+                <option value="fbposts">Bài FB</option>
+              </select>
+            </div>
+            <div class="field"><label>Từ (tối thiểu)</label><input type="number" id="userFilterMin" placeholder="Không giới hạn" oninput="renderMgrDashboard()"></div>
+            <div class="field"><label>Đến (tối đa)</label><input type="number" id="userFilterMax" placeholder="Không giới hạn" oninput="renderMgrDashboard()"></div>
+            <button class="btn-ghost" onclick="clearUserFilters()">Xoá lọc</button>
+          </div>
           <div class="table-wrap"><table id="mgrSummaryTable" class="rtable"></table></div>
         </div>
       </div>
@@ -953,7 +978,7 @@ function submitReport(){
 
 function renderStaffHistory(){
   const user=currentUser();
-  const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const rows = sortReports(state.reports.filter(r=>r.userId===user.id), historySort);
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
   const grand = rows.reduce((acc,r)=>{
@@ -962,7 +987,7 @@ function renderStaffHistory(){
     acc.returning+=r.returningCustomers; acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount; acc.fbposts+=r.fbPostCount;
     return acc;
   }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, groupposts:0, wallposts:0, fbposts:0});
-  table.innerHTML = `<thead><tr><th>Ngày</th><th>Nộp lúc</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr>${thHistorySort('Ngày','date')}${thHistorySort('Nộp lúc','submittedAt')}${thHistorySort('Data mới','newdata',true)}${thHistorySort('Data tự tìm','selffound',true)}${thHistorySort('Đã tư vấn','consulted',true)}${thHistorySort('Tiềm năng','potential',true)}${thHistorySort('Đơn chốt','orders',true)}${thHistorySort('Doanh thu','revenue',true)}${thHistorySort('Tỷ lệ chốt','closerate',true)}${thHistorySort('TB/đơn','avgorder',true)}${thHistorySort('Quay lại','returning',true)}${thHistorySort('Tỷ lệ quay lại','returnrate',true)}${thHistorySort('Bài nhóm (Zalo)','groupposts',true)}${thHistorySort('Bài tường (Zalo)','wallposts',true)}${thHistorySort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
       <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
@@ -1035,7 +1060,18 @@ function toggleSort(state, col){
   if(state.col===col){ state.dir = state.dir==='desc' ? 'asc' : 'desc'; }
   else { state.col=col; state.dir='desc'; }
 }
+function userFilterValue(b, col){
+  const v = userSortValue(b, col);
+  if(col==='closerate' || col==='returnrate') return Math.round(v*100);
+  return v;
+}
 function sortUserBy(col){ toggleSort(userSort, col); renderMgrDashboard(); }
+function clearUserFilters(){
+  document.getElementById('userFilterCol').value='';
+  document.getElementById('userFilterMin').value='';
+  document.getElementById('userFilterMax').value='';
+  renderMgrDashboard();
+}
 function sortBranchBy(col){ toggleSort(branchSort, col); renderMgrDashboard(); }
 function userSortValue(b, col){
   switch(col){
@@ -1192,15 +1228,28 @@ function renderMgrDashboard(){
     b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
   });
   const table=document.getElementById('mgrSummaryTable');
-  const ids=Object.keys(byUser);
-  if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
-  const grand = recent.reduce((acc,r)=>{
-    acc.revenue+=r.revenue; acc.orders+=r.orderCount;
-    acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount;
-    acc.selffound+=r.selfFoundDataCount; acc.fbposts+=r.fbPostCount;
-    acc.newdata+=r.newDataCount; acc.consulted+=r.consultedCount;
-    acc.potential+=r.potentialCustomers; acc.returning+=r.returningCustomers;
-    acc.count++;
+  const filterCol = document.getElementById('userFilterCol').value;
+  const minRaw = document.getElementById('userFilterMin').value;
+  const maxRaw = document.getElementById('userFilterMax').value;
+  const filterMin = minRaw==='' ? null : Number(minRaw);
+  const filterMax = maxRaw==='' ? null : Number(maxRaw);
+  const ids=Object.keys(byUser).filter(id=>{
+    if(!filterCol) return true;
+    const val = userFilterValue(byUser[id], filterCol);
+    if(filterMin!==null && val<filterMin) return false;
+    if(filterMax!==null && val>filterMax) return false;
+    return true;
+  });
+  if(Object.keys(byUser).length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
+  if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Không có ai khớp bộ lọc.</td></tr>'; return; }
+  const grand = ids.reduce((acc,id)=>{
+    const r=byUser[id];
+    acc.revenue+=r.revenue; acc.orders+=r.orders;
+    acc.groupposts+=r.groupposts; acc.wallposts+=r.wallposts;
+    acc.selffound+=r.selffound; acc.fbposts+=r.fbposts;
+    acc.newdata+=r.newdata; acc.consulted+=r.consulted;
+    acc.potential+=r.potential; acc.returning+=r.returning;
+    acc.count+=r.count;
     return acc;
   }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
   table.innerHTML = `<thead><tr><th>Người nộp</th><th>Chi nhánh</th>${thUserSort('Số ngày nộp','count')}${thUserSort('Data mới','newdata')}${thUserSort('Data tự tìm','selffound')}${thUserSort('Đã tư vấn','consulted')}${thUserSort('Tiềm năng','potential')}${thUserSort('Đơn chốt','orders')}${thUserSort('Doanh thu','revenue')}${thUserSort('Tỷ lệ chốt','closerate')}${thUserSort('TB/đơn','avgorder')}${thUserSort('Quay lại','returning')}${thUserSort('Tỷ lệ quay lại','returnrate')}${thUserSort('Bài nhóm (Zalo)','groupposts')}${thUserSort('Bài tường (Zalo)','wallposts')}${thUserSort('Bài FB','fbposts')}</tr></thead><tbody>` +
@@ -1293,6 +1342,40 @@ function applyReportsDatePreset(preset){
   renderMgrReports();
 }
 function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
+let reportsSort = {col:'date', dir:'desc'};
+let historySort = {col:'date', dir:'desc'};
+function reportSortValue(r, col){
+  switch(col){
+    case 'date': return r.date;
+    case 'submittedAt': return r.submittedAt;
+    case 'newdata': return r.newDataCount;
+    case 'selffound': return r.selfFoundDataCount;
+    case 'consulted': return r.consultedCount;
+    case 'potential': return r.potentialCustomers;
+    case 'orders': return r.orderCount;
+    case 'revenue': return r.revenue;
+    case 'closerate': return r.orderCount/((r.newDataCount+r.selfFoundDataCount)||1);
+    case 'avgorder': return r.revenue/(r.orderCount||1);
+    case 'returning': return r.returningCustomers;
+    case 'returnrate': return r.returningCustomers/(r.orderCount||1);
+    case 'groupposts': return r.groupPostCount;
+    case 'wallposts': return r.wallPostCount;
+    case 'fbposts': return r.fbPostCount;
+    default: return 0;
+  }
+}
+function sortReports(rows, state){
+  return rows.sort((a,b)=>{
+    const va=reportSortValue(a, state.col), vb=reportSortValue(b, state.col);
+    if(typeof va==='string') return state.dir==='desc' ? vb.localeCompare(va) : va.localeCompare(vb);
+    return state.dir==='desc' ? vb-va : va-vb;
+  });
+}
+function thReportsSort(label, col, numeric){ return `<th class="sortable${numeric?' num':''}" onclick="sortReportsBy('${col}')">${label}${sortArrow(reportsSort,col)}</th>`; }
+function thHistorySort(label, col, numeric){ return `<th class="sortable${numeric?' num':''}" onclick="sortHistoryBy('${col}')">${label}${sortArrow(historySort,col)}</th>`; }
+function sortReportsBy(col){ toggleSort(reportsSort, col); renderMgrReports(); }
+function sortHistoryBy(col){ toggleSort(historySort, col); renderStaffHistory(); }
+
 function renderMgrReports(){
   const scope=scopeBranchId();
   const branchId=scope || document.getElementById('filterBranch').value;
@@ -1304,7 +1387,7 @@ function renderMgrReports(){
   if(userId) rows=rows.filter(r=>r.userId===userId);
   if(from) rows=rows.filter(r=>r.date>=from);
   if(to) rows=rows.filter(r=>r.date<=to);
-  rows.sort((a,b)=>b.date.localeCompare(a.date));
+  sortReports(rows, reportsSort);
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
@@ -1322,7 +1405,7 @@ function renderMgrReports(){
     return acc;
   }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, groupposts:0, wallposts:0, fbposts:0});
 
-  table.innerHTML = `<thead><tr><th>Ngày</th><th>Nộp lúc</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr>${thReportsSort('Ngày','date')}${thReportsSort('Nộp lúc','submittedAt')}<th>Người nộp</th><th>Chi nhánh</th>${thReportsSort('Data mới','newdata',true)}${thReportsSort('Data tự tìm','selffound',true)}${thReportsSort('Đã tư vấn','consulted',true)}${thReportsSort('Tiềm năng','potential',true)}${thReportsSort('Đơn chốt','orders',true)}${thReportsSort('Doanh thu','revenue',true)}${thReportsSort('Tỷ lệ chốt','closerate',true)}${thReportsSort('TB/đơn','avgorder',true)}${thReportsSort('Quay lại','returning',true)}${thReportsSort('Tỷ lệ quay lại','returnrate',true)}${thReportsSort('Bài nhóm (Zalo)','groupposts',true)}${thReportsSort('Bài tường (Zalo)','wallposts',true)}${thReportsSort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
       <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
