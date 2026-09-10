@@ -1547,12 +1547,19 @@ function renderMgrSettings(){
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
   if(!scope && branchesToShow.length>0){
     const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager').length;
-    const totalAdmins = state.users.filter(u=>u.role==='general_manager').length;
-    listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; font-weight:700;">
+    const admins = state.users.filter(u=>u.role==='general_manager');
+    const isAdminOpen = expandedSettingsBranchId==='__admins__';
+    listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; color:var(--ink-soft); font-size:13px; cursor:pointer;" onclick="toggleSettingsBranchExpand('__admins__')">
+      <span>${isAdminOpen?'▾':'▸'} Quản trị viên (Quản lý chung)</span><span>${admins.length} người</span>
+    </div>`;
+    if(isAdminOpen){
+      const adminHtml = admins.length
+        ? admins.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(u=>`<div class="detail-row"><span class="k">${u.name}</span><span class="v">${roleLabel(u.role)}</span></div>`).join('')
+        : '<div class="empty-note">Chưa có quản trị viên nào.</div>';
+      listEl.innerHTML += `<div style="background:var(--bg); padding:8px 12px;">${adminHtml}</div>`;
+    }
+    listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; font-weight:700; border-top:1px solid var(--line); margin-top:6px;">
       <span>Tổng cộng</span><span>${totalMembers} người</span>
-    </div>
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 0 0; color:var(--ink-soft); font-size:13px;">
-      <span>Quản trị viên (Quản lý chung)</span><span>${totalAdmins} người</span>
     </div>`;
   }
 
