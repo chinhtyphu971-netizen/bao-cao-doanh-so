@@ -284,9 +284,13 @@
       <!-- ---------- STAFF: nộp báo cáo ---------- -->
       <div id="page-staffReport" class="page">
         <div class="page-head">
-          <div><h1 id="staffReportTitle">Báo cáo hôm nay</h1><p id="staffReportSub"></p></div>
+          <div><h1 id="staffReportTitle">Nộp báo cáo</h1><p id="staffReportSub"></p></div>
         </div>
         <div class="card">
+          <div class="field" style="max-width:220px;">
+            <label>Ngày báo cáo</label>
+            <input id="f_date" type="date" onchange="onReportDateChange()">
+          </div>
           <div class="grid-3">
             <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Khách đã tư vấn</label><input id="f_consulted" type="number" min="0" placeholder="0"></div>
@@ -701,10 +705,26 @@ function updateReportPreview(){
 }
 function renderStaffReport(){
   const user=currentUser();
-  const existing = myReportForDate(user.id, todayStr());
+  const dateInput=document.getElementById('f_date');
+  dateInput.max = todayStr();
+  if(!dateInput.value) dateInput.value = todayStr();
+  loadReportForDate();
+}
+function onReportDateChange(){
+  const dateInput=document.getElementById('f_date');
+  if(!dateInput.value || dateInput.value > todayStr()){
+    dateInput.value = todayStr();
+  }
+  loadReportForDate();
+}
+function loadReportForDate(){
+  const user=currentUser();
+  const date=document.getElementById('f_date').value;
+  const isToday = date===todayStr();
+  const existing = myReportForDate(user.id, date);
   document.getElementById('staffReportSub').textContent =
-    existing ? `Bạn đã nộp lúc ${new Date(existing.submittedAt).toLocaleTimeString('vi-VN')} — sửa và lưu lại nếu cần chỉnh.`
-             : `Chưa nộp — điền số liệu ngày ${fmtDate(todayStr())} bên dưới.`;
+    existing ? `Ngày ${fmtDate(date)} — đã nộp lúc ${new Date(existing.submittedAt).toLocaleTimeString('vi-VN')}, sửa và lưu lại nếu cần chỉnh.`
+             : `${isToday ? 'Chưa nộp hôm nay' : 'Chưa có báo cáo cho ngày này'} — điền số liệu ngày ${fmtDate(date)} bên dưới.`;
   const fields=['revenue','orders','groupposts','wallposts','newdata','consulted','potential','returning','note'];
   fields.forEach(f=>{ document.getElementById('f_'+f).value = existing ? (existing[keyFor(f)] ?? '') : ''; });
   document.getElementById('staffReportMsg').textContent='';
@@ -719,7 +739,9 @@ function keyFor(f){
 }
 function submitReport(){
   const user=currentUser();
-  const date=todayStr();
+  const date=document.getElementById('f_date').value;
+  if(!date){ document.getElementById('staffReportMsg').textContent='Vui lòng chọn ngày báo cáo.'; return; }
+  if(date > todayStr()){ document.getElementById('staffReportMsg').textContent='Không thể nộp báo cáo cho ngày trong tương lai.'; return; }
   const data = {
     revenue: Number(document.getElementById('f_revenue').value)||0,
     orderCount: Number(document.getElementById('f_orders').value)||0,
@@ -736,7 +758,7 @@ function submitReport(){
     Object.assign(existing, data);
     existing.editedAt = Date.now();
     fbSetReport(existing);
-    showToast('Đã cập nhật báo cáo hôm nay');
+    showToast('Đã cập nhật báo cáo ngày '+fmtDate(date));
   } else {
     const newReport = {
       id:uid(), date, userId:user.id, branchId:user.branchId,
@@ -744,7 +766,7 @@ function submitReport(){
     };
     state.reports.push(newReport);
     fbSetReport(newReport);
-    showToast('Đã nộp báo cáo hôm nay');
+    showToast('Đã nộp báo cáo ngày '+fmtDate(date));
   }
   renderStaffReport();
 }
