@@ -220,6 +220,7 @@
     cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--bg); border:1px dashed var(--line);
   }
   .pin-mask:hover{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); letter-spacing:normal;}
+  tr.branch-expand-row td{padding:10px 16px;}
   .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
   .detail-row:last-child{border-bottom:none;}
   .detail-row .k{color:var(--ink-soft);}
@@ -1052,6 +1053,11 @@ function applyDashboardPreset(preset){
 }
 let userSort = {col:'revenue', dir:'desc'};
 let branchSort = {col:'revenue', dir:'desc'};
+let expandedBranchId = null;
+function toggleBranchExpand(id){
+  expandedBranchId = (expandedBranchId===id) ? null : id;
+  renderMgrDashboard();
+}
 function sortArrow(state, col){
   if(state.col!==col) return '';
   return state.dir==='desc' ? ' <span class="sort-arrow">▼</span>' : ' <span class="sort-arrow">▲</span>';
@@ -1166,8 +1172,21 @@ function renderMgrDashboard(){
     statBox('Đăng bài tường', totals.wallposts) +
     statBox('Đăng bài FB', totals.fbposts);
 
-  // tổng hợp theo người (toàn thời gian)
+  // tổng hợp theo người (toàn thời gian) — tính trước để dùng chung khi mở rộng xem thành viên từng team
   const recent = allInScope;
+  const byUser={};
+  state.users.filter(u => !scope || u.branchId===scope).forEach(u=>{
+    byUser[u.id] = {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+  });
+  recent.forEach(r=>{
+    byUser[r.userId] = byUser[r.userId] || {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+    const b=byUser[r.userId];
+    b.revenue+=r.revenue; b.orders+=r.orderCount;
+    b.groupposts+=r.groupPostCount; b.wallposts+=r.wallPostCount;
+    b.selffound+=r.selfFoundDataCount; b.fbposts+=r.fbPostCount;
+    b.newdata+=r.newDataCount; b.consulted+=r.consultedCount;
+    b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
+  });
 
   // tổng hợp theo chi nhánh/team (toàn thời gian, chỉ Quản lý chung)
   if(!scope){
@@ -1195,27 +1214,26 @@ function renderMgrDashboard(){
           return branchSort.dir==='desc' ? vb-va : va-vb;
         }).map(id=>{
           const bb=byBranch[id];
-          const rowStyle = bb.count===0 ? ' style="color:var(--ink-soft);"' : '';
-          return `<tr${rowStyle}><td data-label="Team / chi nhánh">${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+          const rowStyle = bb.count===0 ? 'color:var(--ink-soft);' : '';
+          const isOpen = expandedBranchId===id;
+          const mainRow = `<tr style="cursor:pointer;${rowStyle}" onclick="toggleBranchExpand('${id}')"><td data-label="Team / chi nhánh">${isOpen?'▾':'▸'} ${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+          let expandRow = '';
+          if(isOpen){
+            const memberIds = Object.keys(byUser).filter(uid=>{ const u=state.users.find(x=>x.id===uid); return u && u.branchId===id; });
+            const memberHtml = memberIds.length
+              ? memberIds.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(uid=>{
+                  const u=state.users.find(x=>x.id===uid); const mb=byUser[uid];
+                  return `<div class="detail-row"><span class="k">${u.name}${u.role==='team_manager'?' (QL team)':''}</span><span class="v">${mb.orders} đơn · ${fmtMoney(mb.revenue)}đ · ${pct(mb.orders,mb.newdata+mb.selffound)}</span></div>`;
+                }).join('')
+              : '<div class="empty-note">Chưa có ai trong team này.</div>';
+            expandRow = `<tr class="branch-expand-row"><td colspan="6" style="background:var(--bg);">${memberHtml}</td></tr>`;
+          }
+          return mainRow + expandRow;
         }).join('') +
         `<tr class="total-row"><td data-label="Team / chi nhánh">TỔNG CỘNG</td><td class="num" data-label="Số báo cáo">${bGrand.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bGrand.revenue)}</td><td class="num" data-label="Tổng đơn">${bGrand.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bGrand.orders,bGrand.newdata+bGrand.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr></tbody>`;
     }
   }
 
-  const byUser={};
-  // Khởi tạo sẵn TẤT CẢ người thuộc phạm vi (kể cả chưa nộp báo cáo nào) để quản lý thấy đủ đội của mình
-  state.users.filter(u => !scope || u.branchId===scope).forEach(u=>{
-    byUser[u.id] = {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
-  });
-  recent.forEach(r=>{
-    byUser[r.userId] = byUser[r.userId] || {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
-    const b=byUser[r.userId];
-    b.revenue+=r.revenue; b.orders+=r.orderCount;
-    b.groupposts+=r.groupPostCount; b.wallposts+=r.wallPostCount;
-    b.selffound+=r.selfFoundDataCount; b.fbposts+=r.fbPostCount;
-    b.newdata+=r.newDataCount; b.consulted+=r.consultedCount;
-    b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
-  });
   const table=document.getElementById('mgrSummaryTable');
   const ids=Object.keys(byUser);
   if(ids.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
