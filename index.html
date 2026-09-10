@@ -159,11 +159,30 @@
     .sidebar.open{transform:translateX(0);}
     .sidebar-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:65;}
     .sidebar-backdrop.show{display:block;}
+
+    /* Bảng nhiều cột -> thẻ xếp dọc, cuộn dọc thay vì kéo ngang */
+    .rtable{ min-width:0 !important; }
+    .rtable thead{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); border:0; padding:0; margin:-1px; }
+    .rtable tr{
+      display:block; margin-bottom:12px; border:1px solid var(--line); border-radius:var(--radius-s);
+      padding:2px 12px; background:var(--panel);
+    }
+    .rtable tr.total-row{ border:2px solid var(--accent); }
+    .rtable td, .rtable th{
+      display:flex; justify-content:space-between; align-items:center; gap:14px;
+      text-align:right; padding:7px 0; border-bottom:1px solid var(--line);
+      white-space:normal; width:auto; flex-wrap:wrap;
+    }
+    .rtable tr td:last-child{ border-bottom:none; }
+    .rtable td::before{
+      content: attr(data-label);
+      font-weight:600; color:var(--ink-soft); text-align:left; font-size:12px; flex-shrink:0;
+    }
   }
 
-  table{width:100%; border-collapse:collapse; font-size:13.5px;}
-  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
-  th{color:var(--ink-soft); font-weight:600; font-size:12.5px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  th{color:var(--ink-soft); font-weight:600; font-size:11.5px;}
   tr:last-child td{border-bottom:none;}
   .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .table-wrap select{min-width:150px;}
@@ -208,6 +227,10 @@
   .history-row .history-label{font-weight:600;}
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
+  .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-row .k{color:var(--ink-soft);}
+  .detail-row .v{font-weight:600; text-align:right;}
 </style>
 </head>
 <body>
@@ -339,7 +362,7 @@
       <!-- ---------- STAFF: lịch sử ---------- -->
       <div id="page-staffHistory" class="page" style="display:none;">
         <div class="page-head"><div><h1>Lịch sử của tôi</h1><p>Các báo cáo bạn đã nộp</p></div></div>
-        <div class="card"><div class="table-wrap"><table id="staffHistoryTable"></table></div></div>
+        <div class="card"><div class="table-wrap"><table id="staffHistoryTable" class="rtable"></table></div></div>
       </div>
 
       <!-- ---------- MANAGER: tổng quan ---------- -->
@@ -364,12 +387,12 @@
 
         <div class="card" id="mgrBranchSummaryCard" style="display:none;">
           <h2>Tổng hợp theo team / chi nhánh</h2>
-          <div class="table-wrap"><table id="mgrBranchSummaryTable"></table></div>
+          <div class="table-wrap"><table id="mgrBranchSummaryTable" class="rtable"></table></div>
         </div>
 
         <div class="card">
           <h2>Tổng hợp theo người</h2>
-          <div class="table-wrap"><table id="mgrSummaryTable"></table></div>
+          <div class="table-wrap"><table id="mgrSummaryTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -383,13 +406,13 @@
           <div class="field"><label>Đến ngày</label><input id="filterTo" type="date" onchange="renderMgrReports()"></div>
           <button class="btn-ghost" onclick="resetFilters()">Xoá lọc</button>
         </div>
-        <div class="card"><div class="table-wrap"><table id="mgrReportsTable"></table></div></div>
+        <div class="card"><div class="table-wrap"><table id="mgrReportsTable" class="rtable"></table></div></div>
       </div>
 
       <!-- ---------- MANAGER: thùng rác ---------- -->
       <div id="page-mgrTrash" class="page" style="display:none;">
         <div class="page-head"><div><h1>Thùng rác</h1><p>Báo cáo đã xoá — có thể khôi phục</p></div></div>
-        <div class="card"><div class="table-wrap"><table id="mgrTrashTable"></table></div></div>
+        <div class="card"><div class="table-wrap"><table id="mgrTrashTable" class="rtable"></table></div></div>
       </div>
 
       <!-- ---------- MANAGER: chi nhánh & nhân sự ---------- -->
@@ -406,7 +429,7 @@
           </div>
           <div class="card">
             <h2>Người dùng đã đăng ký</h2>
-            <div class="table-wrap"><table id="settingsUserTable"></table></div>
+            <div class="table-wrap"><table id="settingsUserTable" class="rtable"></table></div>
           </div>
         </div>
 
@@ -415,7 +438,7 @@
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">
             Chỉ Quản lý chung mới cấp được quyền. Đổi vai trò của một người sẽ có hiệu lực ngay lần đăng nhập tiếp theo của họ.
           </p>
-          <div class="table-wrap"><table id="permissionsTable"></table></div>
+          <div class="table-wrap"><table id="permissionsTable" class="rtable"></table></div>
         </div>
 
         <div class="card" id="refreshAllCard" style="display:none;">
@@ -453,6 +476,17 @@
     <div id="historyModalBody" style="max-height:320px; overflow-y:auto; margin-top:10px;"></div>
     <div class="actions">
       <button class="btn-ghost" onclick="closeHistoryModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="detailsModal">
+  <div class="modal" style="max-width:380px;">
+    <h2>Chi tiết báo cáo</h2>
+    <p id="detailsModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
+    <div id="detailsModalBody" style="max-height:400px; overflow-y:auto; margin-top:10px;"></div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeDetailsModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -612,6 +646,27 @@ function openHistoryModal(reportId){
   document.getElementById('historyModal').classList.add('show');
 }
 function closeHistoryModal(){ document.getElementById('historyModal').classList.remove('show'); }
+
+function openDetailsModal(reportId){
+  const r = state.reports.find(x=>x.id===reportId) || state.trash.find(x=>x.id===reportId);
+  if(!r) return;
+  document.getElementById('detailsModalSub').textContent = `${userName(r.userId)} — ${branchName(r.branchId)} — ngày ${fmtDate(r.date)}`;
+  const row=(k,v)=>`<div class="detail-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  document.getElementById('detailsModalBody').innerHTML =
+    row('Data khách mới', r.newDataCount) +
+    row('Data tự tìm', r.selfFoundDataCount) +
+    row('Khách đã tư vấn', r.consultedCount) +
+    row('Khách tiềm năng', r.potentialCustomers) +
+    row('Doanh thu TB/đơn', avgPerOrder(r.revenue, r.orderCount)) +
+    row('Khách quay lại', r.returningCustomers) +
+    row('Tỷ lệ quay lại', pct(r.returningCustomers, r.orderCount)) +
+    row('Đăng bài nhóm (Zalo)', r.groupPostCount) +
+    row('Đăng bài tường (Zalo)', r.wallPostCount) +
+    row('Đăng bài FB', r.fbPostCount) +
+    row('Ghi chú', r.note || '—');
+  document.getElementById('detailsModal').classList.add('show');
+}
+function closeDetailsModal(){ document.getElementById('detailsModal').classList.remove('show'); }
 document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
 
 /* =========================== LOGIN FLOW =========================== */
@@ -878,24 +933,15 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th>Ghi chú</th><th></th><th></th></tr>` +
     rows.map(r=>`<tr>
-      <td>${fmtDate(r.date)}</td>
-      <td>${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
-      <td class="num">${r.newDataCount}</td>
-      <td class="num">${r.selfFoundDataCount}</td>
-      <td class="num">${r.consultedCount}</td>
-      <td class="num">${r.potentialCustomers}</td>
-      <td class="num">${r.orderCount}</td>
-      <td class="num">${fmtMoney(r.revenue)}</td>
-      <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
-      <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
-      <td class="num">${r.returningCustomers}</td>
-      <td class="num">${pct(r.returningCustomers, r.orderCount)}</td>
-      <td class="num">${r.groupPostCount}</td>
-      <td class="num">${r.wallPostCount}</td>
-      <td class="num">${r.fbPostCount}</td>
-      <td>${r.note||''}</td>
+      <td data-label="Ngày">${fmtDate(r.date)}</td>
+      <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
+      <td class="num" data-label="Đơn chốt">${r.orderCount}</td>
+      <td class="num" data-label="Doanh thu">${fmtMoney(r.revenue)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount)}</td>
+      <td data-label="Ghi chú">${r.note||''}</td>
+      <td><span class="history-link" onclick="openDetailsModal('${r.id}')">Chi tiết</span></td>
       <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
     </tr>`).join('');
 }
@@ -990,9 +1036,9 @@ function renderMgrDashboard(){
         bIds.sort((a,b)=>byBranch[b].revenue-byBranch[a].revenue).map(id=>{
           const bb=byBranch[id];
           const rowStyle = bb.count===0 ? ' style="color:var(--ink-soft);"' : '';
-          return `<tr${rowStyle}><td>${branchName(id)}</td><td class="num">${bb.count}</td><td class="num">${fmtMoney(bb.revenue)}</td><td class="num">${bb.orders}</td><td class="num">${pct(bb.orders,bb.newdata)}</td><td class="num">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+          return `<tr${rowStyle}><td data-label="Team / chi nhánh">${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
         }).join('') +
-        `<tr class="total-row"><td>TỔNG CỘNG</td><td class="num">${bGrand.count}</td><td class="num">${fmtMoney(bGrand.revenue)}</td><td class="num">${bGrand.orders}</td><td class="num">${pct(bGrand.orders,bGrand.newdata)}</td><td class="num">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr>`;
+        `<tr class="total-row"><td data-label="Team / chi nhánh">TỔNG CỘNG</td><td class="num" data-label="Số báo cáo">${bGrand.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bGrand.revenue)}</td><td class="num" data-label="Tổng đơn">${bGrand.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bGrand.orders,bGrand.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr>`;
     }
   }
 
@@ -1026,19 +1072,19 @@ function renderMgrDashboard(){
     ids.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(id=>{
       const u=state.users.find(u=>u.id===id); const b=byUser[id];
       const rowStyle = b.count===0 ? ' style="color:var(--ink-soft);"' : '';
-      return `<tr${rowStyle}><td>${u?u.name:'—'}</td><td>${u?branchName(u.branchId):'—'}</td>
-        <td class="num">${b.count}</td>
-        <td class="num">${b.newdata}</td><td class="num">${b.selffound}</td><td class="num">${b.consulted}</td><td class="num">${b.potential}</td>
-        <td class="num">${b.orders}</td><td class="num">${fmtMoney(b.revenue)}</td>
-        <td class="num">${pct(b.orders,b.newdata)}</td><td class="num">${avgPerOrder(b.revenue,b.orders)}</td>
-        <td class="num">${b.returning}</td><td class="num">${pct(b.returning,b.orders)}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td><td class="num">${b.fbposts}</td></tr>`;
+      return `<tr${rowStyle}><td data-label="Người nộp">${u?u.name:'—'}</td><td data-label="Chi nhánh">${u?branchName(u.branchId):'—'}</td>
+        <td class="num" data-label="Số ngày nộp">${b.count}</td>
+        <td class="num" data-label="Data mới">${b.newdata}</td><td class="num" data-label="Data tự tìm">${b.selffound}</td><td class="num" data-label="Đã tư vấn">${b.consulted}</td><td class="num" data-label="Tiềm năng">${b.potential}</td>
+        <td class="num" data-label="Đơn chốt">${b.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(b.revenue)}</td>
+        <td class="num" data-label="Tỷ lệ chốt">${pct(b.orders,b.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(b.revenue,b.orders)}</td>
+        <td class="num" data-label="Quay lại">${b.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(b.returning,b.orders)}</td><td class="num" data-label="Bài nhóm (Zalo)">${b.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${b.wallposts}</td><td class="num" data-label="Bài FB">${b.fbposts}</td></tr>`;
     }).join('') +
-    `<tr class="total-row"><td>TỔNG CỘNG</td><td>—</td>
-      <td class="num">${grand.count}</td>
-      <td class="num">${grand.newdata}</td><td class="num">${grand.selffound}</td><td class="num">${grand.consulted}</td><td class="num">${grand.potential}</td>
-      <td class="num">${grand.orders}</td><td class="num">${fmtMoney(grand.revenue)}</td>
-      <td class="num">${pct(grand.orders,grand.newdata)}</td><td class="num">${avgPerOrder(grand.revenue,grand.orders)}</td>
-      <td class="num">${grand.returning}</td><td class="num">${pct(grand.returning,grand.orders)}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td><td class="num">${grand.fbposts}</td></tr>`;
+    `<tr class="total-row"><td data-label="Người nộp">TỔNG CỘNG</td><td data-label="Chi nhánh">—</td>
+      <td class="num" data-label="Số ngày nộp">${grand.count}</td>
+      <td class="num" data-label="Data mới">${grand.newdata}</td><td class="num" data-label="Data tự tìm">${grand.selffound}</td><td class="num" data-label="Đã tư vấn">${grand.consulted}</td><td class="num" data-label="Tiềm năng">${grand.potential}</td>
+      <td class="num" data-label="Đơn chốt">${grand.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(grand.revenue)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders,grand.newdata)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue,grand.orders)}</td>
+      <td class="num" data-label="Quay lại">${grand.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning,grand.orders)}</td><td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td><td class="num" data-label="Bài FB">${grand.fbposts}</td></tr>`;
 }
 
 let revenueChartInstance=null;
@@ -1093,29 +1139,39 @@ function renderMgrReports(){
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th><th></th></tr>` +
+
+  // Nhãn dòng tổng theo đúng bộ lọc đang chọn
+  let totalLabel = 'TỔNG (theo bộ lọc)';
+  if(branchId && !userId) totalLabel = 'TỔNG '+branchName(branchId).toUpperCase();
+  else if(userId) totalLabel = 'TỔNG CỦA '+userName(userId).toUpperCase();
+  else if(!branchId && !userId) totalLabel = 'TỔNG TẤT CẢ';
+
+  const filterTotal = rows.reduce((acc,r)=>{
+    acc.orders+=r.orderCount; acc.revenue+=r.revenue; acc.newdata+=r.newDataCount;
+    return acc;
+  }, {orders:0, revenue:0, newdata:0});
+
+  table.innerHTML = `<tr><th>Ngày</th><th>Nộp lúc</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th>Ghi chú</th><th></th><th></th><th></th></tr>` +
     rows.map(r=>`<tr>
-      <td>${fmtDate(r.date)}</td>
-      <td>${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
-      <td>${userName(r.userId)}</td>
-      <td>${branchName(r.branchId)}</td>
-      <td class="num">${r.newDataCount}</td>
-      <td class="num">${r.selfFoundDataCount}</td>
-      <td class="num">${r.consultedCount}</td>
-      <td class="num">${r.potentialCustomers}</td>
-      <td class="num">${r.orderCount}</td>
-      <td class="num">${fmtMoney(r.revenue)}</td>
-      <td class="num">${pct(r.orderCount, r.newDataCount)}</td>
-      <td class="num">${avgPerOrder(r.revenue, r.orderCount)}</td>
-      <td class="num">${r.returningCustomers}</td>
-      <td class="num">${pct(r.returningCustomers, r.orderCount)}</td>
-      <td class="num">${r.groupPostCount}</td>
-      <td class="num">${r.wallPostCount}</td>
-      <td class="num">${r.fbPostCount}</td>
-      <td>${r.note||''}</td>
+      <td data-label="Ngày">${fmtDate(r.date)}</td>
+      <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
+      <td data-label="Người nộp">${userName(r.userId)}</td>
+      <td data-label="Chi nhánh">${branchName(r.branchId)}</td>
+      <td class="num" data-label="Đơn chốt">${r.orderCount}</td>
+      <td class="num" data-label="Doanh thu">${fmtMoney(r.revenue)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(r.orderCount, r.newDataCount)}</td>
+      <td data-label="Ghi chú">${r.note||''}</td>
+      <td><span class="history-link" onclick="openDetailsModal('${r.id}')">Chi tiết</span></td>
       <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
       <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
-    </tr>`).join('');
+    </tr>`).join('') +
+    `<tr class="total-row">
+      <td colspan="4">${totalLabel} (${rows.length} báo cáo)</td>
+      <td class="num" data-label="Đơn chốt">${filterTotal.orders}</td>
+      <td class="num" data-label="Doanh thu">${fmtMoney(filterTotal.revenue)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(filterTotal.orders, filterTotal.newdata)}</td>
+      <td colspan="4"></td>
+    </tr>`;
 }
 function deleteReport(id){
   askConfirm('Xoá báo cáo', 'Báo cáo sẽ chuyển vào thùng rác, có thể khôi phục sau.', ()=>{
@@ -1138,9 +1194,9 @@ function renderMgrTrash(){
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Thùng rác trống.</td></tr>'; return; }
   table.innerHTML=`<tr><th>Ngày báo cáo</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Doanh thu</th><th>Xoá bởi</th><th>Lúc xoá</th><th></th></tr>`+
     rows.map(r=>`<tr>
-      <td>${fmtDate(r.date)}</td><td>${userName(r.userId)}</td><td>${branchName(r.branchId)}</td>
-      <td class="num">${fmtMoney(r.revenue)}</td><td>${r.deletedBy}</td>
-      <td>${new Date(r.deletedAt).toLocaleString('vi-VN')}</td>
+      <td data-label="Ngày báo cáo">${fmtDate(r.date)}</td><td data-label="Người nộp">${userName(r.userId)}</td><td data-label="Chi nhánh">${branchName(r.branchId)}</td>
+      <td class="num" data-label="Doanh thu">${fmtMoney(r.revenue)}</td><td data-label="Xoá bởi">${r.deletedBy}</td>
+      <td data-label="Lúc xoá">${new Date(r.deletedAt).toLocaleString('vi-VN')}</td>
       <td><button class="btn-ghost btn-small" onclick="restoreReport('${r.id}')">Khôi phục</button></td>
     </tr>`).join('');
 }
@@ -1181,10 +1237,10 @@ function renderMgrSettings(){
   else {
     table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map(u=>`<tr>
-        <td>${u.name}</td>
-        <td>${roleLabel(u.role)}</td>
-        <td>${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
-        <td>${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
+        <td data-label="Tên">${u.name}</td>
+        <td data-label="Vai trò">${roleLabel(u.role)}</td>
+        <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
+        <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
         ${scope ? '' : `<td><button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
   }
@@ -1228,9 +1284,9 @@ function renderPermissionsTable(){
         state.branches.map(b=>`<option value="${b.id}" ${u.branchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
       return `<tr>
-        <td>${u.name}</td>
-        <td>${roleSel}</td>
-        <td>${branchSel}</td>
+        <td data-label="Tên">${u.name}</td>
+        <td data-label="Vai trò">${roleSel}</td>
+        <td data-label="Chi nhánh phụ trách">${branchSel}</td>
         <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
       </tr>`;
     }).join('');
