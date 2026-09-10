@@ -301,6 +301,11 @@
             <div class="field"><label>Đăng bài nhóm</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đăng bài tường</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
           </div>
+          <label style="font-weight:600; color:var(--ink); font-size:13.5px; display:block; margin:4px 0 10px;">Tự khai thác thêm</label>
+          <div class="grid-2" style="margin-bottom:14px;">
+            <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Số lượng đăng bài FB</label><input id="f_fbposts" type="number" min="0" placeholder="0"></div>
+          </div>
           <div class="grid-2" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới)</div><div class="stat-value" id="previewCloseRate">—</div></div>
             <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
@@ -725,7 +730,7 @@ function loadReportForDate(){
   document.getElementById('staffReportSub').textContent =
     existing ? `Ngày ${fmtDate(date)} — đã nộp lúc ${new Date(existing.submittedAt).toLocaleTimeString('vi-VN')}, sửa và lưu lại nếu cần chỉnh.`
              : `${isToday ? 'Chưa nộp hôm nay' : 'Chưa có báo cáo cho ngày này'} — điền số liệu ngày ${fmtDate(date)} bên dưới.`;
-  const fields=['revenue','orders','groupposts','wallposts','newdata','consulted','potential','returning','note'];
+  const fields=['revenue','orders','groupposts','wallposts','selffound','fbposts','newdata','consulted','potential','returning','note'];
   fields.forEach(f=>{ document.getElementById('f_'+f).value = existing ? (existing[keyFor(f)] ?? '') : ''; });
   document.getElementById('staffReportMsg').textContent='';
   updateReportPreview();
@@ -733,6 +738,7 @@ function loadReportForDate(){
 function keyFor(f){
   return {
     revenue:'revenue', orders:'orderCount', groupposts:'groupPostCount', wallposts:'wallPostCount',
+    selffound:'selfFoundDataCount', fbposts:'fbPostCount',
     newdata:'newDataCount', consulted:'consultedCount', potential:'potentialCustomers',
     returning:'returningCustomers', note:'note'
   }[f];
@@ -740,13 +746,17 @@ function keyFor(f){
 function submitReport(){
   const user=currentUser();
   const date=document.getElementById('f_date').value;
-  if(!date){ document.getElementById('staffReportMsg').textContent='Vui lòng chọn ngày báo cáo.'; return; }
-  if(date > todayStr()){ document.getElementById('staffReportMsg').textContent='Không thể nộp báo cáo cho ngày trong tương lai.'; return; }
+  const msgEl=document.getElementById('staffReportMsg');
+  msgEl.style.color='var(--danger)';
+  if(!date){ msgEl.textContent='Vui lòng chọn ngày báo cáo.'; return; }
+  if(date > todayStr()){ msgEl.textContent='Không thể nộp báo cáo cho ngày trong tương lai.'; return; }
   const data = {
     revenue: Number(document.getElementById('f_revenue').value)||0,
     orderCount: Number(document.getElementById('f_orders').value)||0,
     groupPostCount: Number(document.getElementById('f_groupposts').value)||0,
     wallPostCount: Number(document.getElementById('f_wallposts').value)||0,
+    selfFoundDataCount: Number(document.getElementById('f_selffound').value)||0,
+    fbPostCount: Number(document.getElementById('f_fbposts').value)||0,
     newDataCount: Number(document.getElementById('f_newdata').value)||0,
     consultedCount: Number(document.getElementById('f_consulted').value)||0,
     potentialCustomers: Number(document.getElementById('f_potential').value)||0,
@@ -754,10 +764,12 @@ function submitReport(){
     note: document.getElementById('f_note').value.trim(),
   };
   let existing = myReportForDate(user.id, date);
+  let confirmText;
   if(existing){
     Object.assign(existing, data);
     existing.editedAt = Date.now();
     fbSetReport(existing);
+    confirmText = '✓ Đã cập nhật báo cáo ngày '+fmtDate(date)+' lúc '+new Date().toLocaleTimeString('vi-VN');
     showToast('Đã cập nhật báo cáo ngày '+fmtDate(date));
   } else {
     const newReport = {
@@ -766,9 +778,12 @@ function submitReport(){
     };
     state.reports.push(newReport);
     fbSetReport(newReport);
+    confirmText = '✓ Đã lưu báo cáo ngày '+fmtDate(date)+' lúc '+new Date().toLocaleTimeString('vi-VN');
     showToast('Đã nộp báo cáo ngày '+fmtDate(date));
   }
   renderStaffReport();
+  msgEl.style.color='var(--success)';
+  msgEl.textContent=confirmText;
 }
 
 function renderStaffHistory(){
@@ -776,10 +791,11 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th>Ghi chú</th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th><th>Ghi chú</th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td class="num">${r.newDataCount}</td>
+      <td class="num">${r.selfFoundDataCount}</td>
       <td class="num">${r.consultedCount}</td>
       <td class="num">${r.potentialCustomers}</td>
       <td class="num">${r.orderCount}</td>
@@ -789,6 +805,7 @@ function renderStaffHistory(){
       <td class="num">${r.returningCustomers}</td>
       <td class="num">${r.groupPostCount}</td>
       <td class="num">${r.wallPostCount}</td>
+      <td class="num">${r.fbPostCount}</td>
       <td>${r.note||''}</td>
     </tr>`).join('');
 }
@@ -836,10 +853,11 @@ function renderMgrDashboard(){
   const totals = allInScope.reduce((acc,r)=>{
     acc.revenue+=r.revenue; acc.orders+=r.orderCount;
     acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount;
+    acc.selffound+=r.selfFoundDataCount; acc.fbposts+=r.fbPostCount;
     acc.newdata+=r.newDataCount; acc.consulted+=r.consultedCount;
     acc.potential+=r.potentialCustomers; acc.returning+=r.returningCustomers;
     return acc;
-  }, {revenue:0,orders:0,groupposts:0,wallposts:0,newdata:0,consulted:0,potential:0,returning:0});
+  }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0});
   const statBox = (label,value)=>`<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
   document.getElementById('mgrTotalsGrid').innerHTML =
     statBox('Tổng doanh thu', fmtMoney(totals.revenue)+' đ') +
@@ -847,11 +865,13 @@ function renderMgrDashboard(){
     statBox('Tỷ lệ chốt', pct(totals.orders, totals.newdata)) +
     statBox('Doanh thu TB/đơn', avgPerOrder(totals.revenue, totals.orders)) +
     statBox('Data khách mới', totals.newdata) +
+    statBox('Data tự tìm', totals.selffound) +
     statBox('Khách đã tư vấn', totals.consulted) +
     statBox('Khách tiềm năng', totals.potential) +
     statBox('Khách quay lại', totals.returning) +
     statBox('Đăng bài nhóm', totals.groupposts) +
-    statBox('Đăng bài tường', totals.wallposts);
+    statBox('Đăng bài tường', totals.wallposts) +
+    statBox('Đăng bài FB', totals.fbposts);
 
   // tổng hợp theo người (toàn thời gian)
   const recent = allInScope;
@@ -888,13 +908,14 @@ function renderMgrDashboard(){
   const byUser={};
   // Khởi tạo sẵn TẤT CẢ người thuộc phạm vi (kể cả chưa nộp báo cáo nào) để quản lý thấy đủ đội của mình
   state.users.filter(u => !scope || u.branchId===scope).forEach(u=>{
-    byUser[u.id] = {revenue:0, orders:0, groupposts:0, wallposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+    byUser[u.id] = {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
   });
   recent.forEach(r=>{
-    byUser[r.userId] = byUser[r.userId] || {revenue:0, orders:0, groupposts:0, wallposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
+    byUser[r.userId] = byUser[r.userId] || {revenue:0, orders:0, groupposts:0, wallposts:0, selffound:0, fbposts:0, newdata:0, consulted:0, potential:0, returning:0, count:0};
     const b=byUser[r.userId];
     b.revenue+=r.revenue; b.orders+=r.orderCount;
     b.groupposts+=r.groupPostCount; b.wallposts+=r.wallPostCount;
+    b.selffound+=r.selfFoundDataCount; b.fbposts+=r.fbPostCount;
     b.newdata+=r.newDataCount; b.consulted+=r.consultedCount;
     b.potential+=r.potentialCustomers; b.returning+=r.returningCustomers; b.count++;
   });
@@ -904,28 +925,29 @@ function renderMgrDashboard(){
   const grand = recent.reduce((acc,r)=>{
     acc.revenue+=r.revenue; acc.orders+=r.orderCount;
     acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount;
+    acc.selffound+=r.selfFoundDataCount; acc.fbposts+=r.fbPostCount;
     acc.newdata+=r.newDataCount; acc.consulted+=r.consultedCount;
     acc.potential+=r.potentialCustomers; acc.returning+=r.returningCustomers;
     acc.count++;
     return acc;
-  }, {revenue:0,orders:0,groupposts:0,wallposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
-  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th></tr>` +
+  }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0,count:0});
+  table.innerHTML = `<tr><th>Người nộp</th><th>Chi nhánh</th><th class="num">Số ngày nộp</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th></tr>` +
     ids.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(id=>{
       const u=state.users.find(u=>u.id===id); const b=byUser[id];
       const rowStyle = b.count===0 ? ' style="color:var(--ink-soft);"' : '';
       return `<tr${rowStyle}><td>${u?u.name:'—'}</td><td>${u?branchName(u.branchId):'—'}</td>
         <td class="num">${b.count}</td>
-        <td class="num">${b.newdata}</td><td class="num">${b.consulted}</td><td class="num">${b.potential}</td>
+        <td class="num">${b.newdata}</td><td class="num">${b.selffound}</td><td class="num">${b.consulted}</td><td class="num">${b.potential}</td>
         <td class="num">${b.orders}</td><td class="num">${fmtMoney(b.revenue)}</td>
         <td class="num">${pct(b.orders,b.newdata)}</td><td class="num">${avgPerOrder(b.revenue,b.orders)}</td>
-        <td class="num">${b.returning}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td></tr>`;
+        <td class="num">${b.returning}</td><td class="num">${b.groupposts}</td><td class="num">${b.wallposts}</td><td class="num">${b.fbposts}</td></tr>`;
     }).join('') +
     `<tr class="total-row"><td>TỔNG CỘNG</td><td>—</td>
       <td class="num">${grand.count}</td>
-      <td class="num">${grand.newdata}</td><td class="num">${grand.consulted}</td><td class="num">${grand.potential}</td>
+      <td class="num">${grand.newdata}</td><td class="num">${grand.selffound}</td><td class="num">${grand.consulted}</td><td class="num">${grand.potential}</td>
       <td class="num">${grand.orders}</td><td class="num">${fmtMoney(grand.revenue)}</td>
       <td class="num">${pct(grand.orders,grand.newdata)}</td><td class="num">${avgPerOrder(grand.revenue,grand.orders)}</td>
-      <td class="num">${grand.returning}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td></tr>`;
+      <td class="num">${grand.returning}</td><td class="num">${grand.groupposts}</td><td class="num">${grand.wallposts}</td><td class="num">${grand.fbposts}</td></tr>`;
 }
 
 let revenueChartInstance=null;
@@ -980,12 +1002,13 @@ function renderMgrReports(){
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
-  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th>Ghi chú</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Ngày</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Bài nhóm</th><th class="num">Bài tường</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr>` +
     rows.map(r=>`<tr>
       <td>${fmtDate(r.date)}</td>
       <td>${userName(r.userId)}</td>
       <td>${branchName(r.branchId)}</td>
       <td class="num">${r.newDataCount}</td>
+      <td class="num">${r.selfFoundDataCount}</td>
       <td class="num">${r.consultedCount}</td>
       <td class="num">${r.potentialCustomers}</td>
       <td class="num">${r.orderCount}</td>
@@ -995,6 +1018,7 @@ function renderMgrReports(){
       <td class="num">${r.returningCustomers}</td>
       <td class="num">${r.groupPostCount}</td>
       <td class="num">${r.wallPostCount}</td>
+      <td class="num">${r.fbPostCount}</td>
       <td>${r.note||''}</td>
       <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
     </tr>`).join('');
