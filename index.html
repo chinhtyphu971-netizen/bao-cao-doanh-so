@@ -365,10 +365,10 @@
 
         <div class="chip-row" style="margin-bottom:16px;">
           <div class="chip" id="dashPreset_today" onclick="applyDashboardPreset('today')">Hôm nay</div>
-          <div class="chip" id="dashPreset_yesterday" onclick="applyDashboardPreset('yesterday')">Hôm qua</div>
+          <div class="chip selected" id="dashPreset_yesterday" onclick="applyDashboardPreset('yesterday')">Hôm qua</div>
           <div class="chip" id="dashPreset_week" onclick="applyDashboardPreset('week')">Tuần qua</div>
           <div class="chip" id="dashPreset_month" onclick="applyDashboardPreset('month')">Tháng qua</div>
-          <div class="chip selected" id="dashPreset_all" onclick="applyDashboardPreset('all')">Toàn thời gian</div>
+          <div class="chip" id="dashPreset_all" onclick="applyDashboardPreset('all')">Toàn thời gian</div>
         </div>
 
         <div class="card" id="mgrReminderCard">
@@ -1045,7 +1045,11 @@ function scopeBranchId(){
   const u=currentUser();
   return (u && u.role==='team_manager') ? u.branchId : null;
 }
-let dashDateFrom = null, dashDateTo = null, dashPreset = 'all';
+let dashDateFrom = null, dashDateTo = null, dashPreset = 'yesterday';
+(function initDashDefault(){
+  const [from, to] = dateRangeFor('yesterday');
+  dashDateFrom = from; dashDateTo = to;
+})();
 function applyDashboardPreset(preset){
   dashPreset = preset;
   const [from, to] = dateRangeFor(preset);
