@@ -937,6 +937,12 @@ function renderStaffHistory(){
   const rows = state.reports.filter(r=>r.userId===user.id).sort((a,b)=>b.date.localeCompare(a.date));
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
+  const grand = rows.reduce((acc,r)=>{
+    acc.orders+=r.orderCount; acc.revenue+=r.revenue; acc.newdata+=r.newDataCount;
+    acc.selffound+=r.selfFoundDataCount; acc.consulted+=r.consultedCount; acc.potential+=r.potentialCustomers;
+    acc.returning+=r.returningCustomers; acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount; acc.fbposts+=r.fbPostCount;
+    return acc;
+  }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, groupposts:0, wallposts:0, fbposts:0});
   table.innerHTML = `<thead><tr><th>Ngày</th><th>Nộp lúc</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
@@ -956,7 +962,24 @@ function renderStaffHistory(){
       <td class="num" data-label="Bài FB">${r.fbPostCount}</td>
       <td data-label="Ghi chú">${r.note||''}</td>
       <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
-    </tr>`).join('') + `</tbody>`;
+    </tr>`).join('') +
+    `<tr class="total-row">
+      <td colspan="2">TỔNG CỘNG (${rows.length} báo cáo)</td>
+      <td class="num" data-label="Data mới">${grand.newdata}</td>
+      <td class="num" data-label="Data tự tìm">${grand.selffound}</td>
+      <td class="num" data-label="Đã tư vấn">${grand.consulted}</td>
+      <td class="num" data-label="Tiềm năng">${grand.potential}</td>
+      <td class="num" data-label="Đơn chốt">${grand.orders}</td>
+      <td class="num" data-label="Doanh thu">${fmtMoney(grand.revenue)}</td>
+      <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders, grand.newdata)}</td>
+      <td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue, grand.orders)}</td>
+      <td class="num" data-label="Quay lại">${grand.returning}</td>
+      <td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning, grand.orders)}</td>
+      <td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td>
+      <td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td>
+      <td class="num" data-label="Bài FB">${grand.fbposts}</td>
+      <td colspan="2"></td>
+    </tr></tbody>`;
 }
 
 /* =========================== MANAGER =========================== */
@@ -1161,8 +1184,10 @@ function renderMgrReports(){
 
   const filterTotal = rows.reduce((acc,r)=>{
     acc.orders+=r.orderCount; acc.revenue+=r.revenue; acc.newdata+=r.newDataCount;
+    acc.selffound+=r.selfFoundDataCount; acc.consulted+=r.consultedCount; acc.potential+=r.potentialCustomers;
+    acc.returning+=r.returningCustomers; acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount; acc.fbposts+=r.fbPostCount;
     return acc;
-  }, {orders:0, revenue:0, newdata:0});
+  }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, groupposts:0, wallposts:0, fbposts:0});
 
   table.innerHTML = `<thead><tr><th>Ngày</th><th>Nộp lúc</th><th>Người nộp</th><th>Chi nhánh</th><th class="num">Data mới</th><th class="num">Data tự tìm</th><th class="num">Đã tư vấn</th><th class="num">Tiềm năng</th><th class="num">Đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỷ lệ chốt</th><th class="num">TB/đơn</th><th class="num">Quay lại</th><th class="num">Tỷ lệ quay lại</th><th class="num">Bài nhóm (Zalo)</th><th class="num">Bài tường (Zalo)</th><th class="num">Bài FB</th><th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
@@ -1188,11 +1213,21 @@ function renderMgrReports(){
       <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
     </tr>`).join('') +
     `<tr class="total-row">
-      <td colspan="8">${totalLabel} (${rows.length} báo cáo)</td>
+      <td colspan="4">${totalLabel} (${rows.length} báo cáo)</td>
+      <td class="num" data-label="Data mới">${filterTotal.newdata}</td>
+      <td class="num" data-label="Data tự tìm">${filterTotal.selffound}</td>
+      <td class="num" data-label="Đã tư vấn">${filterTotal.consulted}</td>
+      <td class="num" data-label="Tiềm năng">${filterTotal.potential}</td>
       <td class="num" data-label="Đơn chốt">${filterTotal.orders}</td>
       <td class="num" data-label="Doanh thu">${fmtMoney(filterTotal.revenue)}</td>
       <td class="num" data-label="Tỷ lệ chốt">${pct(filterTotal.orders, filterTotal.newdata)}</td>
-      <td colspan="9"></td>
+      <td class="num" data-label="TB/đơn">${avgPerOrder(filterTotal.revenue, filterTotal.orders)}</td>
+      <td class="num" data-label="Quay lại">${filterTotal.returning}</td>
+      <td class="num" data-label="Tỷ lệ quay lại">${pct(filterTotal.returning, filterTotal.orders)}</td>
+      <td class="num" data-label="Bài nhóm (Zalo)">${filterTotal.groupposts}</td>
+      <td class="num" data-label="Bài tường (Zalo)">${filterTotal.wallposts}</td>
+      <td class="num" data-label="Bài FB">${filterTotal.fbposts}</td>
+      <td colspan="3"></td>
     </tr></tbody>`;
 }
 function deleteReport(id){
