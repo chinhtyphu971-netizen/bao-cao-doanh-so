@@ -1036,7 +1036,19 @@ function renderMgrDashboard(){
   } else if(notSubmitted.length===0){
     listEl.innerHTML='<span class="badge badge-ok">Mọi người đã nộp báo cáo hôm nay</span>';
   } else {
-    listEl.innerHTML = notSubmitted.map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''} · ${branchName(u.branchId)}</span>`).join('');
+    // Nhóm theo chi nhánh/team, mỗi team hiện trên 1 hàng riêng
+    const byBranchGroup={};
+    notSubmitted.forEach(u=>{
+      const key=u.branchId||'—';
+      byBranchGroup[key]=byBranchGroup[key]||[];
+      byBranchGroup[key].push(u);
+    });
+    const branchKeys=Object.keys(byBranchGroup).sort((a,b)=>branchName(a).localeCompare(branchName(b),'vi'));
+    listEl.innerHTML = branchKeys.map(bId=>`
+      <div style="margin-bottom:10px;">
+        <div style="font-weight:600; font-size:13px; color:var(--ink-soft); margin-bottom:6px;">${branchName(bId)}</div>
+        <div>${byBranchGroup[bId].map(u=>`<span class="badge badge-warn" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>
+      </div>`).join('');
   }
 
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
