@@ -670,6 +670,19 @@ function showToast(msg){
   clearTimeout(showToast._t);
   showToast._t=setTimeout(()=>t.classList.remove('show'),2200);
 }
+window.addEventListener('error', function(e){
+  console.error('Lỗi chưa được xử lý:', e.error || e.message);
+  try{
+    const t=document.getElementById('toast');
+    if(t){
+      t.textContent='Có lỗi xảy ra: '+(e.message||'không rõ nguyên nhân')+' — thử tải lại trang, nếu vẫn lỗi chụp Console (F12) gửi hỗ trợ.';
+      t.style.maxWidth='90vw';
+      t.classList.add('show');
+      clearTimeout(window.__errToastT);
+      window.__errToastT=setTimeout(()=>t.classList.remove('show'), 6000);
+    }
+  }catch(_){}
+});
 
 let pendingConfirm=null;
 function askConfirm(title,text,onOk){
@@ -929,6 +942,7 @@ function keyFor(f){
   }[f];
 }
 function submitReport(){
+ try{
   const user=currentUser();
   const date=document.getElementById('f_date').value;
   const msgEl=document.getElementById('staffReportMsg');
@@ -961,7 +975,7 @@ function submitReport(){
   } else {
     const submittedAt = Date.now();
     const newReport = {
-      id:uid(), date, userId:user.id, branchId:user.branchId,
+      id:uid(), date, userId:user.id, branchId: user.branchId===undefined ? null : user.branchId,
       submittedAt, editedAt:null,
       history: [{at: submittedAt, label:'Nộp lần đầu'}],
       ...data
@@ -974,6 +988,13 @@ function submitReport(){
   renderStaffReport();
   msgEl.style.color='var(--success)';
   msgEl.textContent=confirmText;
+ }catch(err){
+  console.error('Lỗi khi nộp báo cáo:', err);
+  const msgEl=document.getElementById('staffReportMsg');
+  msgEl.style.color='var(--danger)';
+  msgEl.textContent='Có lỗi khi lưu báo cáo: '+(err && err.message ? err.message : err)+' — chụp màn hình dòng này gửi cho người hỗ trợ kỹ thuật.';
+  showToast('Lưu báo cáo thất bại — xem chi tiết lỗi bên dưới nút');
+ }
 }
 
 function renderStaffHistory(){
