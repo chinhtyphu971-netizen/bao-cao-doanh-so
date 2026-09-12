@@ -345,7 +345,7 @@
             <div class="field"><label>Đơn chốt</label><input id="f_orders" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Doanh thu (VNĐ)</label><input id="f_revenue" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Khách quay lại</label><input id="f_returning" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
-            <div class="field"><label>Khách thân thiết</label><input id="f_loyal" type="number" min="0" placeholder="0"></div>
+            <div class="field"><label>Khách thân thiết( đã thêm vào bảng)</label><input id="f_loyal" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đăng bài nhóm (Zalo)</label><input id="f_groupposts" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Đăng bài tường (Zalo)</label><input id="f_wallposts" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Số lượng đăng bài FB</label><input id="f_fbposts" type="number" min="0" placeholder="0"></div>
@@ -1054,7 +1054,7 @@ function renderStaffHistory(){
     acc.returning+=r.returningCustomers; acc.loyal+=r.loyalCustomerCount; acc.groupposts+=r.groupPostCount; acc.wallposts+=r.wallPostCount; acc.fbposts+=r.fbPostCount;
     return acc;
   }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, loyal:0, groupposts:0, wallposts:0, fbposts:0});
-  table.innerHTML = `<thead><tr>${thHistorySort('Ngày','date')}${thHistorySort('Nộp lúc','submittedAt')}${thHistorySort('Data mới','newdata',true)}${thHistorySort('Data tự tìm','selffound',true)}${thHistorySort('Đã tư vấn','consulted',true)}${thHistorySort('Tiềm năng','potential',true)}${thHistorySort('Đơn chốt','orders',true)}${thHistorySort('Doanh thu','revenue',true)}${thHistorySort('Tỷ lệ chốt','closerate',true)}${thHistorySort('TB/đơn','avgorder',true)}${thHistorySort('Quay lại','returning',true)}${thHistorySort('Tỷ lệ quay lại','returnrate',true)}${thHistorySort('Khách thân thiết','loyal',true)}${thHistorySort('Bài nhóm (Zalo)','groupposts',true)}${thHistorySort('Bài tường (Zalo)','wallposts',true)}${thHistorySort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr>${thHistorySort('Ngày','date')}${thHistorySort('Nộp lúc','submittedAt')}${thHistorySort('Data mới','newdata',true)}${thHistorySort('Data tự tìm','selffound',true)}${thHistorySort('Đã tư vấn','consulted',true)}${thHistorySort('Tiềm năng','potential',true)}${thHistorySort('Đơn chốt','orders',true)}${thHistorySort('Doanh thu','revenue',true)}${thHistorySort('Tỷ lệ chốt','closerate',true)}${thHistorySort('TB/đơn','avgorder',true)}${thHistorySort('Quay lại','returning',true)}${thHistorySort('Tỷ lệ quay lại','returnrate',true)}${thHistorySort('Thân thiết','loyal',true)}${thHistorySort('Bài nhóm (Zalo)','groupposts',true)}${thHistorySort('Bài tường (Zalo)','wallposts',true)}${thHistorySort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
       <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
@@ -1068,7 +1068,7 @@ function renderStaffHistory(){
       <td class="num" data-label="TB/đơn">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num" data-label="Quay lại">${r.returningCustomers}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(r.returningCustomers, r.orderCount)}</td>
-      <td class="num" data-label="Khách thân thiết">${r.loyalCustomerCount}</td>
+      <td class="num" data-label="Thân thiết">${r.loyalCustomerCount}</td>
       <td class="num" data-label="Bài nhóm (Zalo)">${r.groupPostCount}</td>
       <td class="num" data-label="Bài tường (Zalo)">${r.wallPostCount}</td>
       <td class="num" data-label="Bài FB">${r.fbPostCount}</td>
@@ -1087,7 +1087,7 @@ function renderStaffHistory(){
       <td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue, grand.orders)}</td>
       <td class="num" data-label="Quay lại">${grand.returning}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning, grand.orders)}</td>
-      <td class="num" data-label="Khách thân thiết">${grand.loyal}</td>
+      <td class="num" data-label="Thân thiết">${grand.loyal}</td>
       <td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td>
       <td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td>
       <td class="num" data-label="Bài FB">${grand.fbposts}</td>
@@ -1261,7 +1261,7 @@ function renderMgrDashboard(){
     statBox('Khách đã tư vấn', totals.consulted) +
     statBox('Khách tiềm năng', totals.potential) +
     statBox('Khách quay lại', totals.returning) +
-    statBox('Khách thân thiết', totals.loyal) +
+    statBox('Thân thiết', totals.loyal) +
     statBox('Tỷ lệ quay lại', pct(totals.returning, totals.orders)) +
     statBox('Đăng bài nhóm', totals.groupposts) +
     statBox('Đăng bài tường', totals.wallposts) +
@@ -1342,7 +1342,7 @@ function renderMgrDashboard(){
     acc.count+=r.count;
     return acc;
   }, {revenue:0,orders:0,groupposts:0,wallposts:0,selffound:0,fbposts:0,newdata:0,consulted:0,potential:0,returning:0,loyal:0,count:0});
-  table.innerHTML = `<thead><tr><th>Người nộp</th><th>Chi nhánh</th>${thUserSort('Số ngày nộp','count')}${thUserSort('Data mới','newdata')}${thUserSort('Data tự tìm','selffound')}${thUserSort('Đã tư vấn','consulted')}${thUserSort('Tiềm năng','potential')}${thUserSort('Đơn chốt','orders')}${thUserSort('Doanh thu','revenue')}${thUserSort('Tỷ lệ chốt','closerate')}${thUserSort('TB/đơn','avgorder')}${thUserSort('Quay lại','returning')}${thUserSort('Tỷ lệ quay lại','returnrate')}${thUserSort('Khách thân thiết','loyal')}${thUserSort('Bài nhóm (Zalo)','groupposts')}${thUserSort('Bài tường (Zalo)','wallposts')}${thUserSort('Bài FB','fbposts')}</tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Người nộp</th><th>Chi nhánh</th>${thUserSort('Số ngày nộp','count')}${thUserSort('Data mới','newdata')}${thUserSort('Data tự tìm','selffound')}${thUserSort('Đã tư vấn','consulted')}${thUserSort('Tiềm năng','potential')}${thUserSort('Đơn chốt','orders')}${thUserSort('Doanh thu','revenue')}${thUserSort('Tỷ lệ chốt','closerate')}${thUserSort('TB/đơn','avgorder')}${thUserSort('Quay lại','returning')}${thUserSort('Tỷ lệ quay lại','returnrate')}${thUserSort('Thân thiết','loyal')}${thUserSort('Bài nhóm (Zalo)','groupposts')}${thUserSort('Bài tường (Zalo)','wallposts')}${thUserSort('Bài FB','fbposts')}</tr></thead><tbody>` +
     ids.sort((a,b)=>{
       const va=userSortValue(byUser[a], userSort.col), vb=userSortValue(byUser[b], userSort.col);
       return userSort.dir==='desc' ? vb-va : va-vb;
@@ -1354,14 +1354,14 @@ function renderMgrDashboard(){
         <td class="num" data-label="Data mới">${b.newdata}</td><td class="num" data-label="Data tự tìm">${b.selffound}</td><td class="num" data-label="Đã tư vấn">${b.consulted}</td><td class="num" data-label="Tiềm năng">${b.potential}</td>
         <td class="num" data-label="Đơn chốt">${b.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(b.revenue)}</td>
         <td class="num" data-label="Tỷ lệ chốt">${pct(b.orders,b.newdata+b.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(b.revenue,b.orders)}</td>
-        <td class="num" data-label="Quay lại">${b.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(b.returning,b.orders)}</td><td class="num" data-label="Khách thân thiết">${b.loyal}</td><td class="num" data-label="Bài nhóm (Zalo)">${b.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${b.wallposts}</td><td class="num" data-label="Bài FB">${b.fbposts}</td></tr>`;
+        <td class="num" data-label="Quay lại">${b.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(b.returning,b.orders)}</td><td class="num" data-label="Thân thiết">${b.loyal}</td><td class="num" data-label="Bài nhóm (Zalo)">${b.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${b.wallposts}</td><td class="num" data-label="Bài FB">${b.fbposts}</td></tr>`;
     }).join('') +
     `<tr class="total-row"><td data-label="Người nộp">TỔNG CỘNG</td><td data-label="Chi nhánh">—</td>
       <td class="num" data-label="Số ngày nộp">${grand.count}</td>
       <td class="num" data-label="Data mới">${grand.newdata}</td><td class="num" data-label="Data tự tìm">${grand.selffound}</td><td class="num" data-label="Đã tư vấn">${grand.consulted}</td><td class="num" data-label="Tiềm năng">${grand.potential}</td>
       <td class="num" data-label="Đơn chốt">${grand.orders}</td><td class="num" data-label="Doanh thu">${fmtMoney(grand.revenue)}</td>
       <td class="num" data-label="Tỷ lệ chốt">${pct(grand.orders,grand.newdata+grand.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(grand.revenue,grand.orders)}</td>
-      <td class="num" data-label="Quay lại">${grand.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning,grand.orders)}</td><td class="num" data-label="Khách thân thiết">${grand.loyal}</td><td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td><td class="num" data-label="Bài FB">${grand.fbposts}</td></tr></tbody>`;
+      <td class="num" data-label="Quay lại">${grand.returning}</td><td class="num" data-label="Tỷ lệ quay lại">${pct(grand.returning,grand.orders)}</td><td class="num" data-label="Thân thiết">${grand.loyal}</td><td class="num" data-label="Bài nhóm (Zalo)">${grand.groupposts}</td><td class="num" data-label="Bài tường (Zalo)">${grand.wallposts}</td><td class="num" data-label="Bài FB">${grand.fbposts}</td></tr></tbody>`;
 }
 
 let revenueChartInstance=null;
@@ -1510,7 +1510,7 @@ function renderMgrReports(){
     return acc;
   }, {orders:0, revenue:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, loyal:0, groupposts:0, wallposts:0, fbposts:0});
 
-  table.innerHTML = `<thead><tr>${thReportsSort('Ngày','date')}${thReportsSort('Nộp lúc','submittedAt')}${thReportsSort('Người nộp','user')}${thReportsSort('Chi nhánh','branch')}${thReportsSort('Data mới','newdata',true)}${thReportsSort('Data tự tìm','selffound',true)}${thReportsSort('Đã tư vấn','consulted',true)}${thReportsSort('Tiềm năng','potential',true)}${thReportsSort('Đơn chốt','orders',true)}${thReportsSort('Doanh thu','revenue',true)}${thReportsSort('Tỷ lệ chốt','closerate',true)}${thReportsSort('TB/đơn','avgorder',true)}${thReportsSort('Quay lại','returning',true)}${thReportsSort('Tỷ lệ quay lại','returnrate',true)}${thReportsSort('Khách thân thiết','loyal',true)}${thReportsSort('Bài nhóm (Zalo)','groupposts',true)}${thReportsSort('Bài tường (Zalo)','wallposts',true)}${thReportsSort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr>${thReportsSort('Ngày','date')}${thReportsSort('Nộp lúc','submittedAt')}${thReportsSort('Người nộp','user')}${thReportsSort('Chi nhánh','branch')}${thReportsSort('Data mới','newdata',true)}${thReportsSort('Data tự tìm','selffound',true)}${thReportsSort('Đã tư vấn','consulted',true)}${thReportsSort('Tiềm năng','potential',true)}${thReportsSort('Đơn chốt','orders',true)}${thReportsSort('Doanh thu','revenue',true)}${thReportsSort('Tỷ lệ chốt','closerate',true)}${thReportsSort('TB/đơn','avgorder',true)}${thReportsSort('Quay lại','returning',true)}${thReportsSort('Tỷ lệ quay lại','returnrate',true)}${thReportsSort('Thân thiết','loyal',true)}${thReportsSort('Bài nhóm (Zalo)','groupposts',true)}${thReportsSort('Bài tường (Zalo)','wallposts',true)}${thReportsSort('Bài FB','fbposts',true)}<th>Ghi chú</th><th></th><th></th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày">${fmtDate(r.date)}</td>
       <td data-label="Nộp lúc">${new Date(r.submittedAt).toLocaleTimeString('vi-VN')}${r.editedAt?' <span class="history-time">(đã sửa)</span>':''}</td>
@@ -1526,7 +1526,7 @@ function renderMgrReports(){
       <td class="num" data-label="TB/đơn">${avgPerOrder(r.revenue, r.orderCount)}</td>
       <td class="num" data-label="Quay lại">${r.returningCustomers}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(r.returningCustomers, r.orderCount)}</td>
-      <td class="num" data-label="Khách thân thiết">${r.loyalCustomerCount}</td>
+      <td class="num" data-label="Thân thiết">${r.loyalCustomerCount}</td>
       <td class="num" data-label="Bài nhóm (Zalo)">${r.groupPostCount}</td>
       <td class="num" data-label="Bài tường (Zalo)">${r.wallPostCount}</td>
       <td class="num" data-label="Bài FB">${r.fbPostCount}</td>
@@ -1546,7 +1546,7 @@ function renderMgrReports(){
       <td class="num" data-label="TB/đơn">${avgPerOrder(filterTotal.revenue, filterTotal.orders)}</td>
       <td class="num" data-label="Quay lại">${filterTotal.returning}</td>
       <td class="num" data-label="Tỷ lệ quay lại">${pct(filterTotal.returning, filterTotal.orders)}</td>
-      <td class="num" data-label="Khách thân thiết">${filterTotal.loyal}</td>
+      <td class="num" data-label="Thân thiết">${filterTotal.loyal}</td>
       <td class="num" data-label="Bài nhóm (Zalo)">${filterTotal.groupposts}</td>
       <td class="num" data-label="Bài tường (Zalo)">${filterTotal.wallposts}</td>
       <td class="num" data-label="Bài FB">${filterTotal.fbposts}</td>
