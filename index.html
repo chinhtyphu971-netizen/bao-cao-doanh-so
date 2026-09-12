@@ -72,7 +72,7 @@
     padding:6px 9px; min-height:34px; font-size:14px; max-width:220px;
   }
   #page-staffReport .field{margin-bottom:10px;}
-  #page-staffReport .grid-3{gap:10px 16px;}
+  #page-staffReport .grid-3{gap:10px 16px; grid-template-columns:repeat(4,1fr);}
   .btn-primary{background:var(--accent); color:var(--accent-ink);}
   .btn-primary:hover{background:#8f3a16;}
   .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--line);}
@@ -155,6 +155,7 @@
   .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
   @media (max-width:720px){
     .grid-2, .grid-3{grid-template-columns:1fr;}
+    #page-staffReport .grid-3{grid-template-columns:1fr;}
     .main{padding-left:16px; padding-right:16px; padding-top: calc(64px + var(--safe-top));}
     .hamburger-btn{display:flex;}
     .sidebar{
