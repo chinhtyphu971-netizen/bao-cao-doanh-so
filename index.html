@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg: #F5F1E8;
@@ -435,6 +436,7 @@
           <div class="field"><label>Từ ngày</label><input id="filterFrom" type="date" onchange="clearReportsPresetSelection(); renderMgrReports()"></div>
           <div class="field"><label>Đến ngày</label><input id="filterTo" type="date" onchange="clearReportsPresetSelection(); renderMgrReports()"></div>
           <button class="btn-ghost" onclick="resetFilters()">Xoá lọc</button>
+          <button class="btn-primary" onclick="exportReportsToExcel()">Xuất Excel (theo team)</button>
         </div>
         <div class="card"><div class="table-wrap"><table id="mgrReportsTable" class="rtable"></table></div></div>
       </div>
@@ -1481,7 +1483,7 @@ function thHistorySort(label, col, numeric){ return `<th class="sortable${numeri
 function sortReportsBy(col){ toggleSort(reportsSort, col); renderMgrReports(); }
 function sortHistoryBy(col){ toggleSort(historySort, col); renderStaffHistory(); }
 
-function renderMgrReports(){
+function getFilteredReportRows(){
   const scope=scopeBranchId();
   const branchId=scope || document.getElementById('filterBranch').value;
   const userId=document.getElementById('filterUser').value;
@@ -1493,6 +1495,67 @@ function renderMgrReports(){
   if(from) rows=rows.filter(r=>r.date>=from);
   if(to) rows=rows.filter(r=>r.date<=to);
   sortReports(rows, reportsSort);
+  return {rows, scope, branchId, userId, from, to};
+}
+function exportReportsToExcel(){
+  if(typeof XLSX === 'undefined'){
+    showToast('Không tải được thư viện xuất Excel (có thể do mạng đang chặn cdnjs.cloudflare.com)');
+    return;
+  }
+  const {rows} = getFilteredReportRows();
+  if(rows.length===0){ showToast('Không có báo cáo nào để xuất theo bộ lọc hiện tại'); return; }
+
+  const byBranch = {};
+  rows.forEach(r=>{
+    const key = r.branchId || '__none__';
+    byBranch[key] = byBranch[key] || [];
+    byBranch[key].push(r);
+  });
+
+  const header = ['Ngày','Nộp lúc','Người nộp','Data mới','Data tự tìm','Đã tư vấn','Tiềm năng','Đơn chốt','Doanh thu','Tỷ lệ chốt','TB/đơn','Quay lại','Tỷ lệ quay lại','Khách thân thiết','Bài nhóm (Zalo)','Bài tường (Zalo)','Bài FB','Ghi chú'];
+  const wb = XLSX.utils.book_new();
+  const usedNames = new Set();
+  function sheetNameFor(name){
+    let clean = name.replace(/[\\\/\?\*\[\]:]/g, ' ').trim().slice(0,31) || 'Sheet';
+    let finalName = clean, i=2;
+    while(usedNames.has(finalName)){ finalName = (clean.slice(0,28)+' '+i).slice(0,31); i++; }
+    usedNames.add(finalName);
+    return finalName;
+  }
+
+  Object.keys(byBranch).sort((a,b)=>branchName(a).localeCompare(branchName(b),'vi')).forEach(key=>{
+    const teamRows = byBranch[key];
+    const name = key==='__none__' ? 'Không rõ team' : branchName(key);
+    const aoa = [header];
+    let t = {orders:0,revenue:0,newdata:0,selffound:0,consulted:0,potential:0,returning:0,loyal:0,groupposts:0,wallposts:0,fbposts:0};
+    teamRows.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+      t.orders+=r.orderCount; t.revenue+=r.revenue; t.newdata+=r.newDataCount; t.selffound+=r.selfFoundDataCount;
+      t.consulted+=r.consultedCount; t.potential+=r.potentialCustomers; t.returning+=r.returningCustomers; t.loyal+=r.loyalCustomerCount;
+      t.groupposts+=r.groupPostCount; t.wallposts+=r.wallPostCount; t.fbposts+=r.fbPostCount;
+      aoa.push([
+        fmtDate(r.date), new Date(r.submittedAt).toLocaleTimeString('vi-VN'), userName(r.userId),
+        r.newDataCount, r.selfFoundDataCount, r.consultedCount, r.potentialCustomers,
+        r.orderCount, r.revenue, pct(r.orderCount, r.newDataCount+r.selfFoundDataCount), avgPerOrder(r.revenue, r.orderCount),
+        r.returningCustomers, pct(r.returningCustomers, r.orderCount), r.loyalCustomerCount,
+        r.groupPostCount, r.wallPostCount, r.fbPostCount, r.note||''
+      ]);
+    });
+    aoa.push([
+      'TỔNG CỘNG ('+teamRows.length+' báo cáo)', '', '',
+      t.newdata, t.selffound, t.consulted, t.potential, t.orders, t.revenue,
+      pct(t.orders, t.newdata+t.selffound), avgPerOrder(t.revenue, t.orders),
+      t.returning, pct(t.returning, t.orders), t.loyal, t.groupposts, t.wallposts, t.fbposts, ''
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(name));
+  });
+
+  const fileName = 'bao-cao-theo-team-'+todayStr()+'.xlsx';
+  XLSX.writeFile(wb, fileName);
+  showToast('Đã xuất file '+fileName);
+}
+function renderMgrReports(){
+  const {rows, branchId, userId} = getFilteredReportRows();
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
