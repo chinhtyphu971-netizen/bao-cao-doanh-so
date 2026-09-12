@@ -671,7 +671,15 @@ function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+// Luôn tính ngày theo giờ ĐỊA PHƯƠNG của máy đang mở app (không dùng toISOString vì đó là giờ UTC —
+// nếu dùng UTC, ở Việt Nam (UTC+7) ngày mới sẽ chỉ đổi lúc 7 giờ sáng thay vì đúng 0 giờ, gây lệch ngày).
+function toLocalDateStr(d){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayStr(){ return toLocalDateStr(new Date()); }
 function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
 
@@ -1206,7 +1214,7 @@ function renderMgrDashboard(){
   const days=[]; const chartTotals=[];
   for(let i=13;i>=0;i--){
     const d=new Date(); d.setDate(d.getDate()-i);
-    const ds=d.toISOString().slice(0,10);
+    const ds=toLocalDateStr(d);
     days.push(ds.slice(5));
     chartTotals.push(state.reports.filter(r=>r.date===ds && (!scope || r.branchId===scope)).reduce((s,r)=>s+r.revenue,0));
   }
@@ -1397,7 +1405,7 @@ function resetFilters(){
 // Trả về [từ, đến] dạng YYYY-MM-DD theo mốc chọn nhanh
 function dateRangeFor(preset){
   const today=todayStr();
-  const d=(offset)=>{ const x=new Date(); x.setDate(x.getDate()-offset); return x.toISOString().slice(0,10); };
+  const d=(offset)=>{ const x=new Date(); x.setDate(x.getDate()-offset); return toLocalDateStr(x); };
   if(preset==='today') return [today, today];
   if(preset==='yesterday') return [d(1), d(1)];
   if(preset==='week') return [d(6), today];   // 7 ngày gần nhất, kể cả hôm nay
