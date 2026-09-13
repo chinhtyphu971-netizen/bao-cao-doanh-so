@@ -232,6 +232,10 @@
   .pin-mask:hover{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); letter-spacing:normal;}
   tr.branch-expand-row td{background:var(--bg); color:var(--ink-soft); font-size:11px;}
   tr.branch-expand-row td:first-child{padding-left:24px;}
+  .note-item{padding:9px 0; border-bottom:1px solid var(--line);}
+  .note-item:last-child{border-bottom:none;}
+  .note-item .note-meta{font-size:12px; color:var(--ink-soft); margin-bottom:3px;}
+  .note-item .note-text{white-space:pre-wrap;}
   .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
   .detail-row:last-child{border-bottom:none;}
   .detail-row .k{color:var(--ink-soft);}
@@ -359,7 +363,7 @@
             <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
             <div class="stat-box"><div class="stat-label">Tỷ lệ khách quay lại (quay lại / đơn chốt)</div><div class="stat-value" id="previewReturnRate">—</div></div>
           </div>
-          <div class="field"><label>Ghi chú</label><input id="f_note" placeholder="Ghi chú thêm (không bắt buộc)"></div>
+          <div class="field"><label>Ghi chú( các mã hàng bán chạy mà thiếu nhiều, các vấn đề cần khắc phục)</label><input id="f_note" placeholder="Ghi chú thêm (không bắt buộc)"></div>
           <button class="btn-primary" onclick="submitReport()">Lưu báo cáo hôm nay</button>
           <span class="login-error" id="staffReportMsg"></span>
         </div>
@@ -369,6 +373,11 @@
       <div id="page-staffHistory" class="page" style="display:none;">
         <div class="page-head"><div><h1>Lịch sử của tôi</h1><p>Các báo cáo bạn đã nộp</p></div></div>
         <div class="card"><div class="table-wrap"><table id="staffHistoryTable" class="rtable"></table></div></div>
+        <div class="card">
+          <h2>Ghi chú tổng hợp</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú của bạn, gộp riêng cho dễ đọc</p>
+          <div id="staffHistoryNotesList" style="margin-top:10px;"></div>
+        </div>
       </div>
 
       <!-- ---------- MANAGER: tổng quan ---------- -->
@@ -446,6 +455,11 @@
           <button class="btn-primary" onclick="exportReportsToExcel()">Xuất Excel (theo team)</button>
         </div>
         <div class="card"><div class="table-wrap"><table id="mgrReportsTable" class="rtable"></table></div></div>
+        <div class="card">
+          <h2>Ghi chú tổng hợp</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú theo đúng bộ lọc đang chọn, gộp riêng cho dễ đọc</p>
+          <div id="mgrReportsNotesList" style="margin-top:10px;"></div>
+        </div>
       </div>
 
       <!-- ---------- MANAGER: thùng rác ---------- -->
@@ -526,6 +540,17 @@
     <div id="detailsModalBody" style="max-height:400px; overflow-y:auto; margin-top:10px;"></div>
     <div class="actions">
       <button class="btn-ghost" onclick="closeDetailsModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="noteModal">
+  <div class="modal" style="max-width:380px;">
+    <h2>Ghi chú</h2>
+    <p id="noteModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
+    <p id="noteModalBody" style="margin-top:10px; white-space:pre-wrap;"></p>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeNoteModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -781,6 +806,14 @@ function openDetailsModal(reportId){
   document.getElementById('detailsModal').classList.add('show');
 }
 function closeDetailsModal(){ document.getElementById('detailsModal').classList.remove('show'); }
+function openNoteModal(reportId){
+  const r = state.reports.find(x=>x.id===reportId) || state.trash.find(x=>x.id===reportId);
+  if(!r) return;
+  document.getElementById('noteModalSub').textContent = `${userName(r.userId)} — ngày ${fmtDate(r.date)}`;
+  document.getElementById('noteModalBody').textContent = r.note || '(không có ghi chú)';
+  document.getElementById('noteModal').classList.add('show');
+}
+function closeNoteModal(){ document.getElementById('noteModal').classList.remove('show'); }
 document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
 
 /* =========================== LOGIN FLOW =========================== */
@@ -1052,9 +1085,20 @@ function submitReport(){
  }
 }
 
+function renderNotesList(containerId, rows, showUser){
+  const el = document.getElementById(containerId);
+  const withNotes = rows.filter(r=>r.note);
+  if(withNotes.length===0){ el.innerHTML='<div class="empty-note">Chưa có ghi chú nào.</div>'; return; }
+  el.innerHTML = withNotes.map(r=>`
+    <div class="note-item">
+      <div class="note-meta">${fmtDate(r.date)}${showUser?' · '+userName(r.userId):''}</div>
+      <div class="note-text">${r.note}</div>
+    </div>`).join('');
+}
 function renderStaffHistory(){
   const user=currentUser();
   const rows = sortReports(state.reports.filter(r=>r.userId===user.id), historySort);
+  renderNotesList('staffHistoryNotesList', rows, false);
   const table=document.getElementById('staffHistoryTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có báo cáo nào.</td></tr>'; return; }
   const grand = rows.reduce((acc,r)=>{
@@ -1081,7 +1125,7 @@ function renderStaffHistory(){
       <td class="num" data-label="Bài nhóm (Zalo)">${r.groupPostCount||0}</td>
       <td class="num" data-label="Bài tường (Zalo)">${r.wallPostCount||0}</td>
       <td class="num" data-label="Bài FB">${r.fbPostCount||0}</td>
-      <td data-label="Ghi chú">${r.note||''}</td>
+      <td data-label="Ghi chú">${r.note ? `<span class="history-link" onclick="openNoteModal('${r.id}')">📝 Xem</span>` : '—'}</td>
       <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
     </tr>`).join('') +
     `<tr class="total-row">
@@ -1603,6 +1647,7 @@ function exportReportsToExcel(){
 }
 function renderMgrReports(){
   const {rows, branchId, userId} = getFilteredReportRows();
+  renderNotesList('mgrReportsNotesList', rows, true);
 
   const table=document.getElementById('mgrReportsTable');
   if(rows.length===0){ table.innerHTML='<tr><td class="empty-note">Không có báo cáo phù hợp bộ lọc.</td></tr>'; return; }
@@ -1640,7 +1685,7 @@ function renderMgrReports(){
       <td class="num" data-label="Bài nhóm (Zalo)">${r.groupPostCount||0}</td>
       <td class="num" data-label="Bài tường (Zalo)">${r.wallPostCount||0}</td>
       <td class="num" data-label="Bài FB">${r.fbPostCount||0}</td>
-      <td data-label="Ghi chú">${r.note||''}</td>
+      <td data-label="Ghi chú">${r.note ? `<span class="history-link" onclick="openNoteModal('${r.id}')">📝 Xem</span>` : '—'}</td>
       <td><span class="history-link" onclick="openHistoryModal('${r.id}')">Xem lịch sử</span></td>
       <td><button class="btn-danger btn-small" onclick="deleteReport('${r.id}')">Xoá</button></td>
     </tr>`).join('') +
