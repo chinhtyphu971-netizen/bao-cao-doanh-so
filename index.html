@@ -1170,10 +1170,20 @@ function userSortValue(b, col){
 function branchSortValue(bb, col){
   switch(col){
     case 'count': return bb.count;
+    case 'newdata': return bb.newdata;
+    case 'selffound': return bb.selffound;
+    case 'consulted': return bb.consulted;
+    case 'potential': return bb.potential;
     case 'revenue': return bb.revenue;
     case 'orders': return bb.orders;
     case 'closerate': return bb.orders/((bb.newdata+bb.selffound)||1);
     case 'avgorder': return bb.revenue/(bb.orders||1);
+    case 'returning': return bb.returning;
+    case 'returnrate': return bb.returning/(bb.orders||1);
+    case 'loyal': return bb.loyal;
+    case 'groupposts': return bb.groupposts;
+    case 'wallposts': return bb.wallposts;
+    case 'fbposts': return bb.fbposts;
     default: return 0;
   }
 }
@@ -1288,24 +1298,37 @@ function renderMgrDashboard(){
   // tổng hợp theo chi nhánh/team (toàn thời gian, chỉ Quản lý chung)
   if(!scope){
     const byBranch={};
-    state.branches.forEach(b=>{ byBranch[b.id] = {revenue:0, orders:0, newdata:0, selffound:0, count:0}; });
+    const blank=()=>({revenue:0, orders:0, newdata:0, selffound:0, consulted:0, potential:0, returning:0, loyal:0, groupposts:0, wallposts:0, fbposts:0, count:0});
+    state.branches.forEach(b=>{ byBranch[b.id] = blank(); });
     recent.forEach(r=>{
-      byBranch[r.branchId] = byBranch[r.branchId] || {revenue:0, orders:0, newdata:0, selffound:0, count:0};
-      byBranch[r.branchId].revenue += r.revenue;
-      byBranch[r.branchId].orders += r.orderCount;
-      byBranch[r.branchId].newdata += r.newDataCount;
-      byBranch[r.branchId].selffound += r.selfFoundDataCount;
-      byBranch[r.branchId].count++;
+      byBranch[r.branchId] = byBranch[r.branchId] || blank();
+      const bb=byBranch[r.branchId];
+      bb.revenue += r.revenue; bb.orders += r.orderCount;
+      bb.newdata += r.newDataCount; bb.selffound += r.selfFoundDataCount;
+      bb.consulted += r.consultedCount; bb.potential += r.potentialCustomers;
+      bb.returning += r.returningCustomers; bb.loyal += r.loyalCustomerCount;
+      bb.groupposts += r.groupPostCount; bb.wallposts += r.wallPostCount; bb.fbposts += r.fbPostCount;
+      bb.count++;
     });
     const bTable=document.getElementById('mgrBranchSummaryTable');
     const bIds=Object.keys(byBranch);
     if(bIds.length===0){ bTable.innerHTML='<tr><td class="empty-note">Chưa có chi nhánh nào.</td></tr>'; }
     else {
       const bGrand = Object.values(byBranch).reduce((acc,bb)=>{
-        acc.revenue+=bb.revenue; acc.orders+=bb.orders; acc.newdata+=bb.newdata; acc.selffound+=bb.selffound; acc.count+=bb.count;
+        acc.revenue+=bb.revenue; acc.orders+=bb.orders; acc.newdata+=bb.newdata; acc.selffound+=bb.selffound;
+        acc.consulted+=bb.consulted; acc.potential+=bb.potential; acc.returning+=bb.returning; acc.loyal+=bb.loyal;
+        acc.groupposts+=bb.groupposts; acc.wallposts+=bb.wallposts; acc.fbposts+=bb.fbposts; acc.count+=bb.count;
         return acc;
-      }, {revenue:0,orders:0,newdata:0,selffound:0,count:0});
-      bTable.innerHTML = `<thead><tr><th>Team / chi nhánh</th>${thBranchSort('Số báo cáo','count')}${thBranchSort('Tổng doanh thu','revenue')}${thBranchSort('Tổng đơn','orders')}${thBranchSort('Tỷ lệ chốt','closerate')}${thBranchSort('TB/đơn','avgorder')}</tr></thead><tbody>` +
+      }, blank());
+      const branchRow = (label, bb)=>`<td data-label="Team / chi nhánh">${label}</td>
+        <td class="num" data-label="Số báo cáo">${bb.count}</td>
+        <td class="num" data-label="Data mới">${bb.newdata}</td>
+        <td class="num" data-label="Tổng đơn">${bb.orders}</td>
+        <td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td>
+        <td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td>
+        <td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td>
+        <td class="num" data-label="Thân thiết">${bb.loyal}</td>`;
+      bTable.innerHTML = `<thead><tr><th>Team / chi nhánh</th>${thBranchSort('Số báo cáo','count')}${thBranchSort('Data mới','newdata')}${thBranchSort('Tổng đơn','orders')}${thBranchSort('Tổng doanh thu','revenue')}${thBranchSort('Tỷ lệ chốt','closerate')}${thBranchSort('TB/đơn','avgorder')}${thBranchSort('Thân thiết','loyal')}</tr></thead><tbody>` +
         bIds.sort((a,b)=>{
           const va=branchSortValue(byBranch[a], branchSort.col), vb=branchSortValue(byBranch[b], branchSort.col);
           return branchSort.dir==='desc' ? vb-va : va-vb;
@@ -1313,21 +1336,23 @@ function renderMgrDashboard(){
           const bb=byBranch[id];
           const rowStyle = bb.count===0 ? 'color:var(--ink-soft);' : '';
           const isOpen = expandedBranchId===id;
-          const mainRow = `<tr style="cursor:pointer;${rowStyle}" onclick="toggleBranchExpand('${id}')"><td data-label="Team / chi nhánh">${isOpen?'▾':'▸'} ${branchName(id)}</td><td class="num" data-label="Số báo cáo">${bb.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td><td class="num" data-label="Tổng đơn">${bb.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td></tr>`;
+          const mainRow = `<tr style="cursor:pointer;${rowStyle}" onclick="toggleBranchExpand('${id}')">${branchRow((isOpen?'▾':'▸')+' '+branchName(id), bb, false)}</tr>`;
           let expandRow = '';
           if(isOpen){
             const memberIds = Object.keys(byUser).filter(uid=>{ const u=state.users.find(x=>x.id===uid); return u && u.branchId===id; });
             const memberHtml = memberIds.length
               ? memberIds.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(uid=>{
                   const u=state.users.find(x=>x.id===uid); const mb=byUser[uid];
-                  return `<div class="detail-row"><span class="k">${u.name}${u.role==='team_manager'?' (QL team)':''}</span><span class="v">${mb.orders} đơn · ${fmtMoney(mb.revenue)}đ · ${pct(mb.orders,mb.newdata+mb.selffound)}</span></div>`;
+                  return `<div class="detail-row"><span class="k">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>
+                    <span class="v">Data mới ${mb.newdata} · Tự tìm ${mb.selffound} · Tư vấn ${mb.consulted} · Tiềm năng ${mb.potential} · Đơn ${mb.orders} · ${fmtMoney(mb.revenue)}đ · Chốt ${pct(mb.orders,mb.newdata+mb.selffound)} · Quay lại ${mb.returning} (${pct(mb.returning,mb.orders)}) · Thân thiết ${mb.loyal} · Nhóm ${mb.groupposts} · Tường ${mb.wallposts} · FB ${mb.fbposts}</span>
+                  </div>`;
                 }).join('')
               : '<div class="empty-note">Chưa có ai trong team này.</div>';
-            expandRow = `<tr class="branch-expand-row"><td colspan="6" style="background:var(--bg);">${memberHtml}</td></tr>`;
+            expandRow = `<tr class="branch-expand-row"><td colspan="8" style="background:var(--bg);">${memberHtml}</td></tr>`;
           }
           return mainRow + expandRow;
         }).join('') +
-        `<tr class="total-row"><td data-label="Team / chi nhánh">TỔNG CỘNG</td><td class="num" data-label="Số báo cáo">${bGrand.count}</td><td class="num" data-label="Tổng doanh thu">${fmtMoney(bGrand.revenue)}</td><td class="num" data-label="Tổng đơn">${bGrand.orders}</td><td class="num" data-label="Tỷ lệ chốt">${pct(bGrand.orders,bGrand.newdata+bGrand.selffound)}</td><td class="num" data-label="TB/đơn">${avgPerOrder(bGrand.revenue,bGrand.orders)}</td></tr></tbody>`;
+        `<tr class="total-row">${branchRow('TỔNG CỘNG', bGrand, true)}</tr></tbody>`;
     }
   }
 
