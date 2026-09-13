@@ -158,7 +158,10 @@
   @media (max-width:720px){
     .grid-2, .grid-3{grid-template-columns:1fr;}
     #page-staffReport .grid-3{grid-template-columns:1fr;}
-    #mgrTotalsGrid{grid-template-columns:repeat(2,1fr);}
+    #mgrTotalsGrid{grid-template-columns:repeat(2,1fr); gap:8px;}
+    #mgrTotalsGrid .stat-box{padding:8px 10px;}
+    #mgrTotalsGrid .stat-label{font-size:10.5px; margin-bottom:2px;}
+    #mgrTotalsGrid .stat-value{font-size:15px;}
     .main{padding-left:16px; padding-right:16px; padding-top: calc(64px + var(--safe-top));}
     .hamburger-btn{display:flex;}
     .sidebar{
