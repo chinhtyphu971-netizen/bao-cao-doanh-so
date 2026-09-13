@@ -1328,8 +1328,9 @@ function renderMgrDashboard(){
         <td class="num" data-label="Tổng doanh thu">${fmtMoney(bb.revenue)}</td>
         <td class="num" data-label="Tỷ lệ chốt">${pct(bb.orders,bb.newdata+bb.selffound)}</td>
         <td class="num" data-label="TB/đơn">${avgPerOrder(bb.revenue,bb.orders)}</td>
+        <td class="num" data-label="Quay lại">${bb.returning}</td>
         <td class="num" data-label="Thân thiết">${bb.loyal}</td>`;
-      bTable.innerHTML = `<thead><tr><th>Team / chi nhánh</th>${thBranchSort('Số báo cáo','count')}${thBranchSort('Data mới','newdata')}${thBranchSort('Tổng đơn','orders')}${thBranchSort('Tổng doanh thu','revenue')}${thBranchSort('Tỷ lệ chốt','closerate')}${thBranchSort('TB/đơn','avgorder')}${thBranchSort('Thân thiết','loyal')}</tr></thead><tbody>` +
+      bTable.innerHTML = `<thead><tr><th>Team / chi nhánh</th>${thBranchSort('Số báo cáo','count')}${thBranchSort('Data mới','newdata')}${thBranchSort('Tổng đơn','orders')}${thBranchSort('Tổng doanh thu','revenue')}${thBranchSort('Tỷ lệ chốt','closerate')}${thBranchSort('TB/đơn','avgorder')}${thBranchSort('Quay lại','returning')}${thBranchSort('Thân thiết','loyal')}</tr></thead><tbody>` +
         bIds.sort((a,b)=>{
           const va=branchSortValue(byBranch[a], branchSort.col), vb=branchSortValue(byBranch[b], branchSort.col);
           return branchSort.dir==='desc' ? vb-va : va-vb;
@@ -1347,7 +1348,7 @@ function renderMgrDashboard(){
                   const label = `— ${u.name}${u.role==='team_manager'?' (QL team)':''}`;
                   return `<tr class="branch-expand-row">${branchRow(label, mb)}</tr>`;
                 }).join('')
-              : `<tr class="branch-expand-row"><td colspan="8" class="empty-note">Chưa có ai trong team này.</td></tr>`;
+              : `<tr class="branch-expand-row"><td colspan="9" class="empty-note">Chưa có ai trong team này.</td></tr>`;
           }
           return mainRow + expandRow;
         }).join('') +
