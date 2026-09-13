@@ -380,6 +380,10 @@
           <div class="chip" id="dashPreset_month" onclick="applyDashboardPreset('month')">Tháng qua</div>
           <div class="chip" id="dashPreset_all" onclick="applyDashboardPreset('all')">Toàn thời gian</div>
         </div>
+        <div class="toolbar" style="margin-bottom:16px;">
+          <div class="field"><label>Từ ngày</label><input type="date" id="dashFrom" onchange="applyDashboardCustomRange()"></div>
+          <div class="field"><label>Đến ngày</label><input type="date" id="dashTo" onchange="applyDashboardCustomRange()"></div>
+        </div>
 
         <div class="card" id="mgrReminderCard">
           <h2 id="mgrReminderTitle">Hôm nay còn ai chưa nộp báo cáo?</h2>
@@ -1121,8 +1125,19 @@ function applyDashboardPreset(preset){
   dashPreset = preset;
   const [from, to] = dateRangeFor(preset);
   dashDateFrom = from; dashDateTo = to;
+  document.getElementById('dashFrom').value = from || '';
+  document.getElementById('dashTo').value = to || '';
   ['today','yesterday','week','month','all'].forEach(p=>{
     document.getElementById('dashPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMgrDashboard();
+}
+function applyDashboardCustomRange(){
+  dashPreset = 'custom';
+  dashDateFrom = document.getElementById('dashFrom').value || null;
+  dashDateTo = document.getElementById('dashTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('dashPreset_'+p).classList.remove('selected');
   });
   renderMgrDashboard();
 }
@@ -1251,8 +1266,13 @@ function renderMgrDashboard(){
     (!dashDateFrom || r.date>=dashDateFrom) &&
     (!dashDateTo || r.date<=dashDateTo)
   );
+  document.getElementById('dashFrom').value = dashDateFrom || '';
+  document.getElementById('dashTo').value = dashDateTo || '';
   const periodLabels = {today:'hôm nay', yesterday:'hôm qua', week:'tuần qua (7 ngày)', month:'tháng qua (30 ngày)', all:'toàn bộ thời gian'};
-  document.getElementById('mgrTotalsSub').textContent = 'Cộng dồn báo cáo trong: ' + periodLabels[dashPreset];
+  const customLabel = dashDateFrom && dashDateTo
+    ? (dashDateFrom===dashDateTo ? `ngày ${fmtDate(dashDateFrom)}` : `từ ${fmtDate(dashDateFrom)} đến ${fmtDate(dashDateTo)}`)
+    : (dashDateFrom ? `từ ngày ${fmtDate(dashDateFrom)}` : (dashDateTo ? `đến ngày ${fmtDate(dashDateTo)}` : 'toàn bộ thời gian'));
+  document.getElementById('mgrTotalsSub').textContent = 'Cộng dồn báo cáo trong: ' + (periodLabels[dashPreset] || customLabel);
   document.getElementById('mgrTotalsTitle').textContent = scope ? `Tổng của team ${branchName(scope)}` : 'Tổng toàn công ty';
   const totals = allInScope.reduce((acc,r)=>{
     acc.revenue+=r.revenue; acc.orders+=r.orderCount;
