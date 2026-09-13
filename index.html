@@ -228,7 +228,8 @@
     cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--bg); border:1px dashed var(--line);
   }
   .pin-mask:hover{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); letter-spacing:normal;}
-  tr.branch-expand-row td{padding:10px 16px;}
+  tr.branch-expand-row td{background:var(--bg); color:var(--ink-soft); font-size:11px;}
+  tr.branch-expand-row td:first-child{padding-left:24px;}
   .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
   .detail-row:last-child{border-bottom:none;}
   .detail-row .k{color:var(--ink-soft);}
@@ -1340,15 +1341,13 @@ function renderMgrDashboard(){
           let expandRow = '';
           if(isOpen){
             const memberIds = Object.keys(byUser).filter(uid=>{ const u=state.users.find(x=>x.id===uid); return u && u.branchId===id; });
-            const memberHtml = memberIds.length
+            expandRow = memberIds.length
               ? memberIds.sort((a,b)=>byUser[b].revenue-byUser[a].revenue).map(uid=>{
                   const u=state.users.find(x=>x.id===uid); const mb=byUser[uid];
-                  return `<div class="detail-row"><span class="k">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>
-                    <span class="v">${mb.count} báo cáo · Data mới ${mb.newdata} · Đơn ${mb.orders} · ${fmtMoney(mb.revenue)}đ · Chốt ${pct(mb.orders,mb.newdata+mb.selffound)} · TB/đơn ${avgPerOrder(mb.revenue,mb.orders)} · Thân thiết ${mb.loyal}</span>
-                  </div>`;
+                  const label = `— ${u.name}${u.role==='team_manager'?' (QL team)':''}`;
+                  return `<tr class="branch-expand-row">${branchRow(label, mb)}</tr>`;
                 }).join('')
-              : '<div class="empty-note">Chưa có ai trong team này.</div>';
-            expandRow = `<tr class="branch-expand-row"><td colspan="8" style="background:var(--bg);">${memberHtml}</td></tr>`;
+              : `<tr class="branch-expand-row"><td colspan="8" class="empty-note">Chưa có ai trong team này.</td></tr>`;
           }
           return mainRow + expandRow;
         }).join('') +
