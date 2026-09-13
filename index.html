@@ -434,6 +434,12 @@
           <h2>Tổng hợp theo người</h2>
           <div class="table-wrap"><table id="mgrSummaryTable" class="rtable"></table></div>
         </div>
+
+        <div class="card">
+          <h2>Ghi chú tổng hợp</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú của mọi người, theo đúng khoảng thời gian đang chọn ở trên</p>
+          <div id="mgrDashboardNotesList" style="margin-top:10px;"></div>
+        </div>
       </div>
 
       <!-- ---------- MANAGER: danh sách báo cáo ---------- -->
@@ -1085,13 +1091,13 @@ function submitReport(){
  }
 }
 
-function renderNotesList(containerId, rows, showUser){
+function renderNotesList(containerId, rows, showUser, showBranch){
   const el = document.getElementById(containerId);
   const withNotes = rows.filter(r=>r.note);
   if(withNotes.length===0){ el.innerHTML='<div class="empty-note">Chưa có ghi chú nào.</div>'; return; }
   el.innerHTML = withNotes.map(r=>`
     <div class="note-item">
-      <div class="note-meta">${fmtDate(r.date)}${showUser?' · '+userName(r.userId):''}</div>
+      <div class="note-meta">${fmtDate(r.date)}${showUser?' · '+userName(r.userId):''}${showBranch?' · '+branchName(r.branchId):''}</div>
       <div class="note-text">${r.note}</div>
     </div>`).join('');
 }
@@ -1312,6 +1318,7 @@ function renderMgrDashboard(){
     (!dashDateFrom || r.date>=dashDateFrom) &&
     (!dashDateTo || r.date<=dashDateTo)
   );
+  renderNotesList('mgrDashboardNotesList', allInScope, true, !scope);
   document.getElementById('dashFrom').value = dashDateFrom || '';
   document.getElementById('dashTo').value = dashDateTo || '';
   const periodLabels = {today:'hôm nay', yesterday:'hôm qua', week:'tuần qua (7 ngày)', month:'tháng qua (30 ngày)', all:'toàn bộ thời gian'};
