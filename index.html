@@ -861,6 +861,18 @@ function buildLeadPool(branchIds, date){
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
 }
+function normalizePhone(p){
+  return String(p||'').replace(/\D/g,'').replace(/^0+/,'');
+}
+function priorAssigneesForPhone(lead){
+  const phoneNorm = normalizePhone(leadPhone(lead));
+  if(!phoneNorm) return new Set();
+  return new Set(
+    state.leads
+      .filter(l=>l.id!==lead.id && l.assignedTo && normalizePhone(leadPhone(l))===phoneNorm)
+      .map(l=>l.assignedTo)
+  );
+}
 function runDistribution(){
   const today=todayStr();
   const unassigned = state.leads.filter(l=>!l.assignedTo);
@@ -878,7 +890,13 @@ function runDistribution(){
       pool = overflowPool;
     }
     if(pool.length===0) break; // khong con ai du dieu kien (chua ai diem danh / da het han muc) -> data cho lai
-    const person = pool[0];
+
+    // Data trung so dien thoai voi ai do da tung nhan truoc day -> ne nguoi do ra, uu tien nguoi khac trong hang doi
+    const priorAssignees = priorAssigneesForPhone(lead);
+    let personIndex = pool.findIndex(p=>!priorAssignees.has(p.id));
+    if(personIndex===-1) personIndex = 0; // ca hang doi deu da tung nhan so nay -> danh chiu, chia binh thuong
+    const person = pool[personIndex];
+
     lead.assignedTo = person.id;
     lead.assignedToName = person.name;
     lead.assignedAt = Date.now();
@@ -886,10 +904,9 @@ function runDistribution(){
     fbSetLead(lead);
     person.lastDataAt = Date.now();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
-    if(dailyReceivedCount(person.id, today) >= DAILY_LEAD_CAP){
-      pool.shift();
-    } else {
-      pool.push(pool.shift());
+    pool.splice(personIndex,1);
+    if(dailyReceivedCount(person.id, today) < DAILY_LEAD_CAP){
+      pool.push(person);
     }
   }
 }
