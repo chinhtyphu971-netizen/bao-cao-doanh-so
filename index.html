@@ -530,6 +530,29 @@
       <!-- ---------- MANAGER: chi nhánh & nhân sự ---------- -->
       <div id="page-mgrSettings" class="page" style="display:none;">
         <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
+        <div class="card" id="createAccountCard">
+          <h2>Tạo tài khoản mới</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Nhân viên không thể tự đăng ký nữa — Quản lý tạo sẵn tài khoản rồi đưa tên + mã PIN cho họ để đăng nhập.</p>
+          <div class="grid-3" style="margin-top:10px;">
+            <div class="field"><label>Tên</label><input id="newAccName" placeholder="Tên hiển thị"></div>
+            <div class="field"><label>Mã PIN (4 số)</label><input id="newAccPin" type="text" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+            <div class="field" id="newAccRoleField" style="display:none;">
+              <label>Vai trò</label>
+              <select id="newAccRole" onchange="onNewAccRoleChange()">
+                <option value="staff">Nhân viên</option>
+                <option value="team_manager">Quản lý team</option>
+                <option value="general_manager">Quản lý chung</option>
+              </select>
+            </div>
+            <div class="field" id="newAccBranchField">
+              <label>Chi nhánh</label>
+              <select id="newAccBranch"></select>
+            </div>
+          </div>
+          <div class="login-error" id="newAccError"></div>
+          <button class="btn-primary" style="margin-top:6px;" onclick="createAccountByManager()">Tạo tài khoản</button>
+        </div>
+
         <div class="grid-2">
           <div class="card">
             <h2>Chi nhánh</h2>
@@ -851,6 +874,7 @@ function runDistribution(){
     if(pool.length===0) break; // khong con ai du dieu kien (chua ai diem danh / da het han muc) -> data cho lai
     const person = pool[0];
     lead.assignedTo = person.id;
+    lead.assignedToName = person.name;
     lead.assignedAt = Date.now();
     lead.distributedDate = today;
     fbSetLead(lead);
@@ -1083,17 +1107,17 @@ function checkNameAndProceed(){
     enterApp();
     return;
   }
-  // Tên chưa từng đăng ký -> lưu tạm, sang bước chọn vai trò/chi nhánh để tạo tài khoản mới
-  pendingName=name; pendingPin=pin;
+  // Tên chưa từng đăng ký
   const hasAdmin = state.users.some(u=>u.role==='general_manager');
   if(hasAdmin){
-    loginRole='staff';
-    skippedRoleStep=true;
-    goStep(3);
-  } else {
-    skippedRoleStep=false;
-    goStep(2);
+    // Đã có Quản lý -> KHÔNG cho tự đăng ký nữa, phải được Quản lý tạo tài khoản trước
+    errEl.textContent = 'Chưa có tài khoản với tên này. Liên hệ Quản lý để được tạo tài khoản trước khi đăng nhập.';
+    return;
   }
+  // Chưa có ai trong hệ thống -> đây là lần đầu tiên, cho phép tạo tài khoản Quản lý chung đầu tiên
+  pendingName=name; pendingPin=pin;
+  skippedRoleStep=false;
+  goStep(2);
 }
 function renderBranchChips(){
   const wrap=document.getElementById('branchChips');
@@ -2009,6 +2033,19 @@ function renderMgrSettings(){
   document.getElementById('settingsPageSub').textContent = scope ? 'Xem danh sách chi nhánh và người trong đội của bạn' : 'Quản lý danh sách chi nhánh, người dùng và phân quyền';
   document.getElementById('permissionsCard').style.display = scope ? 'none' : 'block';
   document.getElementById('refreshAllCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('createAccountCard').style.display = scope ? 'none' : 'block';
+
+  // Form tạo tài khoản mới: Quản lý chung chọn được vai trò + chi nhánh bất kỳ;
+  // Quản lý team chỉ tạo Nhân viên, tự động vào đúng team mình, không cần chọn.
+  document.getElementById('newAccRoleField').style.display = scope ? 'none' : 'block';
+  const branchField = document.getElementById('newAccBranchField');
+  const branchSel = document.getElementById('newAccBranch');
+  if(scope){
+    branchField.style.display = 'none';
+  } else {
+    branchSel.innerHTML = state.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    onNewAccRoleChange();
+  }
 
   const branchesToShow = scope ? state.branches.filter(b=>b.id===scope) : state.branches;
   const listEl=document.getElementById('settingsBranchList');
@@ -2058,8 +2095,11 @@ function renderMgrSettings(){
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
         <td data-label="Mã PIN">
-          <span class="pin-mask" onmouseenter="this.textContent=this.dataset.pin" onmouseleave="this.textContent='••••'" data-pin="${u.pin}">••••</span>
-          <span class="history-link" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">Copy</span>
+          ${scope
+            ? `<span style="color:var(--ink-soft);" title="Chỉ Quản lý chung mới xem được mã PIN">••••</span>`
+            : `<span class="pin-mask" onmouseenter="this.textContent=this.dataset.pin" onmouseleave="this.textContent='••••'" data-pin="${u.pin}">••••</span>
+               <span class="history-link" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">Copy</span>`
+          }
         </td>
         <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
         ${scope ? '' : `<td><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
@@ -2148,6 +2188,39 @@ function renderPermissionsTable(){
         <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
       </tr>`;
     }).join('');
+}
+function onNewAccRoleChange(){
+  const role = document.getElementById('newAccRole').value;
+  document.getElementById('newAccBranchField').style.display = role==='general_manager' ? 'none' : 'block';
+}
+function createAccountByManager(){
+  const scope = scopeBranchId();
+  const errEl = document.getElementById('newAccError');
+  errEl.textContent = '';
+  const name = document.getElementById('newAccName').value.trim().normalize('NFC');
+  const pin = document.getElementById('newAccPin').value.trim();
+  if(!name){ errEl.textContent = 'Vui lòng nhập tên.'; return; }
+  if(!/^\d{4}$/.test(pin)){ errEl.textContent = 'Mã PIN phải gồm đúng 4 số.'; return; }
+  const nameTaken = state.users.some(u=>u.name.trim().normalize('NFC').toLowerCase()===name.toLowerCase());
+  if(nameTaken){ errEl.textContent = 'Đã có người dùng tên này, chọn tên khác để tránh nhầm khi đăng nhập.'; return; }
+
+  let role, branchId;
+  if(scope){
+    role = 'staff';
+    branchId = scope;
+  } else {
+    role = document.getElementById('newAccRole').value;
+    branchId = role==='general_manager' ? null : document.getElementById('newAccBranch').value;
+    if(role!=='general_manager' && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
+  }
+
+  const user = {id:uid(), name, pin, role, branchId, createdAt:Date.now()};
+  state.users.push(user);
+  fbSetUser(user);
+  showToast(`Đã tạo tài khoản cho ${name} — đưa tên và mã PIN "${pin}" cho họ để đăng nhập.`);
+  document.getElementById('newAccName').value = '';
+  document.getElementById('newAccPin').value = '';
+  renderMgrSettings();
 }
 function toggleUserActive(userId){
   const u = state.users.find(x=>x.id===userId);
