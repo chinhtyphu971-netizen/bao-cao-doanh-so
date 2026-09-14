@@ -407,6 +407,7 @@
         <div class="card">
           <h2>Data đã nhận hôm nay</h2>
           <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:14px;"></div>
+          <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -950,18 +951,30 @@ function renderMyLeads(){
     : '<button class="btn-primary" onclick="checkinToday()">Điểm danh đi làm hôm nay</button>';
 
   const myLeadsToday = state.leads.filter(l=>l.assignedTo===user.id && l.distributedDate===today);
-  const allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
+  let allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
 
   document.getElementById('myLeadsQuota').innerHTML =
     `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>`;
 
+  const rawQuery = document.getElementById('myLeadsSearch').value.trim();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+    const textQuery = rawQuery.toLowerCase();
+    allMyLeads = allMyLeads.filter(l=>{
+      const phoneDigits = leadPhone(l).replace(/\D/g,'').replace(/^0+/,'');
+      const matchesPhone = digitsQuery && phoneDigits.includes(digitsQuery);
+      const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
+      return matchesPhone || matchesName;
+    });
+  }
+
   const table=document.getElementById('myLeadsTable');
-  if(allMyLeads.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có data nào được chia cho bạn.</td></tr>'; return; }
+  if(allMyLeads.length===0){ table.innerHTML=`<tr><td class="empty-note">${rawQuery?'Không tìm thấy data phù hợp.':'Chưa có data nào được chia cho bạn.'}</td></tr>`; return; }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
       <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
-      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Tình trạng">
         <select onchange="updateLeadField('${l.id}','status',this.value)">
@@ -1023,13 +1036,16 @@ function todayStr(){ return toLocalDateStr(new Date()); }
 function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
 
-function copyPin(pin, name){
-  const done = ()=>showToast(`Đã copy mã PIN của ${name}`);
+function copyText(text, message){
+  const done = ()=>showToast(message);
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(pin).then(done).catch(()=>fallbackCopy(pin, done));
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
   } else {
-    fallbackCopy(pin, done);
+    fallbackCopy(text, done);
   }
+}
+function copyPin(pin, name){
+  copyText(pin, `Đã copy mã PIN của ${name}`);
 }
 function fallbackCopy(text, done){
   try{
