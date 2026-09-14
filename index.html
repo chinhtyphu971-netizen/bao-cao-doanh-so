@@ -902,6 +902,14 @@ function buildLeadPool(branchIds, date){
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
 }
+function buildAdminPool(date){
+  return state.users.filter(u=>
+    u.role==='general_manager' &&
+    u.active !== false &&
+    isEligibleTodayByAttendance(u.id, date) &&
+    dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
+  );
+}
 function normalizePhone(p){
   return String(p||'').replace(/\D/g,'').replace(/^0+/,'');
 }
@@ -921,7 +929,9 @@ function runDistribution(){
   const rotation = getOrComputeTodayRotation();
   if(!rotation) return;
 
-  let pool = buildLeadPool(rotation.branchIds, today);
+  let pool = buildLeadPool(rotation.branchIds, today)
+    .concat(buildAdminPool(today))
+    .sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
   const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
   let overflowPool = null;
 
@@ -1063,7 +1073,13 @@ function toggleManagerConfirm(userId){
   const nowConfirmed = !state.managerConfirms[today][userId];
   state.managerConfirms[today][userId] = nowConfirmed;
   fbSetManagerConfirm(today, userId, nowConfirmed);
-  showToast(nowConfirmed ? `Quản lý đã xác nhận cho ${u.name} — được chia data dù chưa tự điểm danh` : `Đã huỷ xác nhận của Quản lý cho ${u.name}`);
+  if(nowConfirmed && !isCheckedInToday(userId, today)){
+    // Quan ly xac nhan thi tinh luon la da diem danh, khoi can nguoi do tu bam rieng
+    state.checkins[today] = state.checkins[today] || {};
+    state.checkins[today][userId] = true;
+    fbSetCheckin(today, userId, true);
+  }
+  showToast(nowConfirmed ? `Quản lý đã xác nhận cho ${u.name} — được chia data, đồng thời tự tích điểm danh` : `Đã huỷ xác nhận của Quản lý cho ${u.name}`);
   renderMgrLeads();
 }
 function renderMgrLeads(){
@@ -1087,7 +1103,10 @@ function renderMgrLeads(){
     ? '<span class="badge badge-ok">Không còn data nào chờ chia</span>'
     : `<span class="badge badge-warn">${unassigned.length} data đang chờ chia (có thể do chưa ai điểm danh, hoặc mọi người đã đủ ${DAILY_LEAD_CAP}/ngày)</span>`;
 
-  const relevantUsers = state.users.filter(u=>isLeadEligibleRole(u) && (!scope || u.branchId===scope));
+  const relevantUsers = state.users.filter(u=>
+    (isLeadEligibleRole(u) && (!scope || u.branchId===scope)) ||
+    (!scope && u.role==='general_manager' && u.active!==false)
+  );
   const table = document.getElementById('leadsDistributionTable');
   if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
   table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
@@ -1098,7 +1117,7 @@ function renderMgrLeads(){
       const status = u.active===false ? 'Tạm nghỉ' : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (confirmed ? 'Sẵn sàng' : 'Chưa xác nhận'));
       return `<tr>
         <td data-label="Người">${u.name}</td>
-        <td data-label="Chi nhánh">${branchName(u.branchId)}</td>
+        <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
         <td data-label="Điểm danh">${checked?'✓ Đã tự điểm danh':'—'}</td>
         <td data-label="Xác nhận Quản lý"><span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span></td>
         <td class="num" data-label="Đã nhận hôm nay">${cnt}/${DAILY_LEAD_CAP}</td>
