@@ -398,14 +398,9 @@
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
 
-        <div class="card" id="checkinCard">
-          <h2>Điểm danh hôm nay</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Chỉ ai đã điểm danh mới nằm trong vòng xoay nhận data hôm nay</p>
-          <div id="checkinStatus" style="margin-top:10px;"></div>
-        </div>
-
         <div class="card">
           <h2>Data đã nhận hôm nay</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Quản lý xác nhận cho bạn mỗi ngày để vào vòng xoay nhận data — không cần tự điểm danh</p>
           <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:14px;"></div>
           <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
@@ -702,13 +697,13 @@ const LocalDB = {
 
 let state = {
   branches: [], users: [], reports: [], trash: [],
-  leads: [], checkins: {}, dailyRotation: {},
+  leads: [], checkins: {}, dailyRotation: {}, managerConfirms: {},
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation;
-const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false};
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms;
+const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false};
 let appReady = false;
 
 function isFirebaseConfigured(){
@@ -731,12 +726,14 @@ function initFirebase(){
   fbLeads = db.ref('leads');
   fbCheckins = db.ref('checkins');
   fbDailyRotation = db.ref('dailyRotation');
+  fbManagerConfirms = db.ref('managerConfirms');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   fbCheckins.on('value', snap=>{ state.checkins = snap.val()||{}; markLoaded('checkins'); onDataChanged(); });
   fbDailyRotation.on('value', snap=>{ state.dailyRotation = snap.val()||{}; markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute(); });
+  fbManagerConfirms.on('value', snap=>{ state.managerConfirms = snap.val()||{}; markLoaded('managerConfirms'); onDataChanged(); tryAutoDistribute(); });
 
   // "reports" là kho lớn nhất và tăng dần mỗi ngày — thay vì tải lại TOÀN BỘ mỗi khi có 1
   // người thêm/sửa 1 báo cáo (rất tốn dung lượng Firebase khi dữ liệu nhiều lên theo thời gian),
@@ -823,6 +820,7 @@ function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
 function fbSetLead(l){ fbLeads.child(l.id).set(l); }
 function fbSetCheckin(date, userId, value){ fbCheckins.child(date).child(userId).set(value===undefined?true:value); }
+function fbSetManagerConfirm(date, userId, value){ fbManagerConfirms.child(date).child(userId).set(value===undefined?true:value); }
 function fbSetDailyRotation(date, data){ fbDailyRotation.child(date).set(data); }
 
 /* =========================== PHÂN BỔ DATA TỪ MKT =========================== */
@@ -833,6 +831,12 @@ function isLeadEligibleRole(u){
 }
 function isCheckedInToday(userId, date){
   return !!(state.checkins[date] && state.checkins[date][userId]);
+}
+function isManagerConfirmed(userId, date){
+  return !!(state.managerConfirms[date] && state.managerConfirms[date][userId]);
+}
+function isEligibleTodayByAttendance(userId, date){
+  return isManagerConfirmed(userId, date);
 }
 function dailyReceivedCount(userId, date){
   return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
@@ -857,7 +861,7 @@ function buildLeadPool(branchIds, date){
   return state.users.filter(u=>
     isLeadEligibleRole(u) &&
     branchIds.includes(u.branchId) &&
-    isCheckedInToday(u.id, date) &&
+    isEligibleTodayByAttendance(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
 }
@@ -961,11 +965,6 @@ function leadInfoText(lead){
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
-  const checkedIn = isCheckedInToday(user.id, today);
-  const checkinEl = document.getElementById('checkinStatus');
-  checkinEl.innerHTML = checkedIn
-    ? '<span class="badge badge-ok">✓ Đã điểm danh đi làm hôm nay</span>'
-    : '<button class="btn-primary" onclick="checkinToday()">Điểm danh đi làm hôm nay</button>';
 
   const myLeadsToday = state.leads.filter(l=>l.assignedTo===user.id && l.distributedDate===today);
   let allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
@@ -1001,15 +1000,15 @@ function renderMyLeads(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
-function toggleCheckinByManager(userId){
+function toggleManagerConfirm(userId){
   const today=todayStr();
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
-  state.checkins[today] = state.checkins[today] || {};
-  const nowChecked = !state.checkins[today][userId];
-  state.checkins[today][userId] = nowChecked;
-  fbSetCheckin(today, userId, nowChecked);
-  showToast(nowChecked ? `Đã xác nhận điểm danh cho ${u.name}` : `Đã bỏ điểm danh của ${u.name}`);
+  state.managerConfirms[today] = state.managerConfirms[today] || {};
+  const nowConfirmed = !state.managerConfirms[today][userId];
+  state.managerConfirms[today][userId] = nowConfirmed;
+  fbSetManagerConfirm(today, userId, nowConfirmed);
+  showToast(nowConfirmed ? `Quản lý đã xác nhận cho ${u.name} — được chia data dù chưa tự điểm danh` : `Đã huỷ xác nhận của Quản lý cho ${u.name}`);
   renderMgrLeads();
 }
 function renderMgrLeads(){
@@ -1036,15 +1035,15 @@ function renderMgrLeads(){
   const relevantUsers = state.users.filter(u=>isLeadEligibleRole(u) && (!scope || u.branchId===scope));
   const table = document.getElementById('leadsDistributionTable');
   if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
-  table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
     relevantUsers.map(u=>{
-      const checked = isCheckedInToday(u.id, today);
+      const confirmed = isManagerConfirmed(u.id, today);
       const cnt = dailyReceivedCount(u.id, today);
-      const status = u.active===false ? 'Tạm nghỉ' : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (checked ? 'Sẵn sàng' : 'Chưa điểm danh'));
+      const status = u.active===false ? 'Tạm nghỉ' : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (confirmed ? 'Sẵn sàng' : 'Chưa xác nhận'));
       return `<tr>
         <td data-label="Người">${u.name}</td>
         <td data-label="Chi nhánh">${branchName(u.branchId)}</td>
-        <td data-label="Điểm danh"><span class="badge ${checked?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleCheckinByManager('${u.id}')">${checked?'✓ Đã điểm danh (bấm để bỏ)':'Chưa điểm danh (bấm để xác nhận)'}</span></td>
+        <td data-label="Xác nhận Quản lý"><span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span></td>
         <td class="num" data-label="Đã nhận hôm nay">${cnt}/${DAILY_LEAD_CAP}</td>
         <td data-label="Trạng thái">${status}</td>
       </tr>`;
