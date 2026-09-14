@@ -569,11 +569,16 @@
         </div>
 
         <div class="card" id="permissionsCard" style="display:none;">
-          <h2>Phân quyền</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">
-            Chỉ Quản lý chung mới cấp được quyền. Đổi vai trò của một người sẽ có hiệu lực ngay lần đăng nhập tiếp theo của họ.
-          </p>
-          <div class="table-wrap"><table id="permissionsTable" class="rtable"></table></div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0;">Phân quyền</h2>
+            <button class="btn-ghost" onclick="togglePermissionsPanel()" id="togglePermissionsBtn">Hiện bảng phân quyền</button>
+          </div>
+          <div id="permissionsPanelBody" style="display:none;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:10px;">
+              Chỉ Quản lý chung mới cấp được quyền. Đổi vai trò của một người sẽ có hiệu lực ngay lần đăng nhập tiếp theo của họ.
+            </p>
+            <div class="table-wrap"><table id="permissionsTable" class="rtable"></table></div>
+          </div>
         </div>
 
         <div class="card" id="refreshAllCard" style="display:none;">
@@ -2163,6 +2168,13 @@ function deleteUser(userId){
   });
 }
 
+function togglePermissionsPanel(){
+  const body = document.getElementById('permissionsPanelBody');
+  const btn = document.getElementById('togglePermissionsBtn');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Hiện bảng phân quyền' : 'Ẩn bảng phân quyền';
+}
 function renderPermissionsTable(){
   const table = document.getElementById('permissionsTable');
   const rows = state.users;
