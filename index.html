@@ -517,6 +517,25 @@
         </div>
 
         <div class="card">
+          <h2>Thống kê data</h2>
+          <div class="chip-row" style="margin-top:10px; margin-bottom:10px;">
+            <div class="chip" id="leadStatsPreset_today" onclick="applyLeadStatsPreset('today')">Hôm nay</div>
+            <div class="chip" id="leadStatsPreset_yesterday" onclick="applyLeadStatsPreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="leadStatsPreset_week" onclick="applyLeadStatsPreset('week')">Tuần qua</div>
+            <div class="chip" id="leadStatsPreset_month" onclick="applyLeadStatsPreset('month')">Tháng qua</div>
+            <div class="chip selected" id="leadStatsPreset_all" onclick="applyLeadStatsPreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field"><label>Từ ngày</label><input type="date" id="leadStatsFrom" onchange="applyLeadStatsCustomRange()"></div>
+            <div class="field"><label>Đến ngày</label><input type="date" id="leadStatsTo" onchange="applyLeadStatsCustomRange()"></div>
+          </div>
+          <div class="grid-3">
+            <div class="stat-box"><div class="stat-label">Tổng data đã nhận</div><div class="stat-value" id="leadStatTotal">0</div></div>
+            <div class="stat-box"><div class="stat-label">Chưa xử lý (chưa cập nhật tình trạng)</div><div class="stat-value" id="leadStatUnprocessed">0</div></div>
+          </div>
+        </div>
+
+        <div class="card">
           <h2>Tình hình nhận data hôm nay</h2>
           <div class="table-wrap"><table id="leadsDistributionTable" class="rtable"></table></div>
         </div>
@@ -1082,7 +1101,43 @@ function toggleManagerConfirm(userId){
   showToast(nowConfirmed ? `Quản lý đã xác nhận cho ${u.name} — được chia data, đồng thời tự tích điểm danh` : `Đã huỷ xác nhận của Quản lý cho ${u.name}`);
   renderMgrLeads();
 }
+let leadStatsDateFrom = null, leadStatsDateTo = null, leadStatsPreset = 'all';
+function applyLeadStatsPreset(preset){
+  leadStatsPreset = preset;
+  const [from, to] = dateRangeFor(preset);
+  leadStatsDateFrom = from; leadStatsDateTo = to;
+  document.getElementById('leadStatsFrom').value = from || '';
+  document.getElementById('leadStatsTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('leadStatsPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderLeadStats();
+}
+function applyLeadStatsCustomRange(){
+  leadStatsPreset = 'custom';
+  leadStatsDateFrom = document.getElementById('leadStatsFrom').value || null;
+  leadStatsDateTo = document.getElementById('leadStatsTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('leadStatsPreset_'+p).classList.remove('selected');
+  });
+  renderLeadStats();
+}
+function renderLeadStats(){
+  document.getElementById('leadStatsFrom').value = leadStatsDateFrom || '';
+  document.getElementById('leadStatsTo').value = leadStatsDateTo || '';
+  const inRange = state.leads.filter(l=>{
+    if(!l.assignedAt) return false;
+    const d = toLocalDateStr(new Date(l.assignedAt));
+    if(leadStatsDateFrom && d < leadStatsDateFrom) return false;
+    if(leadStatsDateTo && d > leadStatsDateTo) return false;
+    return true;
+  });
+  const unprocessed = inRange.filter(l=>!l.status);
+  document.getElementById('leadStatTotal').textContent = inRange.length;
+  document.getElementById('leadStatUnprocessed').textContent = unprocessed.length;
+}
 function renderMgrLeads(){
+  renderLeadStats();
   const scope=scopeBranchId();
   const today=todayStr();
   const rotation = state.dailyRotation[today];
@@ -1107,6 +1162,19 @@ function renderMgrLeads(){
     (isLeadEligibleRole(u) && (!scope || u.branchId===scope)) ||
     (!scope && u.role==='general_manager' && u.active!==false)
   );
+  const onDutySet = new Set(rotation ? rotation.branchIds : []);
+  function teamSortRank(u){
+    if(u.role==='general_manager') return 0;      // Quản lý chung lên đầu
+    if(onDutySet.has(u.branchId)) return 1;        // team đang được nhận data hôm nay
+    return 2;                                       // team còn lại (tự tìm data)
+  }
+  relevantUsers.sort((a,b)=>{
+    const ra=teamSortRank(a), rb=teamSortRank(b);
+    if(ra!==rb) return ra-rb;
+    const bn = branchName(a.branchId).localeCompare(branchName(b.branchId),'vi');
+    if(bn!==0) return bn;
+    return a.name.localeCompare(b.name,'vi');
+  });
   const table = document.getElementById('leadsDistributionTable');
   if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
   table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
