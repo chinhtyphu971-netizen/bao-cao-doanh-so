@@ -912,6 +912,21 @@ function checkinToday(){
   showToast('Đã điểm danh đi làm hôm nay');
   renderMyLeads();
 }
+const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
+function leadPhone(lead){
+  if(lead.raw){
+    const key = Object.keys(lead.raw).find(k=>/s[oố]\s*đi[eệ]n\s*tho[aạ]i/i.test(k) || /phone/i.test(k) || /sdt/i.test(k));
+    if(key) return lead.raw[key] || '—';
+  }
+  return lead.phone || '—';
+}
+function fbUpdateLead(id, patch){ fbLeads.child(id).update(patch); }
+function updateLeadField(leadId, field, value){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!lead) return;
+  lead[field] = value;
+  fbUpdateLead(leadId, {[field]: value});
+}
 function leadSource(lead){
   if(lead.source) return lead.source;
   if(lead.raw){
@@ -942,11 +957,18 @@ function renderMyLeads(){
 
   const table=document.getElementById('myLeadsTable');
   if(allMyLeads.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có data nào được chia cho bạn.</td></tr>'; return; }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>Thông tin</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
       <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
-      <td data-label="Thông tin">${leadInfoText(l)}</td>
+      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
+      <td data-label="Tình trạng">
+        <select onchange="updateLeadField('${l.id}','status',this.value)">
+          <option value="">— Chọn —</option>
+          ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
     </tr>`).join('') + `</tbody>`;
 }
 function renderMgrLeads(){
