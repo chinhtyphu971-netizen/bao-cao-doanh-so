@@ -331,10 +331,12 @@
       <div id="navPersonal" style="display:none;">
         <div class="nav-item active" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
         <div class="nav-item" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">Lịch sử của tôi</span></div>
+        <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
       </div>
       <div id="navManager" style="display:none;">
         <div class="nav-item" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">Tổng quan</span></div>
         <div class="nav-item" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
+        <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
         <div class="nav-item" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
         <div class="nav-item" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
       </div>
@@ -389,6 +391,23 @@
           <h2>Ghi chú tổng hợp</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú của bạn, gộp riêng cho dễ đọc</p>
           <div id="staffHistoryNotesList" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- ---------- Data của tôi (mọi vai trò) ---------- -->
+      <div id="page-myLeads" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
+
+        <div class="card" id="checkinCard">
+          <h2>Điểm danh hôm nay</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Chỉ ai đã điểm danh mới nằm trong vòng xoay nhận data hôm nay</p>
+          <div id="checkinStatus" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Data đã nhận hôm nay</h2>
+          <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:14px;"></div>
+          <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -477,6 +496,28 @@
           <h2>Ghi chú tổng hợp</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú theo đúng bộ lọc đang chọn, gộp riêng cho dễ đọc</p>
           <div id="mgrReportsNotesList" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER: phân bổ data ---------- -->
+      <div id="page-mgrLeads" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Phân bổ data</h1><p>Kho data từ MKT, xoay vòng chia theo team và theo người</p></div></div>
+
+        <div class="card">
+          <h2>Hôm nay</h2>
+          <div id="rotationTodayInfo" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Kho data chưa chia</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data đang chờ (chưa có ai đủ điều kiện nhận, hoặc chưa ai điểm danh)</p>
+          <div id="unassignedLeadsInfo" style="margin-top:10px;"></div>
+          <button class="btn-primary" style="margin-top:10px;" onclick="runDistributionManual()">Chạy phân bổ ngay</button>
+        </div>
+
+        <div class="card">
+          <h2>Tình hình nhận data hôm nay</h2>
+          <div class="table-wrap"><table id="leadsDistributionTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -632,12 +673,13 @@ const LocalDB = {
 
 let state = {
   branches: [], users: [], reports: [], trash: [],
+  leads: [], checkins: {}, dailyRotation: {},
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem;
-const loaded = {branches:false, users:false, reports:false, trash:false};
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation;
+const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false};
 let appReady = false;
 
 function isFirebaseConfigured(){
@@ -657,10 +699,15 @@ function initFirebase(){
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
   fbSystem = db.ref('system/forceReload');
+  fbLeads = db.ref('leads');
+  fbCheckins = db.ref('checkins');
+  fbDailyRotation = db.ref('dailyRotation');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
+  fbCheckins.on('value', snap=>{ state.checkins = snap.val()||{}; markLoaded('checkins'); onDataChanged(); });
+  fbDailyRotation.on('value', snap=>{ state.dailyRotation = snap.val()||{}; markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute(); });
 
   // "reports" là kho lớn nhất và tăng dần mỗi ngày — thay vì tải lại TOÀN BỘ mỗi khi có 1
   // người thêm/sửa 1 báo cáo (rất tốn dung lượng Firebase khi dữ liệu nhiều lên theo thời gian),
@@ -678,6 +725,22 @@ function initFirebase(){
   }).catch(err=>{
     console.error('Lỗi tải dữ liệu báo cáo:', err);
     markLoaded('reports'); // vẫn cho app chạy tiếp dù lỗi, tránh kẹt màn hình loading mãi
+  });
+
+  // "leads" (kho data từ MKT) cũng sẽ tăng dần theo thời gian — dùng đúng cơ chế tối ưu như reports
+  const leadsMap = {};
+  fbLeads.once('value').then(snap=>{
+    Object.assign(leadsMap, snap.val()||{});
+    state.leads = Object.values(leadsMap);
+    markLoaded('leads');
+    onDataChanged();
+    tryAutoDistribute();
+    fbLeads.on('child_added', s=>{ leadsMap[s.key]=s.val(); state.leads=Object.values(leadsMap); onDataChanged(); tryAutoDistribute(); });
+    fbLeads.on('child_changed', s=>{ leadsMap[s.key]=s.val(); state.leads=Object.values(leadsMap); onDataChanged(); });
+    fbLeads.on('child_removed', s=>{ delete leadsMap[s.key]; state.leads=Object.values(leadsMap); onDataChanged(); });
+  }).catch(err=>{
+    console.error('Lỗi tải kho data:', err);
+    markLoaded('leads');
   });
 
   // "Làm mới cho tất cả": bỏ qua giá trị đọc được lần đầu (đó là lệnh làm mới cũ từ trước,
@@ -729,6 +792,172 @@ function fbSetReport(r){ fbReports.child(r.id).set(r); }
 function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
+function fbSetLead(l){ fbLeads.child(l.id).set(l); }
+function fbSetCheckin(date, userId){ fbCheckins.child(date).child(userId).set(true); }
+function fbSetDailyRotation(date, data){ fbDailyRotation.child(date).set(data); }
+
+/* =========================== PHÂN BỔ DATA TỪ MKT =========================== */
+const DAILY_LEAD_CAP = 50;
+
+function isLeadEligibleRole(u){
+  return (u.role==='staff' || u.role==='team_manager') && u.active !== false;
+}
+function isCheckedInToday(userId, date){
+  return !!(state.checkins[date] && state.checkins[date][userId]);
+}
+function dailyReceivedCount(userId, date){
+  return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
+}
+function getOrComputeTodayRotation(){
+  const today=todayStr();
+  if(state.dailyRotation[today]) return state.dailyRotation[today];
+  if(state.branches.length===0) return null;
+  const sorted = state.branches.slice().sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
+  const onDuty = sorted.slice(0, Math.min(3, sorted.length)).map(b=>b.id);
+  const now = Date.now();
+  onDuty.forEach(bid=>{
+    const b = state.branches.find(x=>x.id===bid);
+    if(b){ b.lastDataAt = now; fbSetBranch(b); }
+  });
+  const rotation = {branchIds: onDuty, computedAt: now};
+  state.dailyRotation[today] = rotation;
+  fbSetDailyRotation(today, rotation);
+  return rotation;
+}
+function buildLeadPool(branchIds, date){
+  return state.users.filter(u=>
+    isLeadEligibleRole(u) &&
+    branchIds.includes(u.branchId) &&
+    isCheckedInToday(u.id, date) &&
+    dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
+  ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
+}
+function runDistribution(){
+  const today=todayStr();
+  const unassigned = state.leads.filter(l=>!l.assignedTo);
+  if(unassigned.length===0) return;
+  const rotation = getOrComputeTodayRotation();
+  if(!rotation) return;
+
+  let pool = buildLeadPool(rotation.branchIds, today);
+  const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
+  let overflowPool = null;
+
+  for(const lead of unassigned){
+    if(pool.length===0){
+      if(overflowPool===null) overflowPool = buildLeadPool(otherBranchIds, today);
+      pool = overflowPool;
+    }
+    if(pool.length===0) break; // khong con ai du dieu kien (chua ai diem danh / da het han muc) -> data cho lai
+    const person = pool[0];
+    lead.assignedTo = person.id;
+    lead.assignedAt = Date.now();
+    lead.distributedDate = today;
+    fbSetLead(lead);
+    person.lastDataAt = Date.now();
+    fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
+    if(dailyReceivedCount(person.id, today) >= DAILY_LEAD_CAP){
+      pool.shift();
+    } else {
+      pool.push(pool.shift());
+    }
+  }
+}
+function runDistributionManual(){
+  runDistribution();
+  showToast('Đã chạy phân bổ');
+  renderMgrLeads();
+}
+function tryAutoDistribute(){
+  if(!appReady) return;
+  const user=currentUser();
+  if(!user || (user.role!=='general_manager' && user.role!=='team_manager')) return;
+  runDistribution();
+}
+function checkinToday(){
+  const user=currentUser();
+  const today=todayStr();
+  state.checkins[today] = state.checkins[today] || {};
+  state.checkins[today][user.id] = true;
+  fbSetCheckin(today, user.id);
+  showToast('Đã điểm danh đi làm hôm nay');
+  renderMyLeads();
+}
+function leadSource(lead){
+  if(lead.source) return lead.source;
+  if(lead.raw){
+    const key = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
+    if(key) return lead.raw[key] || '—';
+  }
+  return '—';
+}
+function leadInfoText(lead){
+  if(!lead.raw) return lead.info || '';
+  const sourceKey = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
+  return Object.entries(lead.raw).filter(([k])=>k!==sourceKey).map(([k,v])=>`${k}: ${v}`).join(' · ');
+}
+function renderMyLeads(){
+  const user=currentUser();
+  const today=todayStr();
+  const checkedIn = isCheckedInToday(user.id, today);
+  const checkinEl = document.getElementById('checkinStatus');
+  checkinEl.innerHTML = checkedIn
+    ? '<span class="badge badge-ok">✓ Đã điểm danh đi làm hôm nay</span>'
+    : '<button class="btn-primary" onclick="checkinToday()">Điểm danh đi làm hôm nay</button>';
+
+  const myLeadsToday = state.leads.filter(l=>l.assignedTo===user.id && l.distributedDate===today);
+  const allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
+
+  document.getElementById('myLeadsQuota').innerHTML =
+    `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>`;
+
+  const table=document.getElementById('myLeadsTable');
+  if(allMyLeads.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có data nào được chia cho bạn.</td></tr>'; return; }
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>Thông tin</th></tr></thead><tbody>` +
+    allMyLeads.map(l=>`<tr>
+      <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="Thông tin">${leadInfoText(l)}</td>
+    </tr>`).join('') + `</tbody>`;
+}
+function renderMgrLeads(){
+  const scope=scopeBranchId();
+  const today=todayStr();
+  const rotation = state.dailyRotation[today];
+  const infoEl = document.getElementById('rotationTodayInfo');
+  if(!rotation){
+    infoEl.innerHTML = '<div class="empty-note">Chưa có data mới hôm nay nên hệ thống chưa cần chọn team — sẽ tự chọn ngay khi có data đầu tiên trong ngày.</div>';
+  } else {
+    const onNames = rotation.branchIds.map(id=>branchName(id)).join(', ') || '—';
+    const offNames = state.branches.filter(b=>!rotation.branchIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
+    infoEl.innerHTML = `
+      <div class="detail-row"><span class="k">Team được nhận data hôm nay</span><span class="v">${onNames}</span></div>
+      <div class="detail-row"><span class="k">Team tự tìm data hôm nay</span><span class="v">${offNames}</span></div>
+    `;
+  }
+
+  const unassigned = state.leads.filter(l=>!l.assignedTo);
+  document.getElementById('unassignedLeadsInfo').innerHTML = unassigned.length===0
+    ? '<span class="badge badge-ok">Không còn data nào chờ chia</span>'
+    : `<span class="badge badge-warn">${unassigned.length} data đang chờ chia (có thể do chưa ai điểm danh, hoặc mọi người đã đủ ${DAILY_LEAD_CAP}/ngày)</span>`;
+
+  const relevantUsers = state.users.filter(u=>isLeadEligibleRole(u) && (!scope || u.branchId===scope));
+  const table = document.getElementById('leadsDistributionTable');
+  if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
+  table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
+    relevantUsers.map(u=>{
+      const checked = isCheckedInToday(u.id, today);
+      const cnt = dailyReceivedCount(u.id, today);
+      const status = u.active===false ? 'Tạm nghỉ' : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (checked ? 'Sẵn sàng' : 'Chưa điểm danh'));
+      return `<tr>
+        <td data-label="Người">${u.name}</td>
+        <td data-label="Chi nhánh">${branchName(u.branchId)}</td>
+        <td data-label="Điểm danh">${checked?'✓':'—'}</td>
+        <td class="num" data-label="Đã nhận hôm nay">${cnt}/${DAILY_LEAD_CAP}</td>
+        <td data-label="Trạng thái">${status}</td>
+      </tr>`;
+    }).join('') + `</tbody>`;
+}
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 // Luôn tính ngày theo giờ ĐỊA PHƯƠNG của máy đang mở app (không dùng toISOString vì đó là giờ UTC —
@@ -981,8 +1210,10 @@ function goPage(pageId){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId));
   if(pageId==='staffReport') renderStaffReport();
   if(pageId==='staffHistory') renderStaffHistory();
+  if(pageId==='myLeads') renderMyLeads();
   if(pageId==='mgrDashboard') renderMgrDashboard();
   if(pageId==='mgrReports') renderMgrReportsPage();
+  if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrTrash') renderMgrTrash();
   if(pageId==='mgrSettings') renderMgrSettings();
 }
@@ -1900,7 +2131,7 @@ function renderPermissionsTable(){
     table.innerHTML = '<tr><td class="empty-note">Cần có ít nhất 1 chi nhánh trước khi phân quyền Quản lý team.</td></tr>';
     return;
   }
-  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh phụ trách</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh phụ trách</th><th>Trạng thái</th><th></th></tr>` +
     rows.map(u=>{
       const roleSel = `<select id="roleSel_${u.id}" onchange="onPermissionRoleChange('${u.id}')">` +
         ['staff','team_manager','general_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
@@ -1908,13 +2139,24 @@ function renderPermissionsTable(){
       const branchSel = `<select id="branchSel_${u.id}" ${u.role==='general_manager'?'style="display:none;"':''}>` +
         state.branches.map(b=>`<option value="${b.id}" ${u.branchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
+      const isPaused = u.active===false;
       return `<tr>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleSel}</td>
         <td data-label="Chi nhánh phụ trách">${branchSel}</td>
+        <td data-label="Trạng thái"><span class="badge ${isPaused?'badge-warn':'badge-ok'}" style="cursor:pointer;" onclick="toggleUserActive('${u.id}')">${isPaused?'Tạm nghỉ (bấm để mở lại)':'Đang làm (bấm để tạm nghỉ)'}</span></td>
         <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
       </tr>`;
     }).join('');
+}
+function toggleUserActive(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const newActive = u.active===false ? true : false;
+  u.active = newActive;
+  fbUpdateUser(userId, {active:newActive});
+  showToast(newActive ? `${u.name} đã bật lại "Đang làm"` : `${u.name} đã chuyển "Tạm nghỉ" — sẽ không nhận data mới`);
+  renderPermissionsTable();
 }
 function onPermissionRoleChange(userId){
   const sel=document.getElementById('roleSel_'+userId);
