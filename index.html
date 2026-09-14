@@ -398,9 +398,14 @@
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
 
+        <div class="card" id="checkinCard">
+          <h2>Điểm danh hôm nay</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điểm danh để Quản lý biết bạn đang đi làm hôm nay — Quản lý sẽ xác nhận cho bạn vào vòng xoay nhận data.</p>
+          <div id="checkinStatus" style="margin-top:10px;"></div>
+        </div>
+
         <div class="card">
           <h2>Data đã nhận hôm nay</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Quản lý xác nhận cho bạn mỗi ngày để vào vòng xoay nhận data — không cần tự điểm danh</p>
           <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:14px;"></div>
           <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
@@ -965,6 +970,11 @@ function leadInfoText(lead){
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
+  const checkedIn = isCheckedInToday(user.id, today);
+  const checkinEl = document.getElementById('checkinStatus');
+  checkinEl.innerHTML = checkedIn
+    ? '<span class="badge badge-ok">✓ Đã điểm danh đi làm hôm nay</span>'
+    : '<button class="btn-primary" onclick="checkinToday()">Điểm danh đi làm hôm nay</button>';
 
   const myLeadsToday = state.leads.filter(l=>l.assignedTo===user.id && l.distributedDate===today);
   let allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
