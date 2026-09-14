@@ -513,7 +513,7 @@
           <h2>Kho data chưa chia</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data đang chờ (chưa có ai đủ điều kiện nhận, hoặc chưa ai điểm danh)</p>
           <div id="unassignedLeadsInfo" style="margin-top:10px;"></div>
-          <button class="btn-primary" style="margin-top:10px;" onclick="runDistributionManual()">Chạy phân bổ ngay</button>
+          <button class="btn-primary" id="runDistributionBtn" style="margin-top:10px;" onclick="runDistributionManual()">Chạy phân bổ ngay</button>
         </div>
 
         <div class="card">
@@ -533,6 +533,10 @@
             <div class="stat-box"><div class="stat-label">Tổng data đã nhận</div><div class="stat-value" id="leadStatTotal">0</div></div>
             <div class="stat-box"><div class="stat-label">Chưa xử lý (chưa cập nhật tình trạng)</div><div class="stat-value" id="leadStatUnprocessed">0</div></div>
           </div>
+          <div style="margin-top:12px;">
+            <span class="history-link" onclick="toggleLeadStatsDetail()" id="leadStatsDetailToggle">Xem chi tiết theo người ▸</span>
+          </div>
+          <div id="leadStatsDetailBody" style="display:none; margin-top:10px;"></div>
         </div>
 
         <div class="card">
@@ -1084,6 +1088,17 @@ function renderMyLeads(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
+function toggleCheckinByManager(userId){
+  const today=todayStr();
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  state.checkins[today] = state.checkins[today] || {};
+  const nowChecked = !state.checkins[today][userId];
+  state.checkins[today][userId] = nowChecked;
+  fbSetCheckin(today, userId, nowChecked);
+  showToast(nowChecked ? `Đã điểm danh hộ cho ${u.name}` : `Đã bỏ điểm danh của ${u.name}`);
+  renderMgrLeads();
+}
 function toggleManagerConfirm(userId){
   const today=todayStr();
   const u = state.users.find(x=>x.id===userId);
@@ -1135,10 +1150,41 @@ function renderLeadStats(){
   const unprocessed = inRange.filter(l=>!l.status);
   document.getElementById('leadStatTotal').textContent = inRange.length;
   document.getElementById('leadStatUnprocessed').textContent = unprocessed.length;
+
+  // Chi tiết theo từng người (chỉ tính khi khối đang mở, tránh tính toán thừa khi đang gọn)
+  if(document.getElementById('leadStatsDetailBody').style.display !== 'none'){
+    renderLeadStatsDetail(inRange);
+  }
+}
+function toggleLeadStatsDetail(){
+  const body = document.getElementById('leadStatsDetailBody');
+  const btn = document.getElementById('leadStatsDetailToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem chi tiết theo người ▸' : 'Ẩn chi tiết theo người ▾';
+  if(!isOpen) renderLeadStats(); // vừa mở ra -> tính lại chi tiết ngay
+}
+function renderLeadStatsDetail(inRange){
+  const byPerson = {};
+  inRange.forEach(l=>{
+    if(!l.assignedTo) return;
+    byPerson[l.assignedTo] = byPerson[l.assignedTo] || {total:0, unprocessed:0};
+    byPerson[l.assignedTo].total++;
+    if(!l.status) byPerson[l.assignedTo].unprocessed++;
+  });
+  const ids = Object.keys(byPerson).sort((a,b)=>byPerson[b].unprocessed-byPerson[a].unprocessed);
+  const body = document.getElementById('leadStatsDetailBody');
+  if(ids.length===0){ body.innerHTML='<div class="empty-note">Chưa có ai nhận data trong khoảng này.</div>'; return; }
+  body.innerHTML = ids.map(id=>{
+    const u = state.users.find(x=>x.id===id);
+    const b = byPerson[id];
+    return `<div class="detail-row"><span class="k">${u?u.name:'(đã xoá)'}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+  }).join('');
 }
 function renderMgrLeads(){
   renderLeadStats();
   const scope=scopeBranchId();
+  document.getElementById('runDistributionBtn').style.display = scope ? 'none' : 'inline-block';
   const today=todayStr();
   const rotation = state.dailyRotation[today];
   const infoEl = document.getElementById('rotationTodayInfo');
@@ -1164,9 +1210,9 @@ function renderMgrLeads(){
   );
   const onDutySet = new Set(rotation ? rotation.branchIds : []);
   function teamSortRank(u){
-    if(u.role==='general_manager') return 0;      // Quản lý chung lên đầu
-    if(onDutySet.has(u.branchId)) return 1;        // team đang được nhận data hôm nay
-    return 2;                                       // team còn lại (tự tìm data)
+    if(onDutySet.has(u.branchId) && u.role!=='general_manager') return 0; // team đang được nhận data hôm nay
+    if(u.role==='general_manager') return 2;       // Quản lý chung xuống cuối
+    return 1;                                       // team còn lại (tự tìm data)
   }
   relevantUsers.sort((a,b)=>{
     const ra=teamSortRank(a), rb=teamSortRank(b);
@@ -1183,11 +1229,15 @@ function renderMgrLeads(){
       const confirmed = isManagerConfirmed(u.id, today);
       const cnt = dailyReceivedCount(u.id, today);
       const status = u.active===false ? 'Tạm nghỉ' : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (confirmed ? 'Sẵn sàng' : 'Chưa xác nhận'));
+      const checkinCell = `<span class="badge ${checked?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleCheckinByManager('${u.id}')">${checked?'✓ Đã điểm danh (bấm để bỏ)':'Chưa điểm danh (bấm để điểm danh hộ)'}</span>`;
+      const confirmCell = scope
+        ? `<span style="color:var(--ink-soft);">${confirmed?'✓ Đã xác nhận':'Chưa xác nhận'}</span>`
+        : `<span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span>`;
       return `<tr>
         <td data-label="Người">${u.name}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
-        <td data-label="Điểm danh">${checked?'✓ Đã tự điểm danh':'—'}</td>
-        <td data-label="Xác nhận Quản lý"><span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span></td>
+        <td data-label="Điểm danh">${checkinCell}</td>
+        <td data-label="Xác nhận Quản lý">${confirmCell}</td>
         <td class="num" data-label="Đã nhận hôm nay">${cnt}/${DAILY_LEAD_CAP}</td>
         <td data-label="Trạng thái">${status}</td>
       </tr>`;
