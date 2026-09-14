@@ -822,7 +822,7 @@ function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
 function fbSetLead(l){ fbLeads.child(l.id).set(l); }
-function fbSetCheckin(date, userId){ fbCheckins.child(date).child(userId).set(true); }
+function fbSetCheckin(date, userId, value){ fbCheckins.child(date).child(userId).set(value===undefined?true:value); }
 function fbSetDailyRotation(date, data){ fbDailyRotation.child(date).set(data); }
 
 /* =========================== PHÂN BỔ DATA TỪ MKT =========================== */
@@ -1001,6 +1001,17 @@ function renderMyLeads(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
+function toggleCheckinByManager(userId){
+  const today=todayStr();
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  state.checkins[today] = state.checkins[today] || {};
+  const nowChecked = !state.checkins[today][userId];
+  state.checkins[today][userId] = nowChecked;
+  fbSetCheckin(today, userId, nowChecked);
+  showToast(nowChecked ? `Đã xác nhận điểm danh cho ${u.name}` : `Đã bỏ điểm danh của ${u.name}`);
+  renderMgrLeads();
+}
 function renderMgrLeads(){
   const scope=scopeBranchId();
   const today=todayStr();
@@ -1033,7 +1044,7 @@ function renderMgrLeads(){
       return `<tr>
         <td data-label="Người">${u.name}</td>
         <td data-label="Chi nhánh">${branchName(u.branchId)}</td>
-        <td data-label="Điểm danh">${checked?'✓':'—'}</td>
+        <td data-label="Điểm danh"><span class="badge ${checked?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleCheckinByManager('${u.id}')">${checked?'✓ Đã điểm danh (bấm để bỏ)':'Chưa điểm danh (bấm để xác nhận)'}</span></td>
         <td class="num" data-label="Đã nhận hôm nay">${cnt}/${DAILY_LEAD_CAP}</td>
         <td data-label="Trạng thái">${status}</td>
       </tr>`;
