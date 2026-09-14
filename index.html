@@ -940,6 +940,19 @@ function checkinToday(){
   renderMyLeads();
 }
 const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
+const LEAD_STATUS_COLORS = {
+  'Đã liên hệ':          {bg:'#e8eaf6', color:'#3949ab'},
+  'Đang tư vấn':         {bg:'#fff8e1', color:'#c17900'},
+  'Đã chốt':             {bg:'#e8f5e9', color:'#2e7d32'},
+  'Không liên lạc được': {bg:'#ede7f6', color:'#6a1b9a'},
+  'Không có nhu cầu':    {bg:'#ffebee', color:'#c62828'},
+  'nhắn tin chưa gọi':   {bg:'#e3f2fd', color:'#1565c0'},
+  'không tìm thấy tk':   {bg:'#e0f7fa', color:'#00838f'},
+};
+function leadStatusStyle(status){
+  const c = LEAD_STATUS_COLORS[status];
+  return c ? `background:${c.bg}; color:${c.color}; font-weight:600; border-color:${c.color}33;` : '';
+}
 function leadPhone(lead){
   if(lead.raw){
     const key = Object.keys(lead.raw).find(k=>/s[oố]\s*đi[eệ]n\s*tho[aạ]i/i.test(k) || /phone/i.test(k) || /sdt/i.test(k));
@@ -1003,7 +1016,7 @@ function renderMyLeads(){
       <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Tình trạng">
-        <select onchange="updateLeadField('${l.id}','status',this.value)">
+        <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
