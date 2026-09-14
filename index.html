@@ -715,6 +715,36 @@ function isFirebaseConfigured(){
   return FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf('YOUR_') !== 0;
 }
 
+let scopedTodayDate = null;
+let refCheckinsToday = null, refManagerConfirmsToday = null, refDailyRotationToday = null;
+function subscribeTodayScopedData(){
+  const today = todayStr();
+  if(scopedTodayDate === today) return; // vẫn đang đúng ngày, không cần làm lại
+  // Ngắt theo dõi ngày cũ trước khi chuyển sang ngày mới (nếu có)
+  if(refCheckinsToday) refCheckinsToday.off();
+  if(refManagerConfirmsToday) refManagerConfirmsToday.off();
+  if(refDailyRotationToday) refDailyRotationToday.off();
+
+  scopedTodayDate = today;
+  refCheckinsToday = fbCheckins.child(today);
+  refManagerConfirmsToday = fbManagerConfirms.child(today);
+  refDailyRotationToday = fbDailyRotation.child(today);
+
+  refCheckinsToday.on('value', snap=>{
+    state.checkins = {}; state.checkins[today] = snap.val()||{};
+    markLoaded('checkins'); onDataChanged();
+  });
+  refManagerConfirmsToday.on('value', snap=>{
+    state.managerConfirms = {}; state.managerConfirms[today] = snap.val()||{};
+    markLoaded('managerConfirms'); onDataChanged(); tryAutoDistribute();
+  });
+  refDailyRotationToday.on('value', snap=>{
+    const val = snap.val();
+    state.dailyRotation = {};
+    if(val) state.dailyRotation[today] = val;
+    markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute();
+  });
+}
 function initFirebase(){
   if(!isFirebaseConfigured()){
     document.getElementById('loadingText').innerHTML =
@@ -736,9 +766,11 @@ function initFirebase(){
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
-  fbCheckins.on('value', snap=>{ state.checkins = snap.val()||{}; markLoaded('checkins'); onDataChanged(); });
-  fbDailyRotation.on('value', snap=>{ state.dailyRotation = snap.val()||{}; markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute(); });
-  fbManagerConfirms.on('value', snap=>{ state.managerConfirms = snap.val()||{}; markLoaded('managerConfirms'); onDataChanged(); tryAutoDistribute(); });
+  // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
+  // của HÔM NAY nên chỉ cần theo dõi đúng 1 ngày đó, không tải cả lịch sử các ngày cũ (tiết kiệm
+  // dung lượng rất nhiều khi dùng lâu dài). Tự chuyển sang theo dõi ngày mới khi qua 0h.
+  subscribeTodayScopedData();
+  setInterval(subscribeTodayScopedData, 60*1000);
 
   // "reports" là kho lớn nhất và tăng dần mỗi ngày — thay vì tải lại TOÀN BỘ mỗi khi có 1
   // người thêm/sửa 1 báo cáo (rất tốn dung lượng Firebase khi dữ liệu nhiều lên theo thời gian),
