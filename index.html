@@ -518,7 +518,7 @@
           <div id="rotationTodayInfo" style="margin-top:10px;"></div>
         </div>
 
-        <div class="card">
+        <div class="card" id="unassignedLeadsCard">
           <h2>Kho data chưa chia</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data đang chờ (chưa có ai đủ điều kiện nhận, hoặc chưa ai điểm danh)</p>
           <div id="unassignedLeadsInfo" style="margin-top:10px;"></div>
@@ -1409,6 +1409,7 @@ function renderPersonLeadsPage(){
 function renderMgrLeads(){
   renderLeadStats();
   const scope=scopeBranchId();
+  document.getElementById('unassignedLeadsCard').style.display = scope ? 'none' : 'block';
   document.getElementById('runDistributionBtn').style.display = scope ? 'none' : 'inline-block';
   const today=todayStr();
   const rotation = state.dailyRotation[today];
