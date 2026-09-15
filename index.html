@@ -548,6 +548,17 @@
         </div>
       </div>
 
+      <!-- ---------- MANAGER: xem/sửa data của 1 người cụ thể ---------- -->
+      <div id="page-personLeads" class="page" style="display:none;">
+        <div class="page-head">
+          <div><h1 id="personLeadsPageTitle">Data của...</h1><p id="personLeadsPageSub"></p></div>
+        </div>
+        <button class="btn-ghost" onclick="goPage('mgrLeads')" style="margin-bottom:14px;">← Quay lại Phân bổ data</button>
+        <div class="card">
+          <div class="table-wrap"><table id="personLeadsPageTable" class="rtable"></table></div>
+        </div>
+      </div>
+
       <!-- ---------- MANAGER: thùng rác ---------- -->
       <div id="page-mgrTrash" class="page" style="display:none;">
         <div class="page-head"><div><h1>Thùng rác</h1><p>Báo cáo đã xoá — có thể khôi phục</p></div></div>
@@ -654,19 +665,6 @@
     <div id="detailsModalBody" style="max-height:400px; overflow-y:auto; margin-top:10px;"></div>
     <div class="actions">
       <button class="btn-ghost" onclick="closeDetailsModal()">Đóng</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-backdrop" id="personLeadsModal">
-  <div class="modal" style="max-width:720px;">
-    <h2 id="personLeadsModalTitle">Data của...</h2>
-    <p id="personLeadsModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
-    <div style="max-height:60vh; overflow-y:auto; margin-top:10px;">
-      <div class="table-wrap"><table id="personLeadsModalTable" class="rtable"></table></div>
-    </div>
-    <div class="actions">
-      <button class="btn-ghost" onclick="closePersonLeadsModal()">Đóng</button>
     </div>
   </div>
 </div>
@@ -1254,9 +1252,15 @@ function renderLeadStatsDetail(inRange){
     return `<div class="detail-row" style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"><span class="k" style="color:var(--accent); text-decoration:underline;">${u?u.name:'(đã xoá)'} ›</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
 }
+let viewingPersonId = null;
 function openPersonLeadsModal(userId){
+  viewingPersonId = userId;
+  goPage('personLeads');
+}
+function renderPersonLeadsPage(){
+  const userId = viewingPersonId;
   const u = state.users.find(x=>x.id===userId);
-  if(!u) return;
+  if(!u){ goPage('mgrLeads'); return; }
   const leads = state.leads.filter(l=>{
     if(l.assignedTo!==userId || !l.assignedAt) return false;
     const d = toLocalDateStr(new Date(l.assignedAt));
@@ -1265,28 +1269,31 @@ function openPersonLeadsModal(userId){
     return true;
   }).sort((a,b)=>b.assignedAt-a.assignedAt);
 
-  document.getElementById('personLeadsModalTitle').textContent = `Data của ${u.name}`;
+  document.getElementById('personLeadsPageTitle').textContent = `Data của ${u.name}`;
   const periodText = (leadStatsDateFrom||leadStatsDateTo)
     ? `Từ ${leadStatsDateFrom?fmtDate(leadStatsDateFrom):'—'} đến ${leadStatsDateTo?fmtDate(leadStatsDateTo):'—'}`
     : 'Toàn bộ thời gian';
-  document.getElementById('personLeadsModalSub').textContent = `${periodText} — ${leads.length} data`;
+  document.getElementById('personLeadsPageSub').textContent = `${periodText} — ${leads.length} data — Quản lý có thể sửa Tên khách/Tình trạng thay cho người này`;
 
-  const table = document.getElementById('personLeadsModalTable');
+  const table = document.getElementById('personLeadsPageTable');
   if(leads.length===0){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào trong khoảng này.</td></tr>';
-  } else {
-    table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
-      leads.map(l=>`<tr>
-        <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
-        <td data-label="Nguồn">${leadSource(l)}</td>
-        <td data-label="SĐT">${leadPhone(l)}</td>
-        <td data-label="Tên khách">${l.customerName||'—'}</td>
-        <td data-label="Tình trạng">${l.status?`<span style="${leadStatusStyle(l.status)} padding:3px 8px; border-radius:6px; display:inline-block;">${l.status}</span>`:'—'}</td>
-      </tr>`).join('') + `</tbody>`;
+    return;
   }
-  document.getElementById('personLeadsModal').classList.add('show');
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
+    leads.map(l=>`<tr>
+      <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+      <td data-label="Nguồn">${leadSource(l)} <span class="history-link" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">Copy</span></td>
+      <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
+      <td data-label="Tình trạng">
+        <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
+          <option value="">— Chọn —</option>
+          ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('') + `</tbody>`;
 }
-function closePersonLeadsModal(){ document.getElementById('personLeadsModal').classList.remove('show'); }
 function renderMgrLeads(){
   renderLeadStats();
   const scope=scopeBranchId();
@@ -1608,6 +1615,7 @@ function goPage(pageId){
   if(pageId==='mgrDashboard') renderMgrDashboard();
   if(pageId==='mgrReports') renderMgrReportsPage();
   if(pageId==='mgrLeads') renderMgrLeads();
+  if(pageId==='personLeads') renderPersonLeadsPage();
   if(pageId==='mgrTrash') renderMgrTrash();
   if(pageId==='mgrSettings') renderMgrSettings();
 }
