@@ -1518,7 +1518,7 @@ function renderMgrLeads(){
         ? `<span style="color:var(--ink-soft);">${confirmed?'✓ Đã xác nhận':'Chưa xác nhận'}</span>`
         : `<span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span>`;
       const isCompanyWideManager = u.role==='general_manager' || u.role==='data_manager';
-      const selectCell = scope ? '' : (isCompanyWideManager ? '<td></td>' : `<td data-label="" style="padding:5px 4px; text-align:center;"><input type="checkbox" class="bulkSelectRow" data-id="${u.id}" style="width:11px; height:11px; margin:0; vertical-align:middle;" ${bulkConfirmSelected.has(u.id)?'checked':''} onchange="toggleBulkSelect('${u.id}', this.checked)"></td>`);
+      const selectCell = scope ? '' : (isCompanyWideManager ? '<td style="padding:5px 4px;"></td>' : `<td data-label="" style="padding:5px 4px; text-align:center;"><input type="checkbox" class="bulkSelectRow" data-id="${u.id}" style="width:11px; height:11px; margin:0; vertical-align:middle;" ${bulkConfirmSelected.has(u.id)?'checked':''} onchange="toggleBulkSelect('${u.id}', this.checked)"></td>`);
       return `<tr>
         <td data-label="STT">${idx+1}</td>
         <td data-label="Người">${u.name}</td>
