@@ -406,8 +406,10 @@
 
         <div class="card">
           <h2>Data đã nhận hôm nay</h2>
-          <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:14px;"></div>
-          <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
+          <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:6px;"></div>
+          <span class="history-link" onclick="toggleMyLeadsStatsByDay()" id="myLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="myLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:6px;"></div>
+          <div class="field" style="max-width:260px; margin-top:14px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -1045,6 +1047,30 @@ function leadInfoText(lead){
   const sourceKey = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
   return Object.entries(lead.raw).filter(([k])=>k!==sourceKey).map(([k,v])=>`${k}: ${v}`).join(' · ');
 }
+function toggleMyLeadsStatsByDay(){
+  const body = document.getElementById('myLeadsStatsByDay');
+  const btn = document.getElementById('myLeadsStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderMyLeads();
+}
+function renderMyLeadsStatsByDay(allMyLeads){
+  const byDay = {};
+  allMyLeads.forEach(l=>{
+    const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt));
+    byDay[d] = byDay[d] || {total:0, unprocessed:0};
+    byDay[d].total++;
+    if(!l.status) byDay[d].unprocessed++;
+  });
+  const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
+  const body = document.getElementById('myLeadsStatsByDay');
+  if(days.length===0){ body.innerHTML='<div class="empty-note">Chưa có data nào.</div>'; return; }
+  body.innerHTML = days.map(d=>{
+    const b = byDay[d];
+    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+  }).join('');
+}
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
@@ -1059,6 +1085,10 @@ function renderMyLeads(){
 
   document.getElementById('myLeadsQuota').innerHTML =
     `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>`;
+
+  if(document.getElementById('myLeadsStatsByDay').style.display !== 'none'){
+    renderMyLeadsStatsByDay(allMyLeads);
+  }
 
   const rawQuery = document.getElementById('myLeadsSearch').value.trim();
   if(rawQuery){
@@ -1077,9 +1107,14 @@ function renderMyLeads(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
       <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
-      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="Nguồn">${leadSource(l)} <span class="history-link" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">Copy</span></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
+      <td data-label="Tên khách">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)">
+          <span class="history-link" style="white-space:nowrap;" onclick="copyText(document.getElementById('custName_${l.id}').value,'Đã copy tên khách')">Copy</span>
+        </div>
+      </td>
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
           <option value="">— Chọn —</option>
