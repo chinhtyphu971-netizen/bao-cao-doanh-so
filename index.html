@@ -561,7 +561,10 @@
         </div>
         <button class="btn-ghost" onclick="goPage('mgrLeads')" style="margin-bottom:14px;">← Quay lại Phân bổ data</button>
         <div class="card">
-          <div class="toolbar" style="margin-bottom:14px;">
+          <div id="personLeadsQuota" style="margin-bottom:6px;"></div>
+          <span class="history-link" onclick="togglePersonLeadsStatsByDay()" id="personLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="personLeadsStatsByDay" style="display:none; margin-top:10px;"></div>
+          <div class="toolbar" style="margin-top:14px; margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="personLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderPersonLeadsPage()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="personLeadsStatusFilter" onchange="renderPersonLeadsPage()"></select></div>
           </div>
@@ -1140,22 +1143,32 @@ function toggleMyLeadsStatsByDay(){
   btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
   if(!isOpen) renderMyLeads();
 }
-function renderMyLeadsStatsByDay(allMyLeads){
+function togglePersonLeadsStatsByDay(){
+  const body = document.getElementById('personLeadsStatsByDay');
+  const btn = document.getElementById('personLeadsStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderPersonLeadsPage();
+}
+function renderLeadsStatsByDayInto(containerId, allLeadsForPerson){
   const byDay = {};
-  allMyLeads.forEach(l=>{
+  allLeadsForPerson.forEach(l=>{
     const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt));
     byDay[d] = byDay[d] || {total:0, unprocessed:0};
     byDay[d].total++;
     if(!l.status) byDay[d].unprocessed++;
   });
   const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
-  const body = document.getElementById('myLeadsStatsByDay');
+  const body = document.getElementById(containerId);
   if(days.length===0){ body.innerHTML='<div class="empty-note">Chưa có data nào.</div>'; return; }
   body.innerHTML = days.map(d=>{
     const b = byDay[d];
     return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
 }
+function renderMyLeadsStatsByDay(allMyLeads){ renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads); }
+function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson); }
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
@@ -1332,6 +1345,16 @@ function renderPersonLeadsPage(){
   const u = state.users.find(x=>x.id===userId);
   if(!u){ goPage('mgrLeads'); return; }
   ensureStatusFilterPopulated('personLeadsStatusFilter');
+
+  const today = todayStr();
+  const allPersonLeads = state.leads.filter(l=>l.assignedTo===userId);
+  const todayLeads = allPersonLeads.filter(l=>l.distributedDate===today);
+  document.getElementById('personLeadsQuota').innerHTML =
+    `<span class="badge ${todayLeads.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${todayLeads.length}/${DAILY_LEAD_CAP}</span>`;
+  if(document.getElementById('personLeadsStatsByDay').style.display !== 'none'){
+    renderPersonLeadsStatsByDay(allPersonLeads);
+  }
+
   let leads = state.leads.filter(l=>{
     if(l.assignedTo!==userId || !l.assignedAt) return false;
     const d = toLocalDateStr(new Date(l.assignedAt));
