@@ -1248,10 +1248,15 @@ function renderLeadStatsDetail(inRange){
   const ids = Object.keys(byPerson).sort((a,b)=>byPerson[b].unprocessed-byPerson[a].unprocessed);
   const body = document.getElementById('leadStatsDetailBody');
   if(ids.length===0){ body.innerHTML='<div class="empty-note">Chưa có ai nhận data trong khoảng này.</div>'; return; }
+  const scope = scopeBranchId();
   body.innerHTML = ids.map(id=>{
     const u = state.users.find(x=>x.id===id);
     const b = byPerson[id];
-    return `<div class="detail-row" style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"><span class="k" style="color:var(--accent); text-decoration:underline;">${u?u.name:'(đã xoá)'} ›</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+    const nameHtml = scope
+      ? `<span class="k">${u?u.name:'(đã xoá)'}</span>`
+      : `<span class="k" style="color:var(--accent); text-decoration:underline;">${u?u.name:'(đã xoá)'} ›</span>`;
+    const rowAttrs = scope ? '' : `style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"`;
+    return `<div class="detail-row" ${rowAttrs}>${nameHtml}<span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
 }
 let viewingPersonId = null;
