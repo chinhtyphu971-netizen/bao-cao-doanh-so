@@ -1517,7 +1517,8 @@ function renderMgrLeads(){
       const confirmCell = scope
         ? `<span style="color:var(--ink-soft);">${confirmed?'✓ Đã xác nhận':'Chưa xác nhận'}</span>`
         : `<span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span>`;
-      const selectCell = scope ? '' : `<td data-label="" style="padding:6px 8px;"><input type="checkbox" class="bulkSelectRow" data-id="${u.id}" style="width:14px; height:14px; margin:0; vertical-align:middle;" ${bulkConfirmSelected.has(u.id)?'checked':''} onchange="toggleBulkSelect('${u.id}', this.checked)"></td>`;
+      const isCompanyWideManager = u.role==='general_manager' || u.role==='data_manager';
+      const selectCell = scope ? '' : (isCompanyWideManager ? '<td></td>' : `<td data-label="" style="padding:6px 8px;"><input type="checkbox" class="bulkSelectRow" data-id="${u.id}" style="width:14px; height:14px; margin:0; vertical-align:middle;" ${bulkConfirmSelected.has(u.id)?'checked':''} onchange="toggleBulkSelect('${u.id}', this.checked)"></td>`);
       return `<tr>
         <td data-label="STT">${idx+1}</td>
         <td data-label="Người">${u.name}</td>
@@ -1533,7 +1534,10 @@ function renderMgrLeads(){
   if(countLabel) countLabel.textContent = `Tổng cộng ${relevantUsers.length} người`;
   updateBulkConfirmBar();
   const selectAllBox = document.getElementById('bulkSelectAllCheckbox');
-  if(selectAllBox) selectAllBox.checked = relevantUsers.length>0 && relevantUsers.every(u=>bulkConfirmSelected.has(u.id));
+  if(selectAllBox){
+    const selectableUsers = relevantUsers.filter(u=>u.role!=='general_manager' && u.role!=='data_manager');
+    selectAllBox.checked = selectableUsers.length>0 && selectableUsers.every(u=>bulkConfirmSelected.has(u.id));
+  }
 }
 let bulkConfirmSelected = new Set();
 function toggleBulkSelect(userId, isChecked){
