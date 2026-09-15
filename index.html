@@ -1641,7 +1641,7 @@ function enterApp(){
   document.getElementById('navManager').style.display = isManagerRole ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
 
-  if(user.role==='staff'){ goPage('staffReport'); } else { goPage('mgrDashboard'); }
+  if(user.role==='general_manager'){ goPage('mgrDashboard'); } else { goPage('myLeads'); }
 }
 
 function toggleSidebar(){
