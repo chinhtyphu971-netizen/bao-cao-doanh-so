@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B1220">
 <title>Báo cáo doanh số hằng ngày</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -12,20 +13,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
-    --bg: #F5F1E8;
-    --panel: #FFFFFF;
-    --ink: #21261F;
-    --ink-soft: #5B6259;
-    --line: #E3DCCB;
-    --brand: #1E3A34;
-    --brand-ink: #F5F1E8;
-    --brand-soft: #2C4B44;
-    --accent: #A8451B;
+    --bg: #0B1220;
+    --panel: #131C30;
+    --ink: #E8ECF5;
+    --ink-soft: #8B94AC;
+    --line: #232E4A;
+    --brand: #0E1728;
+    --brand-ink: #E8ECF5;
+    --brand-soft: #1C2944;
+    --accent: #4F8EF7;
     --accent-ink: #FFFFFF;
-    --accent-soft: #F0DCC9;
-    --success: #3F7D4F;
-    --danger: #B23A3A;
-    --warn: #B8791F;
+    --accent-soft: #17233F;
+    --success: #37C878;
+    --danger: #E5484D;
+    --warn: #E0A93E;
     --radius-s: 6px;
     --radius-m: 10px;
     --safe-top: env(safe-area-inset-top, 0px);
@@ -75,9 +76,9 @@
   #page-staffReport .field{margin-bottom:10px;}
   #page-staffReport .grid-3{gap:10px 16px; grid-template-columns:repeat(4,1fr);}
   .btn-primary{background:var(--accent); color:var(--accent-ink);}
-  .btn-primary:hover{background:#8f3a16;}
+  .btn-primary:hover{background:#3D77DE;}
   .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--line);}
-  .btn-ghost:hover{background:#EFEADF;}
+  .btn-ghost:hover{background:#1A2440;}
   .btn-danger{background:var(--danger); color:#fff;}
   .btn-small{min-height:32px; padding:0 12px; font-size:13px;}
 
@@ -125,15 +126,15 @@
     display:flex; flex-direction:column;
   }
   .sidebar .brand-title{font-size:16px; font-weight:700; margin-bottom:2px;}
-  .sidebar .brand-sub{font-size:12.5px; color:#B9C6C0; margin-bottom:22px;}
+  .sidebar .brand-sub{font-size:12.5px; color:#8B96B4; margin-bottom:22px;}
   .nav-item{
     display:flex; align-items:center; gap:8px;
     padding:10px 12px; border-radius:var(--radius-s);
-    color:#E4E9E2; font-size:14px; cursor:pointer; margin-bottom:2px;
+    color:#C7D0E4; font-size:14px; cursor:pointer; margin-bottom:2px;
   }
   .nav-item:hover{background:var(--brand-soft);}
   .nav-item.active{background:var(--brand-soft); color:#fff; font-weight:600;}
-  .sidebar-foot{margin-top:auto; font-size:12.5px; color:#B9C6C0;}
+  .sidebar-foot{margin-top:auto; font-size:12.5px; color:#8B96B4;}
   .sidebar-foot .who{color:#fff; font-weight:600; font-size:13.5px; margin-bottom:2px;}
   .logout-link{color:#E4B7A2; cursor:pointer; margin-top:8px; display:inline-block; font-size:13px;}
 
@@ -206,8 +207,8 @@
   tr.total-row td{background:var(--accent-soft); font-weight:700; border-top:2px solid var(--accent); border-bottom:none;}
 
   .badge{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600;}
-  .badge-warn{background:#F5E3C6; color:var(--warn);}
-  .badge-ok{background:#DCEBDF; color:var(--success);}
+  .badge-warn{background:#3A2E14; color:var(--warn);}
+  .badge-ok{background:#123321; color:var(--success);}
 
   .toolbar{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:flex-end;}
   .toolbar .field{margin-bottom:0; min-width:150px;}
@@ -225,7 +226,7 @@
 
   .row-actions{display:flex; gap:6px;}
   .modal-backdrop{
-    position:fixed; inset:0; background:rgba(20,24,20,.4);
+    position:fixed; inset:0; background:rgba(4,8,16,.65);
     display:none; align-items:center; justify-content:center; z-index:60; padding:20px;
   }
   .modal-backdrop.show{display:flex;}
@@ -1096,13 +1097,13 @@ function ensureStatusFilterPopulated(selectId){
   if(sel.childElementCount===0) sel.innerHTML = statusFilterOptionsHtml();
 }
 const LEAD_STATUS_COLORS = {
-  'Đã liên hệ':          {bg:'#e8eaf6', color:'#3949ab'},
-  'Đang tư vấn':         {bg:'#fff8e1', color:'#c17900'},
-  'Đã chốt':             {bg:'#e8f5e9', color:'#2e7d32'},
-  'Không liên lạc được': {bg:'#ede7f6', color:'#6a1b9a'},
-  'Không có nhu cầu':    {bg:'#ffebee', color:'#c62828'},
-  'nhắn tin chưa gọi':   {bg:'#e3f2fd', color:'#1565c0'},
-  'không tìm thấy tk':   {bg:'#e0f7fa', color:'#00838f'},
+  'Đã liên hệ':          {bg:'#1F2547', color:'#93A4F0'},
+  'Đang tư vấn':         {bg:'#3A2E12', color:'#E0AB53'},
+  'Đã chốt':             {bg:'#123320', color:'#57C76A'},
+  'Không liên lạc được': {bg:'#2A1F3D', color:'#B083E0'},
+  'Không có nhu cầu':    {bg:'#3A1519', color:'#EA6B6B'},
+  'nhắn tin chưa gọi':   {bg:'#132A42', color:'#5B9FE0'},
+  'không tìm thấy tk':   {bg:'#0F2E33', color:'#3ECDD9'},
 };
 function leadStatusStyle(status){
   const c = LEAD_STATUS_COLORS[status];
@@ -2243,13 +2244,18 @@ function drawChart(labels, data){
   canvas.style.display='block';
   if(existingMsg) existingMsg.remove();
   if(revenueChartInstance) revenueChartInstance.destroy();
+  Chart.defaults.color = '#8B94AC';
+  Chart.defaults.borderColor = '#232E4A';
   revenueChartInstance = new Chart(canvas, {
     type:'bar',
-    data:{ labels, datasets:[{ label:'Doanh thu', data, backgroundColor:'#A8451B', borderRadius:4 }] },
+    data:{ labels, datasets:[{ label:'Doanh thu', data, backgroundColor:'#4F8EF7', borderRadius:4 }] },
     options:{
       responsive:true,
       plugins:{ legend:{display:false} },
-      scales:{ y:{ ticks:{ callback:v=>fmtMoney(v) } } }
+      scales:{
+        x:{ ticks:{color:'#8B94AC'}, grid:{color:'#1B2440'} },
+        y:{ ticks:{ color:'#8B94AC', callback:v=>fmtMoney(v) }, grid:{color:'#1B2440'} }
+      }
     }
   });
 }
