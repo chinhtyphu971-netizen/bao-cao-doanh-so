@@ -886,11 +886,51 @@ let currentPageId=null;
 function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
+    checkNewLeadNotifications();
     if(currentPageId && currentPageId!=='staffReport') goPage(currentPageId);
   } else if(!state.session){
     if(loginStep===1) renderRoleChips();
     if(loginStep===2) renderBranchChips();
   }
+}
+
+let notifiedLeadIds = new Set();
+let leadNotifyInitialized = false;
+function resetLeadNotifyState(){
+  notifiedLeadIds = new Set();
+  leadNotifyInitialized = false;
+}
+function checkNewLeadNotifications(){
+  const user = currentUser();
+  if(!user) return;
+  const myLeadIds = state.leads.filter(l=>l.assignedTo===user.id).map(l=>l.id);
+  if(!leadNotifyInitialized){
+    // Lần đầu sau khi đăng nhập/mở app: đánh dấu data đã có sẵn là "đã biết", tránh báo động giả lúc mới mở
+    myLeadIds.forEach(id=>notifiedLeadIds.add(id));
+    leadNotifyInitialized = true;
+    return;
+  }
+  const newOnes = myLeadIds.filter(id=>!notifiedLeadIds.has(id));
+  if(newOnes.length>0){
+    newOnes.forEach(id=>notifiedLeadIds.add(id));
+    playTingSound();
+    showToast(newOnes.length===1 ? '🔔 Bạn vừa được chia 1 data mới!' : `🔔 Bạn vừa được chia ${newOnes.length} data mới!`);
+  }
+}
+function playTingSound(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(1175, ctx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.18, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.4);
+  }catch(e){ /* trình duyệt chặn âm thanh tự động, bỏ qua */ }
 }
 
 // Ghi dữ liệu: mỗi thao tác chỉ ghi ĐÚNG PHẦN thay đổi (theo id), không ghi
@@ -1612,6 +1652,7 @@ function goBackFromBranch(){
 }
 function logout(){
   state.session=null; persistSession();
+  resetLeadNotifyState();
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   loginStep=1; loginBranchId=null; loginRole=null; pendingName=null; pendingPin=null;
@@ -1630,6 +1671,7 @@ function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'
 function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
+  checkNewLeadNotifications();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
   document.getElementById('sidebarBranch').textContent = user.branchId ? branchName(user.branchId) : 'Toàn hệ thống';
