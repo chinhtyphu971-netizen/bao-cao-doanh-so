@@ -211,6 +211,14 @@
 
   .badge{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600;}
   .badge-warn{background:#3A2E14; color:var(--warn);}
+  .unprocessed-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:#3A2E14; border:1px solid var(--warn); border-radius:var(--radius-m);
+    padding:12px 16px; margin-bottom:16px; font-size:14px; color:var(--ink);
+  }
+  .unprocessed-banner b{color:var(--warn);}
+  .unprocessed-banner.ok{background:#123321; border-color:var(--success);}
+  .unprocessed-banner.ok b{color:var(--success);}
   .badge-ok{background:#123321; color:var(--success);}
 
   .toolbar{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:flex-end;}
@@ -406,6 +414,8 @@
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
 
+        <div id="myUnprocessedBanner" style="display:none;"></div>
+
         <div class="card" id="checkinCard">
           <h2>Điểm danh hôm nay</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điểm danh để Quản lý biết bạn đang đi làm hôm nay — Quản lý sẽ xác nhận cho bạn vào vòng xoay nhận data.</p>
@@ -550,6 +560,10 @@
             <span class="history-link" onclick="toggleLeadStatsDetail()" id="leadStatsDetailToggle">Xem chi tiết theo người ▸</span>
           </div>
           <div id="leadStatsDetailBody" style="display:none; margin-top:10px;"></div>
+          <div style="margin-top:10px;">
+            <span class="history-link" onclick="toggleLeadStatsOthers()" id="leadStatsOthersToggle">Người chưa có data trong khoảng này ▸</span>
+          </div>
+          <div id="leadStatsOthersBody" style="display:none; margin-top:10px;"></div>
         </div>
 
         <div class="card">
@@ -1194,6 +1208,19 @@ function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayIn
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
+
+  const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && !l.status).length;
+  const bannerEl = document.getElementById('myUnprocessedBanner');
+  if(unprocessedCount>0){
+    bannerEl.style.display = 'flex';
+    bannerEl.className = 'unprocessed-banner';
+    bannerEl.innerHTML = `<span>Bạn còn <b>${unprocessedCount}</b> data chưa cập nhật tình trạng.</span>`;
+  } else {
+    bannerEl.style.display = 'flex';
+    bannerEl.className = 'unprocessed-banner ok';
+    bannerEl.innerHTML = `<span><b>Tuyệt vời!</b> Bạn đã xử lý hết data, không còn data nào tồn đọng.</span>`;
+  }
+
   const checkedIn = isCheckedInToday(user.id, today);
   const checkinEl = document.getElementById('checkinStatus');
   checkinEl.innerHTML = checkedIn
