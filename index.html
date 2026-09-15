@@ -412,7 +412,10 @@
           <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:6px;"></div>
           <span class="history-link" onclick="toggleMyLeadsStatsByDay()" id="myLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
           <div id="myLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:6px;"></div>
-          <div class="field" style="max-width:260px; margin-top:14px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
+          <div class="toolbar" style="margin-top:14px;">
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="myLeadsStatusFilter" onchange="renderMyLeads()"></select></div>
+          </div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -557,6 +560,10 @@
         </div>
         <button class="btn-ghost" onclick="goPage('mgrLeads')" style="margin-bottom:14px;">← Quay lại Phân bổ data</button>
         <div class="card">
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="personLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderPersonLeadsPage()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="personLeadsStatusFilter" onchange="renderPersonLeadsPage()"></select></div>
+          </div>
           <div class="table-wrap"><table id="personLeadsPageTable" class="rtable"></table></div>
         </div>
       </div>
@@ -1036,6 +1043,14 @@ function checkinToday(){
   renderMyLeads();
 }
 const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
+function statusFilterOptionsHtml(){
+  return `<option value="">— Tất cả —</option><option value="__unprocessed__">Chưa xử lý</option>` +
+    LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}">${s}</option>`).join('');
+}
+function ensureStatusFilterPopulated(selectId){
+  const sel = document.getElementById(selectId);
+  if(sel.childElementCount===0) sel.innerHTML = statusFilterOptionsHtml();
+}
 const LEAD_STATUS_COLORS = {
   'Đã liên hệ':          {bg:'#e8eaf6', color:'#3949ab'},
   'Đang tư vấn':         {bg:'#fff8e1', color:'#c17900'},
@@ -1119,6 +1134,7 @@ function renderMyLeads(){
     renderMyLeadsStatsByDay(allMyLeads);
   }
 
+  ensureStatusFilterPopulated('myLeadsStatusFilter');
   const rawQuery = document.getElementById('myLeadsSearch').value.trim();
   if(rawQuery){
     const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
@@ -1129,6 +1145,12 @@ function renderMyLeads(){
       const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
       return matchesPhone || matchesName;
     });
+  }
+  const statusFilter = document.getElementById('myLeadsStatusFilter').value;
+  if(statusFilter==='__unprocessed__'){
+    allMyLeads = allMyLeads.filter(l=>!l.status);
+  } else if(statusFilter){
+    allMyLeads = allMyLeads.filter(l=>l.status===statusFilter);
   }
 
   const table=document.getElementById('myLeadsTable');
@@ -1268,13 +1290,32 @@ function renderPersonLeadsPage(){
   const userId = viewingPersonId;
   const u = state.users.find(x=>x.id===userId);
   if(!u){ goPage('mgrLeads'); return; }
-  const leads = state.leads.filter(l=>{
+  ensureStatusFilterPopulated('personLeadsStatusFilter');
+  let leads = state.leads.filter(l=>{
     if(l.assignedTo!==userId || !l.assignedAt) return false;
     const d = toLocalDateStr(new Date(l.assignedAt));
     if(leadStatsDateFrom && d < leadStatsDateFrom) return false;
     if(leadStatsDateTo && d > leadStatsDateTo) return false;
     return true;
   }).sort((a,b)=>b.assignedAt-a.assignedAt);
+
+  const rawQuery = document.getElementById('personLeadsSearch').value.trim();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+    const textQuery = rawQuery.toLowerCase();
+    leads = leads.filter(l=>{
+      const phoneDigits = leadPhone(l).replace(/\D/g,'').replace(/^0+/,'');
+      const matchesPhone = digitsQuery && phoneDigits.includes(digitsQuery);
+      const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
+      return matchesPhone || matchesName;
+    });
+  }
+  const statusFilter = document.getElementById('personLeadsStatusFilter').value;
+  if(statusFilter==='__unprocessed__'){
+    leads = leads.filter(l=>!l.status);
+  } else if(statusFilter){
+    leads = leads.filter(l=>l.status===statusFilter);
+  }
 
   document.getElementById('personLeadsPageTitle').textContent = `Data của ${u.name}`;
   const periodText = (leadStatsDateFrom||leadStatsDateTo)
