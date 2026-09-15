@@ -553,7 +553,7 @@
         </div>
 
         <div class="card">
-          <h2>Tình hình nhận data hôm nay</h2>
+          <h2>Tình hình nhận data hôm nay <span id="leadsDistributionCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
           <div class="table-wrap"><table id="leadsDistributionTable" class="rtable"></table></div>
         </div>
       </div>
@@ -1344,15 +1344,17 @@ function renderLeadStatsDetail(inRange){
     if(!l.status) byPerson[l.assignedTo].unprocessed++;
   });
   const ids = Object.keys(byPerson).sort((a,b)=>byPerson[b].unprocessed-byPerson[a].unprocessed);
+  const btn = document.getElementById('leadStatsDetailToggle');
+  if(btn) btn.textContent = `Ẩn chi tiết theo người (${ids.length} người) ▾`;
   const body = document.getElementById('leadStatsDetailBody');
   if(ids.length===0){ body.innerHTML='<div class="empty-note">Chưa có ai nhận data trong khoảng này.</div>'; return; }
   const scope = scopeBranchId();
-  body.innerHTML = ids.map(id=>{
+  body.innerHTML = ids.map((id,idx)=>{
     const u = state.users.find(x=>x.id===id);
     const b = byPerson[id];
     const nameHtml = scope
-      ? `<span class="k">${u?u.name:'(đã xoá)'}</span>`
-      : `<span class="k" style="color:var(--accent); text-decoration:underline;">${u?u.name:'(đã xoá)'} ›</span>`;
+      ? `<span class="k">${idx+1}. ${u?u.name:'(đã xoá)'}</span>`
+      : `<span class="k" style="color:var(--accent); text-decoration:underline;">${idx+1}. ${u?u.name:'(đã xoá)'} ›</span>`;
     const rowAttrs = scope ? '' : `style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"`;
     return `<div class="detail-row" ${rowAttrs}>${nameHtml}<span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
@@ -1471,8 +1473,8 @@ function renderMgrLeads(){
   });
   const table = document.getElementById('leadsDistributionTable');
   if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
-  table.innerHTML = `<thead><tr><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
-    relevantUsers.map(u=>{
+  table.innerHTML = `<thead><tr><th>STT</th><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
+    relevantUsers.map((u,idx)=>{
       const checked = isCheckedInToday(u.id, today);
       const confirmed = isManagerConfirmed(u.id, today);
       const cnt = dailyReceivedCount(u.id, today);
@@ -1482,6 +1484,7 @@ function renderMgrLeads(){
         ? `<span style="color:var(--ink-soft);">${confirmed?'✓ Đã xác nhận':'Chưa xác nhận'}</span>`
         : `<span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span>`;
       return `<tr>
+        <td data-label="STT">${idx+1}</td>
         <td data-label="Người">${u.name}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
         <td data-label="Điểm danh">${checkinCell}</td>
@@ -1490,6 +1493,8 @@ function renderMgrLeads(){
         <td data-label="Trạng thái">${status}</td>
       </tr>`;
     }).join('') + `</tbody>`;
+  const countLabel = document.getElementById('leadsDistributionCount');
+  if(countLabel) countLabel.textContent = `Tổng cộng ${relevantUsers.length} người`;
 }
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
