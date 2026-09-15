@@ -250,6 +250,7 @@
   .detail-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line); font-size:13.5px;}
   .detail-row:last-child{border-bottom:none;}
   .detail-row .k{color:var(--ink-soft);}
+  .detail-row .k.history-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .detail-row .v{font-weight:600; text-align:right;}
 </style>
 </head>
@@ -657,6 +658,19 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="personLeadsModal">
+  <div class="modal" style="max-width:720px;">
+    <h2 id="personLeadsModalTitle">Data của...</h2>
+    <p id="personLeadsModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
+    <div style="max-height:60vh; overflow-y:auto; margin-top:10px;">
+      <div class="table-wrap"><table id="personLeadsModalTable" class="rtable"></table></div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closePersonLeadsModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="noteModal">
   <div class="modal" style="max-width:380px;">
     <h2>Ghi chú</h2>
@@ -954,15 +968,28 @@ function runDistribution(){
   const rotation = getOrComputeTodayRotation();
   if(!rotation) return;
 
-  let pool = buildLeadPool(rotation.branchIds, today)
-    .concat(buildAdminPool(today))
-    .sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
+  let pool = buildLeadPool(rotation.branchIds, today).concat(buildAdminPool(today));
   const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
   let overflowPool = null;
 
+  // Đếm số đã nhận HÔM NAY ngay trong bộ nhớ (cập nhật dần khi chia, không cần đọc lại state.leads mỗi lần)
+  const todayCount = {};
+  function countOf(id){ return todayCount[id] ?? (todayCount[id]=dailyReceivedCount(id, today)); }
+  function sortPool(arr){
+    arr.sort((a,b)=>{
+      const diff = countOf(a.id) - countOf(b.id);
+      if(diff!==0) return diff; // ưu tiên TUYỆT ĐỐI cho ai đang nhận ÍT HƠN hôm nay, bất kể lúc nào mới được xác nhận
+      return (a.lastDataAt||0)-(b.lastDataAt||0); // hoà số lượng thì mới xét ai lâu chưa nhận hơn
+    });
+  }
+  sortPool(pool);
+
   for(const lead of unassigned){
     if(pool.length===0){
-      if(overflowPool===null) overflowPool = buildLeadPool(otherBranchIds, today);
+      if(overflowPool===null){
+        overflowPool = buildLeadPool(otherBranchIds, today);
+        sortPool(overflowPool);
+      }
       pool = overflowPool;
     }
     if(pool.length===0) break; // khong con ai du dieu kien (chua ai diem danh / da het han muc) -> data cho lai
@@ -980,9 +1007,11 @@ function runDistribution(){
     fbSetLead(lead);
     person.lastDataAt = Date.now();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
+    todayCount[person.id] = countOf(person.id) + 1;
     pool.splice(personIndex,1);
-    if(dailyReceivedCount(person.id, today) < DAILY_LEAD_CAP){
+    if(todayCount[person.id] < DAILY_LEAD_CAP){
       pool.push(person);
+      sortPool(pool); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí công bằng
     }
   }
 }
@@ -1222,9 +1251,42 @@ function renderLeadStatsDetail(inRange){
   body.innerHTML = ids.map(id=>{
     const u = state.users.find(x=>x.id===id);
     const b = byPerson[id];
-    return `<div class="detail-row"><span class="k">${u?u.name:'(đã xoá)'}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+    return `<div class="detail-row" style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"><span class="k" style="color:var(--accent); text-decoration:underline;">${u?u.name:'(đã xoá)'} ›</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
 }
+function openPersonLeadsModal(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const leads = state.leads.filter(l=>{
+    if(l.assignedTo!==userId || !l.assignedAt) return false;
+    const d = toLocalDateStr(new Date(l.assignedAt));
+    if(leadStatsDateFrom && d < leadStatsDateFrom) return false;
+    if(leadStatsDateTo && d > leadStatsDateTo) return false;
+    return true;
+  }).sort((a,b)=>b.assignedAt-a.assignedAt);
+
+  document.getElementById('personLeadsModalTitle').textContent = `Data của ${u.name}`;
+  const periodText = (leadStatsDateFrom||leadStatsDateTo)
+    ? `Từ ${leadStatsDateFrom?fmtDate(leadStatsDateFrom):'—'} đến ${leadStatsDateTo?fmtDate(leadStatsDateTo):'—'}`
+    : 'Toàn bộ thời gian';
+  document.getElementById('personLeadsModalSub').textContent = `${periodText} — ${leads.length} data`;
+
+  const table = document.getElementById('personLeadsModalTable');
+  if(leads.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Không có data nào trong khoảng này.</td></tr>';
+  } else {
+    table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
+      leads.map(l=>`<tr>
+        <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+        <td data-label="Nguồn">${leadSource(l)}</td>
+        <td data-label="SĐT">${leadPhone(l)}</td>
+        <td data-label="Tên khách">${l.customerName||'—'}</td>
+        <td data-label="Tình trạng">${l.status?`<span style="${leadStatusStyle(l.status)} padding:3px 8px; border-radius:6px; display:inline-block;">${l.status}</span>`:'—'}</td>
+      </tr>`).join('') + `</tbody>`;
+  }
+  document.getElementById('personLeadsModal').classList.add('show');
+}
+function closePersonLeadsModal(){ document.getElementById('personLeadsModal').classList.remove('show'); }
 function renderMgrLeads(){
   renderLeadStats();
   const scope=scopeBranchId();
