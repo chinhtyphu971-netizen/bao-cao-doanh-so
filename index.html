@@ -484,7 +484,7 @@
         <div class="page-head"><div><h1>Danh sách báo cáo</h1><p>Lọc và xem chi tiết từng báo cáo</p></div></div>
         <div class="chip-row" style="margin-bottom:12px;">
           <div class="chip" id="reportsPreset_today" onclick="applyReportsDatePreset('today')">Hôm nay</div>
-          <div class="chip" id="reportsPreset_yesterday" onclick="applyReportsDatePreset('yesterday')">Hôm qua</div>
+          <div class="chip selected" id="reportsPreset_yesterday" onclick="applyReportsDatePreset('yesterday')">Hôm qua</div>
           <div class="chip" id="reportsPreset_week" onclick="applyReportsDatePreset('week')">Tuần qua</div>
           <div class="chip" id="reportsPreset_month" onclick="applyReportsDatePreset('month')">Tháng qua</div>
           <div class="chip" id="reportsPreset_all" onclick="applyReportsDatePreset('all')">Toàn bộ</div>
@@ -2193,6 +2193,11 @@ function clearReportsPresetSelection(){
   });
 }
 function renderMgrReportsPage(){ populateFilterOptions(); renderMgrReports(); }
+(function initReportsFilterDefault(){
+  const [from, to] = dateRangeFor('yesterday');
+  document.getElementById('filterFrom').value = from;
+  document.getElementById('filterTo').value = to;
+})();
 let reportsSort = {col:'branch', dir:'asc'};
 let historySort = {col:'date', dir:'desc'};
 function reportSortValue(r, col){
