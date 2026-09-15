@@ -519,11 +519,11 @@
         <div class="card">
           <h2>Thống kê data</h2>
           <div class="chip-row" style="margin-top:10px; margin-bottom:10px;">
-            <div class="chip" id="leadStatsPreset_today" onclick="applyLeadStatsPreset('today')">Hôm nay</div>
+            <div class="chip selected" id="leadStatsPreset_today" onclick="applyLeadStatsPreset('today')">Hôm nay</div>
             <div class="chip" id="leadStatsPreset_yesterday" onclick="applyLeadStatsPreset('yesterday')">Hôm qua</div>
             <div class="chip" id="leadStatsPreset_week" onclick="applyLeadStatsPreset('week')">Tuần qua</div>
             <div class="chip" id="leadStatsPreset_month" onclick="applyLeadStatsPreset('month')">Tháng qua</div>
-            <div class="chip selected" id="leadStatsPreset_all" onclick="applyLeadStatsPreset('all')">Toàn thời gian</div>
+            <div class="chip" id="leadStatsPreset_all" onclick="applyLeadStatsPreset('all')">Toàn thời gian</div>
           </div>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field"><label>Từ ngày</label><input type="date" id="leadStatsFrom" onchange="applyLeadStatsCustomRange()"></div>
@@ -1116,7 +1116,11 @@ function toggleManagerConfirm(userId){
   showToast(nowConfirmed ? `Quản lý đã xác nhận cho ${u.name} — được chia data, đồng thời tự tích điểm danh` : `Đã huỷ xác nhận của Quản lý cho ${u.name}`);
   renderMgrLeads();
 }
-let leadStatsDateFrom = null, leadStatsDateTo = null, leadStatsPreset = 'all';
+let leadStatsDateFrom = null, leadStatsDateTo = null, leadStatsPreset = 'today';
+(function initLeadStatsDefault(){
+  const [from, to] = dateRangeFor('today');
+  leadStatsDateFrom = from; leadStatsDateTo = to;
+})();
 function applyLeadStatsPreset(preset){
   leadStatsPreset = preset;
   const [from, to] = dateRangeFor(preset);
