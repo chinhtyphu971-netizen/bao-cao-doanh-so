@@ -236,6 +236,8 @@
   .history-row .history-label{font-weight:600;}
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
+  .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  .copy-icon:hover{opacity:1; background:var(--accent-soft);}
   .pin-mask{
     display:inline-block; min-width:44px; font-variant-numeric:tabular-nums; letter-spacing:2px;
     cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--bg); border:1px dashed var(--line);
@@ -1134,12 +1136,12 @@ function renderMyLeads(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
       <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
-      <td data-label="Nguồn">${leadSource(l)} <span class="history-link" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">Copy</span></td>
-      <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
+      <td data-label="Nguồn">${leadSource(l)} <span class="copy-icon" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></td>
+      <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)">
-          <span class="history-link" style="white-space:nowrap;" onclick="copyText(document.getElementById('custName_${l.id}').value,'Đã copy tên khách')">Copy</span>
+          <span class="copy-icon" style="white-space:nowrap;" onclick="copyText(document.getElementById('custName_${l.id}').value,'Đã copy tên khách')">📋</span>
         </div>
       </td>
       <td data-label="Tình trạng">
@@ -1283,8 +1285,8 @@ function renderPersonLeadsPage(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     leads.map(l=>`<tr>
       <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
-      <td data-label="Nguồn">${leadSource(l)} <span class="history-link" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">Copy</span></td>
-      <td data-label="SĐT">${leadPhone(l)} <span class="history-link" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">Copy</span></td>
+      <td data-label="Nguồn">${leadSource(l)} <span class="copy-icon" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></td>
+      <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
@@ -2476,7 +2478,7 @@ function renderMgrSettings(){
           ${scope
             ? `<span style="color:var(--ink-soft);" title="Chỉ Quản lý chung mới xem được mã PIN">••••</span>`
             : `<span class="pin-mask" onmouseenter="this.textContent=this.dataset.pin" onmouseleave="this.textContent='••••'" data-pin="${u.pin}">••••</span>
-               <span class="history-link" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">Copy</span>`
+               <span class="copy-icon" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">📋</span>`
           }
         </td>
         <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
