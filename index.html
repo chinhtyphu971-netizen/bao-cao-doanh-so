@@ -1140,8 +1140,13 @@ function applyLeadStatsCustomRange(){
 function renderLeadStats(){
   document.getElementById('leadStatsFrom').value = leadStatsDateFrom || '';
   document.getElementById('leadStatsTo').value = leadStatsDateTo || '';
+  const scope = scopeBranchId();
   const inRange = state.leads.filter(l=>{
     if(!l.assignedAt) return false;
+    if(scope){
+      const person = state.users.find(u=>u.id===l.assignedTo);
+      if(!person || person.branchId!==scope) return false;
+    }
     const d = toLocalDateStr(new Date(l.assignedAt));
     if(leadStatsDateFrom && d < leadStatsDateFrom) return false;
     if(leadStatsDateTo && d > leadStatsDateTo) return false;
