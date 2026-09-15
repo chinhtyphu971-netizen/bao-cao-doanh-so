@@ -762,7 +762,7 @@ let state = {
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false};
 let appReady = false;
 
@@ -817,6 +817,7 @@ function initFirebase(){
   fbCheckins = db.ref('checkins');
   fbDailyRotation = db.ref('dailyRotation');
   fbManagerConfirms = db.ref('managerConfirms');
+  fbDistributionLock = db.ref('system/distributionLock');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
@@ -1073,15 +1074,30 @@ function runDistribution(){
   }
 }
 function runDistributionManual(){
-  runDistribution();
-  showToast('Đã chạy phân bổ');
-  renderMgrLeads();
+  runDistributionWithLock(()=>{ showToast('Đã chạy phân bổ'); renderMgrLeads(); });
 }
 function tryAutoDistribute(){
   if(!appReady) return;
   const user=currentUser();
   if(!user || (user.role!=='general_manager' && user.role!=='team_manager' && user.role!=='data_manager')) return;
-  runDistribution();
+  runDistributionWithLock();
+}
+// Nhiều người có thể cùng mở app 1 lúc (nhiều tab/thiết bị) — nếu để mỗi tab tự chạy runDistribution()
+// độc lập, khi data đổ về dồn dập, 2 tab có thể cùng lúc "tưởng" 1 người đang tới lượt và cùng gán cho
+// người đó, khiến người này nhận liền 2-3 cái trong khi người khác chưa tới lượt (không còn 1-1-1 nữa).
+// Cách sửa: dùng transaction trên Firebase làm "khoá" — tại 1 thời điểm chỉ đúng 1 tab được thực sự
+// chạy vòng chia, các tab khác lỡ tranh trong lúc khoá đang giữ (trong vòng 8 giây) sẽ tự bỏ qua.
+function runDistributionWithLock(onDone){
+  if(!fbDistributionLock){ runDistribution(); if(onDone) onDone(); return; }
+  fbDistributionLock.transaction(current=>{
+    const now = Date.now();
+    if(current && (now - current) < 8000) return; // co tab khac vua chay trong 8s gan day -> nhuong, khong tranh
+    return now;
+  }, (error, committed)=>{
+    if(error || !committed) return; // khong gianh duoc khoa
+    runDistribution();
+    if(onDone) onDone();
+  });
 }
 function checkinToday(){
   const user=currentUser();
