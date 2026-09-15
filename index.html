@@ -566,6 +566,11 @@
 
         <div class="card">
           <h2>Tình hình nhận data hôm nay <span id="leadsDistributionCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+          <div id="bulkConfirmBar" style="display:none; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0; padding:10px 12px; background:var(--accent-soft); border:1px solid var(--accent); border-radius:var(--radius-s);">
+            <span>Đã chọn <b id="bulkConfirmCount">0</b> người —</span>
+            <button class="btn-primary btn-small" onclick="applyBulkConfirm(true)">✓ Xác nhận tất cả</button>
+            <button class="btn-ghost btn-small" onclick="applyBulkConfirm(false)">Huỷ xác nhận tất cả</button>
+          </div>
           <div class="table-wrap"><table id="leadsDistributionTable" class="rtable"></table></div>
         </div>
       </div>
@@ -1498,7 +1503,11 @@ function renderMgrLeads(){
   });
   const table = document.getElementById('leadsDistributionTable');
   if(relevantUsers.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>'; return; }
-  table.innerHTML = `<thead><tr><th>STT</th><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
+  // Xoá khỏi danh sách đã chọn những người không còn hiển thị nữa (đổi bộ lọc, xoá tài khoản...)
+  const visibleIds = new Set(relevantUsers.map(u=>u.id));
+  bulkConfirmSelected.forEach(id=>{ if(!visibleIds.has(id)) bulkConfirmSelected.delete(id); });
+  const selectColHeader = scope ? '' : `<th style="width:36px;"><input type="checkbox" id="bulkSelectAllCheckbox" onchange="toggleBulkSelectAll(this.checked)"></th>`;
+  table.innerHTML = `<thead><tr>${selectColHeader}<th>STT</th><th>Người</th><th>Chi nhánh</th><th>Điểm danh</th><th>Xác nhận Quản lý</th><th class="num">Đã nhận hôm nay</th><th>Trạng thái</th></tr></thead><tbody>` +
     relevantUsers.map((u,idx)=>{
       const checked = isCheckedInToday(u.id, today);
       const confirmed = isManagerConfirmed(u.id, today);
@@ -1508,7 +1517,9 @@ function renderMgrLeads(){
       const confirmCell = scope
         ? `<span style="color:var(--ink-soft);">${confirmed?'✓ Đã xác nhận':'Chưa xác nhận'}</span>`
         : `<span class="badge ${confirmed?'badge-ok':'badge-warn'}" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')">${confirmed?'✓ Đã xác nhận (bấm để huỷ)':'Chưa xác nhận (bấm để xác nhận)'}</span>`;
+      const selectCell = scope ? '' : `<td data-label=""><input type="checkbox" class="bulkSelectRow" data-id="${u.id}" ${bulkConfirmSelected.has(u.id)?'checked':''} onchange="toggleBulkSelect('${u.id}', this.checked)"></td>`;
       return `<tr>
+        ${selectCell}
         <td data-label="STT">${idx+1}</td>
         <td data-label="Người">${u.name}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
@@ -1520,6 +1531,55 @@ function renderMgrLeads(){
     }).join('') + `</tbody>`;
   const countLabel = document.getElementById('leadsDistributionCount');
   if(countLabel) countLabel.textContent = `Tổng cộng ${relevantUsers.length} người`;
+  updateBulkConfirmBar();
+  const selectAllBox = document.getElementById('bulkSelectAllCheckbox');
+  if(selectAllBox) selectAllBox.checked = relevantUsers.length>0 && relevantUsers.every(u=>bulkConfirmSelected.has(u.id));
+}
+let bulkConfirmSelected = new Set();
+function toggleBulkSelect(userId, isChecked){
+  if(isChecked) bulkConfirmSelected.add(userId); else bulkConfirmSelected.delete(userId);
+  updateBulkConfirmBar();
+  const selectAllBox = document.getElementById('bulkSelectAllCheckbox');
+  if(selectAllBox){
+    const allRows = document.querySelectorAll('.bulkSelectRow');
+    selectAllBox.checked = allRows.length>0 && Array.from(allRows).every(el=>el.checked);
+  }
+}
+function toggleBulkSelectAll(isChecked){
+  document.querySelectorAll('.bulkSelectRow').forEach(el=>{
+    el.checked = isChecked;
+    if(isChecked) bulkConfirmSelected.add(el.dataset.id); else bulkConfirmSelected.delete(el.dataset.id);
+  });
+  updateBulkConfirmBar();
+}
+function updateBulkConfirmBar(){
+  const bar = document.getElementById('bulkConfirmBar');
+  if(!bar) return;
+  bar.style.display = bulkConfirmSelected.size>0 ? 'flex' : 'none';
+  const countEl = document.getElementById('bulkConfirmCount');
+  if(countEl) countEl.textContent = bulkConfirmSelected.size;
+}
+function applyBulkConfirm(value){
+  if(bulkConfirmSelected.size===0) return;
+  const today = todayStr();
+  state.managerConfirms[today] = state.managerConfirms[today] || {};
+  let count = 0;
+  bulkConfirmSelected.forEach(userId=>{
+    const u = state.users.find(x=>x.id===userId);
+    if(!u) return;
+    state.managerConfirms[today][userId] = value;
+    fbSetManagerConfirm(today, userId, value);
+    if(value && !isCheckedInToday(userId, today)){
+      // Quan ly xac nhan thi tinh luon la da diem danh, khoi can nguoi do tu bam rieng
+      state.checkins[today] = state.checkins[today] || {};
+      state.checkins[today][userId] = true;
+      fbSetCheckin(today, userId, true);
+    }
+    count++;
+  });
+  showToast(value ? `Đã xác nhận cho ${count} người` : `Đã huỷ xác nhận cho ${count} người`);
+  bulkConfirmSelected = new Set();
+  renderMgrLeads();
 }
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
