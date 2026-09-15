@@ -338,15 +338,15 @@
 
       <div id="navPersonal" style="display:none;">
         <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
-        <div class="nav-item active" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
-        <div class="nav-item" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">Lịch sử của tôi</span></div>
+        <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
+        <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">Lịch sử của tôi</span></div>
       </div>
       <div id="navManager" style="display:none;">
-        <div class="nav-item" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">Tổng quan</span></div>
-        <div class="nav-item" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
+        <div class="nav-item" id="navItem_mgrDashboard" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">Tổng quan</span></div>
+        <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
-        <div class="nav-item" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
-        <div class="nav-item" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
+        <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
+        <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
       </div>
 
       <div class="sidebar-foot">
@@ -596,6 +596,7 @@
               <select id="newAccRole" onchange="onNewAccRoleChange()">
                 <option value="staff">Nhân viên</option>
                 <option value="team_manager">Quản lý team</option>
+                <option value="data_manager">Quản lý Data (toàn công ty)</option>
                 <option value="general_manager">Quản lý chung</option>
               </select>
             </div>
@@ -998,7 +999,7 @@ function buildLeadPool(branchIds, date){
 }
 function buildAdminPool(date){
   return state.users.filter(u=>
-    u.role==='general_manager' &&
+    (u.role==='general_manager' || u.role==='data_manager') &&
     u.active !== false &&
     isEligibleTodayByAttendance(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
@@ -1027,15 +1028,16 @@ function runDistribution(){
   const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
   let overflowPool = null;
 
-  // Đếm số đã nhận HÔM NAY ngay trong bộ nhớ (cập nhật dần khi chia, không cần đọc lại state.leads mỗi lần)
+  // Đếm số đã nhận HÔM NAY để kiểm tra giới hạn 50/ngày (KHÔNG dùng để ưu tiên thứ tự nhận nữa —
+  // nếu không, người mới được xác nhận trễ (vd đi làm buổi chiều) sẽ bị dồn bù cho bằng số người
+  // đã làm từ sáng, chứ không phải chia đều theo lượt kể từ lúc họ được xác nhận).
   const todayCount = {};
   function countOf(id){ return todayCount[id] ?? (todayCount[id]=dailyReceivedCount(id, today)); }
   function sortPool(arr){
-    arr.sort((a,b)=>{
-      const diff = countOf(a.id) - countOf(b.id);
-      if(diff!==0) return diff; // ưu tiên TUYỆT ĐỐI cho ai đang nhận ÍT HƠN hôm nay, bất kể lúc nào mới được xác nhận
-      return (a.lastDataAt||0)-(b.lastDataAt||0); // hoà số lượng thì mới xét ai lâu chưa nhận hơn
-    });
+    // Chia đều theo LƯỢT: ai lâu chưa nhận nhất (lastDataAt cũ nhất) thì tới lượt tiếp theo.
+    // Người mới được xác nhận (chưa từng nhận, lastDataAt cũ/0) sẽ được xếp vào đúng vị trí
+    // hàng đợi kể từ lúc đó, không bị bắt "nhận dồn" để bù cho bằng số của người làm từ sáng.
+    arr.sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
   }
   sortPool(pool);
 
@@ -1066,7 +1068,7 @@ function runDistribution(){
     pool.splice(personIndex,1);
     if(todayCount[person.id] < DAILY_LEAD_CAP){
       pool.push(person);
-      sortPool(pool); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí công bằng
+      sortPool(pool); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí cuối hàng đợi
     }
   }
 }
@@ -1078,7 +1080,7 @@ function runDistributionManual(){
 function tryAutoDistribute(){
   if(!appReady) return;
   const user=currentUser();
-  if(!user || (user.role!=='general_manager' && user.role!=='team_manager')) return;
+  if(!user || (user.role!=='general_manager' && user.role!=='team_manager' && user.role!=='data_manager')) return;
   runDistribution();
 }
 function checkinToday(){
@@ -1436,12 +1438,12 @@ function renderMgrLeads(){
 
   const relevantUsers = state.users.filter(u=>
     (isLeadEligibleRole(u) && (!scope || u.branchId===scope)) ||
-    (!scope && u.role==='general_manager' && u.active!==false)
+    (!scope && (u.role==='general_manager' || u.role==='data_manager') && u.active!==false)
   );
   const onDutySet = new Set(rotation ? rotation.branchIds : []);
   function teamSortRank(u){
-    if(onDutySet.has(u.branchId) && u.role!=='general_manager') return 0; // team đang được nhận data hôm nay
-    if(u.role==='general_manager') return 2;       // Quản lý chung xuống cuối
+    if(onDutySet.has(u.branchId) && u.role!=='general_manager' && u.role!=='data_manager') return 0; // team đang được nhận data hôm nay
+    if(u.role==='general_manager' || u.role==='data_manager') return 2;       // Quản lý chung / Quản lý Data xuống cuối
     return 1;                                       // team còn lại (tự tìm data)
   }
   relevantUsers.sort((a,b)=>{
@@ -1639,7 +1641,7 @@ function addBranch(){
   input.value='';
   createUserAndLogin(b.id);
 }
-const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', general_manager:'Quản lý chung'};
+const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung'};
 function roleLabel(role){ return ROLE_LABELS[role] || role; }
 
 function renderRoleChips(){
@@ -1706,12 +1708,19 @@ function enterApp(){
   document.getElementById('sidebarWho').textContent=user.name;
   document.getElementById('sidebarRole').textContent = roleLabel(user.role);
 
-  const isManagerRole = user.role==='team_manager' || user.role==='general_manager';
-  document.getElementById('navPersonal').style.display = 'block';
+  const isDataManager = user.role==='data_manager';
+  const isManagerRole = user.role==='team_manager' || user.role==='general_manager' || isDataManager;
+  document.getElementById('navPersonal').style.display = isDataManager ? 'none' : 'block';
   document.getElementById('navManager').style.display = isManagerRole ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
+  // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
+  ['navItem_mgrDashboard','navItem_mgrReports','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
+    document.getElementById(id).style.display = isDataManager ? 'none' : 'flex';
+  });
 
-  if(user.role==='general_manager'){ goPage('mgrDashboard'); } else { goPage('myLeads'); }
+  if(isDataManager){ goPage('mgrLeads'); }
+  else if(user.role==='general_manager'){ goPage('mgrDashboard'); }
+  else { goPage('myLeads'); }
 }
 
 function toggleSidebar(){
@@ -2574,7 +2583,7 @@ function renderMgrSettings(){
     return mainRow + expandBlock;
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
   if(!scope && branchesToShow.length>0){
-    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='general_manager').length;
+    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager').length;
     const admins = state.users.filter(u=>u.role==='general_manager');
     const isAdminOpen = expandedSettingsBranchId==='__admins__';
     listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; color:var(--ink-soft); font-size:13px; cursor:pointer;" onclick="toggleSettingsBranchExpand('__admins__')">
@@ -2688,9 +2697,9 @@ function renderPermissionsTable(){
   table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh phụ trách</th><th>Trạng thái</th><th></th></tr>` +
     rows.map(u=>{
       const roleSel = `<select id="roleSel_${u.id}" onchange="onPermissionRoleChange('${u.id}')">` +
-        ['staff','team_manager','general_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
+        ['staff','team_manager','data_manager','general_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
         `</select>`;
-      const branchSel = `<select id="branchSel_${u.id}" ${u.role==='general_manager'?'style="display:none;"':''}>` +
+      const branchSel = `<select id="branchSel_${u.id}" ${(u.role==='general_manager'||u.role==='data_manager')?'style="display:none;"':''}>` +
         state.branches.map(b=>`<option value="${b.id}" ${u.branchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
       const isPaused = u.active===false;
@@ -2705,7 +2714,7 @@ function renderPermissionsTable(){
 }
 function onNewAccRoleChange(){
   const role = document.getElementById('newAccRole').value;
-  document.getElementById('newAccBranchField').style.display = role==='general_manager' ? 'none' : 'block';
+  document.getElementById('newAccBranchField').style.display = (role==='general_manager'||role==='data_manager') ? 'none' : 'block';
 }
 function createAccountByManager(){
   const scope = scopeBranchId();
@@ -2724,8 +2733,9 @@ function createAccountByManager(){
     branchId = scope;
   } else {
     role = document.getElementById('newAccRole').value;
-    branchId = role==='general_manager' ? null : document.getElementById('newAccBranch').value;
-    if(role!=='general_manager' && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
+    const isGlobalRole = role==='general_manager' || role==='data_manager';
+    branchId = isGlobalRole ? null : document.getElementById('newAccBranch').value;
+    if(!isGlobalRole && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
   }
 
   const user = {id:uid(), name, pin, role, branchId, createdAt:Date.now()};
@@ -2747,16 +2757,18 @@ function toggleUserActive(userId){
 }
 function onPermissionRoleChange(userId){
   const sel=document.getElementById('roleSel_'+userId);
-  document.getElementById('branchSel_'+userId).style.display = sel.value==='general_manager' ? 'none' : 'inline-block';
+  const isGlobalRole = sel.value==='general_manager' || sel.value==='data_manager';
+  document.getElementById('branchSel_'+userId).style.display = isGlobalRole ? 'none' : 'inline-block';
 }
 function applyPermissionChange(userId){
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
   const newRole = document.getElementById('roleSel_'+userId).value;
   const branchSel = document.getElementById('branchSel_'+userId);
-  const newBranchId = newRole==='general_manager' ? null : branchSel.value;
+  const isGlobalRole = newRole==='general_manager' || newRole==='data_manager';
+  const newBranchId = isGlobalRole ? null : branchSel.value;
 
-  if(newRole!=='general_manager' && !newBranchId){
+  if(!isGlobalRole && !newBranchId){
     showToast('Cần chọn chi nhánh phụ trách'); return;
   }
   if(u.role==='general_manager' && newRole!=='general_manager'){
