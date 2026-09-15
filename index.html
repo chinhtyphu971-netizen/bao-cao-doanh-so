@@ -23,7 +23,7 @@
     --brand-soft: #1C2944;
     --accent: #4F8EF7;
     --accent-ink: #FFFFFF;
-    --accent-soft: #17233F;
+    --accent-soft: #1C3D75;
     --success: #37C878;
     --danger: #E5484D;
     --warn: #E0A93E;
@@ -156,6 +156,8 @@
   .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
   #mgrTotalsGrid{grid-template-columns:repeat(5,1fr);}
+  #mgrTotalsGrid .stat-box{background:var(--accent-soft); border:1px solid var(--accent);}
+  #mgrTotalsGrid .stat-value{color:var(--accent);}
   @media (max-width:720px){
     .grid-2, .grid-3{grid-template-columns:1fr;}
     #page-staffReport .grid-3{grid-template-columns:1fr;}
@@ -204,7 +206,8 @@
   .stat-box .stat-label{font-size:12.5px; color:var(--ink-soft); margin-bottom:4px;}
   .stat-box .stat-value{font-size:21px; font-weight:700; font-variant-numeric:tabular-nums;}
 
-  tr.total-row td{background:var(--accent-soft); font-weight:700; border-top:2px solid var(--accent); border-bottom:none;}
+  tr.total-row td{background:var(--accent-soft); font-weight:700; border-top:2px solid var(--accent); border-bottom:none; color:var(--ink);}
+  tr.total-row td.num, tr.total-row td:first-child{color:var(--accent);}
 
   .badge{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600;}
   .badge-warn{background:#3A2E14; color:var(--warn);}
