@@ -531,16 +531,18 @@
       <div id="page-mgrLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Phân bổ data</h1><p>Kho data từ MKT, xoay vòng chia theo team và theo người</p></div></div>
 
-        <div class="card">
-          <h2>Hôm nay</h2>
-          <div id="rotationTodayInfo" style="margin-top:10px;"></div>
-        </div>
+        <div class="grid-2" style="align-items:stretch;">
+          <div class="card" style="margin-bottom:0;">
+            <h2>Hôm nay</h2>
+            <div id="rotationTodayInfo" style="margin-top:10px;"></div>
+          </div>
 
-        <div class="card" id="unassignedLeadsCard">
-          <h2>Kho data chưa chia</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data đang chờ (chưa có ai đủ điều kiện nhận, hoặc chưa ai điểm danh)</p>
-          <div id="unassignedLeadsInfo" style="margin-top:10px;"></div>
-          <button class="btn-primary" id="runDistributionBtn" style="margin-top:10px;" onclick="runDistributionManual()">Chạy phân bổ ngay</button>
+          <div class="card" id="unassignedLeadsCard" style="margin-bottom:0;">
+            <h2>Kho data chưa chia</h2>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data đang chờ (chưa có ai đủ điều kiện nhận, hoặc chưa ai điểm danh)</p>
+            <div id="unassignedLeadsInfo" style="margin-top:10px;"></div>
+            <button class="btn-primary" id="runDistributionBtn" style="margin-top:10px;" onclick="runDistributionManual()">Chạy phân bổ ngay</button>
+          </div>
         </div>
 
         <div class="card">
