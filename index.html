@@ -535,6 +535,7 @@
           <div class="card" style="margin-bottom:0;">
             <h2>Hôm nay</h2>
             <div id="rotationTodayInfo" style="margin-top:10px;"></div>
+            <div id="enforceLockToggleWrap" style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);"></div>
           </div>
 
           <div class="card" id="unassignedLeadsCard" style="margin-bottom:0;">
@@ -779,11 +780,12 @@ const LocalDB = {
 let state = {
   branches: [], users: [], reports: [], trash: [],
   leads: [], checkins: {}, dailyRotation: null, managerConfirms: {},
+  enforceUnprocessedLock: false,
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false};
 let appReady = false;
 
@@ -841,6 +843,7 @@ function initFirebase(){
   fbDailyRotation = db.ref('dailyRotation');
   fbManagerConfirms = db.ref('managerConfirms');
   fbDistributionLock = db.ref('system/distributionLock');
+  fbEnforceUnprocessedLock = db.ref('system/enforceUnprocessedLock');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
@@ -893,6 +896,11 @@ function initFirebase(){
     const v = snap.val() || 0;
     if(!systemLoaded){ systemLoaded = true; lastReloadAt = v; return; }
     if(v > lastReloadAt){ lastReloadAt = v; location.reload(); }
+  });
+
+  fbEnforceUnprocessedLock.on('value', snap=>{
+    state.enforceUnprocessedLock = !!snap.val();
+    onDataChanged(); tryAutoDistribute();
   });
 }
 function broadcastRefresh(){
@@ -995,6 +1003,16 @@ function isManagerConfirmed(userId, date){
 function isEligibleTodayByAttendance(userId, date){
   return isManagerConfirmed(userId, date);
 }
+function hasUnprocessedBacklog(userId){
+  return state.leads.some(l=>l.assignedTo===userId && !l.status);
+}
+// Nếu bật khoá (state.enforceUnprocessedLock), người còn data CHƯA cập nhật tình trạng sẽ bị loại
+// khỏi vòng chia data mới, cho tới khi xử lý (cập nhật Tình trạng) hết toàn bộ data cũ đang có.
+function isEligibleForNewData(userId, date){
+  if(!isEligibleTodayByAttendance(userId, date)) return false;
+  if(state.enforceUnprocessedLock && hasUnprocessedBacklog(userId)) return false;
+  return true;
+}
 function dailyReceivedCount(userId, date){
   return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
 }
@@ -1027,6 +1045,10 @@ function saveTodayRotationSelection(){
   }
   setTodayRotationBranches(ids);
 }
+function toggleEnforceUnprocessedLock(checked){
+  fbEnforceUnprocessedLock.set(checked);
+  showToast(checked ? 'Đã BẬT: khoá không cho nhận data mới nếu còn data chưa xử lý' : 'Đã TẮT khoá');
+}
 function setTodayRotationBranches(branchIds){
   const today = todayStr();
   const u = currentUser();
@@ -1041,7 +1063,7 @@ function buildLeadPool(branchIds, date){
   return state.users.filter(u=>
     isLeadEligibleRole(u) &&
     branchIds.includes(u.branchId) &&
-    isEligibleTodayByAttendance(u.id, date) &&
+    isEligibleForNewData(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
 }
@@ -1049,7 +1071,7 @@ function buildAdminPool(date){
   return state.users.filter(u=>
     (u.role==='general_manager' || u.role==='data_manager') &&
     u.active !== false &&
-    isEligibleTodayByAttendance(u.id, date) &&
+    isEligibleForNewData(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   );
 }
@@ -1531,6 +1553,21 @@ function renderMgrLeads(){
       </div>
     `;
     updateRotationPreview();
+  }
+
+  const lockToggleWrap = document.getElementById('enforceLockToggleWrap');
+  if(lockToggleWrap){
+    if(scope){
+      lockToggleWrap.innerHTML = `<span style="font-size:13px; color:var(--ink-soft);">Khoá nhận data khi còn tồn đọng: <b style="color:${state.enforceUnprocessedLock?'var(--warn)':'var(--ink-soft)'};">${state.enforceUnprocessedLock?'Đang BẬT':'Đang TẮT'}</b> (do Quản lý chung/Quản lý Data điều khiển)</span>`;
+    } else {
+      lockToggleWrap.innerHTML = `
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
+          <input type="checkbox" ${state.enforceUnprocessedLock?'checked':''} style="width:16px; height:16px; margin:0;" onchange="toggleEnforceUnprocessedLock(this.checked)">
+          <span>Khoá không cho nhận data mới nếu còn data chưa xử lý</span>
+        </label>
+        <div style="color:var(--ink-soft); font-size:12px; margin-top:4px;">Bật lên: ai còn data chưa cập nhật Tình trạng sẽ tạm không được chia thêm, cho tới khi xử lý hết.</div>
+      `;
+    }
   }
 
   const unassigned = state.leads.filter(l=>!l.assignedTo);
