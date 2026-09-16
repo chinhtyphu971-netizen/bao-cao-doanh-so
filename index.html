@@ -1332,7 +1332,7 @@ function renderMyLeads(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
-      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:12.5px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
+      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
@@ -1519,7 +1519,7 @@ function renderPersonLeadsPage(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     leads.map(l=>`<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
-      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:12.5px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
+      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
       <td data-label="Tình trạng">
