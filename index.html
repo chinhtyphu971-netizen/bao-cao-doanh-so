@@ -591,6 +591,7 @@
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMgrLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="renderMgrLeadsList()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="renderMgrLeadsList()"></select></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="renderMgrLeadsList()"></select></div>
           </div>
           <div id="mgrLeadsListSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrLeadsListTable" class="rtable"></table></div>
@@ -1571,6 +1572,15 @@ function renderMgrLeadsList(){
     return true;
   }).sort((a,b)=>b.assignedAt-a.assignedAt);
 
+  // Danh sách Nguồn để lọc — lấy động theo đúng những Nguồn đang thực sự có trong phạm vi đang xem,
+  // giữ nguyên lựa chọn hiện tại nếu Nguồn đó vẫn còn tồn tại sau khi có data mới.
+  const sourceSel = document.getElementById('mgrLeadsListSourceFilter');
+  const sourceList = Array.from(new Set(leads.map(l=>leadSource(l)).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  const prevSourceValue = sourceSel.value;
+  sourceSel.innerHTML = '<option value="">— Tất cả nguồn —</option>' +
+    sourceList.map(s=>`<option value="${s}">${s}</option>`).join('');
+  if(sourceList.includes(prevSourceValue)) sourceSel.value = prevSourceValue;
+
   const rawQuery = document.getElementById('mgrLeadsListSearch').value.trim();
   if(rawQuery){
     const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
@@ -1592,6 +1602,10 @@ function renderMgrLeadsList(){
   const personFilter = personSel.value;
   if(personFilter){
     leads = leads.filter(l=>l.assignedTo===personFilter);
+  }
+  const sourceFilter = sourceSel.value;
+  if(sourceFilter){
+    leads = leads.filter(l=>leadSource(l)===sourceFilter);
   }
 
   const unprocessedCount = leads.filter(l=>isLeadUnprocessed(l)).length;
