@@ -213,7 +213,41 @@
   tr.total-row td.num, tr.total-row td:first-child{color:#FFFFFF;}
 
   .badge{display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600;}
-  .badge-warn{background:#3A2E14; color:var(--warn);}
+  .trungthu-banner{
+    margin: 4px 0 18px;
+    padding: 10px 12px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(135deg, #4a2b0f, #6b3d12);
+    border: 1px solid #d98a3d;
+    color: #ffd8a0;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    animation: trungthuGlow 3s ease-in-out infinite;
+  }
+  @keyframes trungthuGlow{
+    0%, 100% { box-shadow: 0 0 4px rgba(217,138,61,0.25); }
+    50% { box-shadow: 0 0 14px rgba(217,138,61,0.55); }
+  }
+  #trungThuFloatLayer{
+    position: fixed; inset: 0; pointer-events: none; z-index: 3000; overflow: hidden;
+  }
+  .trungthu-float-icon{
+    position: absolute;
+    bottom: -60px;
+    font-size: 26px;
+    opacity: 0;
+    animation: trungthuFloatUp linear forwards;
+    filter: drop-shadow(0 0 6px rgba(255,200,120,0.5));
+  }
+  @keyframes trungthuFloatUp{
+    0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+    10%  { opacity: 0.95; }
+    50%  { transform: translateY(-50vh) translateX(var(--drift,20px)) rotate(15deg); }
+    90%  { opacity: 0.85; }
+    100% { transform: translateY(-105vh) translateX(calc(var(--drift,20px) * 2)) rotate(-10deg); opacity: 0; }
+  }
   .unprocessed-banner{
     display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     background:#3A2E14; border:1px solid var(--warn); border-radius:var(--radius-m);
@@ -222,6 +256,7 @@
   .unprocessed-banner b{color:var(--warn);}
   .unprocessed-banner.ok{background:#123321; border-color:var(--success);}
   .unprocessed-banner.ok b{color:var(--success);}
+  .badge-warn{background:#3A2E14; color:var(--warn);}
   .badge-ok{background:#123321; color:var(--success);}
 
   .toolbar{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; align-items:flex-end;}
@@ -340,12 +375,14 @@
 
 <!-- ============== APP SCREEN ============== -->
 <div id="appScreen">
+  <div id="trungThuFloatLayer"></div>
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Mở menu">☰</button>
   <button class="hamburger-btn" id="refreshBtn" onclick="location.reload()" aria-label="Làm mới" style="left:auto; right:14px;">⟳</button>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>  <div class="shell">
     <div class="sidebar">
       <div class="brand-title">Báo cáo doanh số</div>
       <div class="brand-sub" id="sidebarBranch">—</div>
+      <div class="trungthu-banner" id="trungThuBanner"></div>
 
       <div id="navPersonal" style="display:none;">
         <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
@@ -1854,6 +1891,46 @@ function showToast(msg){
   clearTimeout(showToast._t);
   showToast._t=setTimeout(()=>t.classList.remove('show'),2200);
 }
+
+/* =========================== TRANG TRÍ TRUNG THU (chỉ trang trí, không ảnh hưởng dữ liệu) =========================== */
+const TRUNGTHU_SLOGANS = [
+  '🏮 Trung Thu đoàn viên — Đơn hàng viên mãn!',
+  '🌕 Trăng tròn tháng Tám — Doanh số tròn đầy!',
+  '🐰 Chị Hằng chú Cuội cũng phải nể phong độ chốt đơn hôm nay!',
+  '🥮 Ngọt như bánh Trung Thu, chốt đơn cũng phải ngọt tay!',
+  '✨ Rước đèn đón Trung Thu, rước thêm data mới về!',
+  '🏮 Đèn lồng thắp sáng phố — Nhiệt huyết thắp sáng team!',
+  '🌟 Trung Thu vui vẻ — Target về đích sớm!',
+  '🐇 Cố lên nào, mùa trăng này mình cùng nhau bứt phá!',
+  '🥮 Một miếng bánh dẻo, một đơn hàng ngọt ngào!',
+  '🎑 Mâm cỗ đầy ắp — Doanh số cũng đầy ắp nhé cả nhà!',
+];
+const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐'];
+function initTrungThu(){
+  const bannerEl = document.getElementById('trungThuBanner');
+  if(bannerEl){
+    bannerEl.textContent = TRUNGTHU_SLOGANS[Math.floor(Math.random()*TRUNGTHU_SLOGANS.length)];
+  }
+  if(initTrungThu._started) return; // chỉ bật hiệu ứng bay 1 lần duy nhất, khỏi chồng nhiều interval
+  initTrungThu._started = true;
+  const layer = document.getElementById('trungThuFloatLayer');
+  if(!layer) return;
+  function spawnIcon(){
+    const span = document.createElement('span');
+    span.className = 'trungthu-float-icon';
+    span.textContent = TRUNGTHU_ICONS[Math.floor(Math.random()*TRUNGTHU_ICONS.length)];
+    const leftPct = Math.random()*94 + 2;
+    const duration = 9 + Math.random()*6;
+    const drift = (Math.random()*80 - 40) + 'px';
+    span.style.left = leftPct + '%';
+    span.style.animationDuration = duration + 's';
+    span.style.setProperty('--drift', drift);
+    layer.appendChild(span);
+    setTimeout(()=>span.remove(), duration*1000 + 500);
+  }
+  spawnIcon();
+  setInterval(spawnIcon, 3500);
+}
 window.addEventListener('error', function(e){
   console.error('Lỗi chưa được xử lý:', e.error || e.message);
   try{
@@ -2040,6 +2117,7 @@ function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
   checkNewLeadNotifications();
+  initTrungThu();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
   document.getElementById('sidebarBranch').textContent = user.branchId ? branchName(user.branchId) : 'Toàn hệ thống';
