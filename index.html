@@ -793,9 +793,10 @@
           <h2>Nguồn MKT</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
           <div id="settingsMktSourceList" style="margin:12px 0;"></div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
             <button class="btn-ghost" onclick="settingsAddMktSource()">Thêm</button>
+            <button class="btn-ghost" onclick="settingsImportExistingMktSources()">Lấy tất cả Nguồn đang có trong data</button>
           </div>
         </div>
 
@@ -3459,6 +3460,21 @@ function settingsAddMktSource(){
   input.value='';
   renderMgrSettings();
   showToast('Đã thêm Nguồn');
+}
+function settingsImportExistingMktSources(){
+  // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
+  // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
+  const existingNames = new Set(state.mktSources.map(s=>s.name.toLowerCase()));
+  const foundInData = Array.from(new Set(state.leads.map(l=>leadSource(l)).filter(s=>s && s!=='—')));
+  const toAdd = foundInData.filter(name=>!existingNames.has(name.toLowerCase()));
+  if(toAdd.length===0){ showToast('Không có Nguồn mới nào để lấy thêm'); return; }
+  toAdd.forEach(name=>{
+    const s={id:uid(), name};
+    state.mktSources.push(s);
+    fbSetMktSource(s);
+  });
+  renderMgrSettings();
+  showToast(`Đã lấy thêm ${toAdd.length} Nguồn từ data hiện có`);
 }
 function renderMgrSettings(){
   const scope=scopeBranchId();
