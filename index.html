@@ -782,7 +782,7 @@
             </div>
             <div class="field" id="newAccMktSourcesField" style="display:none;">
               <label>Nguồn phụ trách (chọn tối đa 3)</label>
-              <div id="newAccMktSourcesPicker" style="display:flex; flex-wrap:wrap; gap:6px 16px;"></div>
+              <div id="newAccMktSourcesPicker" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
             </div>
           </div>
           <div class="login-error" id="newAccError"></div>
@@ -3677,7 +3677,7 @@ function renderPermissionsTable(){
       const mktBranchSel = `<select id="mktBranchSel_${u.id}" ${isMktRole?'':'style="display:none;"'}>` +
         state.mktBranches.map(b=>`<option value="${b.id}" ${u.mktBranchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
-      const mktSourcesPicker = `<div id="mktSourcesPicker_${u.id}" style="display:flex; flex-wrap:wrap; gap:4px 12px; ${isMktRole?'':'display:none;'}">${mktSourcePickerHtml('perm_'+u.id, u.assignedSources||[])}</div>`;
+      const mktSourcesPicker = `<div id="mktSourcesPicker_${u.id}" style="display:flex; flex-direction:column; gap:4px; max-height:140px; overflow-y:auto; min-width:180px; padding:6px; border:1px solid var(--line); border-radius:var(--radius-s); ${isMktRole?'':'display:none;'}">${mktSourcePickerHtml('perm_'+u.id, u.assignedSources||[])}</div>`;
       const isPaused = u.active===false;
       return `<tr>
         <td data-label="Tên">${u.name}</td>
