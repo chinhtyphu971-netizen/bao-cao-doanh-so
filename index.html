@@ -1939,24 +1939,34 @@ const TRUNGTHU_BG_PATTERNS = [
 // Đầu lân múa — đặt làm hình lớn 1 góc màn hình, không lặp lại như hoa văn nhỏ ở trên.
 const TRUNGTHU_LION_SVG =
   "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 300 300'>" +
-  "<g fill='none' stroke='rgba(255,150,70,0.16)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'>" +
-  "<path d='M150 45 C95 45 65 95 65 145 C65 205 105 255 150 255 C195 255 235 205 235 145 C235 95 205 45 150 45 Z'/>" +
-  "<path d='M150 45 C140 22 160 22 152 3'/>" +
-  "<path d='M92 78 C68 55 55 65 62 92'/>" +
-  "<path d='M208 78 C232 55 245 65 238 92'/>" +
-  "<path d='M82 108 Q112 88 138 108'/>" +
-  "<path d='M162 108 Q188 88 218 108'/>" +
-  "<circle cx='112' cy='134' r='19'/>" +
-  "<circle cx='188' cy='134' r='19'/>" +
-  "<path d='M138 168 Q150 180 162 168'/>" +
-  "<path d='M85 205 Q108 228 130 205 Q150 228 170 205 Q192 228 215 205'/>" +
-  "<path d='M62 195 L15 183'/>" +
-  "<path d='M62 218 L15 230'/>" +
-  "<path d='M238 195 L285 183'/>" +
-  "<path d='M238 218 L285 230'/>" +
+  // Bờm/tai xù bao quanh (các cụm tròn xếp lớp phía sau mặt)
+  "<g fill='rgba(214,60,40,0.14)'>" +
+  "<circle cx='55' cy='95' r='30'/><circle cx='45' cy='150' r='27'/><circle cx='55' cy='205' r='26'/>" +
+  "<circle cx='245' cy='95' r='30'/><circle cx='255' cy='150' r='27'/><circle cx='245' cy='205' r='26'/>" +
+  "<circle cx='95' cy='45' r='26'/><circle cx='150' cy='35' r='27'/><circle cx='205' cy='45' r='26'/>" +
   "</g>" +
-  "<circle cx='112' cy='134' r='6' fill='rgba(255,150,70,0.16)' stroke='none'/>" +
-  "<circle cx='188' cy='134' r='6' fill='rgba(255,150,70,0.16)' stroke='none'/>" +
+  // Mat tron mau vang lam nen mat
+  "<circle cx='150' cy='150' r='105' fill='rgba(255,200,70,0.17)'/>" +
+  // Ma hong dang yeu
+  "<circle cx='85' cy='178' r='20' fill='rgba(230,80,60,0.14)'/>" +
+  "<circle cx='215' cy='178' r='20' fill='rgba(230,80,60,0.14)'/>" +
+  // Long may cong
+  "<path d='M92 108 Q118 86 146 106' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
+  "<path d='M154 106 Q182 86 208 108' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
+  // Mat to tron kieu hoat hinh (trang - den - cham sang)
+  "<circle cx='114' cy='142' r='24' fill='rgba(255,255,255,0.22)'/>" +
+  "<circle cx='186' cy='142' r='24' fill='rgba(255,255,255,0.22)'/>" +
+  "<circle cx='118' cy='146' r='11' fill='rgba(25,18,14,0.24)'/>" +
+  "<circle cx='190' cy='146' r='11' fill='rgba(25,18,14,0.24)'/>" +
+  "<circle cx='122' cy='141' r='3.5' fill='rgba(255,255,255,0.35)'/>" +
+  "<circle cx='194' cy='141' r='3.5' fill='rgba(255,255,255,0.35)'/>" +
+  // Mui nho hinh trai tim don gian
+  "<ellipse cx='150' cy='182' rx='15' ry='11' fill='rgba(220,60,45,0.20)'/>" +
+  // Mieng cuoi dang yeu
+  "<path d='M112 208 Q150 240 188 208' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
+  // Sung nho + qua cau tren dinh dau
+  "<circle cx='150' cy='28' r='13' fill='rgba(220,60,45,0.16)'/>" +
+  "<circle cx='150' cy='28' r='5' fill='rgba(255,220,120,0.20)'/>" +
   "</svg>";
 function initTrungThu(){
   const bannerEl = document.getElementById('trungThuBanner');
