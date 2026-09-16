@@ -1738,8 +1738,9 @@ function renderMgrLeads(){
   const lockToggleWrap = document.getElementById('enforceLockToggleWrap');
   if(lockToggleWrap){
     if(scope){
-      lockToggleWrap.innerHTML = `<span style="font-size:13px; color:var(--ink-soft);">Khoá nhận data khi còn tồn đọng: <b style="color:${state.enforceUnprocessedLock?'var(--warn)':'var(--ink-soft)'};">${state.enforceUnprocessedLock?'Đang BẬT':'Đang TẮT'}</b> (do Quản lý chung/Quản lý Data điều khiển)</span>`;
+      lockToggleWrap.style.display = 'none'; // Quản lý team không cần biết/xem cài đặt này
     } else {
+      lockToggleWrap.style.display = 'block';
       lockToggleWrap.innerHTML = `
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
           <input type="checkbox" ${state.enforceUnprocessedLock?'checked':''} style="width:16px; height:16px; margin:0;" onchange="toggleEnforceUnprocessedLock(this.checked)">
