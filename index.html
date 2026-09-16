@@ -1331,7 +1331,7 @@ function renderMyLeads(){
   if(allMyLeads.length===0){ table.innerHTML=`<tr><td class="empty-note">${rawQuery?'Không tìm thấy data phù hợp.':'Chưa có data nào được chia cho bạn.'}</td></tr>`; return; }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     allMyLeads.map(l=>`<tr>
-      <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+      <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
@@ -1518,7 +1518,7 @@ function renderPersonLeadsPage(){
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
     leads.map(l=>`<tr>
-      <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+      <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
@@ -1712,6 +1712,13 @@ function toLocalDateStr(d){
 function todayStr(){ return toLocalDateStr(new Date()); }
 function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+function fmtDateTimeShort(ts){
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return `${hh}:${mm}:${ss} ${d.getDate()}/${d.getMonth()+1}`;
+}
 
 function copyText(text, message){
   const done = ()=>showToast(message);
