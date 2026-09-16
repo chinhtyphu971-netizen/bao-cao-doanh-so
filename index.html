@@ -789,35 +789,32 @@
           <button class="btn-primary" style="margin-top:6px;" onclick="createAccountByManager()">Tạo tài khoản</button>
         </div>
 
-        <div class="grid-2" id="settingsMktRow" style="display:none;">
-          <div class="card" id="settingsMktBranchCard" style="margin-bottom:0;">
-            <h2>Team MKT</h2>
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Team riêng cho vai trò MKT / Quản lý team MKT — không liên quan gì tới chi nhánh bên Sale ở dưới</p>
-            <div id="settingsMktBranchList" style="margin:12px 0;"></div>
-            <div style="display:flex; gap:8px;">
-              <input id="settingsNewMktBranch" placeholder="Tên Team MKT mới">
-              <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
-            </div>
-          </div>
-
-          <div class="card" id="settingsMktSourceCard" style="margin-bottom:0;">
-            <h2>Nguồn MKT</h2>
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
-            <div id="settingsMktSourceList" style="margin:12px 0;"></div>
-            <div style="display:flex; gap:8px;">
-              <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
-              <button class="btn-ghost" onclick="settingsAddMktSource()">Thêm</button>
-            </div>
+        <div class="card" id="settingsMktSourceCard" style="display:none;">
+          <h2>Nguồn MKT</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
+          <div id="settingsMktSourceList" style="margin:12px 0;"></div>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
+            <button class="btn-ghost" onclick="settingsAddMktSource()">Thêm</button>
           </div>
         </div>
 
         <div class="grid-2">
           <div class="card">
-            <h2>Chi nhánh</h2>
+            <h2>Team Sale</h2>
             <div id="settingsBranchList" style="margin:12px 0;"></div>
             <div id="settingsAddBranchForm" style="display:flex; gap:8px;">
               <input id="settingsNewBranch" placeholder="Tên chi nhánh mới">
               <button class="btn-ghost" onclick="settingsAddBranch()">Thêm</button>
+            </div>
+
+            <div id="settingsMktBranchSection" style="display:none; margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+              <h2>Team MKT</h2>
+              <div id="settingsMktBranchList" style="margin:12px 0;"></div>
+              <div style="display:flex; gap:8px;">
+                <input id="settingsNewMktBranch" placeholder="Tên Team MKT mới">
+                <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
+              </div>
             </div>
           </div>
           <div class="card">
@@ -3507,8 +3504,9 @@ function renderMgrSettings(){
     return mainRow + expandBlock;
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
 
-  // "Team MKT" + "Nguồn MKT" — tách biệt hoàn toàn với Chi nhánh (Sale) ở trên, chỉ Quản lý chung mới quản lý được.
-  document.getElementById('settingsMktRow').style.display = scope ? 'none' : 'grid';
+  // "Team MKT" (lồng trong card Team Sale) + "Nguồn MKT" (card riêng) — chỉ Quản lý chung mới quản lý được.
+  document.getElementById('settingsMktBranchSection').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsMktSourceCard').style.display = scope ? 'none' : 'block';
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
     mktListEl.innerHTML = state.mktBranches.map(b=>{
