@@ -1046,8 +1046,15 @@ function saveTodayRotationSelection(){
   setTodayRotationBranches(ids);
 }
 function toggleEnforceUnprocessedLock(checked){
-  fbEnforceUnprocessedLock.set(checked);
-  showToast(checked ? 'Đã BẬT: khoá không cho nhận data mới nếu còn data chưa xử lý' : 'Đã TẮT khoá');
+  renderMgrLeads(); // dua checkbox ve dung trang thai cu ngay, cho toi khi nguoi dung xac nhan xong
+  const title = checked ? 'Bật khoá data tồn đọng?' : 'Tắt khoá data tồn đọng?';
+  const msg = checked
+    ? 'Những ai còn data chưa cập nhật Tình trạng sẽ tạm KHÔNG được chia thêm data mới nữa, cho tới khi họ xử lý xong hết. Áp dụng ngay cho toàn bộ hệ thống. Tiếp tục?'
+    : 'Mọi người sẽ được chia data bình thường trở lại, kể cả khi còn data chưa xử lý. Tiếp tục?';
+  askConfirm(title, msg, ()=>{
+    fbEnforceUnprocessedLock.set(checked);
+    showToast(checked ? 'Đã BẬT: khoá không cho nhận data mới nếu còn data chưa xử lý' : 'Đã TẮT khoá');
+  });
 }
 function setTodayRotationBranches(branchIds){
   const today = todayStr();
