@@ -235,8 +235,8 @@
   }
   .trungthu-float-icon{
     position: absolute;
-    bottom: -60px;
-    font-size: 26px;
+    bottom: -90px;
+    font-size: 48px;
     opacity: 0;
     animation: trungthuFloatUp linear forwards;
     filter: drop-shadow(0 0 6px rgba(255,200,120,0.5));
@@ -1905,7 +1905,7 @@ const TRUNGTHU_SLOGANS = [
   '🥮 Một miếng bánh dẻo, một đơn hàng ngọt ngào!',
   '🎑 Mâm cỗ đầy ắp — Doanh số cũng đầy ắp nhé cả nhà!',
 ];
-const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐'];
+const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐','🌟','🧧'];
 const TRUNGTHU_BG_PATTERNS = [
   // Trăng + sao lấp lánh
   "<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='45' cy='45' r='28' fill='rgba(255,216,160,0.09)'/><circle cx='170' cy='190' r='3' fill='rgba(255,216,160,0.10)'/><circle cx='210' cy='110' r='2.2' fill='rgba(255,216,160,0.10)'/><circle cx='120' cy='210' r='2.6' fill='rgba(255,216,160,0.10)'/><circle cx='70' cy='170' r='1.8' fill='rgba(255,216,160,0.08)'/></svg>",
@@ -1937,9 +1937,11 @@ function initTrungThu(){
     const leftPct = Math.random()*94 + 2;
     const duration = 9 + Math.random()*6;
     const drift = (Math.random()*80 - 40) + 'px';
+    const size = 44 + Math.random()*40; // 44px - 84px, to hon han truoc
     span.style.left = leftPct + '%';
     span.style.animationDuration = duration + 's';
     span.style.setProperty('--drift', drift);
+    span.style.fontSize = size + 'px';
     layer.appendChild(span);
     setTimeout(()=>span.remove(), duration*1000 + 500);
   }
