@@ -643,13 +643,21 @@
         <div class="page-head"><div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div></div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMgrLeadsList()"></div>
-            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="renderMgrLeadsList()"></select></div>
-            <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="renderMgrLeadsList()"></select></div>
-            <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="renderMgrLeadsList()"></select></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="onMgrLeadsListFilterChange()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
+            <div class="field" style="max-width:140px;"><label>Số dòng/trang</label>
+              <select id="mgrLeadsListPageSize" onchange="onMgrLeadsListFilterChange()">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
           <div id="mgrLeadsListSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrLeadsListTable" class="rtable"></table></div>
+          <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
         </div>
       </div>
 
@@ -1602,6 +1610,15 @@ function renderPersonLeadsPage(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
+let mgrLeadsListPage = 1;
+function onMgrLeadsListFilterChange(){
+  mgrLeadsListPage = 1; // doi bo loc/tim kiem/so dong-trang -> luon quay ve trang 1
+  renderMgrLeadsList();
+}
+function goMgrLeadsListPage(p){
+  mgrLeadsListPage = p;
+  renderMgrLeadsList();
+}
 function renderMgrLeadsList(){
   const scope = scopeBranchId();
   ensureStatusFilterPopulated('mgrLeadsListStatusFilter');
@@ -1664,8 +1681,31 @@ function renderMgrLeadsList(){
   }
 
   const unprocessedCount = leads.filter(l=>isLeadUnprocessed(l)).length;
-  document.getElementById('mgrLeadsListSummary').textContent =
-    `${leads.length} data${unprocessedCount>0?` · ${unprocessedCount} chưa xử lý`:''} — Quản lý có thể sửa Tên khách/Tình trạng ngay tại đây`;
+  const totalFiltered = leads.length;
+
+  // Phân trang — tìm kiếm/lọc luôn áp dụng trên TOÀN BỘ danh sách ở trên rồi mới cắt trang để hiển
+  // thị, nên gõ tìm kiếm sẽ ra kết quả đúng dù kết quả đó đang nằm ở trang nào.
+  const pageSize = parseInt(document.getElementById('mgrLeadsListPageSize').value, 10) || 50;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  if(mgrLeadsListPage > totalPages) mgrLeadsListPage = totalPages;
+  if(mgrLeadsListPage < 1) mgrLeadsListPage = 1;
+  const startIdx = (mgrLeadsListPage - 1) * pageSize;
+  const pageLeads = leads.slice(startIdx, startIdx + pageSize);
+
+  document.getElementById('mgrLeadsListSummary').textContent = totalFiltered===0
+    ? 'Không có data nào phù hợp.'
+    : `${totalFiltered} data${unprocessedCount>0?` · ${unprocessedCount} chưa xử lý`:''} — đang xem ${startIdx+1}-${Math.min(startIdx+pageSize,totalFiltered)} — Quản lý có thể sửa Tên khách/Tình trạng ngay tại đây`;
+
+  const paginationEl = document.getElementById('mgrLeadsListPagination');
+  if(totalFiltered===0){
+    paginationEl.innerHTML = '';
+  } else {
+    paginationEl.innerHTML = `
+      <button class="btn-ghost btn-small" ${mgrLeadsListPage<=1?'disabled':''} onclick="goMgrLeadsListPage(${mgrLeadsListPage-1})">‹ Trước</button>
+      <span style="font-size:13.5px; color:var(--ink-soft);">Trang ${mgrLeadsListPage}/${totalPages}</span>
+      <button class="btn-ghost btn-small" ${mgrLeadsListPage>=totalPages?'disabled':''} onclick="goMgrLeadsListPage(${mgrLeadsListPage+1})">Sau ›</button>
+    `;
+  }
 
   const table = document.getElementById('mgrLeadsListTable');
   if(leads.length===0){
@@ -1673,7 +1713,7 @@ function renderMgrLeadsList(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
-    leads.map(l=>{
+    pageLeads.map(l=>{
       const assignee = state.users.find(u=>u.id===l.assignedTo);
       const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
       return `<tr>
