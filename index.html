@@ -1013,7 +1013,10 @@ function updateRotationPreview(){
   const checkedIds = Array.from(document.querySelectorAll('.rotationBranchCheckbox:checked')).map(x=>x.value);
   const onNames = state.branches.filter(b=>checkedIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
   const offNames = state.branches.filter(b=>!checkedIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
-  el.innerHTML = `<span style="color:var(--success);">Được chia: ${onNames}</span> &nbsp;·&nbsp; <span style="color:var(--ink-soft);">Không được chia: ${offNames}</span>`;
+  el.innerHTML = `
+    <div style="color:var(--success);">Được chia: ${onNames}</div>
+    <div style="color:var(--ink-soft); margin-top:2px;">Không được chia: ${offNames}</div>
+  `;
 }
 function saveTodayRotationSelection(){
   const ids = Array.from(document.querySelectorAll('.rotationBranchCheckbox:checked')).map(el=>el.value);
