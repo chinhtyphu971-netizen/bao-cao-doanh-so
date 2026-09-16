@@ -194,6 +194,7 @@
   .table-wrap table tr.total-row td:first-child{ background:var(--accent-soft); }
   .table-wrap table tr.branch-expand-row td:first-child{ background:var(--bg); }
   th.sortable{cursor:pointer; user-select:none;}
+  #leadsDistributionTable td, #leadsDistributionTable th{ height:34px; box-sizing:border-box; vertical-align:middle; }
   th.sortable:hover{color:var(--accent);}
   th.sortable .sort-arrow{color:var(--accent); margin-left:3px;}
   th{color:var(--ink-soft); font-weight:600; font-size:11.5px;}
@@ -775,7 +776,7 @@ const LocalDB = {
 
 let state = {
   branches: [], users: [], reports: [], trash: [],
-  leads: [], checkins: {}, dailyRotation: {}, managerConfirms: {},
+  leads: [], checkins: {}, dailyRotation: null, managerConfirms: {},
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
@@ -789,19 +790,17 @@ function isFirebaseConfigured(){
 }
 
 let scopedTodayDate = null;
-let refCheckinsToday = null, refManagerConfirmsToday = null, refDailyRotationToday = null;
+let refCheckinsToday = null, refManagerConfirmsToday = null;
 function subscribeTodayScopedData(){
   const today = todayStr();
   if(scopedTodayDate === today) return; // vẫn đang đúng ngày, không cần làm lại
   // Ngắt theo dõi ngày cũ trước khi chuyển sang ngày mới (nếu có)
   if(refCheckinsToday) refCheckinsToday.off();
   if(refManagerConfirmsToday) refManagerConfirmsToday.off();
-  if(refDailyRotationToday) refDailyRotationToday.off();
 
   scopedTodayDate = today;
   refCheckinsToday = fbCheckins.child(today);
   refManagerConfirmsToday = fbManagerConfirms.child(today);
-  refDailyRotationToday = fbDailyRotation.child(today);
 
   refCheckinsToday.on('value', snap=>{
     state.checkins = {}; state.checkins[today] = snap.val()||{};
@@ -810,12 +809,6 @@ function subscribeTodayScopedData(){
   refManagerConfirmsToday.on('value', snap=>{
     state.managerConfirms = {}; state.managerConfirms[today] = snap.val()||{};
     markLoaded('managerConfirms'); onDataChanged(); tryAutoDistribute();
-  });
-  refDailyRotationToday.on('value', snap=>{
-    const val = snap.val();
-    state.dailyRotation = {};
-    if(val) state.dailyRotation[today] = val;
-    markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute();
   });
 }
 function initFirebase(){
@@ -840,9 +833,17 @@ function initFirebase(){
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
-  // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
-  // của HÔM NAY nên chỉ cần theo dõi đúng 1 ngày đó, không tải cả lịch sử các ngày cũ (tiết kiệm
-  // dung lượng rất nhiều khi dùng lâu dài). Tự chuyển sang theo dõi ngày mới khi qua 0h.
+  // Team nhận data không còn tính theo NGÀY nữa — Quản lý chọn 1 lần và GIỮ NGUYÊN cho tới khi
+  // chủ động đổi lại (không tự động xoay/reset mỗi ngày), nên theo dõi thẳng 1 node cố định,
+  // không cần join theo ngày như checkins/managerConfirms.
+  fbDailyRotation.on('value', snap=>{
+    state.dailyRotation = snap.val() || null;
+    markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute();
+  });
+  // checkins / managerConfirms tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu của HÔM NAY nên chỉ
+  // cần theo dõi đúng 1 ngày đó, không tải cả lịch sử các ngày cũ (tiết kiệm dung lượng rất nhiều
+  // khi dùng lâu dài). Tự chuyển sang theo dõi ngày mới khi qua 0h.
+  // (dailyRotation không còn tổ chức theo ngày nữa — xem comment ở fbDailyRotation.on(...) phía trên)
   subscribeTodayScopedData();
   setInterval(subscribeTodayScopedData, 60*1000);
 
@@ -972,7 +973,7 @@ function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
 function fbSetLead(l){ fbLeads.child(l.id).set(l); }
 function fbSetCheckin(date, userId, value){ fbCheckins.child(date).child(userId).set(value===undefined?true:value); }
 function fbSetManagerConfirm(date, userId, value){ fbManagerConfirms.child(date).child(userId).set(value===undefined?true:value); }
-function fbSetDailyRotation(date, data){ fbDailyRotation.child(date).set(data); }
+function fbSetDailyRotation(data){ fbDailyRotation.set(data); }
 
 /* =========================== PHÂN BỔ DATA TỪ MKT =========================== */
 const DAILY_LEAD_CAP = 50;
@@ -992,21 +993,33 @@ function isEligibleTodayByAttendance(userId, date){
 function dailyReceivedCount(userId, date){
   return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
 }
+// Team nhận data giờ do Quản lý chung / Quản lý Data TỰ TAY chọn (xem saveTodayRotationSelection),
+// không còn tự động chọn theo thuật toán "chờ lâu nhất" nữa, và cũng KHÔNG reset lại mỗi ngày —
+// giữ nguyên lựa chọn cho tới khi có người chủ động chọn lại. Nếu chưa từng ai chọn thì trả về
+// null — nghĩa là chưa có data nào được tự động chia cho tới khi có người chọn.
 function getOrComputeTodayRotation(){
-  const today=todayStr();
-  if(state.dailyRotation[today]) return state.dailyRotation[today];
-  if(state.branches.length===0) return null;
-  const sorted = state.branches.slice().sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
-  const onDuty = sorted.slice(0, Math.min(3, sorted.length)).map(b=>b.id);
-  const now = Date.now();
-  onDuty.forEach(bid=>{
-    const b = state.branches.find(x=>x.id===bid);
-    if(b){ b.lastDataAt = now; fbSetBranch(b); }
-  });
-  const rotation = {branchIds: onDuty, computedAt: now};
-  state.dailyRotation[today] = rotation;
-  fbSetDailyRotation(today, rotation);
-  return rotation;
+  return state.dailyRotation || null;
+}
+function saveTodayRotationSelection(){
+  const ids = Array.from(document.querySelectorAll('.rotationBranchCheckbox:checked')).map(el=>el.value);
+  if(ids.length===0){
+    askConfirm(
+      'Không chọn team nào?',
+      'Không chọn team nào nghĩa là sẽ KHÔNG ai được tự động chia data nữa, cho tới khi bạn chọn lại. Vẫn lưu?',
+      ()=>setTodayRotationBranches(ids)
+    );
+    return;
+  }
+  setTodayRotationBranches(ids);
+}
+function setTodayRotationBranches(branchIds){
+  const u = currentUser();
+  const rotation = {branchIds: branchIds.slice(), computedAt: Date.now(), setBy: (u && u.name) || ''};
+  state.dailyRotation = rotation;
+  fbSetDailyRotation(rotation);
+  showToast('Đã cập nhật team nhận data — giữ nguyên cho tới khi bạn đổi lại');
+  renderMgrLeads();
+  tryAutoDistribute(); // co the dang co data cho san, chia luon ngay khi vua chon xong
 }
 function buildLeadPool(branchIds, date){
   return state.users.filter(u=>
@@ -1467,16 +1480,36 @@ function renderMgrLeads(){
   document.getElementById('unassignedLeadsCard').style.display = scope ? 'none' : 'block';
   document.getElementById('runDistributionBtn').style.display = scope ? 'none' : 'inline-block';
   const today=todayStr();
-  const rotation = state.dailyRotation[today];
+  const rotation = state.dailyRotation;
   const infoEl = document.getElementById('rotationTodayInfo');
-  if(!rotation){
-    infoEl.innerHTML = '<div class="empty-note">Chưa có data mới hôm nay nên hệ thống chưa cần chọn team — sẽ tự chọn ngay khi có data đầu tiên trong ngày.</div>';
+  if(scope){
+    // Quan ly team: chi xem, khong duoc chon (viec chon team truc la cua Quan ly chung/Quan ly Data)
+    if(!rotation){
+      infoEl.innerHTML = '<div class="empty-note">Quản lý chung/Quản lý Data chưa chọn team nhận data.</div>';
+    } else {
+      const onNames = rotation.branchIds.map(id=>branchName(id)).join(', ') || '—';
+      const offNames = state.branches.filter(b=>!rotation.branchIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
+      infoEl.innerHTML = `
+        <div class="detail-row"><span class="k">Team đang được nhận data</span><span class="v">${onNames}</span></div>
+        <div class="detail-row"><span class="k">Team đang tự tìm data</span><span class="v">${offNames}</span></div>
+      `;
+    }
   } else {
-    const onNames = rotation.branchIds.map(id=>branchName(id)).join(', ') || '—';
-    const offNames = state.branches.filter(b=>!rotation.branchIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
+    // Quan ly chung / Quan ly Data: tu tay chon team truc, giu nguyen cho toi khi doi lai
+    const selectedIds = rotation ? rotation.branchIds : [];
+    const savedInfo = rotation ? `<div style="margin-top:8px; color:var(--ink-soft); font-size:12.5px;">Đã lưu lúc ${new Date(rotation.computedAt).toLocaleTimeString('vi-VN')} ${new Date(rotation.computedAt).toLocaleDateString('vi-VN')}${rotation.setBy?(' bởi '+rotation.setBy):''} — giữ nguyên cho tới khi bạn đổi lại</div>` : '';
     infoEl.innerHTML = `
-      <div class="detail-row"><span class="k">Team được nhận data hôm nay</span><span class="v">${onNames}</span></div>
-      <div class="detail-row"><span class="k">Team tự tìm data hôm nay</span><span class="v">${offNames}</span></div>
+      <div style="margin-bottom:8px; color:var(--ink-soft); font-size:13px;">Tích chọn team được nhận data (các team còn lại sẽ tự tìm data) — lựa chọn này giữ nguyên cho tới khi bạn đổi lại, không tự đổi theo ngày:</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:10px;">
+        ${state.branches.map(b=>`
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" class="rotationBranchCheckbox" value="${b.id}" ${selectedIds.includes(b.id)?'checked':''} style="width:14px; height:14px; margin:0;">
+            <span>${b.name}</span>
+          </label>
+        `).join('') || '<span class="empty-note">Chưa có chi nhánh nào, vào Cài đặt để thêm.</span>'}
+      </div>
+      <button class="btn-primary btn-small" onclick="saveTodayRotationSelection()">Lưu team được chọn</button>
+      ${savedInfo}
     `;
   }
 
