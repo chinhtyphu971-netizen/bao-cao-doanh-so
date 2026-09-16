@@ -230,6 +230,26 @@
     0%, 100% { box-shadow: 0 0 4px rgba(217,138,61,0.25); }
     50% { box-shadow: 0 0 14px rgba(217,138,61,0.55); }
   }
+  #trungThuLionLayer{
+    position: fixed; inset: -120px; pointer-events: none; z-index: -2;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: min(90vw, 900px);
+    animation: trungthuLionDrift 55s ease-in-out infinite alternate;
+  }
+  @keyframes trungthuLionDrift{
+    0%   { transform: translate(-1.5%, -1%) scale(1); }
+    100% { transform: translate(1.5%, 1.5%) scale(1.05); }
+  }
+  #trungThuPatternLayer{
+    position: fixed; inset: -280px; pointer-events: none; z-index: -3;
+    background-repeat: repeat;
+    animation: trungthuPatternDrift 90s linear infinite;
+  }
+  @keyframes trungthuPatternDrift{
+    0%   { transform: translate(0, 0); }
+    100% { transform: translate(-260px, -260px); }
+  }
   #trungThuFloatLayer{
     position: fixed; inset: 0; pointer-events: none; z-index: 3000; overflow: hidden;
   }
@@ -375,6 +395,8 @@
 
 <!-- ============== APP SCREEN ============== -->
 <div id="appScreen">
+  <div id="trungThuLionLayer"></div>
+  <div id="trungThuPatternLayer"></div>
   <div id="trungThuFloatLayer"></div>
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Mở menu">☰</button>
   <button class="hamburger-btn" id="refreshBtn" onclick="location.reload()" aria-label="Làm mới" style="left:auto; right:14px;">⟳</button>
@@ -1914,6 +1936,28 @@ const TRUNGTHU_BG_PATTERNS = [
   // Trăng + đèn lồng kết hợp
   "<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><circle cx='200' cy='55' r='24' fill='rgba(255,216,160,0.08)'/><g fill='none' stroke='rgba(255,216,160,0.10)' stroke-width='2'><rect x='50' y='175' width='30' height='38' rx='14'/><line x1='65' y1='164' x2='65' y2='175'/><line x1='65' y1='213' x2='65' y2='228'/><circle cx='65' cy='156' r='3.6' fill='rgba(255,216,160,0.10)' stroke='none'/></g></svg>",
 ];
+// Đầu lân múa — đặt làm hình lớn 1 góc màn hình, không lặp lại như hoa văn nhỏ ở trên.
+const TRUNGTHU_LION_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 300 300'>" +
+  "<g fill='none' stroke='rgba(255,150,70,0.16)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'>" +
+  "<path d='M150 45 C95 45 65 95 65 145 C65 205 105 255 150 255 C195 255 235 205 235 145 C235 95 205 45 150 45 Z'/>" +
+  "<path d='M150 45 C140 22 160 22 152 3'/>" +
+  "<path d='M92 78 C68 55 55 65 62 92'/>" +
+  "<path d='M208 78 C232 55 245 65 238 92'/>" +
+  "<path d='M82 108 Q112 88 138 108'/>" +
+  "<path d='M162 108 Q188 88 218 108'/>" +
+  "<circle cx='112' cy='134' r='19'/>" +
+  "<circle cx='188' cy='134' r='19'/>" +
+  "<path d='M138 168 Q150 180 162 168'/>" +
+  "<path d='M85 205 Q108 228 130 205 Q150 228 170 205 Q192 228 215 205'/>" +
+  "<path d='M62 195 L15 183'/>" +
+  "<path d='M62 218 L15 230'/>" +
+  "<path d='M238 195 L285 183'/>" +
+  "<path d='M238 218 L285 230'/>" +
+  "</g>" +
+  "<circle cx='112' cy='134' r='6' fill='rgba(255,150,70,0.16)' stroke='none'/>" +
+  "<circle cx='188' cy='134' r='6' fill='rgba(255,150,70,0.16)' stroke='none'/>" +
+  "</svg>";
 function initTrungThu(){
   const bannerEl = document.getElementById('trungThuBanner');
   if(bannerEl){
@@ -1922,9 +1966,18 @@ function initTrungThu(){
   if(!initTrungThu._bgApplied){
     initTrungThu._bgApplied = true;
     const svg = TRUNGTHU_BG_PATTERNS[Math.floor(Math.random()*TRUNGTHU_BG_PATTERNS.length)];
-    document.body.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-    document.body.style.backgroundRepeat = 'repeat';
-    document.body.style.backgroundAttachment = 'fixed';
+    // Quầng sáng vàng-đỏ: đứng yên trên body
+    document.body.style.backgroundImage =
+      'radial-gradient(circle at top left, rgba(214,66,32,0.30) 0%, rgba(214,66,32,0) 42%),' +
+      'radial-gradient(circle at bottom right, rgba(230,160,30,0.26) 0%, rgba(230,160,30,0) 48%)';
+    document.body.style.backgroundRepeat = 'no-repeat, no-repeat';
+    document.body.style.backgroundAttachment = 'fixed, fixed';
+    // Con lân: 1 hình lớn phủ gần hết màn hình, tự trôi/phóng to thu nhỏ chậm rãi qua CSS animation
+    document.getElementById('trungThuLionLayer').style.backgroundImage =
+      `url("data:image/svg+xml,${encodeURIComponent(TRUNGTHU_LION_SVG)}")`;
+    // Hoa văn nhỏ (trăng/đèn lồng): lặp khắp nền, tự trôi chậm theo hướng khác cho có chiều sâu
+    document.getElementById('trungThuPatternLayer').style.backgroundImage =
+      `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
   }
   if(initTrungThu._started) return; // chỉ bật hiệu ứng bay 1 lần duy nhất, khỏi chồng nhiều interval
   initTrungThu._started = true;
