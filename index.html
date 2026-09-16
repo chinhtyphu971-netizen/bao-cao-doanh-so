@@ -52,7 +52,7 @@
     font-size:14.5px;
     font-weight:600;
   }
-  input, select{
+  input, select, textarea{
     font-family:inherit;
     font-size:15px;
     padding:9px 11px;
@@ -402,6 +402,12 @@
       <div class="brand-sub" id="sidebarBranch">—</div>
       <div class="trungthu-banner" id="trungThuBanner"></div>
 
+      <div id="navMkt" style="display:none;">
+        <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
+      </div>
+      <div id="navMktManager" style="display:none;">
+        <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">Thống kê team MKT</span></div>
+      </div>
       <div id="navPersonal" style="display:none;">
         <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
         <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
@@ -639,6 +645,51 @@
       </div>
 
       <!-- ---------- MANAGER: danh sách data TỔNG (gộp mọi người vào 1 bảng) ---------- -->
+      <!-- ---------- MKT: nhập data ---------- -->
+      <div id="page-mktInput" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Nhập data</h1><p>Data nhập ở đây sẽ tự động đổ chung vào 1 kho với data từ Google Sheet, hệ thống tự chia đều như bình thường</p></div></div>
+
+        <div class="grid-2" style="align-items:stretch;">
+          <div class="card" style="margin-bottom:0;">
+            <h2>Nhập từng số</h2>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điền xong bấm "Thêm" hoặc nhấn Enter ở ô SĐT — form tự làm sạch để nhập tiếp số kế tiếp</p>
+            <div class="field"><label>Số điện thoại *</label><input id="mktPhone" placeholder="09xxxxxxxx" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
+            <div class="field"><label>Nguồn *</label><input id="mktSource" list="mktSourceList" placeholder="Vd: Xưởng Sỉ Ánh Loan" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"><datalist id="mktSourceList"></datalist></div>
+            <div class="field"><label>Tên khách (không bắt buộc)</label><input id="mktName" placeholder="Để trống nếu chưa có" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
+            <div class="login-error" id="mktSingleError"></div>
+            <button class="btn-primary" onclick="submitMktSingle()">+ Thêm</button>
+          </div>
+
+          <div class="card" style="margin-bottom:0;">
+            <h2>Dán hàng loạt</h2>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Dùng khi có sẵn danh sách nhiều số cùng 1 Nguồn — dán từ Excel/Zalo, mỗi dòng 1 số (có thể kèm Tên, cách nhau bởi dấu phẩy hoặc Tab)</p>
+            <div class="field"><label>Nguồn cho cả danh sách này *</label><input id="mktBulkSource" list="mktSourceList" placeholder="Vd: Xưởng Sỉ Ánh Loan"></div>
+            <div class="field"><label>Danh sách số điện thoại</label><textarea id="mktBulkText" rows="6" placeholder="0912345678&#10;0987654321, Chị Lan&#10;0909009009" oninput="updateMktBulkPreview()"></textarea></div>
+            <div class="login-error" id="mktBulkError"></div>
+            <div id="mktBulkPreview" style="font-size:13px; color:var(--ink-soft); margin:6px 0;"></div>
+            <button class="btn-primary" onclick="submitMktBulk()">+ Thêm tất cả</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Vừa thêm hôm nay <span id="mktTodayCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+          <div class="table-wrap"><table id="mktRecentTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MKT MANAGER: thống kê tổng team (không chi tiết như bên Sale) ---------- -->
+      <div id="page-mktManagerStats" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Thống kê team MKT</h1><p id="mktManagerTeamName" style="color:var(--ink-soft);"></p></div></div>
+        <div class="card">
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Tổng đã nhập (cả team)</div><div class="stat-value" id="mktMgrStatTotal">0</div></div>
+            <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktMgrStatAssigned">0</div></div>
+            <div class="stat-box"><div class="stat-label">Đang chờ chia</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
+          </div>
+          <div class="table-wrap"><table id="mktManagerStatsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
       <div id="page-mgrLeadsList" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div></div>
         <div class="card">
@@ -703,11 +754,17 @@
                 <option value="team_manager">Quản lý team</option>
                 <option value="data_manager">Quản lý Data (toàn công ty)</option>
                 <option value="general_manager">Quản lý chung</option>
+                <option value="mkt">MKT (chỉ nhập data)</option>
+                <option value="mkt_manager">Trưởng team MKT</option>
               </select>
             </div>
             <div class="field" id="newAccBranchField">
               <label>Chi nhánh</label>
               <select id="newAccBranch"></select>
+            </div>
+            <div class="field" id="newAccMktBranchField" style="display:none;">
+              <label>Team MKT</label>
+              <select id="newAccMktBranch"></select>
             </div>
           </div>
           <div class="login-error" id="newAccError"></div>
@@ -726,6 +783,16 @@
           <div class="card">
             <h2>Người dùng đã đăng ký</h2>
             <div class="table-wrap"><table id="settingsUserTable" class="rtable"></table></div>
+          </div>
+        </div>
+
+        <div class="card" id="settingsMktBranchCard" style="display:none;">
+          <h2>Team MKT</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Team riêng cho vai trò MKT / Trưởng team MKT — không liên quan gì tới chi nhánh bên Sale ở trên</p>
+          <div id="settingsMktBranchList" style="margin:12px 0;"></div>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsNewMktBranch" placeholder="Tên Team MKT mới">
+            <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
           </div>
         </div>
 
@@ -864,12 +931,13 @@ let state = {
   branches: [], users: [], reports: [], trash: [],
   leads: [], checkins: {}, dailyRotation: null, managerConfirms: {},
   enforceUnprocessedLock: false,
+  mktBranches: [], // "Team MKT" — tách riêng hoàn toàn với branches (team bên Sale), không liên quan gì nhau
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock;
-const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false};
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches;
+const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
 function isFirebaseConfigured(){
@@ -917,6 +985,7 @@ function initFirebase(){
   firebase.initializeApp(FIREBASE_CONFIG);
   const db = firebase.database();
   fbBranches = db.ref('branches');
+  fbMktBranches = db.ref('mktBranches');
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
@@ -929,6 +998,7 @@ function initFirebase(){
   fbEnforceUnprocessedLock = db.ref('system/enforceUnprocessedLock');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
+  fbMktBranches.on('value', snap=>{ state.mktBranches = Object.values(snap.val()||{}); markLoaded('mktBranches'); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -1060,6 +1130,7 @@ function playTingSound(){
 // Ghi dữ liệu: mỗi thao tác chỉ ghi ĐÚNG PHẦN thay đổi (theo id), không ghi
 // đè cả kho — để 2 người thao tác cùng lúc không mất dữ liệu của nhau.
 function fbSetBranch(b){ fbBranches.child(b.id).set(b); }
+function fbSetMktBranch(b){ fbMktBranches.child(b.id).set(b); }
 function fbSetUser(u){ fbUsers.child(u.id).set(u); }
 function fbUpdateUser(id, patch){ fbUsers.child(id).update(patch); }
 function fbSetReport(r){ fbReports.child(r.id).set(r); }
@@ -1324,6 +1395,185 @@ function leadInfoText(lead){
   const sourceKey = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
   return Object.entries(lead.raw).filter(([k])=>k!==sourceKey).map(([k,v])=>`${k}: ${v}`).join(' · ');
 }
+
+/* =========================== MKT: NHẬP DATA TRỰC TIẾP TRÊN APP =========================== */
+// Data nhập ở đây dùng ID tiền tố "manual_" để không bao giờ trùng với ID kiểu "sheet_..._row_.."
+// mà Google Apps Script tạo ra — 2 nguồn (Sheet + nhập tay) cùng đổ vào chung /leads, không đụng nhau.
+function createLeadFromMkt(phone, source, customerName){
+  const u = currentUser();
+  const lead = {
+    id: 'manual_' + uid(),
+    phone: String(phone).trim(),
+    source: String(source).trim(),
+    importedAt: Date.now(),
+    createdBy: u ? u.id : null,
+    createdByName: u ? u.name : '',
+  };
+  if(customerName && customerName.trim()) lead.customerName = customerName.trim();
+  fbSetLead(lead);
+  return lead;
+}
+function populateMktSourceList(){
+  const list = document.getElementById('mktSourceList');
+  if(!list) return;
+  const sources = Array.from(new Set(state.leads.map(l=>leadSource(l)).filter(s=>s && s!=='—'))).sort((a,b)=>a.localeCompare(b,'vi'));
+  list.innerHTML = sources.map(s=>`<option value="${s}"></option>`).join('');
+}
+// QUY TẮC: 1 SĐT được nhập tối đa 3 lần vào hệ thống, và mỗi lần PHẢI từ 1 Nguồn khác nhau — không
+// được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 3 Nguồn khác nhau.
+// extraSources: các Nguồn đã "tạm ghi nhận" ngay trong cùng 1 lượt xử lý (dùng cho nhập hàng loạt,
+// vì các dòng cùng batch chưa kịp nằm trong state.leads để tự kiểm tra chéo nhau).
+function checkPhoneEntryRule(phoneDigits, source, extraSources){
+  const existingSources = state.leads
+    .filter(l=>normalizePhone(leadPhone(l))===phoneDigits)
+    .map(l=>leadSource(l));
+  const allSources = existingSources.concat(extraSources||[]);
+  const norm = s => String(s||'').trim().toLowerCase();
+  const srcNorm = norm(source);
+  if(allSources.some(s=>norm(s)===srcNorm)){
+    return {allowed:false, reason:'same_source', sources:allSources};
+  }
+  if(allSources.length >= 3){
+    return {allowed:false, reason:'max_reached', sources:allSources};
+  }
+  return {allowed:true, sources:allSources};
+}
+function submitMktSingle(){
+  const phoneEl = document.getElementById('mktPhone');
+  const sourceEl = document.getElementById('mktSource');
+  const nameEl = document.getElementById('mktName');
+  const errEl = document.getElementById('mktSingleError');
+  errEl.textContent = '';
+
+  const phone = phoneEl.value.trim();
+  const source = sourceEl.value.trim();
+  const name = nameEl.value.trim();
+
+  if(!phone){ errEl.textContent = 'Vui lòng nhập số điện thoại.'; phoneEl.focus(); return; }
+  const digits = normalizePhone(phone);
+  if(digits.length < 8){ errEl.textContent = 'Số điện thoại không hợp lệ.'; phoneEl.focus(); return; }
+  if(!source){ errEl.textContent = 'Vui lòng nhập Nguồn.'; sourceEl.focus(); return; }
+
+  const check = checkPhoneEntryRule(digits, source);
+  if(!check.allowed){
+    errEl.textContent = check.reason==='same_source'
+      ? `Số này đã được nhập từ đúng Nguồn "${source}" rồi — không thể nhập trùng cùng 1 Nguồn.`
+      : `Số này đã đạt tối đa 3 lần nhập (từ 3 nguồn: ${check.sources.join(', ')}) — không thể thêm nữa.`;
+    return;
+  }
+
+  createLeadFromMkt(phone, source, name);
+  const info = check.sources.length>0 ? ` (lần ${check.sources.length+1}/3 — nguồn khác: ${check.sources.join(', ')})` : '';
+  showToast(`Đã thêm 1 số vào kho data${info}`);
+  phoneEl.value = ''; nameEl.value = '';
+  phoneEl.focus();
+  renderMktInputPage();
+}
+function updateMktBulkPreview(){
+  const raw = document.getElementById('mktBulkText').value;
+  const lines = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+  document.getElementById('mktBulkPreview').textContent = lines.length>0 ? `${lines.length} dòng sẵn sàng để thêm` : '';
+}
+function submitMktBulk(){
+  const sourceEl = document.getElementById('mktBulkSource');
+  const textEl = document.getElementById('mktBulkText');
+  const errEl = document.getElementById('mktBulkError');
+  errEl.textContent = '';
+
+  const source = sourceEl.value.trim();
+  if(!source){ errEl.textContent = 'Vui lòng nhập Nguồn cho cả danh sách.'; sourceEl.focus(); return; }
+
+  const rawLines = textEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(rawLines.length===0){ errEl.textContent = 'Chưa dán số điện thoại nào.'; return; }
+
+  const stagedSourcesByPhone = {}; // digits -> [source,...] đã thêm ngay trong lượt này
+  let addedCount = 0, skippedInvalid = 0, skippedSameSource = 0, skippedMaxReached = 0;
+
+  rawLines.forEach(line=>{
+    const parts = line.split(/\t|,/).map(s=>s.trim()).filter(Boolean);
+    const phone = parts[0] || '';
+    const name = parts[1] || '';
+    const digits = normalizePhone(phone);
+    if(digits.length < 8){ skippedInvalid++; return; }
+
+    const check = checkPhoneEntryRule(digits, source, stagedSourcesByPhone[digits]);
+    if(!check.allowed){
+      if(check.reason==='same_source') skippedSameSource++; else skippedMaxReached++;
+      return;
+    }
+    createLeadFromMkt(phone, source, name);
+    stagedSourcesByPhone[digits] = (stagedSourcesByPhone[digits]||[]).concat(source);
+    addedCount++;
+  });
+
+  let msg = `Đã thêm ${addedCount} số.`;
+  if(skippedSameSource>0) msg += ` Bỏ qua ${skippedSameSource} số đã nhập từ đúng Nguồn này rồi.`;
+  if(skippedMaxReached>0) msg += ` Bỏ qua ${skippedMaxReached} số đã đạt tối đa 3 lần nhập.`;
+  if(skippedInvalid>0) msg += ` Bỏ qua ${skippedInvalid} dòng không hợp lệ.`;
+  showToast(msg);
+  textEl.value = '';
+  updateMktBulkPreview();
+  renderMktInputPage();
+}
+function renderMktManagerStats(){
+  const u = currentUser();
+  const teamId = u.mktBranchId;
+  document.getElementById('mktManagerTeamName').textContent = teamId ? `Team: ${mktBranchName(teamId)}` : 'Chưa được gán vào Team MKT nào';
+
+  const teamMembers = state.users.filter(x=>x.mktBranchId===teamId && (x.role==='mkt'||x.role==='mkt_manager'));
+  const memberIds = new Set(teamMembers.map(x=>x.id));
+  const teamLeads = state.leads.filter(l=>l.createdBy && memberIds.has(l.createdBy));
+
+  const totalAll = teamLeads.length;
+  const totalAssigned = teamLeads.filter(l=>l.assignedTo).length;
+  const totalPending = totalAll - totalAssigned;
+  document.getElementById('mktMgrStatTotal').textContent = totalAll;
+  document.getElementById('mktMgrStatAssigned').textContent = totalAssigned;
+  document.getElementById('mktMgrStatPending').textContent = totalPending;
+
+  const table = document.getElementById('mktManagerStatsTable');
+  if(teamMembers.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có ai trong team này.</td></tr>';
+    return;
+  }
+  const rows = teamMembers.map(mem=>{
+    const mine = teamLeads.filter(l=>l.createdBy===mem.id);
+    const assigned = mine.filter(l=>l.assignedTo).length;
+    return {name:mem.name, role:mem.role, total:mine.length, assigned, pending:mine.length-assigned};
+  }).sort((a,b)=>b.total-a.total);
+  table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Đang chờ chia</th></tr></thead><tbody>` +
+    rows.map(r=>`<tr>
+      <td data-label="Tên">${r.name}</td>
+      <td data-label="Vai trò">${roleLabel(r.role)}</td>
+      <td class="num" data-label="Tổng đã nhập">${r.total}</td>
+      <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
+      <td class="num" data-label="Đang chờ chia">${r.pending}</td>
+    </tr>`).join('') + `</tbody>`;
+}
+
+function renderMktInputPage(){
+  populateMktSourceList();
+  updateMktBulkPreview();
+  const u = currentUser();
+  const today = todayStr();
+  const mine = state.leads.filter(l=>l.createdBy===u.id && toLocalDateStr(new Date(l.importedAt||0))===today)
+    .sort((a,b)=>(b.importedAt||0)-(a.importedAt||0));
+  document.getElementById('mktTodayCount').textContent = mine.length>0 ? `(${mine.length} số)` : '';
+  const table = document.getElementById('mktRecentTable');
+  if(mine.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa thêm số nào hôm nay.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Giờ nhập</th><th>SĐT</th><th>Nguồn</th><th>Tên khách</th><th>Trạng thái</th></tr></thead><tbody>` +
+    mine.map(l=>`<tr>
+      <td data-label="Giờ nhập">${fmtDateTimeShort(l.importedAt)}</td>
+      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="Tên khách">${l.customerName||'—'}</td>
+      <td data-label="Trạng thái">${l.assignedTo?`Đã chia cho ${l.assignedToName||'—'}`:'Đang chờ chia'}</td>
+    </tr>`).join('') + `</tbody>`;
+}
+
 function toggleMyLeadsStatsByDay(){
   const body = document.getElementById('myLeadsStatsByDay');
   const btn = document.getElementById('myLeadsStatsToggle');
@@ -2189,7 +2439,7 @@ function addBranch(){
   input.value='';
   createUserAndLogin(b.id);
 }
-const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung'};
+const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung', mkt:'MKT', mkt_manager:'Trưởng team MKT'};
 function roleLabel(role){ return ROLE_LABELS[role] || role; }
 
 function renderRoleChips(){
@@ -2244,6 +2494,7 @@ function currentUser(){
   return state.users.find(u=>u.id===state.session.userId) || null;
 }
 function branchName(id){ const b=state.branches.find(b=>b.id===id); return b?b.name:'—'; }
+function mktBranchName(id){ const b=state.mktBranches.find(b=>b.id===id); return b?b.name:'—'; }
 function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'(đã xoá)'; }
 
 function enterApp(){
@@ -2258,9 +2509,13 @@ function enterApp(){
   document.getElementById('sidebarRole').textContent = roleLabel(user.role);
 
   const isDataManager = user.role==='data_manager';
+  const isMkt = user.role==='mkt';
+  const isMktManager = user.role==='mkt_manager';
   const isManagerRole = user.role==='team_manager' || user.role==='general_manager' || isDataManager;
-  document.getElementById('navPersonal').style.display = isDataManager ? 'none' : 'block';
-  document.getElementById('navManager').style.display = isManagerRole ? 'block' : 'none';
+  document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
+  document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
+  document.getElementById('navPersonal').style.display = (isDataManager || isMkt || isMktManager) ? 'none' : 'block';
+  document.getElementById('navManager').style.display = (isManagerRole && !isMkt && !isMktManager) ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
   ['navItem_mgrDashboard','navItem_mgrReports','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
@@ -2270,7 +2525,9 @@ function enterApp(){
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
 
-  if(isDataManager){ goPage('mgrLeads'); }
+  if(isMkt){ goPage('mktInput'); }
+  else if(isMktManager){ goPage('mktManagerStats'); }
+  else if(isDataManager){ goPage('mgrLeads'); }
   else if(user.role==='general_manager'){ goPage('mgrDashboard'); }
   else { goPage('myLeads'); }
 }
@@ -2286,6 +2543,8 @@ function closeSidebar(){
 function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
+  if(u && u.role==='mkt' && pageId!=='mktInput'){ pageId='mktInput'; } // MKT chỉ có đúng 1 trang này
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats'){ pageId='mktManagerStats'; } // Trưởng team MKT cũng chỉ có đúng 1 trang
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -2301,6 +2560,8 @@ function goPage(pageId){
   if(pageId==='personLeads') renderPersonLeadsPage();
   if(pageId==='mgrTrash') renderMgrTrash();
   if(pageId==='mgrSettings') renderMgrSettings();
+  if(pageId==='mktInput') renderMktInputPage();
+  if(pageId==='mktManagerStats') renderMktManagerStats();
 }
 
 /* =========================== STAFF: NỘP BÁO CÁO =========================== */
@@ -3097,6 +3358,22 @@ function toggleSettingsBranchExpand(id){
   expandedSettingsBranchId = (expandedSettingsBranchId===id) ? null : id;
   renderMgrSettings();
 }
+let expandedSettingsMktBranchId = null;
+function toggleSettingsMktBranchExpand(id){
+  expandedSettingsMktBranchId = (expandedSettingsMktBranchId===id) ? null : id;
+  renderMgrSettings();
+}
+function settingsAddMktBranch(){
+  const input=document.getElementById('settingsNewMktBranch');
+  const name=input.value.trim();
+  if(!name) return;
+  const b={id:uid(), name};
+  state.mktBranches.push(b);
+  fbSetMktBranch(b);
+  input.value='';
+  renderMgrSettings();
+  showToast('Đã thêm Team MKT');
+}
 function renderMgrSettings(){
   const scope=scopeBranchId();
   document.getElementById('settingsAddBranchForm').style.display = scope ? 'none' : 'flex';
@@ -3111,10 +3388,12 @@ function renderMgrSettings(){
   document.getElementById('newAccRoleField').style.display = scope ? 'none' : 'block';
   const branchField = document.getElementById('newAccBranchField');
   const branchSel = document.getElementById('newAccBranch');
+  const mktBranchSel = document.getElementById('newAccMktBranch');
   if(scope){
     branchField.style.display = 'none';
   } else {
     branchSel.innerHTML = state.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    mktBranchSel.innerHTML = state.mktBranches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
     onNewAccRoleChange();
   }
 
@@ -3137,8 +3416,31 @@ function renderMgrSettings(){
     }
     return mainRow + expandBlock;
   }).join('') || '<div class="empty-note">Chưa có chi nhánh.</div>';
+
+  // "Team MKT" — tách biệt hoàn toàn với Chi nhánh (Sale) ở trên, chỉ Quản lý chung mới quản lý được.
+  document.getElementById('settingsMktBranchCard').style.display = scope ? 'none' : 'block';
+  if(!scope){
+    const mktListEl = document.getElementById('settingsMktBranchList');
+    mktListEl.innerHTML = state.mktBranches.map(b=>{
+      const teamMgr = state.users.find(u=>u.role==='mkt_manager' && u.mktBranchId===b.id);
+      const members = state.users.filter(u=>u.mktBranchId===b.id && (u.role==='mkt'||u.role==='mkt_manager'));
+      const isOpen = expandedSettingsMktBranchId===b.id;
+      const mainRow = `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;" onclick="toggleSettingsMktBranchExpand('${b.id}')">
+        <span>${isOpen?'▾':'▸'} ${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— Trưởng team: ${teamMgr.name}</span>`:''}</span>
+        <span style="color:var(--ink-soft); font-size:12.5px;">${members.length} người</span>
+      </div>`;
+      let expandBlock = '';
+      if(isOpen){
+        const memberHtml = members.length
+          ? members.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(u=>`<div class="detail-row"><span class="k">${u.name}</span><span class="v">${roleLabel(u.role)}</span></div>`).join('')
+          : '<div class="empty-note">Chưa có ai trong team này.</div>';
+        expandBlock = `<div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">${memberHtml}</div>`;
+      }
+      return mainRow + expandBlock;
+    }).join('') || '<div class="empty-note">Chưa có Team MKT.</div>';
+  }
   if(!scope && branchesToShow.length>0){
-    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager').length;
+    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager'||u.role==='mkt'||u.role==='mkt_manager').length;
     const admins = state.users.filter(u=>u.role==='general_manager');
     const isAdminOpen = expandedSettingsBranchId==='__admins__';
     listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; color:var(--ink-soft); font-size:13px; cursor:pointer;" onclick="toggleSettingsBranchExpand('__admins__')">
@@ -3249,19 +3551,24 @@ function renderPermissionsTable(){
     table.innerHTML = '<tr><td class="empty-note">Cần có ít nhất 1 chi nhánh trước khi phân quyền Quản lý team.</td></tr>';
     return;
   }
-  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh phụ trách</th><th>Trạng thái</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh / Team</th><th>Trạng thái</th><th></th></tr>` +
     rows.map(u=>{
+      const isMktRole = u.role==='mkt' || u.role==='mkt_manager';
+      const isGlobalRole = u.role==='general_manager' || u.role==='data_manager';
       const roleSel = `<select id="roleSel_${u.id}" onchange="onPermissionRoleChange('${u.id}')">` +
-        ['staff','team_manager','data_manager','general_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
+        ['staff','team_manager','data_manager','general_manager','mkt','mkt_manager'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${roleLabel(r)}</option>`).join('') +
         `</select>`;
-      const branchSel = `<select id="branchSel_${u.id}" ${(u.role==='general_manager'||u.role==='data_manager')?'style="display:none;"':''}>` +
+      const branchSel = `<select id="branchSel_${u.id}" ${(isGlobalRole||isMktRole)?'style="display:none;"':''}>` +
         state.branches.map(b=>`<option value="${b.id}" ${u.branchId===b.id?'selected':''}>${b.name}</option>`).join('') +
+        `</select>`;
+      const mktBranchSel = `<select id="mktBranchSel_${u.id}" ${isMktRole?'':'style="display:none;"'}>` +
+        state.mktBranches.map(b=>`<option value="${b.id}" ${u.mktBranchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
       const isPaused = u.active===false;
       return `<tr>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleSel}</td>
-        <td data-label="Chi nhánh phụ trách">${branchSel}</td>
+        <td data-label="Chi nhánh / Team">${branchSel}${mktBranchSel}</td>
         <td data-label="Trạng thái"><span class="badge ${isPaused?'badge-warn':'badge-ok'}" style="cursor:pointer;" onclick="toggleUserActive('${u.id}')">${isPaused?'Tạm nghỉ (bấm để mở lại)':'Đang làm (bấm để tạm nghỉ)'}</span></td>
         <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
       </tr>`;
@@ -3269,7 +3576,10 @@ function renderPermissionsTable(){
 }
 function onNewAccRoleChange(){
   const role = document.getElementById('newAccRole').value;
-  document.getElementById('newAccBranchField').style.display = (role==='general_manager'||role==='data_manager') ? 'none' : 'block';
+  const isMktRole = role==='mkt' || role==='mkt_manager';
+  const isGlobalRole = role==='general_manager' || role==='data_manager';
+  document.getElementById('newAccBranchField').style.display = (isGlobalRole || isMktRole) ? 'none' : 'block';
+  document.getElementById('newAccMktBranchField').style.display = isMktRole ? 'block' : 'none';
 }
 function createAccountByManager(){
   const scope = scopeBranchId();
@@ -3282,18 +3592,23 @@ function createAccountByManager(){
   const nameTaken = state.users.some(u=>u.name.trim().normalize('NFC').toLowerCase()===name.toLowerCase());
   if(nameTaken){ errEl.textContent = 'Đã có người dùng tên này, chọn tên khác để tránh nhầm khi đăng nhập.'; return; }
 
-  let role, branchId;
+  let role, branchId, mktBranchId=null;
   if(scope){
     role = 'staff';
     branchId = scope;
   } else {
     role = document.getElementById('newAccRole').value;
+    const isMktRole = role==='mkt' || role==='mkt_manager';
     const isGlobalRole = role==='general_manager' || role==='data_manager';
-    branchId = isGlobalRole ? null : document.getElementById('newAccBranch').value;
-    if(!isGlobalRole && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
+    branchId = (isGlobalRole || isMktRole) ? null : document.getElementById('newAccBranch').value;
+    if(!isGlobalRole && !isMktRole && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
+    if(isMktRole){
+      mktBranchId = document.getElementById('newAccMktBranch').value;
+      if(!mktBranchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 Team MKT trước khi tạo tài khoản.'; return; }
+    }
   }
 
-  const user = {id:uid(), name, pin, role, branchId, createdAt:Date.now()};
+  const user = {id:uid(), name, pin, role, branchId, mktBranchId, createdAt:Date.now()};
   state.users.push(user);
   fbSetUser(user);
   showToast(`Đã tạo tài khoản cho ${name} — đưa tên và mã PIN "${pin}" cho họ để đăng nhập.`);
@@ -3312,19 +3627,27 @@ function toggleUserActive(userId){
 }
 function onPermissionRoleChange(userId){
   const sel=document.getElementById('roleSel_'+userId);
+  const isMktRole = sel.value==='mkt' || sel.value==='mkt_manager';
   const isGlobalRole = sel.value==='general_manager' || sel.value==='data_manager';
-  document.getElementById('branchSel_'+userId).style.display = isGlobalRole ? 'none' : 'inline-block';
+  document.getElementById('branchSel_'+userId).style.display = (isGlobalRole||isMktRole) ? 'none' : 'inline-block';
+  document.getElementById('mktBranchSel_'+userId).style.display = isMktRole ? 'inline-block' : 'none';
 }
 function applyPermissionChange(userId){
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
   const newRole = document.getElementById('roleSel_'+userId).value;
   const branchSel = document.getElementById('branchSel_'+userId);
+  const mktBranchSel = document.getElementById('mktBranchSel_'+userId);
+  const isMktRole = newRole==='mkt' || newRole==='mkt_manager';
   const isGlobalRole = newRole==='general_manager' || newRole==='data_manager';
-  const newBranchId = isGlobalRole ? null : branchSel.value;
+  const newBranchId = (isGlobalRole||isMktRole) ? null : branchSel.value;
+  const newMktBranchId = isMktRole ? mktBranchSel.value : null;
 
-  if(!isGlobalRole && !newBranchId){
+  if(!isGlobalRole && !isMktRole && !newBranchId){
     showToast('Cần chọn chi nhánh phụ trách'); return;
+  }
+  if(isMktRole && !newMktBranchId){
+    showToast('Cần chọn Team MKT'); return;
   }
   if(u.role==='general_manager' && newRole!=='general_manager'){
     const otherAdmins = state.users.filter(x=>x.role==='general_manager' && x.id!==u.id);
@@ -3335,11 +3658,14 @@ function applyPermissionChange(userId){
     }
   }
   const isSelf = currentUser() && currentUser().id===u.id;
-  const desc = newRole==='team_manager' ? `${roleLabel(newRole)} (chi nhánh ${branchName(newBranchId)})` : roleLabel(newRole);
+  const desc = newRole==='team_manager' ? `${roleLabel(newRole)} (chi nhánh ${branchName(newBranchId)})`
+    : isMktRole ? `${roleLabel(newRole)} (${mktBranchName(newMktBranchId)})`
+    : roleLabel(newRole);
   askConfirm('Đổi quyền', `Đổi vai trò của ${u.name} thành ${desc}?`, ()=>{
     u.role = newRole;
     u.branchId = newBranchId;
-    fbUpdateUser(u.id, {role:newRole, branchId:newBranchId});
+    u.mktBranchId = newMktBranchId;
+    fbUpdateUser(u.id, {role:newRole, branchId:newBranchId, mktBranchId:newMktBranchId});
     showToast(`Đã cập nhật quyền cho ${u.name}`);
     if(isSelf){ enterApp(); } else { renderMgrSettings(); }
   });
