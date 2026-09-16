@@ -1247,7 +1247,7 @@ function renderMyLeads(){
   if(unprocessedCount>0){
     bannerEl.style.display = 'flex';
     bannerEl.className = 'unprocessed-banner';
-    bannerEl.innerHTML = `<span>Bạn còn <b>${unprocessedCount}</b> data chưa cập nhật tình trạng.</span>`;
+    bannerEl.innerHTML = `<span>⚠️ <b>${unprocessedCount}</b> data chưa cập nhật. Cập nhật trước vòng sau, nếu không sẽ mất quyền nhận data.</span>`;
   } else {
     bannerEl.style.display = 'flex';
     bannerEl.className = 'unprocessed-banner ok';
