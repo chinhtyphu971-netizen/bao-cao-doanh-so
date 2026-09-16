@@ -3565,7 +3565,7 @@ function renderMgrSettings(){
       usersToShow.map(u=>`<tr>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
-        <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn hệ thống'}</td>
+        <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
         <td data-label="Mã PIN">
           ${scope
             ? `<span style="color:var(--ink-soft);" title="Chỉ Quản lý chung mới xem được mã PIN">••••</span>`
