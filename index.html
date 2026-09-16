@@ -1005,6 +1005,17 @@ function dailyReceivedCount(userId, date){
 function getOrComputeTodayRotation(){
   return state.dailyRotation || null;
 }
+function updateRotationPreview(){
+  const el = document.getElementById('rotationPreview');
+  if(!el) return;
+  const checkedIds = Array.from(document.querySelectorAll('.rotationBranchCheckbox:checked')).map(x=>x.value);
+  const onNames = state.branches.filter(b=>checkedIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
+  const offNames = state.branches.filter(b=>!checkedIds.includes(b.id)).map(b=>b.name).join(', ') || '—';
+  el.innerHTML = `
+    <div class="detail-row"><span class="k">Được chia</span><span class="v">${onNames}</span></div>
+    <div class="detail-row"><span class="k">Không được chia</span><span class="v">${offNames}</span></div>
+  `;
+}
 function saveTodayRotationSelection(){
   const ids = Array.from(document.querySelectorAll('.rotationBranchCheckbox:checked')).map(el=>el.value);
   if(ids.length===0){
@@ -1508,14 +1519,16 @@ function renderMgrLeads(){
       <div style="display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:10px;">
         ${state.branches.map(b=>`
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-            <input type="checkbox" class="rotationBranchCheckbox" value="${b.id}" ${selectedIds.includes(b.id)?'checked':''} style="width:14px; height:14px; margin:0;">
+            <input type="checkbox" class="rotationBranchCheckbox" value="${b.id}" ${selectedIds.includes(b.id)?'checked':''} style="width:14px; height:14px; margin:0;" onchange="updateRotationPreview()">
             <span>${b.name}</span>
           </label>
         `).join('') || '<span class="empty-note">Chưa có chi nhánh nào, vào Cài đặt để thêm.</span>'}
       </div>
+      <div id="rotationPreview" style="margin-bottom:10px;"></div>
       <button class="btn-primary btn-small" onclick="saveTodayRotationSelection()">Lưu team được chọn</button>
       ${savedInfo}
     `;
+    updateRotationPreview();
   }
 
   const unassigned = state.leads.filter(l=>!l.assignedTo);
