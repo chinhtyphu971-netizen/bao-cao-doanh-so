@@ -561,7 +561,8 @@
           </div>
           <div class="grid-3">
             <div class="stat-box"><div class="stat-label">Tổng data đã nhận</div><div class="stat-value" id="leadStatTotal">0</div></div>
-            <div class="stat-box"><div class="stat-label">Chưa xử lý (chưa cập nhật tình trạng)</div><div class="stat-value" id="leadStatUnprocessed">0</div></div>
+            <div class="stat-box"><div class="stat-label">Chưa cập nhật Tình trạng</div><div class="stat-value" id="leadStatNoStatus">0</div></div>
+            <div class="stat-box"><div class="stat-label">Thiếu Tên khách</div><div class="stat-value" id="leadStatNoName">0</div></div>
           </div>
           <div style="margin-top:12px;">
             <span class="history-link" onclick="toggleLeadStatsDetail()" id="leadStatsDetailToggle">Xem chi tiết theo người ▸</span>
@@ -1003,8 +1004,16 @@ function isManagerConfirmed(userId, date){
 function isEligibleTodayByAttendance(userId, date){
   return isManagerConfirmed(userId, date);
 }
+// 1 data được coi là "CHƯA XỬ LÝ" nếu: chưa có Tình trạng gì cả, HOẶC đã có Tình trạng nhưng còn
+// thiếu Tên khách — TRỪ 2 trường hợp "Không liên lạc được" / "không tìm thấy tk" (2 trạng thái này
+// đương nhiên không thể có tên khách, nên không tính là thiếu sót).
+function isLeadUnprocessed(l){
+  if(!l.status) return true;
+  if(l.status==='Không liên lạc được' || l.status==='không tìm thấy tk') return false;
+  return !l.customerName;
+}
 function hasUnprocessedBacklog(userId){
-  return state.leads.some(l=>l.assignedTo===userId && !l.status);
+  return state.leads.some(l=>l.assignedTo===userId && isLeadUnprocessed(l));
 }
 // Nếu bật khoá (state.enforceUnprocessedLock), người còn data CHƯA cập nhật tình trạng sẽ bị loại
 // khỏi vòng chia data mới, cho tới khi xử lý (cập nhật Tình trạng) hết toàn bộ data cũ đang có.
@@ -1255,7 +1264,7 @@ function renderLeadsStatsByDayInto(containerId, allLeadsForPerson){
     const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt));
     byDay[d] = byDay[d] || {total:0, unprocessed:0};
     byDay[d].total++;
-    if(!l.status) byDay[d].unprocessed++;
+    if(isLeadUnprocessed(l)) byDay[d].unprocessed++;
   });
   const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
   const body = document.getElementById(containerId);
@@ -1271,7 +1280,7 @@ function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
 
-  const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && !l.status).length;
+  const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && isLeadUnprocessed(l)).length;
   const bannerEl = document.getElementById('myUnprocessedBanner');
   if(unprocessedCount>0){
     bannerEl.style.display = 'flex';
@@ -1313,7 +1322,7 @@ function renderMyLeads(){
   }
   const statusFilter = document.getElementById('myLeadsStatusFilter').value;
   if(statusFilter==='__unprocessed__'){
-    allMyLeads = allMyLeads.filter(l=>!l.status);
+    allMyLeads = allMyLeads.filter(l=>isLeadUnprocessed(l));
   } else if(statusFilter){
     allMyLeads = allMyLeads.filter(l=>l.status===statusFilter);
   }
@@ -1407,9 +1416,11 @@ function renderLeadStats(){
     if(leadStatsDateTo && d > leadStatsDateTo) return false;
     return true;
   });
-  const unprocessed = inRange.filter(l=>!l.status);
+  const noStatusCount = inRange.filter(l=>!l.status).length;
+  const noNameCount = inRange.filter(l=>l.status && l.status!=='Không liên lạc được' && l.status!=='không tìm thấy tk' && !l.customerName).length;
   document.getElementById('leadStatTotal').textContent = inRange.length;
-  document.getElementById('leadStatUnprocessed').textContent = unprocessed.length;
+  document.getElementById('leadStatNoStatus').textContent = noStatusCount;
+  document.getElementById('leadStatNoName').textContent = noNameCount;
 
   // Chi tiết theo từng người (chỉ tính khi khối đang mở, tránh tính toán thừa khi đang gọn)
   if(document.getElementById('leadStatsDetailBody').style.display !== 'none'){
@@ -1430,7 +1441,7 @@ function renderLeadStatsDetail(inRange){
     if(!l.assignedTo) return;
     byPerson[l.assignedTo] = byPerson[l.assignedTo] || {total:0, unprocessed:0};
     byPerson[l.assignedTo].total++;
-    if(!l.status) byPerson[l.assignedTo].unprocessed++;
+    if(isLeadUnprocessed(l)) byPerson[l.assignedTo].unprocessed++;
   });
   const ids = Object.keys(byPerson).sort((a,b)=>byPerson[b].unprocessed-byPerson[a].unprocessed);
   const btn = document.getElementById('leadStatsDetailToggle');
@@ -1489,7 +1500,7 @@ function renderPersonLeadsPage(){
   }
   const statusFilter = document.getElementById('personLeadsStatusFilter').value;
   if(statusFilter==='__unprocessed__'){
-    leads = leads.filter(l=>!l.status);
+    leads = leads.filter(l=>isLeadUnprocessed(l));
   } else if(statusFilter){
     leads = leads.filter(l=>l.status===statusFilter);
   }
