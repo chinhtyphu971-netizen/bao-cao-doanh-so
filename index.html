@@ -1906,10 +1906,25 @@ const TRUNGTHU_SLOGANS = [
   '🎑 Mâm cỗ đầy ắp — Doanh số cũng đầy ắp nhé cả nhà!',
 ];
 const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐'];
+const TRUNGTHU_BG_PATTERNS = [
+  // Trăng + sao lấp lánh
+  "<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='45' cy='45' r='28' fill='rgba(255,216,160,0.09)'/><circle cx='170' cy='190' r='3' fill='rgba(255,216,160,0.10)'/><circle cx='210' cy='110' r='2.2' fill='rgba(255,216,160,0.10)'/><circle cx='120' cy='210' r='2.6' fill='rgba(255,216,160,0.10)'/><circle cx='70' cy='170' r='1.8' fill='rgba(255,216,160,0.08)'/></svg>",
+  // Đèn lồng lơ lửng
+  "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><g fill='none' stroke='rgba(255,216,160,0.10)' stroke-width='2.2'><rect x='92' y='60' width='34' height='44' rx='16'/><line x1='109' y1='48' x2='109' y2='60'/><line x1='109' y1='104' x2='109' y2='122'/><circle cx='109' cy='40' r='4' fill='rgba(255,216,160,0.10)' stroke='none'/></g></svg>",
+  // Trăng + đèn lồng kết hợp
+  "<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><circle cx='200' cy='55' r='24' fill='rgba(255,216,160,0.08)'/><g fill='none' stroke='rgba(255,216,160,0.10)' stroke-width='2'><rect x='50' y='175' width='30' height='38' rx='14'/><line x1='65' y1='164' x2='65' y2='175'/><line x1='65' y1='213' x2='65' y2='228'/><circle cx='65' cy='156' r='3.6' fill='rgba(255,216,160,0.10)' stroke='none'/></g></svg>",
+];
 function initTrungThu(){
   const bannerEl = document.getElementById('trungThuBanner');
   if(bannerEl){
     bannerEl.textContent = TRUNGTHU_SLOGANS[Math.floor(Math.random()*TRUNGTHU_SLOGANS.length)];
+  }
+  if(!initTrungThu._bgApplied){
+    initTrungThu._bgApplied = true;
+    const svg = TRUNGTHU_BG_PATTERNS[Math.floor(Math.random()*TRUNGTHU_BG_PATTERNS.length)];
+    document.body.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    document.body.style.backgroundRepeat = 'repeat';
+    document.body.style.backgroundAttachment = 'fixed';
   }
   if(initTrungThu._started) return; // chỉ bật hiệu ứng bay 1 lần duy nhất, khỏi chồng nhiều interval
   initTrungThu._started = true;
