@@ -655,7 +655,9 @@
               </select>
             </div>
           </div>
-          <div id="mgrLeadsListSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
+          <div id="mgrLeadsListSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
+          <span class="history-link" onclick="toggleMgrLeadsListStatsByDay()" id="mgrLeadsListStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="mgrLeadsListStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrLeadsListTable" class="rtable"></table></div>
           <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
         </div>
@@ -1610,6 +1612,14 @@ function renderPersonLeadsPage(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
+function toggleMgrLeadsListStatsByDay(){
+  const body = document.getElementById('mgrLeadsListStatsByDay');
+  const btn = document.getElementById('mgrLeadsListStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderMgrLeadsList();
+}
 let mgrLeadsListPage = 1;
 function onMgrLeadsListFilterChange(){
   mgrLeadsListPage = 1; // doi bo loc/tim kiem/so dong-trang -> luon quay ve trang 1
@@ -1681,6 +1691,9 @@ function renderMgrLeadsList(){
   }
 
   const unprocessedCount = leads.filter(l=>isLeadUnprocessed(l)).length;
+  if(document.getElementById('mgrLeadsListStatsByDay').style.display !== 'none'){
+    renderLeadsStatsByDayInto('mgrLeadsListStatsByDay', leads);
+  }
   const totalFiltered = leads.length;
 
   // Phân trang — tìm kiếm/lọc luôn áp dụng trên TOÀN BỘ danh sách ở trên rồi mới cắt trang để hiển
