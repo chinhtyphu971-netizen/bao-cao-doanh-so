@@ -1336,12 +1336,12 @@ function renderMyLeads(){
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
-          <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)">
+          <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
           <span class="copy-icon" style="white-space:nowrap;" onclick="copyText(document.getElementById('custName_${l.id}').value,'Đã copy tên khách')">📋</span>
         </div>
       </td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
+        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;';">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
@@ -1521,9 +1521,9 @@ function renderPersonLeadsPage(){
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)}" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value);">
+        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;';">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
