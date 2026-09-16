@@ -404,9 +404,12 @@
 
       <div id="navMkt" style="display:none;">
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
+        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
         <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">Thống kê team MKT</span></div>
+        <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
+        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
         <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
@@ -654,7 +657,7 @@
             <h2>Nhập từng số</h2>
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điền xong bấm "Thêm" hoặc nhấn Enter ở ô SĐT — form tự làm sạch để nhập tiếp số kế tiếp</p>
             <div class="field"><label>Số điện thoại *</label><input id="mktPhone" placeholder="09xxxxxxxx" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
-            <div class="field"><label>Nguồn *</label><input id="mktSource" list="mktSourceList" placeholder="Vd: Xưởng Sỉ Ánh Loan" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"><datalist id="mktSourceList"></datalist></div>
+            <div class="field"><label>Nguồn *</label><select id="mktSource"></select></div>
             <div class="field"><label>Tên khách (không bắt buộc)</label><input id="mktName" placeholder="Để trống nếu chưa có" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
             <div class="login-error" id="mktSingleError"></div>
             <button class="btn-primary" onclick="submitMktSingle()">+ Thêm</button>
@@ -663,11 +666,14 @@
           <div class="card" style="margin-bottom:0;">
             <h2>Dán hàng loạt</h2>
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Dùng khi có sẵn danh sách nhiều số cùng 1 Nguồn — dán từ Excel/Zalo, mỗi dòng 1 số (có thể kèm Tên, cách nhau bởi dấu phẩy hoặc Tab)</p>
-            <div class="field"><label>Nguồn cho cả danh sách này *</label><input id="mktBulkSource" list="mktSourceList" placeholder="Vd: Xưởng Sỉ Ánh Loan"></div>
-            <div class="field"><label>Danh sách số điện thoại</label><textarea id="mktBulkText" rows="6" placeholder="0912345678&#10;0987654321, Chị Lan&#10;0909009009" oninput="updateMktBulkPreview()"></textarea></div>
+            <div class="field"><label>Nguồn cho cả danh sách này *</label><select id="mktBulkSource" onchange="resetMktBulkPreview()"></select></div>
+            <div class="field"><label>Danh sách số điện thoại</label><textarea id="mktBulkText" rows="6" placeholder="0912345678&#10;0987654321, Chị Lan&#10;0909009009" oninput="resetMktBulkPreview()"></textarea></div>
             <div class="login-error" id="mktBulkError"></div>
-            <div id="mktBulkPreview" style="font-size:13px; color:var(--ink-soft); margin:6px 0;"></div>
-            <button class="btn-primary" onclick="submitMktBulk()">+ Thêm tất cả</button>
+            <div id="mktBulkPreview" style="font-size:13px; margin:6px 0; max-height:180px; overflow-y:auto;"></div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn-ghost" onclick="previewMktBulk()">Xem trước</button>
+              <button class="btn-primary" id="mktBulkSubmitBtn" onclick="submitMktBulk()" disabled>+ Thêm tất cả vào danh sách</button>
+            </div>
           </div>
         </div>
 
@@ -687,6 +693,14 @@
             <div class="stat-box"><div class="stat-label">Đang chờ chia</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
           </div>
           <div class="table-wrap"><table id="mktManagerStatsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MKT: nộp báo cáo (khung tạm, chưa có form) ---------- -->
+      <div id="page-mktReport" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Nộp báo cáo</h1><p>Đang được xây dựng — form nộp báo cáo cho MKT sẽ sớm có ở đây</p></div></div>
+        <div class="card">
+          <div class="empty-note">Chưa có nội dung — sẽ cập nhật sau.</div>
         </div>
       </div>
 
@@ -766,9 +780,23 @@
               <label>Team MKT</label>
               <select id="newAccMktBranch"></select>
             </div>
+            <div class="field" id="newAccMktSourcesField" style="display:none;">
+              <label>Nguồn phụ trách (tối đa 3, cách nhau bằng dấu phẩy)</label>
+              <input id="newAccMktSources" placeholder="Vd: Xưởng Sỉ Ánh Loan, Thảo Xưởng Sỉ, Hồng Nhung sỉ">
+            </div>
           </div>
           <div class="login-error" id="newAccError"></div>
           <button class="btn-primary" style="margin-top:6px;" onclick="createAccountByManager()">Tạo tài khoản</button>
+        </div>
+
+        <div class="card" id="settingsMktBranchCard" style="display:none;">
+          <h2>Team MKT</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Team riêng cho vai trò MKT / Trưởng team MKT — không liên quan gì tới chi nhánh bên Sale ở dưới</p>
+          <div id="settingsMktBranchList" style="margin:12px 0;"></div>
+          <div style="display:flex; gap:8px;">
+            <input id="settingsNewMktBranch" placeholder="Tên Team MKT mới">
+            <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
+          </div>
         </div>
 
         <div class="grid-2">
@@ -783,16 +811,6 @@
           <div class="card">
             <h2>Người dùng đã đăng ký</h2>
             <div class="table-wrap"><table id="settingsUserTable" class="rtable"></table></div>
-          </div>
-        </div>
-
-        <div class="card" id="settingsMktBranchCard" style="display:none;">
-          <h2>Team MKT</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Team riêng cho vai trò MKT / Trưởng team MKT — không liên quan gì tới chi nhánh bên Sale ở trên</p>
-          <div id="settingsMktBranchList" style="margin:12px 0;"></div>
-          <div style="display:flex; gap:8px;">
-            <input id="settingsNewMktBranch" placeholder="Tên Team MKT mới">
-            <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
           </div>
         </div>
 
@@ -1414,10 +1432,27 @@ function createLeadFromMkt(phone, source, customerName){
   return lead;
 }
 function populateMktSourceList(){
-  const list = document.getElementById('mktSourceList');
-  if(!list) return;
-  const sources = Array.from(new Set(state.leads.map(l=>leadSource(l)).filter(s=>s && s!=='—'))).sort((a,b)=>a.localeCompare(b,'vi'));
-  list.innerHTML = sources.map(s=>`<option value="${s}"></option>`).join('');
+  const sources = (currentUser() && currentUser().assignedSources) || [];
+  const singleSel = document.getElementById('mktSource');
+  const bulkSel = document.getElementById('mktBulkSource');
+  const optionsHtml = sources.length
+    ? sources.map(s=>`<option value="${s}">${s}</option>`).join('')
+    : '<option value="">— Chưa được gán Nguồn nào —</option>';
+  if(singleSel) singleSel.innerHTML = optionsHtml;
+  if(bulkSel) bulkSel.innerHTML = optionsHtml;
+
+  const warnHtml = sources.length===0
+    ? '<div class="login-error" style="display:block;">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán tối đa 3 Nguồn trước khi nhập data.</div>'
+    : '';
+  const singleWarnEl = document.getElementById('mktSingleError');
+  const bulkWarnEl = document.getElementById('mktBulkError');
+  if(sources.length===0){
+    if(singleWarnEl && !singleWarnEl.textContent) singleWarnEl.innerHTML = warnHtml;
+    if(bulkWarnEl && !bulkWarnEl.textContent) bulkWarnEl.innerHTML = warnHtml;
+  }
+  document.querySelectorAll('#page-mktInput button.btn-primary').forEach(btn=>{
+    if(sources.length===0) btn.setAttribute('disabled',''); else btn.removeAttribute('disabled');
+  });
 }
 // QUY TẮC: 1 SĐT được nhập tối đa 3 lần vào hệ thống, và mỗi lần PHẢI từ 1 Nguồn khác nhau — không
 // được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 3 Nguồn khác nhau.
@@ -1469,50 +1504,75 @@ function submitMktSingle(){
   phoneEl.focus();
   renderMktInputPage();
 }
-function updateMktBulkPreview(){
-  const raw = document.getElementById('mktBulkText').value;
-  const lines = raw.split('\n').map(s=>s.trim()).filter(Boolean);
-  document.getElementById('mktBulkPreview').textContent = lines.length>0 ? `${lines.length} dòng sẵn sàng để thêm` : '';
+let mktBulkPreviewResults = null;
+function resetMktBulkPreview(){
+  mktBulkPreviewResults = null;
+  document.getElementById('mktBulkSubmitBtn').disabled = true;
+  document.getElementById('mktBulkPreview').innerHTML = '';
+  document.getElementById('mktBulkError').textContent = '';
 }
-function submitMktBulk(){
-  const sourceEl = document.getElementById('mktBulkSource');
-  const textEl = document.getElementById('mktBulkText');
-  const errEl = document.getElementById('mktBulkError');
-  errEl.textContent = '';
-
-  const source = sourceEl.value.trim();
-  if(!source){ errEl.textContent = 'Vui lòng nhập Nguồn cho cả danh sách.'; sourceEl.focus(); return; }
-
-  const rawLines = textEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(rawLines.length===0){ errEl.textContent = 'Chưa dán số điện thoại nào.'; return; }
-
-  const stagedSourcesByPhone = {}; // digits -> [source,...] đã thêm ngay trong lượt này
-  let addedCount = 0, skippedInvalid = 0, skippedSameSource = 0, skippedMaxReached = 0;
-
-  rawLines.forEach(line=>{
+function analyzeMktBulkLines(source){
+  const rawLines = document.getElementById('mktBulkText').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const stagedSourcesByPhone = {}; // digits -> [source,...] đã "tạm tính" hợp lệ ngay trong lượt xem trước này
+  return rawLines.map(line=>{
     const parts = line.split(/\t|,/).map(s=>s.trim()).filter(Boolean);
     const phone = parts[0] || '';
     const name = parts[1] || '';
     const digits = normalizePhone(phone);
-    if(digits.length < 8){ skippedInvalid++; return; }
-
+    if(digits.length < 8){
+      return {line, phone, name, digits, status:'invalid', text:'Số không hợp lệ'};
+    }
     const check = checkPhoneEntryRule(digits, source, stagedSourcesByPhone[digits]);
     if(!check.allowed){
-      if(check.reason==='same_source') skippedSameSource++; else skippedMaxReached++;
-      return;
+      const text = check.reason==='same_source'
+        ? `Đã nhập từ đúng Nguồn "${source}" rồi`
+        : `Đã đạt tối đa 3 lần (${check.sources.join(', ')})`;
+      return {line, phone, name, digits, status:check.reason, text};
     }
-    createLeadFromMkt(phone, source, name);
     stagedSourcesByPhone[digits] = (stagedSourcesByPhone[digits]||[]).concat(source);
+    return {line, phone, name, digits, status:'valid', text: check.sources.length>0 ? `Hợp lệ — lần ${check.sources.length+1}/3` : 'Hợp lệ'};
+  });
+}
+function previewMktBulk(){
+  const sourceEl = document.getElementById('mktBulkSource');
+  const errEl = document.getElementById('mktBulkError');
+  errEl.textContent = '';
+  resetMktBulkPreview();
+
+  const source = sourceEl.value.trim();
+  if(!source){ errEl.textContent = 'Vui lòng nhập Nguồn cho cả danh sách.'; sourceEl.focus(); return; }
+  const rawLines = document.getElementById('mktBulkText').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(rawLines.length===0){ errEl.textContent = 'Chưa dán số điện thoại nào.'; return; }
+
+  const results = analyzeMktBulkLines(source);
+  mktBulkPreviewResults = {source, results};
+
+  const validCount = results.filter(r=>r.status==='valid').length;
+  const skippedCount = results.length - validCount;
+  const colorFor = s => s==='valid' ? 'var(--success)' : (s==='invalid' ? 'var(--ink-soft)' : 'var(--danger)');
+  const iconFor = s => s==='valid' ? '✓' : (s==='invalid' ? '✗' : '⚠');
+
+  document.getElementById('mktBulkPreview').innerHTML =
+    `<div style="margin-bottom:6px; font-weight:600; color:var(--ink);">${validCount} số hợp lệ sẽ được thêm${skippedCount>0?` — ${skippedCount} số sẽ bị bỏ qua`:''}</div>` +
+    results.map(r=>{
+      const label = r.status==='valid' ? (r.name?`— ${r.name}`:'') : `— ${r.text}`;
+      return `<div style="color:${colorFor(r.status)};">${iconFor(r.status)} ${r.phone||r.line} ${label}</div>`;
+    }).join('');
+
+  document.getElementById('mktBulkSubmitBtn').disabled = validCount===0;
+}
+function submitMktBulk(){
+  if(!mktBulkPreviewResults) return; // phong ho, nut da bi disable neu chua xem truoc
+  const {source, results} = mktBulkPreviewResults;
+  let addedCount = 0;
+  results.forEach(r=>{
+    if(r.status!=='valid') return;
+    createLeadFromMkt(r.phone, source, r.name);
     addedCount++;
   });
-
-  let msg = `Đã thêm ${addedCount} số.`;
-  if(skippedSameSource>0) msg += ` Bỏ qua ${skippedSameSource} số đã nhập từ đúng Nguồn này rồi.`;
-  if(skippedMaxReached>0) msg += ` Bỏ qua ${skippedMaxReached} số đã đạt tối đa 3 lần nhập.`;
-  if(skippedInvalid>0) msg += ` Bỏ qua ${skippedInvalid} dòng không hợp lệ.`;
-  showToast(msg);
-  textEl.value = '';
-  updateMktBulkPreview();
+  showToast(`Đã thêm ${addedCount} số vào kho data.`);
+  document.getElementById('mktBulkText').value = '';
+  resetMktBulkPreview();
   renderMktInputPage();
 }
 function renderMktManagerStats(){
@@ -1552,8 +1612,8 @@ function renderMktManagerStats(){
 }
 
 function renderMktInputPage(){
+  resetMktBulkPreview();
   populateMktSourceList();
-  updateMktBulkPreview();
   const u = currentUser();
   const today = todayStr();
   const mine = state.leads.filter(l=>l.createdBy===u.id && toLocalDateStr(new Date(l.importedAt||0))===today)
@@ -2543,8 +2603,8 @@ function closeSidebar(){
 function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput'){ pageId='mktInput'; } // MKT chỉ có đúng 1 trang này
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats'){ pageId='mktManagerStats'; } // Trưởng team MKT cũng chỉ có đúng 1 trang
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport'){ pageId='mktInput'; } // MKT: 2 trang này thôi
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport'){ pageId='mktManagerStats'; } // Trưởng team MKT: 3 trang này thôi
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -3551,7 +3611,7 @@ function renderPermissionsTable(){
     table.innerHTML = '<tr><td class="empty-note">Cần có ít nhất 1 chi nhánh trước khi phân quyền Quản lý team.</td></tr>';
     return;
   }
-  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh / Team</th><th>Trạng thái</th><th></th></tr>` +
+  table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh / Team</th><th>Nguồn phụ trách</th><th>Trạng thái</th><th></th></tr>` +
     rows.map(u=>{
       const isMktRole = u.role==='mkt' || u.role==='mkt_manager';
       const isGlobalRole = u.role==='general_manager' || u.role==='data_manager';
@@ -3564,11 +3624,13 @@ function renderPermissionsTable(){
       const mktBranchSel = `<select id="mktBranchSel_${u.id}" ${isMktRole?'':'style="display:none;"'}>` +
         state.mktBranches.map(b=>`<option value="${b.id}" ${u.mktBranchId===b.id?'selected':''}>${b.name}</option>`).join('') +
         `</select>`;
+      const mktSourcesInput = `<input id="mktSourcesInput_${u.id}" value="${(u.assignedSources||[]).join(', ')}" placeholder="Tối đa 3 Nguồn, cách nhau bằng dấu phẩy" style="min-width:220px; ${isMktRole?'':'display:none;'}">`;
       const isPaused = u.active===false;
       return `<tr>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleSel}</td>
         <td data-label="Chi nhánh / Team">${branchSel}${mktBranchSel}</td>
+        <td data-label="Nguồn phụ trách">${mktSourcesInput}</td>
         <td data-label="Trạng thái"><span class="badge ${isPaused?'badge-warn':'badge-ok'}" style="cursor:pointer;" onclick="toggleUserActive('${u.id}')">${isPaused?'Tạm nghỉ (bấm để mở lại)':'Đang làm (bấm để tạm nghỉ)'}</span></td>
         <td><button class="btn-ghost btn-small" onclick="applyPermissionChange('${u.id}')">Lưu</button></td>
       </tr>`;
@@ -3580,6 +3642,14 @@ function onNewAccRoleChange(){
   const isGlobalRole = role==='general_manager' || role==='data_manager';
   document.getElementById('newAccBranchField').style.display = (isGlobalRole || isMktRole) ? 'none' : 'block';
   document.getElementById('newAccMktBranchField').style.display = isMktRole ? 'block' : 'none';
+  document.getElementById('newAccMktSourcesField').style.display = isMktRole ? 'block' : 'none';
+}
+// Parse chuỗi "Nguồn A, Nguồn B" thành mảng tối đa 3 Nguồn, loại bỏ trùng/rỗng.
+// Trả về null nếu vượt quá 3 (để chỗ gọi tự báo lỗi đúng ngữ cảnh của nó).
+function parseMktSourcesInput(raw){
+  const list = Array.from(new Set(String(raw||'').split(',').map(s=>s.trim()).filter(Boolean)));
+  if(list.length > 3) return null;
+  return list;
 }
 function createAccountByManager(){
   const scope = scopeBranchId();
@@ -3592,7 +3662,7 @@ function createAccountByManager(){
   const nameTaken = state.users.some(u=>u.name.trim().normalize('NFC').toLowerCase()===name.toLowerCase());
   if(nameTaken){ errEl.textContent = 'Đã có người dùng tên này, chọn tên khác để tránh nhầm khi đăng nhập.'; return; }
 
-  let role, branchId, mktBranchId=null;
+  let role, branchId, mktBranchId=null, assignedSources=[];
   if(scope){
     role = 'staff';
     branchId = scope;
@@ -3605,10 +3675,13 @@ function createAccountByManager(){
     if(isMktRole){
       mktBranchId = document.getElementById('newAccMktBranch').value;
       if(!mktBranchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 Team MKT trước khi tạo tài khoản.'; return; }
+      const parsed = parseMktSourcesInput(document.getElementById('newAccMktSources').value);
+      if(parsed===null){ errEl.textContent = 'Mỗi người tối đa 3 Nguồn — bớt lại giúp mình.'; return; }
+      assignedSources = parsed;
     }
   }
 
-  const user = {id:uid(), name, pin, role, branchId, mktBranchId, createdAt:Date.now()};
+  const user = {id:uid(), name, pin, role, branchId, mktBranchId, assignedSources, createdAt:Date.now()};
   state.users.push(user);
   fbSetUser(user);
   showToast(`Đã tạo tài khoản cho ${name} — đưa tên và mã PIN "${pin}" cho họ để đăng nhập.`);
@@ -3631,6 +3704,7 @@ function onPermissionRoleChange(userId){
   const isGlobalRole = sel.value==='general_manager' || sel.value==='data_manager';
   document.getElementById('branchSel_'+userId).style.display = (isGlobalRole||isMktRole) ? 'none' : 'inline-block';
   document.getElementById('mktBranchSel_'+userId).style.display = isMktRole ? 'inline-block' : 'none';
+  document.getElementById('mktSourcesInput_'+userId).style.display = isMktRole ? 'inline-block' : 'none';
 }
 function applyPermissionChange(userId){
   const u = state.users.find(x=>x.id===userId);
@@ -3638,16 +3712,23 @@ function applyPermissionChange(userId){
   const newRole = document.getElementById('roleSel_'+userId).value;
   const branchSel = document.getElementById('branchSel_'+userId);
   const mktBranchSel = document.getElementById('mktBranchSel_'+userId);
+  const mktSourcesInput = document.getElementById('mktSourcesInput_'+userId);
   const isMktRole = newRole==='mkt' || newRole==='mkt_manager';
   const isGlobalRole = newRole==='general_manager' || newRole==='data_manager';
   const newBranchId = (isGlobalRole||isMktRole) ? null : branchSel.value;
   const newMktBranchId = isMktRole ? mktBranchSel.value : null;
+  let newAssignedSources = [];
 
   if(!isGlobalRole && !isMktRole && !newBranchId){
     showToast('Cần chọn chi nhánh phụ trách'); return;
   }
   if(isMktRole && !newMktBranchId){
     showToast('Cần chọn Team MKT'); return;
+  }
+  if(isMktRole){
+    const parsed = parseMktSourcesInput(mktSourcesInput.value);
+    if(parsed===null){ showToast('Mỗi người tối đa 3 Nguồn — bớt lại giúp mình'); return; }
+    newAssignedSources = parsed;
   }
   if(u.role==='general_manager' && newRole!=='general_manager'){
     const otherAdmins = state.users.filter(x=>x.role==='general_manager' && x.id!==u.id);
@@ -3665,7 +3746,8 @@ function applyPermissionChange(userId){
     u.role = newRole;
     u.branchId = newBranchId;
     u.mktBranchId = newMktBranchId;
-    fbUpdateUser(u.id, {role:newRole, branchId:newBranchId, mktBranchId:newMktBranchId});
+    u.assignedSources = newAssignedSources;
+    fbUpdateUser(u.id, {role:newRole, branchId:newBranchId, mktBranchId:newMktBranchId, assignedSources:newAssignedSources});
     showToast(`Đã cập nhật quyền cho ${u.name}`);
     if(isSelf){ enterApp(); } else { renderMgrSettings(); }
   });
