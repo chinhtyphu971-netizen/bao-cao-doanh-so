@@ -837,7 +837,12 @@ function initFirebase(){
   // chủ động đổi lại (không tự động xoay/reset mỗi ngày), nên theo dõi thẳng 1 node cố định,
   // không cần join theo ngày như checkins/managerConfirms.
   fbDailyRotation.on('value', snap=>{
-    state.dailyRotation = snap.val() || null;
+    const val = snap.val();
+    // Dữ liệu CŨ (từ trước khi đổi cách lưu) có dạng {"2026-09-16": {branchIds:[...]}} theo NGÀY,
+    // khác hẳn định dạng MỚI {branchIds:[...], computedAt, setBy}. Nếu lỡ còn sót dữ liệu cũ, coi
+    // như CHƯA CHỌN (null) để không bị lỗi khi đọc — Quản lý chỉ cần tick chọn lại 1 lần là sẽ tự
+    // ghi đè thành đúng định dạng mới, không cần xoá tay trên Firebase.
+    state.dailyRotation = (val && Array.isArray(val.branchIds)) ? val : null;
     markLoaded('dailyRotation'); onDataChanged(); tryAutoDistribute();
   });
   // checkins / managerConfirms tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu của HÔM NAY nên chỉ
