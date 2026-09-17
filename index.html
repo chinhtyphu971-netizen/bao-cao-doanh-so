@@ -404,11 +404,13 @@
 
       <div id="navMkt" style="display:none;">
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
+        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">Danh sách data</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
         <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">Thống kê team MKT</span></div>
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
+        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">Danh sách data</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
@@ -720,6 +722,19 @@
         </div>
       </div>
 
+      <!-- ---------- MKT: xem lại toàn bộ data mình đã nhập + tình trạng Sale cập nhật (chỉ xem) ---------- -->
+      <div id="page-mktMyLeadsList" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Danh sách data</h1><p>Toàn bộ data bạn đã nhập, kèm Tên khách/Tình trạng do Sale cập nhật — chỉ xem, không sửa được</p></div></div>
+        <div class="card">
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMktMyLeadsList()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
+          </div>
+          <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
+          <div class="table-wrap"><table id="mktMyLeadsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
       <div id="page-mgrLeadsList" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div></div>
         <div class="card">
@@ -899,6 +914,20 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="chatModal">
+  <div class="modal" style="max-width:420px;">
+    <h2 id="chatModalTitle">Chat</h2>
+    <div id="chatMessagesList" style="max-height:340px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px; padding-right:4px;"></div>
+    <div style="display:flex; gap:8px;">
+      <input id="chatInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter'){event.preventDefault(); sendChatMessage();}">
+      <button class="btn-primary" onclick="sendChatMessage()">Gửi</button>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closeChatModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="historyModal">
   <div class="modal" style="max-width:380px;">
     <h2>Lịch sử báo cáo</h2>
@@ -1001,7 +1030,7 @@ let state = {
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1054,6 +1083,7 @@ function initFirebase(){
   fbMktSources = db.ref('mktSources');
   fbTeamsTrash = db.ref('teamsTrash');
   fbSelfLeads = db.ref('selfLeads');
+  fbChats = db.ref('chats');
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
@@ -1667,6 +1697,55 @@ function renderMktManagerStats(){
     </tr>`).join('') + `</tbody>`;
 }
 
+function renderMktMyLeadsList(){
+  const u = currentUser();
+  ensureStatusFilterPopulated('mktMyLeadsStatusFilter');
+
+  let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
+
+  const rawQuery = document.getElementById('mktMyLeadsSearch').value.trim();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+    const textQuery = rawQuery.toLowerCase();
+    leads = leads.filter(l=>{
+      const phoneDigits = leadPhone(l).replace(/\D/g,'').replace(/^0+/,'');
+      const matchesPhone = digitsQuery && phoneDigits.includes(digitsQuery);
+      const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
+      return matchesPhone || matchesName;
+    });
+  }
+  const statusFilter = document.getElementById('mktMyLeadsStatusFilter').value;
+  if(statusFilter==='__unprocessed__'){
+    leads = leads.filter(l=>isLeadUnprocessed(l));
+  } else if(statusFilter){
+    leads = leads.filter(l=>l.status===statusFilter);
+  }
+
+  document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data`;
+
+  const table = document.getElementById('mktMyLeadsTable');
+  if(leads.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có data nào phù hợp.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>SĐT</th><th>Nguồn</th><th>Người nhận</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
+    leads.map(l=>{
+      const assignee = state.users.find(x=>x.id===l.assignedTo);
+      const statusHtml = l.status
+        ? `<span class="badge" style="${leadStatusStyle(l.status)}">${l.status}</span>`
+        : '<span style="color:var(--ink-soft);">Chưa cập nhật</span>';
+      const chatBtn = assignee ? `<button class="btn-ghost btn-small" onclick="openChatWithUser('${assignee.id}')">💬 Chat</button>` : '';
+      return `<tr>
+        <td data-label="Ngày nhận">${fmtDateTimeShort(l.importedAt||l.assignedAt)}</td>
+        <td data-label="SĐT">${leadPhone(l)}</td>
+        <td data-label="Nguồn">${leadSource(l)}</td>
+        <td data-label="Người nhận">${l.assignedToName || 'Chưa chia'}</td>
+        <td data-label="Tên khách">${l.customerName || '—'}</td>
+        <td data-label="Tình trạng">${statusHtml}</td>
+        <td>${chatBtn}</td>
+      </tr>`;
+    }).join('') + `</tbody>`;
+}
 function renderMktInputPage(){
   resetMktBulkPreview();
   populateMktSourceList();
@@ -2389,6 +2468,68 @@ function copyText(text, message){
     fallbackCopy(text, done);
   }
 }
+
+/* =========================== CHAT 1-1 GIỮA 2 NGƯỜI DÙNG (vd MKT ↔ Sale) =========================== */
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function chatConversationId(userIdA, userIdB){
+  return [userIdA, userIdB].sort().join('_');
+}
+let currentChatConversationId = null;
+let currentChatRef = null;
+function openChatWithUser(otherUserId){
+  const me = currentUser();
+  const other = state.users.find(u=>u.id===otherUserId);
+  if(!me || !other) return;
+  if(otherUserId===me.id){ showToast('Không thể tự chat với chính mình'); return; }
+
+  currentChatConversationId = chatConversationId(me.id, otherUserId);
+  document.getElementById('chatModalTitle').textContent = 'Chat với ' + other.name;
+  document.getElementById('chatMessagesList').innerHTML = '<div class="empty-note">Đang tải...</div>';
+  document.getElementById('chatInput').value = '';
+  document.getElementById('chatModal').classList.add('show');
+  setTimeout(()=>document.getElementById('chatInput').focus(), 50);
+
+  if(currentChatRef) currentChatRef.off();
+  currentChatRef = fbChats.child(currentChatConversationId);
+  currentChatRef.on('value', snap=>{
+    const msgs = Object.values(snap.val()||{}).sort((a,b)=>a.sentAt-b.sentAt);
+    renderChatMessages(msgs);
+  });
+}
+function renderChatMessages(msgs){
+  const me = currentUser();
+  const list = document.getElementById('chatMessagesList');
+  if(msgs.length===0){
+    list.innerHTML = '<div class="empty-note">Chưa có tin nhắn nào — gửi lời chào đầu tiên nhé!</div>';
+    return;
+  }
+  list.innerHTML = msgs.map(m=>{
+    const mine = m.senderId===me.id;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:80%; background:${mine?'var(--accent)':'var(--panel)'}; color:${mine?'var(--accent-ink)':'var(--ink)'}; border:1px solid var(--line); border-radius:12px; padding:8px 12px;">
+      ${!mine?`<div style="font-size:11px; color:var(--ink-soft); margin-bottom:2px;">${escapeHtml(m.senderName)}</div>`:''}
+      <div style="font-size:14px; white-space:pre-wrap; word-break:break-word;">${escapeHtml(m.text)}</div>
+      <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>`;
+  }).join('');
+  list.scrollTop = list.scrollHeight;
+}
+function sendChatMessage(){
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text || !currentChatConversationId) return;
+  const me = currentUser();
+  const msgId = uid();
+  const msg = {id:msgId, senderId:me.id, senderName:me.name, text, sentAt:Date.now()};
+  fbChats.child(currentChatConversationId).child(msgId).set(msg);
+  input.value = '';
+}
+function closeChatModal(){
+  document.getElementById('chatModal').classList.remove('show');
+  if(currentChatRef){ currentChatRef.off(); currentChatRef = null; }
+  currentChatConversationId = null;
+}
 function copyPin(pin, name){
   copyText(pin, `Đã copy mã PIN của ${name}`);
 }
@@ -2760,8 +2901,8 @@ function closeSidebar(){
 function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport'){ pageId='mktInput'; } // MKT: 2 trang này thôi
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport'){ pageId='mktManagerStats'; } // Quản lý team MKT: 3 trang này thôi
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList'){ pageId='mktInput'; } // MKT: 3 trang này thôi
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList'){ pageId='mktManagerStats'; } // Quản lý team MKT: 4 trang này thôi
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -2778,6 +2919,7 @@ function goPage(pageId){
   if(pageId==='mgrTrash') renderMgrTrash();
   if(pageId==='mgrSettings') renderMgrSettings();
   if(pageId==='mktInput') renderMktInputPage();
+  if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
   if(pageId==='mktManagerStats') renderMktManagerStats();
 }
 
