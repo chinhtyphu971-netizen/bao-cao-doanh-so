@@ -754,6 +754,21 @@
           <div class="table-wrap"><table id="mgrLeadsListTable" class="rtable"></table></div>
           <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
         </div>
+
+        <div class="card" style="margin-top:20px;">
+          <h2 style="margin-top:0;">Data tự tìm <span style="font-weight:400; font-size:13px; color:var(--ink-soft);">(tổng hợp của tất cả mọi người)</span></h2>
+          <p style="color:var(--ink-soft); font-size:13px; margin-top:-6px;">Chỉ xem — đây là data mỗi Sale tự ghi lại khi họ tự tìm được, không phải data hệ thống tự động chia ở bảng trên.</p>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:200px;"><label>Lọc theo ngày</label><input type="date" id="mgrSelfLeadsDateFilter" onchange="renderMgrSelfLeadsList()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo Sale</label><select id="mgrSelfLeadsPersonFilter" onchange="renderMgrSelfLeadsList()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrSelfLeadsSourceFilter" onchange="renderMgrSelfLeadsList()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Trạng thái</label><select id="mgrSelfLeadsStatusFilter" onchange="renderMgrSelfLeadsList()"></select></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT/Link FB hoặc tên khách</label><input id="mgrSelfLeadsSearch" placeholder="Gõ để tìm..." oninput="renderMgrSelfLeadsList()"></div>
+            <div style="align-self:flex-end;"><button class="btn-ghost btn-small" onclick="document.getElementById('mgrSelfLeadsDateFilter').value=''; document.getElementById('mgrSelfLeadsSourceFilter').value=''; document.getElementById('mgrSelfLeadsStatusFilter').value=''; document.getElementById('mgrSelfLeadsSearch').value=''; renderMgrSelfLeadsList();">Xoá hết bộ lọc</button></div>
+          </div>
+          <div id="mgrSelfLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
+          <div class="table-wrap"><table id="mgrSelfLeadsTable" class="rtable"></table></div>
+        </div>
       </div>
 
       <!-- ---------- MANAGER: xem/sửa data của 1 người cụ thể ---------- -->
@@ -1003,6 +1018,33 @@ const FIREBASE_CONFIG = {
   databaseURL: "https://bao-cao-doanh-so-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "bao-cao-doanh-so",
 };
+
+/* =========================================================================
+   ĐỒNG BỘ DATA MKT SANG GOOGLE SHEET RIÊNG (1 chiều, chỉ để ghi log)
+   Mỗi khi hệ thống TỰ ĐỘNG chia 1 data do MKT nhập tay (id bắt đầu "manual_")
+   cho 1 Sale, sẽ gửi 1 dòng (SĐT, Nguồn, Sale nhận) sang Google Sheet qua
+   Apps Script Web App bên dưới. Dán URL dạng ".../exec" sau khi Deploy xong.
+   Để trống thì tính năng này tự tắt, không ảnh hưởng gì tới phần còn lại.
+   ========================================================================= */
+const MKT_SHEET_WEBHOOK_URL = ""; // dán URL Web App (.../exec) vào đây
+
+function sendMktLeadToExternalSheet(lead, person){
+  if(!MKT_SHEET_WEBHOOK_URL) return; // chưa cấu hình -> bỏ qua, không báo lỗi gì
+  try{
+    fetch(MKT_SHEET_WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors', // Apps Script Web App không trả CORS header, dùng no-cors để "bắn và quên"
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        sdt: leadPhone(lead),
+        nguon: leadSource(lead),
+        saleNhan: (person && person.name) || ''
+      })
+    }).catch(err=>console.warn('Gửi Sheet MKT ngoài thất bại (không ảnh hưởng phân bổ):', err));
+  }catch(err){
+    console.warn('Gửi Sheet MKT ngoài thất bại (không ảnh hưởng phân bổ):', err);
+  }
+}
 
 // Chỉ trạng thái "đang đăng nhập máy này là ai" là lưu riêng theo máy (localStorage).
 // Toàn bộ dữ liệu dùng chung (chi nhánh/người dùng/báo cáo/thùng rác) lấy từ Firebase.
@@ -1441,6 +1483,9 @@ function runDistribution(){
     lead.assignedAt = Date.now();
     lead.distributedDate = today;
     fbSetLead(lead);
+    if(String(lead.id).startsWith('manual_')){
+      sendMktLeadToExternalSheet(lead, person); // chỉ ghi sang Sheet ngoài với data MKT nhập tay
+    }
     person.lastDataAt = Date.now();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
     todayCount[person.id] = countOf(person.id) + 1;
@@ -2293,6 +2338,93 @@ function renderMgrLeadsList(){
         </select>
       </td>
       <td>${chatBtn}</td>
+    </tr>`;
+    }).join('') + `</tbody>`;
+  renderMgrSelfLeadsList();
+}
+// Tổng hợp "Data tự tìm" của TẤT CẢ Sale vào 1 bảng cho Quản lý xem (chỉ xem, không sửa) —
+// tách biệt hoàn toàn với bảng data hệ thống tự chia ở trên, đúng như cấu trúc /selfLeads.
+function renderMgrSelfLeadsList(){
+  const personSel = document.getElementById('mgrSelfLeadsPersonFilter');
+  if(!personSel) return;
+  const scope = scopeBranchId();
+  if(personSel.dataset.scope !== String(scope)){
+    const relevantUsers = state.users.filter(u=>
+      isLeadEligibleRole(u) && (!scope || u.branchId===scope)
+    ).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+    personSel.innerHTML = '<option value="">— Tất cả Sale —</option>' +
+      relevantUsers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+    personSel.dataset.scope = String(scope);
+  }
+
+  // Đổ tuỳ chọn cho 2 dropdown Nguồn/Trạng thái — chỉ 1 lần (danh sách này cố định, không đổi theo data)
+  const sourceSel = document.getElementById('mgrSelfLeadsSourceFilter');
+  if(!sourceSel.dataset.filled){
+    sourceSel.innerHTML = '<option value="">— Tất cả nguồn —</option>' +
+      SELF_LEAD_SOURCE_OPTIONS.map(s=>`<option value="${s}">${s}</option>`).join('');
+    sourceSel.dataset.filled = '1';
+  }
+  const statusSel = document.getElementById('mgrSelfLeadsStatusFilter');
+  if(!statusSel.dataset.filled){
+    statusSel.innerHTML = '<option value="">— Tất cả trạng thái —</option>' +
+      SELF_LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}">${s}</option>`).join('');
+    statusSel.dataset.filled = '1';
+  }
+
+  let rows = state.selfLeads.slice();
+  if(scope){
+    const idsInScope = new Set(state.users.filter(u=>u.branchId===scope).map(u=>u.id));
+    rows = rows.filter(l=>idsInScope.has(l.userId));
+  }
+
+  const dateFilter = document.getElementById('mgrSelfLeadsDateFilter').value;
+  if(dateFilter){
+    rows = rows.filter(l=>toLocalDateStr(new Date(l.createdAt||0))===dateFilter);
+  }
+  const personFilter = personSel.value;
+  if(personFilter){
+    rows = rows.filter(l=>l.userId===personFilter);
+  }
+  const sourceFilter = sourceSel.value;
+  if(sourceFilter){
+    rows = rows.filter(l=>l.source===sourceFilter);
+  }
+  const statusFilter = statusSel.value;
+  if(statusFilter){
+    rows = rows.filter(l=>l.status===statusFilter);
+  }
+  const rawQuery = document.getElementById('mgrSelfLeadsSearch').value.trim().toLowerCase();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'');
+    rows = rows.filter(l=>{
+      const matchesPhone = digitsQuery && String(l.phone||'').replace(/\D/g,'').includes(digitsQuery);
+      const matchesPhoneText = String(l.phone||'').toLowerCase().includes(rawQuery); // để tìm được cả link FB
+      const matchesName = String(l.customerName||'').toLowerCase().includes(rawQuery);
+      return matchesPhone || matchesPhoneText || matchesName;
+    });
+  }
+  rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+  document.getElementById('mgrSelfLeadsSummary').textContent = rows.length===0
+    ? 'Không có data nào phù hợp.'
+    : `${rows.length} data tự tìm${dateFilter?` — ngày ${fmtDate(dateFilter)}`:''}`;
+
+  const table = document.getElementById('mgrSelfLeadsTable');
+  if(rows.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Không có data nào phù hợp.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày</th><th>Sale</th><th>SĐT / Link FB</th><th>Tên khách</th><th>Nguồn</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody>` +
+    rows.map(l=>{
+      const owner = state.users.find(u=>u.id===l.userId);
+      return `<tr>
+      <td data-label="Ngày">${fmtDateTimeShort(l.createdAt)}</td>
+      <td data-label="Sale">${owner ? owner.name : '—'}</td>
+      <td data-label="SĐT / Link FB">${l.phone||'—'} ${l.phone?`<span class="copy-icon" onclick="copyText('${String(l.phone).replace(/'/g,"\\'")}','Đã copy')">📋</span>`:''}</td>
+      <td data-label="Tên khách">${l.customerName||'—'}</td>
+      <td data-label="Nguồn">${l.source||'—'}</td>
+      <td data-label="Trạng thái">${l.status||'—'}</td>
+      <td data-label="Ghi chú">${l.note||'—'}</td>
     </tr>`;
     }).join('') + `</tbody>`;
 }
