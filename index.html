@@ -424,6 +424,7 @@
         <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">Danh sách data</span></div>
+        <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">Tất cả tin nhắn</span></div>
         <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
         <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
@@ -489,6 +490,7 @@
         <div class="chip-row" style="margin-bottom:16px;">
           <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
           <div class="chip" id="myLeadsTab_self" onclick="switchMyLeadsTab('self')">Data tự tìm</div>
+          <div class="chip" id="myLeadsTab_closed" onclick="switchMyLeadsTab('closed')">Data đã chốt</div>
         </div>
 
         <div id="myLeadsSectionAssigned">
@@ -521,6 +523,15 @@
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
             <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
             <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
+          </div>
+        </div>
+
+        <div id="myLeadsSectionClosed" style="display:none;">
+          <div class="card">
+            <h2>Data đã chốt <span id="myClosedLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ data bạn đã đánh dấu "Đã chốt", kèm ngày chốt và số tiền — tự động gom lại ở đây, không cần nhập lại</p>
+            <div id="myClosedLeadsSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:10px;"></div>
+            <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
           </div>
         </div>
       </div>
@@ -781,6 +792,29 @@
           </div>
           <div id="mgrSelfLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
           <div class="table-wrap"><table id="mgrSelfLeadsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER: Data chốt tổng ---------- -->
+      <div id="page-mgrClosedLeads" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Data chốt tổng</h1><p>Tổng hợp toàn bộ data đã được đánh dấu "Đã chốt" của mọi người, tự động gom lại — không cần ai copy tay</p></div></div>
+        <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip" id="mgrClosedPreset_today" onclick="applyMgrClosedDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mgrClosedPreset_yesterday" onclick="applyMgrClosedDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mgrClosedPreset_week" onclick="applyMgrClosedDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mgrClosedPreset_month" onclick="applyMgrClosedDatePreset('month')">Tháng qua</div>
+            <div class="chip selected" id="mgrClosedPreset_all" onclick="applyMgrClosedDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày (theo Ngày chốt)</label><input type="date" id="mgrClosedFrom" onchange="applyMgrClosedCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mgrClosedTo" onchange="applyMgrClosedCustomRange()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo người chốt</label><select id="mgrClosedPersonFilter" onchange="renderMgrClosedLeads()"></select></div>
+            <div class="field" id="mgrClosedSourceFilterWrap" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrClosedSourceFilter" onchange="renderMgrClosedLeads()"></select></div>
+            <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm..." oninput="renderMgrClosedLeads()"></div>
+          </div>
+          <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
+          <div class="table-wrap"><table id="mgrClosedLeadsTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -1592,6 +1626,28 @@ function updateLeadField(leadId, field, value){
   lead[field] = value;
   fbUpdateLead(leadId, {[field]: value});
 }
+// Đổi Tình trạng riêng (khác updateLeadField thường) — vì lúc chuyển sang "Đã chốt" cần tự
+// điền sẵn Ngày chốt = hôm nay (nếu chưa có), để Sale không phải tự gõ ngày mỗi lần.
+function updateLeadStatus(leadId, newStatus){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!lead) return;
+  const updates = {status: newStatus};
+  if(newStatus==='Đã chốt' && !lead.closedDate){
+    updates.closedDate = todayStr();
+  }
+  Object.assign(lead, updates);
+  fbUpdateLead(leadId, updates);
+}
+// Ô "Ngày chốt" / "Số tiền chốt" — chỉ hiện input khi Tình trạng đang là "Đã chốt",
+// còn lại hiện gạch ngang cho gọn (không áp dụng).
+function leadClosedDateFieldHtml(l){
+  if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
+  return `<input type="date" value="${l.closedDate||''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:135px;" onchange="updateLeadField('${l.id}','closedDate',this.value)">`;
+}
+function leadClosedAmountFieldHtml(l){
+  if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
+  return `<input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null)">`;
+}
 function leadSource(lead){
   if(lead.source) return lead.source;
   if(lead.raw){
@@ -1919,8 +1975,11 @@ function switchMyLeadsTab(tab){
   myLeadsActiveTab = tab;
   document.getElementById('myLeadsTab_assigned').classList.toggle('selected', tab==='assigned');
   document.getElementById('myLeadsTab_self').classList.toggle('selected', tab==='self');
+  document.getElementById('myLeadsTab_closed').classList.toggle('selected', tab==='closed');
   document.getElementById('myLeadsSectionAssigned').style.display = tab==='assigned' ? 'block' : 'none';
   document.getElementById('myLeadsSectionSelf').style.display = tab==='self' ? 'block' : 'none';
+  document.getElementById('myLeadsSectionClosed').style.display = tab==='closed' ? 'block' : 'none';
+  if(tab==='closed') renderMyClosedLeads();
 }
 function renderMyLeads(){
   const user=currentUser();
@@ -1979,7 +2038,7 @@ function renderMyLeads(){
     renderSelfLeadsTable();
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     allMyLeads.map(l=>{
       const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
       const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
@@ -1994,11 +2053,13 @@ function renderMyLeads(){
         </div>
       </td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;';">
+        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;'; renderMyLeads();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
+      <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
@@ -2006,6 +2067,32 @@ function renderMyLeads(){
   refreshUnreadChatDots();
 }
 const SELF_LEAD_SOURCE_OPTIONS = ['Facebook','TikTok','Zalo','Khác'];
+function renderMyClosedLeads(){
+  const u = currentUser();
+  const closedLeads = state.leads.filter(l=>l.assignedTo===u.id && l.status==='Đã chốt')
+    .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
+  document.getElementById('myClosedLeadsCount').textContent = closedLeads.length ? `(${closedLeads.length})` : '';
+
+  const totalAmount = closedLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+  document.getElementById('myClosedLeadsSummary').textContent = closedLeads.length===0
+    ? 'Chưa có data nào được chốt.'
+    : `${closedLeads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+
+  const table = document.getElementById('myClosedLeadsTable');
+  if(closedLeads.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có data nào được chốt — khi bạn chọn Tình trạng "Đã chốt" ở tab "Data được chia", data đó sẽ tự hiện ở đây.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th></tr></thead><tbody>` +
+    closedLeads.map(l=>`<tr>
+      <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
+      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+      <td data-label="Tên khách">${l.customerName||'—'}</td>
+      <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
+    </tr>`).join('') + `</tbody>`;
+}
 const SELF_LEAD_STATUS_OPTIONS = ['Đã nhắn tin','Đã gọi','Đang tư vấn','Đã chốt'];
 function renderSelfLeadsTable(){
   const user = currentUser();
@@ -2243,18 +2330,20 @@ function renderPersonLeadsPage(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào trong khoảng này.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
     leads.map(l=>`<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','status',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;';">
+        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); renderPersonLeadsPage();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
+      <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
     </tr>`).join('') + `</tbody>`;
 }
 function toggleMgrSelfLeadsSection(){
@@ -2388,7 +2477,7 @@ function renderMgrLeadsList(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     pageLeads.map(l=>{
       const assignee = state.users.find(u=>u.id===l.assignedTo);
       const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
@@ -2404,16 +2493,163 @@ function renderMgrLeadsList(){
       <td data-label="Chi nhánh">${branchLabel}</td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderMgrLeadsList();"></td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','status',this.value); renderMgrLeadsList();">
+        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); renderMgrLeadsList();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
+      <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
   const selfLeadsSection = document.getElementById('mgrSelfLeadsSection');
   if(selfLeadsSection && selfLeadsSection.style.display !== 'none') renderMgrSelfLeadsList();
+}
+// ===== Data chốt tổng (Quản lý) — tự động gom TẤT CẢ lead có status "Đã chốt", không cần
+// copy tay gì cả, chỉ là 1 view lọc lại trên cùng 1 nguồn dữ liệu /leads =====
+let mgrClosedDateFrom = null, mgrClosedDateTo = null;
+function applyMgrClosedDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  mgrClosedDateFrom = from; mgrClosedDateTo = to;
+  document.getElementById('mgrClosedFrom').value = from || '';
+  document.getElementById('mgrClosedTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mgrClosedPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMgrClosedLeads();
+}
+function applyMgrClosedCustomRange(){
+  mgrClosedDateFrom = document.getElementById('mgrClosedFrom').value || null;
+  mgrClosedDateTo = document.getElementById('mgrClosedTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mgrClosedPreset_'+p).classList.remove('selected');
+  });
+  renderMgrClosedLeads();
+}
+function renderMgrClosedLeads(){
+  const scope = scopeBranchId();
+  const canSeePhone = currentUser().role !== 'team_manager';
+  // Quản lý team: CHỈ xem số đơn + số tiền chốt theo ngày/theo người, không xem bất kỳ thông
+  // tin khách hàng nào khác (không SĐT, không Tên khách, không Nguồn) — nên ẩn luôn 2 bộ lọc
+  // không còn ý nghĩa gì với họ (lọc theo Nguồn, tìm theo SĐT/tên khách).
+  document.getElementById('mgrClosedSourceFilterWrap').style.display = canSeePhone ? 'block' : 'none';
+  document.getElementById('mgrClosedSearchWrap').style.display = canSeePhone ? 'block' : 'none';
+
+  const personSel = document.getElementById('mgrClosedPersonFilter');
+  if(personSel.dataset.scope !== String(scope)){
+    const relevantUsers = state.users.filter(u=>
+      (isLeadEligibleRole(u) && (!scope || u.branchId===scope)) ||
+      (!scope && (u.role==='general_manager' || u.role==='data_manager') && u.active!==false)
+    ).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+    personSel.innerHTML = '<option value="">— Tất cả người chốt —</option>' +
+      relevantUsers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+    personSel.dataset.scope = String(scope);
+  }
+
+  let leads = state.leads.filter(l=>{
+    if(l.status !== 'Đã chốt') return false;
+    if(scope){
+      const assignee = state.users.find(u=>u.id===l.assignedTo);
+      if(!assignee || assignee.branchId!==scope) return false;
+    }
+    return true;
+  }).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
+  if(mgrClosedDateFrom || mgrClosedDateTo){
+    leads = leads.filter(l=>{
+      const d = l.closedDate || '';
+      if(mgrClosedDateFrom && d < mgrClosedDateFrom) return false;
+      if(mgrClosedDateTo && d > mgrClosedDateTo) return false;
+      return true;
+    });
+  }
+
+  const personFilter = personSel.value;
+  if(personFilter){
+    leads = leads.filter(l=>l.assignedTo===personFilter);
+  }
+
+  if(canSeePhone){
+    // ===== Quản lý chung / Quản lý Data: bảng chi tiết đầy đủ như cũ =====
+    const sourceSel = document.getElementById('mgrClosedSourceFilter');
+    const sourceList = Array.from(new Set(leads.map(l=>leadSource(l)).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+    const prevSourceVal = sourceSel.value;
+    sourceSel.innerHTML = '<option value="">— Tất cả nguồn —</option>' + sourceList.map(s=>`<option value="${s}">${s}</option>`).join('');
+    if(sourceList.includes(prevSourceVal)) sourceSel.value = prevSourceVal;
+    const sourceFilter = sourceSel.value;
+    if(sourceFilter){
+      leads = leads.filter(l=>leadSource(l)===sourceFilter);
+    }
+    const rawQuery = document.getElementById('mgrClosedSearch').value.trim().toLowerCase();
+    if(rawQuery){
+      const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+      leads = leads.filter(l=>{
+        const matchesPhone = digitsQuery && leadPhone(l).replace(/\D/g,'').replace(/^0+/,'').includes(digitsQuery);
+        const matchesName = (l.customerName||'').toLowerCase().includes(rawQuery);
+        return matchesPhone || matchesName;
+      });
+    }
+
+    const totalAmount = leads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+    document.getElementById('mgrClosedSummary').textContent = leads.length===0
+      ? 'Không có data đã chốt nào phù hợp.'
+      : `${leads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+
+    const table = document.getElementById('mgrClosedLeadsTable');
+    if(leads.length===0){
+      table.innerHTML = '<tr><td class="empty-note">Chưa có data nào được chốt trong khoảng đang lọc.</td></tr>';
+      return;
+    }
+    table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Người chốt</th><th>Chi nhánh</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th></tr></thead><tbody>` +
+      leads.map(l=>{
+        const assignee = state.users.find(u=>u.id===l.assignedTo);
+        const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
+        return `<tr>
+        <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
+        <td data-label="Người chốt">${l.assignedToName||'—'}</td>
+        <td data-label="Chi nhánh">${branchLabel}</td>
+        <td data-label="Nguồn">${leadSource(l)}</td>
+        <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+        <td data-label="Tên khách">${l.customerName||'—'}</td>
+        <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
+      </tr>`;
+      }).join('') + `</tbody>`;
+    return;
+  }
+
+  // ===== Quản lý team: CHỈ số đơn + tổng tiền, gộp theo Ngày chốt + Người chốt, không có
+  // dòng nào là 1 khách hàng cụ thể cả — không rò rỉ bất kỳ thông tin khách nào. =====
+  const totalCount = leads.length;
+  const totalAmount = leads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+  document.getElementById('mgrClosedSummary').textContent = totalCount===0
+    ? 'Không có data đã chốt nào phù hợp.'
+    : `${totalCount} đơn đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+
+  const table = document.getElementById('mgrClosedLeadsTable');
+  if(totalCount===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có đơn nào được chốt trong khoảng đang lọc.</td></tr>';
+    return;
+  }
+  const groups = {};
+  leads.forEach(l=>{
+    const key = (l.closedDate||'—') + '|' + (l.assignedTo||'—');
+    if(!groups[key]){
+      groups[key] = {date: l.closedDate||'', personName: l.assignedToName||'—', count:0, amount:0};
+    }
+    groups[key].count++;
+    groups[key].amount += Number(l.closedAmount)||0;
+  });
+  const rows = Object.values(groups).sort((a,b)=> b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName,'vi'));
+  table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nhân viên</th><th>Số đơn</th><th>Tổng tiền chốt</th></tr></thead><tbody>` +
+    rows.map(r=>`<tr>
+      <td data-label="Ngày chốt">${r.date?fmtDate(r.date):'—'}</td>
+      <td data-label="Nhân viên">${r.personName}</td>
+      <td data-label="Số đơn">${r.count}</td>
+      <td data-label="Tổng tiền chốt" style="font-weight:600; color:var(--success);">${fmtMoney(r.amount)} đ</td>
+    </tr>`).join('') +
+    `<tr class="total-row"><td>TỔNG CỘNG</td><td></td><td>${totalCount}</td><td style="font-weight:700;">${fmtMoney(totalAmount)} đ</td></tr>` +
+    `</tbody>`;
 }
 // Tổng hợp "Data tự tìm" của TẤT CẢ Sale vào 1 bảng cho Quản lý xem (chỉ xem, không sửa) —
 // tách biệt hoàn toàn với bảng data hệ thống tự chia ở trên, đúng như cấu trúc /selfLeads.
@@ -3232,6 +3468,7 @@ function goPage(pageId){
   if(pageId==='mgrReports') renderMgrReportsPage();
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
+  if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
   if(pageId==='mgrAllChats') renderMgrAllChats();
   if(pageId==='personLeads') renderPersonLeadsPage();
   if(pageId==='mgrTrash') renderMgrTrash();
