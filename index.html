@@ -482,33 +482,42 @@
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
 
-        <div class="grid-2" style="margin-bottom:16px; align-items:stretch;">
-          <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
+        <div class="chip-row" style="margin-bottom:16px;">
+          <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
+          <div class="chip" id="myLeadsTab_self" onclick="switchMyLeadsTab('self')">Data tự tìm</div>
+        </div>
 
-          <div class="card" id="checkinCard" style="margin-bottom:0;">
-            <h2>Điểm danh hôm nay</h2>
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điểm danh để Quản lý biết bạn đang đi làm hôm nay — Quản lý sẽ xác nhận cho bạn vào vòng xoay nhận data.</p>
-            <div id="checkinStatus" style="margin-top:10px;"></div>
+        <div id="myLeadsSectionAssigned">
+          <div class="grid-2" style="margin-bottom:16px; align-items:stretch;">
+            <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
+
+            <div class="card" id="checkinCard" style="margin-bottom:0;">
+              <h2>Điểm danh hôm nay</h2>
+              <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điểm danh để Quản lý biết bạn đang đi làm hôm nay — Quản lý sẽ xác nhận cho bạn vào vòng xoay nhận data.</p>
+              <div id="checkinStatus" style="margin-top:10px;"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Data đã nhận hôm nay</h2>
+            <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:6px;"></div>
+            <span class="history-link" onclick="toggleMyLeadsStatsByDay()" id="myLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
+            <div id="myLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:6px;"></div>
+            <div class="toolbar" style="margin-top:14px;">
+              <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
+              <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="myLeadsStatusFilter" onchange="renderMyLeads()"></select></div>
+            </div>
+            <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
           </div>
         </div>
 
-        <div class="card">
-          <h2>Data đã nhận hôm nay</h2>
-          <div id="myLeadsQuota" style="margin-top:6px; margin-bottom:6px;"></div>
-          <span class="history-link" onclick="toggleMyLeadsStatsByDay()" id="myLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
-          <div id="myLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:6px;"></div>
-          <div class="toolbar" style="margin-top:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
-            <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="myLeadsStatusFilter" onchange="renderMyLeads()"></select></div>
+        <div id="myLeadsSectionSelf" style="display:none;">
+          <div class="card">
+            <h2>Data tự tìm <span id="selfLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
+            <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
+            <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
           </div>
-          <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
-        </div>
-
-        <div class="card">
-          <h2>Data tự tìm <span id="selfLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
-          <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
-          <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
         </div>
       </div>
 
@@ -1715,6 +1724,14 @@ function renderLeadsStatsByDayInto(containerId, allLeadsForPerson){
 }
 function renderMyLeadsStatsByDay(allMyLeads){ renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads); }
 function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson); }
+let myLeadsActiveTab = 'assigned';
+function switchMyLeadsTab(tab){
+  myLeadsActiveTab = tab;
+  document.getElementById('myLeadsTab_assigned').classList.toggle('selected', tab==='assigned');
+  document.getElementById('myLeadsTab_self').classList.toggle('selected', tab==='self');
+  document.getElementById('myLeadsSectionAssigned').style.display = tab==='assigned' ? 'block' : 'none';
+  document.getElementById('myLeadsSectionSelf').style.display = tab==='self' ? 'block' : 'none';
+}
 function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
