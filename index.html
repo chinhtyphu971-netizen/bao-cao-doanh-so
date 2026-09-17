@@ -1382,10 +1382,10 @@ function normalizePhone(p){
 }
 // Kiểm tra ĐÚNG định dạng SĐT Việt Nam: đủ 10 số và bắt đầu bằng số 0 — dùng riêng cho MKT nhập
 // data mới (không đụng tới normalizePhone ở trên, vì đó vẫn cần dùng để SO KHỚP với số cũ từ
-// Google Sheet có thể không có số 0 đầu hoặc format khác).
+// Google Sheet có thể không có số 0 đầu hoặc format khác). CHẶT: chỉ được toàn chữ số, không cho
+// lẫn dấu chấm/phẩy/khoảng trắng/chữ cái... — vd "091.234.567" hay "0912 345 678" đều KHÔNG hợp lệ.
 function isValidVNPhone(phone){
-  const digitsOnly = String(phone||'').replace(/\D/g,'');
-  return digitsOnly.length===10 && digitsOnly.charAt(0)==='0';
+  return /^0\d{9}$/.test(String(phone||'').trim());
 }
 function priorAssigneesForPhone(lead){
   const phoneNorm = normalizePhone(leadPhone(lead));
@@ -1617,7 +1617,7 @@ function analyzeMktBulkLines(source){
     const name = parts[1] || '';
     const digits = normalizePhone(phone);
     if(!isValidVNPhone(phone)){
-      return {line, phone, name, digits, status:'invalid', text:'SĐT phải đủ 10 số và bắt đầu bằng số 0'};
+      return {line, phone, name, digits, status:'invalid', text:'SĐT phải đủ 10 số, bắt đầu bằng số 0, không lẫn ký tự khác'};
     }
     const check = checkPhoneEntryRule(digits, source, stagedSourcesByPhone[digits]);
     if(!check.allowed){
