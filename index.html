@@ -1642,9 +1642,36 @@ function updateLeadStatus(leadId, newStatus){
 }
 // Ô "Ngày chốt" / "Số tiền chốt" — chỉ hiện input khi Tình trạng đang là "Đã chốt",
 // còn lại hiện gạch ngang cho gọn (không áp dụng).
+// Ngày chốt dùng ô CHỮ (không dùng input type="date") vì input type="date" hiển thị theo
+// định dạng ngôn ngữ/hệ điều hành của trình duyệt từng máy (có máy ra mm/dd/yyyy kiểu Mỹ,
+// dễ gõ nhầm ngày/tháng) — ô chữ này LUÔN hiển thị đúng dd/mm/yyyy trên mọi máy, mọi trình
+// duyệt. Lưu trong Firebase vẫn là yyyy-mm-dd để sắp xếp/lọc theo ngày cho đúng.
+function parseDisplayDate(str){
+  const m = String(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  const dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0'), yyyy = m[3];
+  const d = Number(dd), mo = Number(mm);
+  if(d<1||d>31||mo<1||mo>12) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+function onClosedDateInputChange(leadId, inputEl){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!inputEl.value.trim()){
+    updateLeadField(leadId, 'closedDate', null);
+    return;
+  }
+  const iso = parseDisplayDate(inputEl.value);
+  if(!iso){
+    showToast('Ngày chốt sai định dạng — gõ đúng dạng dd/mm/yyyy, ví dụ 16/09/2026');
+    inputEl.value = (lead && lead.closedDate) ? fmtDate(lead.closedDate) : '';
+    return;
+  }
+  updateLeadField(leadId, 'closedDate', iso);
+  inputEl.value = fmtDate(iso); // chuẩn hoá lại cách hiển thị (vd gõ 6/9/2026 -> tự sửa thành 06/09/2026)
+}
 function leadClosedDateFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
-  return `<input type="date" value="${l.closedDate||''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:135px;" onchange="updateLeadField('${l.id}','closedDate',this.value)">`;
+  return `<input type="text" inputmode="numeric" value="${l.closedDate?fmtDate(l.closedDate):''}" placeholder="dd/mm/yyyy" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:105px;" onchange="onClosedDateInputChange('${l.id}', this)">`;
 }
 function leadClosedAmountFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
@@ -2137,7 +2164,7 @@ function renderMyClosedLeads(){
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
       return `<tr>
-      <td data-label="Ngày chốt"><input type="date" value="${l.closedDate||''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:135px;" onchange="updateLeadField('${l.id}','closedDate',this.value); renderMyClosedLeads();"></td>
+      <td data-label="Ngày chốt"><input type="text" inputmode="numeric" value="${l.closedDate?fmtDate(l.closedDate):''}" placeholder="dd/mm/yyyy" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:105px;" onchange="onClosedDateInputChange('${l.id}', this); renderMyClosedLeads();"></td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
         ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','phone',this.value)">`
