@@ -3867,6 +3867,51 @@ function resolveMktSourceCanonicalName(name){
   }
   return current ? current.name : name;
 }
+function renameMktSourceItem(sourceId){
+  const s = state.mktSources.find(x=>x.id===sourceId);
+  if(!s) return;
+  const newName = prompt('Đổi tên Nguồn:', s.name);
+  if(newName===null) return; // bấm Huỷ
+  const trimmed = newName.trim();
+  if(!trimmed || trimmed===s.name) return;
+  const dup = state.mktSources.some(x=>x.id!==sourceId && x.name.toLowerCase()===trimmed.toLowerCase());
+  if(dup){ showToast('Đã có Nguồn khác trùng tên này rồi'); return; }
+
+  const oldName = s.name;
+  s.name = trimmed;
+  fbSetMktSource(s);
+
+  // Nguồn đang gán cho MKT lưu theo TÊN (không phải ID) — đổi tên xong phải cập nhật lại hết,
+  // không thì người đang được gán Nguồn này sẽ bị "mất" gán ngay lập tức mà không ai biết.
+  state.users.forEach(u=>{
+    if(u.assignedSources && u.assignedSources.includes(oldName)){
+      u.assignedSources = u.assignedSources.map(n=>n===oldName?trimmed:n);
+      fbUpdateUser(u.id, {assignedSources:u.assignedSources});
+    }
+  });
+  renderMgrSettings();
+  showToast('Đã đổi tên Nguồn');
+}
+function deleteMktSourceItem(sourceId){
+  const s = state.mktSources.find(x=>x.id===sourceId);
+  if(!s) return;
+  const usedByCount = state.users.filter(u=>(u.assignedSources||[]).includes(s.name)).length;
+  const isParentOfAlias = state.mktSources.some(x=>x.aliasOf===sourceId);
+  if(usedByCount>0){
+    showToast(`Còn ${usedByCount} người đang được gán Nguồn này — bỏ gán cho họ trước khi xoá`);
+    return;
+  }
+  if(isParentOfAlias){
+    showToast('Nguồn này đang là nhóm gốc của Nguồn khác — bỏ gộp nhóm cho những Nguồn đó trước khi xoá');
+    return;
+  }
+  askConfirm('Xoá Nguồn?', `Xoá "${s.name}" khỏi danh sách Nguồn MKT?`, ()=>{
+    state.mktSources = state.mktSources.filter(x=>x.id!==sourceId);
+    fbMktSources.child(sourceId).remove();
+    renderMgrSettings();
+    showToast('Đã xoá Nguồn');
+  });
+}
 function settingsImportExistingMktSources(){
   // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
   // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
@@ -4046,7 +4091,11 @@ function renderMgrSettings(){
         return `<div style="padding:8px 0; border-bottom:1px solid var(--line);">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <span>${s.name}${groupInfo?` <span style="color:var(--accent); font-size:12px;">(cùng nhóm với "${groupInfo.name}")</span>`:''}</span>
-            <span style="color:var(--ink-soft); font-size:12.5px; flex-shrink:0;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
+            <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
+              <span style="cursor:pointer;" title="Sửa tên" onclick="renameMktSourceItem('${s.id}')">✏️</span>
+              <span style="cursor:pointer;" title="Xoá" onclick="deleteMktSourceItem('${s.id}')">🗑️</span>
+            </span>
           </div>
           <div style="margin-top:6px;">${aliasSelect}</div>
         </div>`;
