@@ -1745,7 +1745,7 @@ function renderMktMyLeadsList(){
       const statusHtml = l.status
         ? `<span class="badge" style="${leadStatusStyle(l.status)}">${l.status}</span>`
         : '<span style="color:var(--ink-soft);">Chưa cập nhật</span>';
-      const chatBtn = assignee ? `<button class="btn-ghost btn-small chat-btn" data-conv="${chatConversationId(u.id, assignee.id)}" onclick="openChatWithUser('${assignee.id}')">💬 Chat</button>` : '';
+      const chatBtn = assignee ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
       return `<tr>
         <td data-label="Ngày nhận">${fmtDateTimeShort(l.importedAt||l.assignedAt)}</td>
         <td data-label="SĐT">${leadPhone(l)}</td>
@@ -1883,7 +1883,7 @@ function renderMyLeads(){
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
     allMyLeads.map(l=>{
       const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
-      const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${chatConversationId(user.id, mktSender.id)}" onclick="openChatWithUser('${mktSender.id}')">💬 Chat</button>` : '';
+      const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
@@ -2277,7 +2277,7 @@ function renderMgrLeadsList(){
       const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
       const mktSender = l.createdBy ? state.users.find(u=>u.id===l.createdBy) : null;
       const chatBtn = (mktSender && assignee)
-        ? `<button class="btn-ghost btn-small" onclick="viewConversationReadOnly('${chatConversationId(mktSender.id, assignee.id)}','${mktSender.name} ↔ ${assignee.name}')">💬</button>`
+        ? `<button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${l.id}','SĐT ${leadPhone(l)} — ${mktSender.name} ↔ ${assignee.name}')">💬</button>`
         : '';
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
@@ -2500,26 +2500,31 @@ function copyText(text, message){
 function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function chatConversationId(userIdA, userIdB){
-  return [userIdA, userIdB].sort().join('_');
-}
 let currentChatConversationId = null;
+let currentChatOtherUserId = null;
 let currentChatRef = null;
 let currentChatReadOnly = false;
-function openChatWithUser(otherUserId){
+// Mỗi data (lead) có 1 cuộc trò chuyện RIÊNG (dùng thẳng ID của lead đó làm ID cuộc trò chuyện) —
+// không dùng chung 1 khung chat cho mọi data giữa cùng 2 người nữa, để tin nhắn về số nào chỉ
+// hiện đúng trong ngữ cảnh của số đó, khỏi lẫn với các data khác giữa cùng 2 người.
+function openChatForLead(leadId){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!lead){ showToast('Không tìm thấy data này'); return; }
   const me = currentUser();
+  const otherUserId = lead.createdBy===me.id ? lead.assignedTo : (lead.assignedTo===me.id ? lead.createdBy : null);
+  if(!otherUserId){ showToast('Bạn không liên quan tới data này'); return; }
   const other = state.users.find(u=>u.id===otherUserId);
-  if(!me || !other) return;
-  if(otherUserId===me.id){ showToast('Không thể tự chat với chính mình'); return; }
-  openChatModal(chatConversationId(me.id, otherUserId), 'Chat với ' + other.name, false);
+  const title = `SĐT ${leadPhone(lead)}${other?` — Chat với ${other.name}`:''}`;
+  openChatModal(leadId, title, false, otherUserId);
 }
-// Quản lý chung xem lại (không tham gia) 1 cuộc trò chuyện bất kỳ giữa 2 người khác.
-function viewConversationReadOnly(conversationId, titleText){
-  openChatModal(conversationId, titleText, true);
+// Quản lý chung xem lại (không tham gia) cuộc trò chuyện gắn theo 1 data cụ thể.
+function viewLeadConversationReadOnly(leadId, titleText){
+  openChatModal(leadId, titleText, true, null);
 }
-function openChatModal(conversationId, title, readOnly){
+function openChatModal(conversationId, title, readOnly, otherUserId){
   const me = currentUser();
   currentChatConversationId = conversationId;
+  currentChatOtherUserId = otherUserId || null;
   currentChatReadOnly = readOnly;
   document.getElementById('chatModalTitle').textContent = title;
   document.getElementById('chatMessagesList').innerHTML = '<div class="empty-note">Đang tải...</div>';
@@ -2565,9 +2570,9 @@ function sendChatMessage(){
   fbChats.child(currentChatConversationId).child(msgId).set(msg);
   // Ghi 1 bản tin "thông báo" nhẹ cho đúng người nhận — để họ được báo (tiếng ting + toast) ngay
   // cả khi đang KHÔNG mở khung chat này, mà không cần tải toàn bộ lịch sử chat để so sánh.
-  const [idA, idB] = currentChatConversationId.split('_');
-  const otherUserId = idA===me.id ? idB : idA;
-  fbChatNotify.child(otherUserId).set({senderId:me.id, senderName:me.name, text, sentAt:msg.sentAt, convId:currentChatConversationId});
+  if(currentChatOtherUserId){
+    fbChatNotify.child(currentChatOtherUserId).set({senderId:me.id, senderName:me.name, text, sentAt:msg.sentAt, convId:currentChatConversationId});
+  }
   input.value = '';
 }
 // Quét các nút chat đang hiển thị trên trang, kiểm tra tin nhắn mới nhất của từng cuộc trò chuyện
@@ -2598,6 +2603,7 @@ function closeChatModal(){
   document.getElementById('chatModal').classList.remove('show');
   if(currentChatRef){ currentChatRef.off(); currentChatRef = null; }
   currentChatConversationId = null;
+  currentChatOtherUserId = null;
   if(typeof refreshUnreadChatDots === 'function') refreshUnreadChatDots();
 }
 function renderMgrAllChats(){
@@ -2605,28 +2611,30 @@ function renderMgrAllChats(){
   table.innerHTML = '<tr><td class="empty-note">Đang tải...</td></tr>';
   fbChats.once('value').then(snap=>{
     const data = snap.val() || {};
-    const rows = Object.entries(data).map(([convId, msgsObj])=>{
+    const rows = Object.entries(data).map(([leadId, msgsObj])=>{
       const msgs = Object.values(msgsObj||{}).sort((a,b)=>b.sentAt-a.sentAt);
       const last = msgs[0];
-      const [idA, idB] = convId.split('_');
-      const userA = state.users.find(u=>u.id===idA);
-      const userB = state.users.find(u=>u.id===idB);
-      const nameA = userA ? userA.name : '(đã xoá)';
-      const nameB = userB ? userB.name : '(đã xoá)';
-      return {convId, nameA, nameB, count: msgs.length, lastText: last?last.text:'', lastAt: last?last.sentAt:0, lastSender: last?last.senderName:''};
+      const lead = state.leads.find(l=>l.id===leadId);
+      const mktSender = lead && lead.createdBy ? state.users.find(u=>u.id===lead.createdBy) : null;
+      const assignee = lead && lead.assignedTo ? state.users.find(u=>u.id===lead.assignedTo) : null;
+      const nameA = mktSender ? mktSender.name : '(?)';
+      const nameB = assignee ? assignee.name : '(?)';
+      const phoneLabel = lead ? leadPhone(lead) : '(data đã xoá)';
+      return {leadId, nameA, nameB, phoneLabel, count: msgs.length, lastText: last?last.text:'', lastAt: last?last.sentAt:0, lastSender: last?last.senderName:''};
     }).sort((a,b)=>b.lastAt-a.lastAt);
 
     if(rows.length===0){
       table.innerHTML = '<tr><td class="empty-note">Chưa có cuộc trò chuyện nào trong hệ thống.</td></tr>';
       return;
     }
-    table.innerHTML = `<thead><tr><th>Giữa</th><th>Tin nhắn gần nhất</th><th>Lúc</th><th class="num">Số tin</th><th></th></tr></thead><tbody>` +
+    table.innerHTML = `<thead><tr><th>SĐT</th><th>Giữa</th><th>Tin nhắn gần nhất</th><th>Lúc</th><th class="num">Số tin</th><th></th></tr></thead><tbody>` +
       rows.map(r=>`<tr>
+        <td data-label="SĐT">${r.phoneLabel}</td>
         <td data-label="Giữa">${r.nameA} ↔ ${r.nameB}</td>
-        <td data-label="Tin nhắn gần nhất">${r.lastSender?`<b>${r.lastSender}:</b> `:''}${(r.lastText||'').slice(0,60)}${(r.lastText||'').length>60?'...':''}</td>
+        <td data-label="Tin nhắn gần nhất">${r.lastSender?`<b>${r.lastSender}:</b> `:''}${(r.lastText||'').slice(0,50)}${(r.lastText||'').length>50?'...':''}</td>
         <td data-label="Lúc">${r.lastAt?fmtDateTimeShort(r.lastAt):'—'}</td>
         <td class="num" data-label="Số tin">${r.count}</td>
-        <td><button class="btn-ghost btn-small" onclick="viewConversationReadOnly('${r.convId}','${r.nameA} ↔ ${r.nameB}')">Xem</button></td>
+        <td><button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${r.leadId}','SĐT ${r.phoneLabel} — ${r.nameA} ↔ ${r.nameB}')">Xem</button></td>
       </tr>`).join('') + `</tbody>`;
   });
 }
@@ -4127,7 +4135,7 @@ function renderMgrSettings(){
     }
   }
   if(!scope && branchesToShow.length>0){
-    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager'||u.role==='mkt'||u.role==='mkt_manager').length;
+    const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager').length;
     const admins = state.users.filter(u=>u.role==='general_manager');
     const isAdminOpen = expandedSettingsBranchId==='__admins__';
     listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 0; color:var(--ink-soft); font-size:13px; cursor:pointer;" onclick="toggleSettingsBranchExpand('__admins__')">
