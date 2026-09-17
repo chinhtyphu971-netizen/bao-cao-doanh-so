@@ -733,7 +733,10 @@
       </div>
 
       <div id="page-mgrLeadsList" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div></div>
+        <div class="page-head">
+          <div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div>
+          <button class="btn-ghost btn-small" onclick="toggleMgrSelfLeadsSection()" id="mgrSelfLeadsSectionToggleBtn">📋 Xem Data tự tìm (tổng hợp)</button>
+        </div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="onMgrLeadsListFilterChange()"></div>
@@ -755,7 +758,7 @@
           <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
         </div>
 
-        <div class="card" style="margin-top:20px;">
+        <div class="card" id="mgrSelfLeadsSection" style="margin-top:20px; display:none;">
           <h2 style="margin-top:0;">Data tự tìm <span style="font-weight:400; font-size:13px; color:var(--ink-soft);">(tổng hợp của tất cả mọi người)</span></h2>
           <p style="color:var(--ink-soft); font-size:13px; margin-top:-6px;">Chỉ xem — đây là data mỗi Sale tự ghi lại khi họ tự tìm được, không phải data hệ thống tự động chia ở bảng trên.</p>
           <div class="toolbar" style="margin-bottom:14px;">
@@ -2203,6 +2206,14 @@ function renderPersonLeadsPage(){
       </td>
     </tr>`).join('') + `</tbody>`;
 }
+function toggleMgrSelfLeadsSection(){
+  const section = document.getElementById('mgrSelfLeadsSection');
+  const btn = document.getElementById('mgrSelfLeadsSectionToggleBtn');
+  const isOpen = section.style.display !== 'none';
+  section.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '📋 Xem Data tự tìm (tổng hợp)' : '📋 Ẩn Data tự tìm (tổng hợp)';
+  if(!isOpen) renderMgrSelfLeadsList(); // mo ra moi render, tranh render thua khi con dang an
+}
 function toggleMgrLeadsListStatsByDay(){
   const body = document.getElementById('mgrLeadsListStatsByDay');
   const btn = document.getElementById('mgrLeadsListStatsToggle');
@@ -2340,7 +2351,8 @@ function renderMgrLeadsList(){
       <td>${chatBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
-  renderMgrSelfLeadsList();
+  const selfLeadsSection = document.getElementById('mgrSelfLeadsSection');
+  if(selfLeadsSection && selfLeadsSection.style.display !== 'none') renderMgrSelfLeadsList();
 }
 // Tổng hợp "Data tự tìm" của TẤT CẢ Sale vào 1 bảng cho Quản lý xem (chỉ xem, không sửa) —
 // tách biệt hoàn toàn với bảng data hệ thống tự chia ở trên, đúng như cấu trúc /selfLeads.
