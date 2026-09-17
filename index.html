@@ -820,7 +820,7 @@
         <div class="card" id="settingsMktSourceCard" style="display:none;">
           <span class="history-link" onclick="toggleSettingsMktSourceSection()" id="settingsMktSourceToggle">Nguồn MKT ▸</span>
           <div id="settingsMktSourceBody" style="display:none; margin-top:10px;">
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay. Nếu 2 kênh khác tên nhưng cùng 1 người/nguồn thật, chọn "Cùng nhóm với" bên dưới mỗi Nguồn để hệ thống tính chung khi áp quy tắc tối đa 3 lần/số điện thoại.</p>
             <div id="settingsMktSourceList" style="margin:12px 0;"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
@@ -1577,12 +1577,15 @@ function populateMktSourceList(){
 // extraSources: các Nguồn đã "tạm ghi nhận" ngay trong cùng 1 lượt xử lý (dùng cho nhập hàng loạt,
 // vì các dòng cùng batch chưa kịp nằm trong state.leads để tự kiểm tra chéo nhau).
 function checkPhoneEntryRule(phoneDigits, source, extraSources){
+  // Quy về đúng "nguồn gốc" của cả nhóm trước khi so sánh — 2 kênh khác tên nhưng đã gộp nhóm
+  // (cùng 1 người/nguồn thật) sẽ được tính là CÙNG 1 nguồn, không bị đếm nhầm thành 2 nguồn khác nhau.
+  const canonSource = resolveMktSourceCanonicalName(source);
   const existingSources = state.leads
     .filter(l=>normalizePhone(leadPhone(l))===phoneDigits)
-    .map(l=>leadSource(l));
-  const allSources = existingSources.concat(extraSources||[]);
+    .map(l=>resolveMktSourceCanonicalName(leadSource(l)));
+  const allSources = existingSources.concat((extraSources||[]).map(resolveMktSourceCanonicalName));
   const norm = s => String(s||'').trim().toLowerCase();
-  const srcNorm = norm(source);
+  const srcNorm = norm(canonSource);
   if(allSources.some(s=>norm(s)===srcNorm)){
     return {allowed:false, reason:'same_source', sources:allSources};
   }
@@ -3841,6 +3844,29 @@ function settingsAddMktSource(){
   renderMgrSettings();
   showToast('Đã thêm Nguồn');
 }
+// Gộp nhóm: đánh dấu 1 Nguồn (vd tên kênh B) là "cùng nhóm" với 1 Nguồn khác (vd tên kênh A, cùng
+// 1 người/nguồn thật) — dùng khi tính quy tắc tối đa 3 lần/số điện thoại, để không bị coi nhầm là
+// 3 nguồn khác nhau trong khi thực ra chỉ là 1 người đứng nhiều kênh khác tên.
+function setMktSourceAlias(sourceId, aliasOfId){
+  const s = state.mktSources.find(x=>x.id===sourceId);
+  if(!s) return;
+  s.aliasOf = aliasOfId || null;
+  fbSetMktSource(s);
+  renderMgrSettings();
+  showToast(aliasOfId ? 'Đã gộp nhóm Nguồn' : 'Đã bỏ gộp nhóm');
+}
+// Quy về đúng Nguồn "gốc" của cả nhóm (nếu có gộp) — dùng để so sánh khi áp quy tắc tối đa 3 lần.
+function resolveMktSourceCanonicalName(name){
+  let current = state.mktSources.find(s=>s.name===name);
+  let guard = 0;
+  while(current && current.aliasOf && guard < 5){
+    const parent = state.mktSources.find(s=>s.id===current.aliasOf);
+    if(!parent) break;
+    current = parent;
+    guard++;
+  }
+  return current ? current.name : name;
+}
 function settingsImportExistingMktSources(){
   // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
   // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
@@ -4009,11 +4035,20 @@ function renderMgrSettings(){
     document.getElementById('settingsMktSourceBody').style.display = settingsMktSourceOpen ? 'block' : 'none';
     if(settingsMktSourceOpen){
       const mktSourceListEl = document.getElementById('settingsMktSourceList');
-      mktSourceListEl.innerHTML = state.mktSources.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(s=>{
+      const sortedSources = state.mktSources.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
+      mktSourceListEl.innerHTML = sortedSources.map(s=>{
         const usedByCount = state.users.filter(u=>(u.assignedSources||[]).includes(s.name)).length;
-        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
-          <span>${s.name}</span>
-          <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
+        const groupInfo = s.aliasOf ? state.mktSources.find(x=>x.id===s.aliasOf) : null;
+        const aliasSelect = `<select style="min-height:28px; padding:2px 6px; font-size:12.5px; width:auto;" onchange="setMktSourceAlias('${s.id}', this.value)">` +
+          `<option value="">— Không gộp —</option>` +
+          state.mktSources.filter(x=>x.id!==s.id).map(x=>`<option value="${x.id}" ${s.aliasOf===x.id?'selected':''}>Cùng nhóm với: ${x.name}</option>`).join('') +
+          `</select>`;
+        return `<div style="padding:8px 0; border-bottom:1px solid var(--line);">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <span>${s.name}${groupInfo?` <span style="color:var(--accent); font-size:12px;">(cùng nhóm với "${groupInfo.name}")</span>`:''}</span>
+            <span style="color:var(--ink-soft); font-size:12.5px; flex-shrink:0;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
+          </div>
+          <div style="margin-top:6px;">${aliasSelect}</div>
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có Nguồn nào.</div>';
     }
