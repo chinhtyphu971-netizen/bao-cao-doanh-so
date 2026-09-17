@@ -1831,11 +1831,13 @@ function renderSelfLeadsTable(){
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:120px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Nguồn">
         <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','source',this.value)">
+          <option value="" ${!l.source?'selected':''}>— Chọn —</option>
           ${SELF_LEAD_SOURCE_OPTIONS.map(s=>`<option value="${s}" ${l.source===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
       <td data-label="Trạng thái">
         <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','status',this.value)">
+          <option value="" ${!l.status?'selected':''}>— Chọn —</option>
           ${SELF_LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
@@ -1850,8 +1852,8 @@ function addSelfLeadRow(){
     id: 'self_' + uid(),
     userId: user.id,
     phone: '',
-    source: SELF_LEAD_SOURCE_OPTIONS[0],
-    status: SELF_LEAD_STATUS_OPTIONS[0],
+    source: '',
+    status: '',
     note: '',
     createdAt: Date.now(),
   };
