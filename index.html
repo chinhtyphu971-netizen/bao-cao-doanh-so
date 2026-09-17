@@ -1662,7 +1662,7 @@ function closedDatePickerHtml(l, afterChangeJs){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
   const iso = l.closedDate || todayStr();
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
-  return `<select style="min-height:30px; padding:2px 4px; font-size:12px; width:74px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
+  return `<select style="min-height:30px; padding:2px 1px; font-size:12px; width:56px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
 }
 function leadClosedDateFieldHtml(l){
   return closedDatePickerHtml(l);
