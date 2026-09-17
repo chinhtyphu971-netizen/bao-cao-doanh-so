@@ -423,6 +423,7 @@
         <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">Danh sách data</span></div>
+        <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">Tất cả tin nhắn</span></div>
         <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
         <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
       </div>
@@ -735,6 +736,14 @@
         </div>
       </div>
 
+      <!-- ---------- MANAGER: xem lại tất cả tin nhắn trong hệ thống (chỉ Quản lý chung) ---------- -->
+      <div id="page-mgrAllChats" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Tất cả tin nhắn</h1><p>Xem lại mọi cuộc trò chuyện trong hệ thống — chỉ xem, không tham gia trả lời</p></div></div>
+        <div class="card">
+          <div class="table-wrap"><table id="mgrAllChatsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
       <div id="page-mgrLeadsList" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div></div>
         <div class="card">
@@ -918,7 +927,7 @@
   <div class="modal" style="max-width:420px;">
     <h2 id="chatModalTitle">Chat</h2>
     <div id="chatMessagesList" style="max-height:340px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px; padding-right:4px;"></div>
-    <div style="display:flex; gap:8px;">
+    <div id="chatInputRow" style="display:flex; gap:8px;">
       <input id="chatInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter'){event.preventDefault(); sendChatMessage();}">
       <button class="btn-primary" onclick="sendChatMessage()">Gửi</button>
     </div>
@@ -1030,7 +1039,7 @@ let state = {
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1084,6 +1093,8 @@ function initFirebase(){
   fbTeamsTrash = db.ref('teamsTrash');
   fbSelfLeads = db.ref('selfLeads');
   fbChats = db.ref('chats');
+  fbChatReads = db.ref('chatReads');
+  fbChatNotify = db.ref('chatNotify');
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
@@ -1194,6 +1205,34 @@ let leadNotifyInitialized = false;
 function resetLeadNotifyState(){
   notifiedLeadIds = new Set();
   leadNotifyInitialized = false;
+}
+
+// Thông báo tin nhắn mới (tiếng ting + toast) — dùng 1 node nhẹ /chatNotify/{userId} riêng thay vì
+// tải cả lịch sử /chats (có thể rất nhiều tin nhắn theo thời gian), tiết kiệm băng thông.
+let chatNotifyRef = null;
+let chatNotifyListenerUserId = null;
+let chatNotifyInitialized = false;
+function setupChatNotifyListener(){
+  const me = currentUser();
+  if(!me) return;
+  if(chatNotifyListenerUserId === me.id) return; // đã gắn đúng người này rồi, khỏi gắn lại
+  if(chatNotifyRef) chatNotifyRef.off();
+  chatNotifyInitialized = false;
+  chatNotifyListenerUserId = me.id;
+  chatNotifyRef = fbChatNotify.child(me.id);
+  chatNotifyRef.on('value', snap=>{
+    if(!chatNotifyInitialized){ chatNotifyInitialized = true; return; } // bỏ qua giá trị cũ lúc mới mở app
+    const data = snap.val();
+    if(!data || data.senderId===me.id) return; // an toàn: khỏi tự báo cho chính mình
+    playTingSound();
+    showToast(`💬 ${data.senderName}: ${String(data.text||'').slice(0,60)}`);
+  });
+}
+function resetChatNotifyState(){
+  if(chatNotifyRef) chatNotifyRef.off();
+  chatNotifyRef = null;
+  chatNotifyListenerUserId = null;
+  chatNotifyInitialized = false;
 }
 function checkNewLeadNotifications(){
   const user = currentUser();
@@ -1734,7 +1773,7 @@ function renderMktMyLeadsList(){
       const statusHtml = l.status
         ? `<span class="badge" style="${leadStatusStyle(l.status)}">${l.status}</span>`
         : '<span style="color:var(--ink-soft);">Chưa cập nhật</span>';
-      const chatBtn = assignee ? `<button class="btn-ghost btn-small" onclick="openChatWithUser('${assignee.id}')">💬 Chat</button>` : '';
+      const chatBtn = assignee ? `<button class="btn-ghost btn-small chat-btn" data-conv="${chatConversationId(u.id, assignee.id)}" onclick="openChatWithUser('${assignee.id}')">💬 Chat</button>` : '';
       return `<tr>
         <td data-label="Ngày nhận">${fmtDateTimeShort(l.importedAt||l.assignedAt)}</td>
         <td data-label="SĐT">${leadPhone(l)}</td>
@@ -1745,6 +1784,7 @@ function renderMktMyLeadsList(){
         <td>${chatBtn}</td>
       </tr>`;
     }).join('') + `</tbody>`;
+  refreshUnreadChatDots();
 }
 function renderMktInputPage(){
   resetMktBulkPreview();
@@ -1863,9 +1903,16 @@ function renderMyLeads(){
   }
 
   const table=document.getElementById('myLeadsTable');
-  if(allMyLeads.length===0){ table.innerHTML=`<tr><td class="empty-note">${rawQuery?'Không tìm thấy data phù hợp.':'Chưa có data nào được chia cho bạn.'}</td></tr>`; return; }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
-    allMyLeads.map(l=>`<tr>
+  if(allMyLeads.length===0){
+    table.innerHTML=`<tr><td class="empty-note">${rawQuery?'Không tìm thấy data phù hợp.':'Chưa có data nào được chia cho bạn.'}</td></tr>`;
+    renderSelfLeadsTable();
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
+    allMyLeads.map(l=>{
+      const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
+      const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${chatConversationId(user.id, mktSender.id)}" onclick="openChatWithUser('${mktSender.id}')">💬 Chat</button>` : '';
+      return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
@@ -1881,8 +1928,11 @@ function renderMyLeads(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-    </tr>`).join('') + `</tbody>`;
+      <td>${chatBtn}</td>
+    </tr>`;
+    }).join('') + `</tbody>`;
   renderSelfLeadsTable();
+  refreshUnreadChatDots();
 }
 const SELF_LEAD_SOURCE_OPTIONS = ['Facebook','TikTok','Zalo','Khác'];
 const SELF_LEAD_STATUS_OPTIONS = ['Đã nhắn tin','Đã gọi','Đang tư vấn','Đã chốt'];
@@ -2478,37 +2528,49 @@ function chatConversationId(userIdA, userIdB){
 }
 let currentChatConversationId = null;
 let currentChatRef = null;
+let currentChatReadOnly = false;
 function openChatWithUser(otherUserId){
   const me = currentUser();
   const other = state.users.find(u=>u.id===otherUserId);
   if(!me || !other) return;
   if(otherUserId===me.id){ showToast('Không thể tự chat với chính mình'); return; }
-
-  currentChatConversationId = chatConversationId(me.id, otherUserId);
-  document.getElementById('chatModalTitle').textContent = 'Chat với ' + other.name;
+  openChatModal(chatConversationId(me.id, otherUserId), 'Chat với ' + other.name, false);
+}
+// Quản lý chung xem lại (không tham gia) 1 cuộc trò chuyện bất kỳ giữa 2 người khác.
+function viewConversationReadOnly(conversationId, titleText){
+  openChatModal(conversationId, titleText, true);
+}
+function openChatModal(conversationId, title, readOnly){
+  const me = currentUser();
+  currentChatConversationId = conversationId;
+  currentChatReadOnly = readOnly;
+  document.getElementById('chatModalTitle').textContent = title;
   document.getElementById('chatMessagesList').innerHTML = '<div class="empty-note">Đang tải...</div>';
   document.getElementById('chatInput').value = '';
+  document.getElementById('chatInputRow').style.display = readOnly ? 'none' : 'flex';
   document.getElementById('chatModal').classList.add('show');
-  setTimeout(()=>document.getElementById('chatInput').focus(), 50);
+  if(!readOnly) setTimeout(()=>document.getElementById('chatInput').focus(), 50);
 
   if(currentChatRef) currentChatRef.off();
-  currentChatRef = fbChats.child(currentChatConversationId);
+  currentChatRef = fbChats.child(conversationId);
   currentChatRef.on('value', snap=>{
     const msgs = Object.values(snap.val()||{}).sort((a,b)=>a.sentAt-b.sentAt);
     renderChatMessages(msgs);
+    // Đánh dấu đã đọc theo đúng người đang xem (không ảnh hưởng trạng thái đọc của người kia)
+    if(me) fbChatReads.child(me.id).child(conversationId).set(Date.now());
   });
 }
 function renderChatMessages(msgs){
   const me = currentUser();
   const list = document.getElementById('chatMessagesList');
   if(msgs.length===0){
-    list.innerHTML = '<div class="empty-note">Chưa có tin nhắn nào — gửi lời chào đầu tiên nhé!</div>';
+    list.innerHTML = '<div class="empty-note">Chưa có tin nhắn nào'+(currentChatReadOnly?'.':' — gửi lời chào đầu tiên nhé!')+'</div>';
     return;
   }
   list.innerHTML = msgs.map(m=>{
-    const mine = m.senderId===me.id;
+    const mine = !currentChatReadOnly && m.senderId===me.id;
     return `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:80%; background:${mine?'var(--accent)':'var(--panel)'}; color:${mine?'var(--accent-ink)':'var(--ink)'}; border:1px solid var(--line); border-radius:12px; padding:8px 12px;">
-      ${!mine?`<div style="font-size:11px; color:var(--ink-soft); margin-bottom:2px;">${escapeHtml(m.senderName)}</div>`:''}
+      <div style="font-size:11px; color:${mine?'var(--accent-ink)':'var(--ink-soft)'}; opacity:${mine?'0.85':'1'}; margin-bottom:2px;">${escapeHtml(m.senderName)}</div>
       <div style="font-size:14px; white-space:pre-wrap; word-break:break-word;">${escapeHtml(m.text)}</div>
       <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</div>
     </div>`;
@@ -2516,6 +2578,7 @@ function renderChatMessages(msgs){
   list.scrollTop = list.scrollHeight;
 }
 function sendChatMessage(){
+  if(currentChatReadOnly) return;
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
   if(!text || !currentChatConversationId) return;
@@ -2523,12 +2586,72 @@ function sendChatMessage(){
   const msgId = uid();
   const msg = {id:msgId, senderId:me.id, senderName:me.name, text, sentAt:Date.now()};
   fbChats.child(currentChatConversationId).child(msgId).set(msg);
+  // Ghi 1 bản tin "thông báo" nhẹ cho đúng người nhận — để họ được báo (tiếng ting + toast) ngay
+  // cả khi đang KHÔNG mở khung chat này, mà không cần tải toàn bộ lịch sử chat để so sánh.
+  const [idA, idB] = currentChatConversationId.split('_');
+  const otherUserId = idA===me.id ? idB : idA;
+  fbChatNotify.child(otherUserId).set({senderId:me.id, senderName:me.name, text, sentAt:msg.sentAt, convId:currentChatConversationId});
   input.value = '';
+}
+// Quét các nút chat đang hiển thị trên trang, kiểm tra tin nhắn mới nhất của từng cuộc trò chuyện
+// so với lần đọc gần nhất của MÌNH — nếu có tin mới chưa đọc (không phải do mình gửi) thì gắn chấm đỏ.
+function refreshUnreadChatDots(){
+  const me = currentUser();
+  if(!me) return;
+  const buttons = document.querySelectorAll('.chat-btn[data-conv]');
+  if(buttons.length===0) return;
+  const convIds = Array.from(new Set(Array.from(buttons).map(b=>b.dataset.conv)));
+  convIds.forEach(convId=>{
+    Promise.all([
+      fbChats.child(convId).limitToLast(1).once('value'),
+      fbChatReads.child(me.id).child(convId).once('value')
+    ]).then(([msgsSnap, readSnap])=>{
+      const msgs = Object.values(msgsSnap.val()||{});
+      const last = msgs[0];
+      const lastReadAt = readSnap.val() || 0;
+      const isUnread = last && last.senderId!==me.id && last.sentAt > lastReadAt;
+      document.querySelectorAll(`.chat-btn[data-conv="${convId}"]`).forEach(btn=>{
+        const dotHtml = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--danger); margin-left:5px;"></span>';
+        btn.innerHTML = '💬 Chat' + (isUnread ? dotHtml : '');
+      });
+    }).catch(()=>{});
+  });
 }
 function closeChatModal(){
   document.getElementById('chatModal').classList.remove('show');
   if(currentChatRef){ currentChatRef.off(); currentChatRef = null; }
   currentChatConversationId = null;
+  if(typeof refreshUnreadChatDots === 'function') refreshUnreadChatDots();
+}
+function renderMgrAllChats(){
+  const table = document.getElementById('mgrAllChatsTable');
+  table.innerHTML = '<tr><td class="empty-note">Đang tải...</td></tr>';
+  fbChats.once('value').then(snap=>{
+    const data = snap.val() || {};
+    const rows = Object.entries(data).map(([convId, msgsObj])=>{
+      const msgs = Object.values(msgsObj||{}).sort((a,b)=>b.sentAt-a.sentAt);
+      const last = msgs[0];
+      const [idA, idB] = convId.split('_');
+      const userA = state.users.find(u=>u.id===idA);
+      const userB = state.users.find(u=>u.id===idB);
+      const nameA = userA ? userA.name : '(đã xoá)';
+      const nameB = userB ? userB.name : '(đã xoá)';
+      return {convId, nameA, nameB, count: msgs.length, lastText: last?last.text:'', lastAt: last?last.sentAt:0, lastSender: last?last.senderName:''};
+    }).sort((a,b)=>b.lastAt-a.lastAt);
+
+    if(rows.length===0){
+      table.innerHTML = '<tr><td class="empty-note">Chưa có cuộc trò chuyện nào trong hệ thống.</td></tr>';
+      return;
+    }
+    table.innerHTML = `<thead><tr><th>Giữa</th><th>Tin nhắn gần nhất</th><th>Lúc</th><th class="num">Số tin</th><th></th></tr></thead><tbody>` +
+      rows.map(r=>`<tr>
+        <td data-label="Giữa">${r.nameA} ↔ ${r.nameB}</td>
+        <td data-label="Tin nhắn gần nhất">${r.lastSender?`<b>${r.lastSender}:</b> `:''}${(r.lastText||'').slice(0,60)}${(r.lastText||'').length>60?'...':''}</td>
+        <td data-label="Lúc">${r.lastAt?fmtDateTimeShort(r.lastAt):'—'}</td>
+        <td class="num" data-label="Số tin">${r.count}</td>
+        <td><button class="btn-ghost btn-small" onclick="viewConversationReadOnly('${r.convId}','${r.nameA} ↔ ${r.nameB}')">Xem</button></td>
+      </tr>`).join('') + `</tbody>`;
+  });
 }
 function copyPin(pin, name){
   copyText(pin, `Đã copy mã PIN của ${name}`);
@@ -2839,6 +2962,7 @@ function goBackFromBranch(){
 function logout(){
   state.session=null; persistSession();
   resetLeadNotifyState();
+  resetChatNotifyState();
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   loginStep=1; loginBranchId=null; loginRole=null; pendingName=null; pendingPin=null;
@@ -2859,6 +2983,7 @@ function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
   checkNewLeadNotifications();
+  setupChatNotifyListener();
   initTrungThu();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
@@ -2882,6 +3007,8 @@ function enterApp(){
   // "Danh sách data" (bảng tổng gộp mọi người) chỉ dành cho Quản lý chung / Quản lý Data — Quản lý
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
+  document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
   if(isMkt){ goPage('mktInput'); }
   else if(isMktManager){ goPage('mktManagerStats'); }
@@ -2915,6 +3042,7 @@ function goPage(pageId){
   if(pageId==='mgrReports') renderMgrReportsPage();
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
+  if(pageId==='mgrAllChats') renderMgrAllChats();
   if(pageId==='personLeads') renderPersonLeadsPage();
   if(pageId==='mgrTrash') renderMgrTrash();
   if(pageId==='mgrSettings') renderMgrSettings();
