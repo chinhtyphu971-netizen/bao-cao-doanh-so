@@ -1380,6 +1380,13 @@ function buildAdminPool(date){
 function normalizePhone(p){
   return String(p||'').replace(/\D/g,'').replace(/^0+/,'');
 }
+// Kiểm tra ĐÚNG định dạng SĐT Việt Nam: đủ 10 số và bắt đầu bằng số 0 — dùng riêng cho MKT nhập
+// data mới (không đụng tới normalizePhone ở trên, vì đó vẫn cần dùng để SO KHỚP với số cũ từ
+// Google Sheet có thể không có số 0 đầu hoặc format khác).
+function isValidVNPhone(phone){
+  const digitsOnly = String(phone||'').replace(/\D/g,'');
+  return digitsOnly.length===10 && digitsOnly.charAt(0)==='0';
+}
 function priorAssigneesForPhone(lead){
   const phoneNorm = normalizePhone(leadPhone(lead));
   if(!phoneNorm) return new Set();
@@ -1549,10 +1556,10 @@ function createLeadFromMkt(phone, source, customerName){
 function populateMktSourceList(){
   const sources = (currentUser() && currentUser().assignedSources) || [];
   const bulkSel = document.getElementById('mktBulkSource');
-  const optionsHtml = sources.length
+  const optionsHtml = '<option value="">— Chọn Nguồn —</option>' + (sources.length
     ? sources.map(s=>`<option value="${s}">${s}</option>`).join('')
-    : '<option value="">— Chưa được gán Nguồn nào —</option>';
-  if(bulkSel) bulkSel.innerHTML = optionsHtml;
+    : '');
+  if(bulkSel) bulkSel.innerHTML = sources.length ? optionsHtml : '<option value="">— Chưa được gán Nguồn nào —</option>';
 
   const warnHtml = sources.length===0
     ? '<div class="login-error" style="display:block;">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán tối đa 3 Nguồn trước khi nhập data.</div>'
@@ -1609,8 +1616,8 @@ function analyzeMktBulkLines(source){
     const phone = parts[0] || '';
     const name = parts[1] || '';
     const digits = normalizePhone(phone);
-    if(digits.length < 8){
-      return {line, phone, name, digits, status:'invalid', text:'Số không hợp lệ'};
+    if(!isValidVNPhone(phone)){
+      return {line, phone, name, digits, status:'invalid', text:'SĐT phải đủ 10 số và bắt đầu bằng số 0'};
     }
     const check = checkPhoneEntryRule(digits, source, stagedSourcesByPhone[digits]);
     if(!check.allowed){
