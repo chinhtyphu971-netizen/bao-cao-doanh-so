@@ -1642,35 +1642,30 @@ function updateLeadStatus(leadId, newStatus){
 }
 // Ô "Ngày chốt" / "Số tiền chốt" — chỉ hiện input khi Tình trạng đang là "Đã chốt",
 // còn lại hiện gạch ngang cho gọn (không áp dụng).
-// Ngày chốt dùng 2 ô bấm chọn (Ngày / Tháng), KHÔNG hiện năm cho gọn — năm được giữ ngầm bên
-// trong (mặc định là năm hiện tại lúc chuyển sang "Đã chốt", chỉ đổi ngày/tháng thì năm giữ
-// nguyên). Lưu trong Firebase vẫn là yyyy-mm-dd đầy đủ để sắp xếp/lọc theo ngày cho đúng.
-function closedDateDayMonthPickerHtml(l, afterChangeJs){
+// Ngày chốt dùng 1 ô chọn DUY NHẤT (gộp ngày+tháng thành 1 dropdown, ví dụ "18/09"), không
+// hiện năm cho gọn diện tích — năm giữ ngầm bên trong. Danh sách chọn trải dài từ 1 năm trước
+// tới 7 ngày sau hôm nay, đủ dùng cho hầu hết trường hợp; khi mở ô lên, trình duyệt sẽ tự cuộn
+// tới đúng ngày đang chọn nên chỉ cần 1 lần bấm là chọn xong, không cần cuộn tìm nhiều.
+function closedDateOptionsHtml(selectedIso){
+  const today = new Date();
+  const opts = [];
+  for(let offset = 365; offset >= -7; offset--){
+    const d = new Date(today);
+    d.setDate(d.getDate() - offset);
+    const iso = toLocalDateStr(d);
+    const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    opts.push(`<option value="${iso}" ${iso===selectedIso?'selected':''}>${label}</option>`);
+  }
+  return opts.join('');
+}
+function closedDatePickerHtml(l, afterChangeJs){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
   const iso = l.closedDate || todayStr();
-  const parts = iso.split('-');
-  const d = parts[2], m = parts[1];
-  const dayOpts = Array.from({length:31}, (_,i)=>String(i+1).padStart(2,'0'))
-    .map(dd=>`<option value="${dd}" ${dd===d?'selected':''}>${dd}</option>`).join('');
-  const monthOpts = Array.from({length:12}, (_,i)=>String(i+1).padStart(2,'0'))
-    .map(mm=>`<option value="${mm}" ${mm===m?'selected':''}>Th${Number(mm)}</option>`).join('');
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
-  return `<div style="display:flex; gap:4px;">
-    <select style="min-height:30px; padding:2px 2px; font-size:12px; width:48px;" onchange="onClosedDayMonthChange('${l.id}', this, 'day')${after}">${dayOpts}</select>
-    <select style="min-height:30px; padding:2px 2px; font-size:12px; width:56px;" onchange="onClosedDayMonthChange('${l.id}', this, 'month')${after}">${monthOpts}</select>
-  </div>`;
-}
-function onClosedDayMonthChange(leadId, selectEl, kind){
-  const lead = state.leads.find(l=>l.id===leadId);
-  if(!lead) return;
-  const iso = lead.closedDate || todayStr();
-  const parts = iso.split('-');
-  let y = parts[0], m = parts[1], d = parts[2];
-  if(kind==='day') d = selectEl.value; else m = selectEl.value;
-  updateLeadField(leadId, 'closedDate', `${y}-${m}-${d}`);
+  return `<select style="min-height:30px; padding:2px 4px; font-size:12px; width:74px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
 }
 function leadClosedDateFieldHtml(l){
-  return closedDateDayMonthPickerHtml(l);
+  return closedDatePickerHtml(l);
 }
 function leadClosedAmountFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
@@ -2163,7 +2158,7 @@ function renderMyClosedLeads(){
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
       return `<tr>
-      <td data-label="Ngày chốt">${closedDateDayMonthPickerHtml(l, 'renderMyClosedLeads()')}</td>
+      <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
         ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','phone',this.value)">`
