@@ -1642,36 +1642,35 @@ function updateLeadStatus(leadId, newStatus){
 }
 // Ô "Ngày chốt" / "Số tiền chốt" — chỉ hiện input khi Tình trạng đang là "Đã chốt",
 // còn lại hiện gạch ngang cho gọn (không áp dụng).
-// Ngày chốt dùng ô CHỮ (không dùng input type="date") vì input type="date" hiển thị theo
-// định dạng ngôn ngữ/hệ điều hành của trình duyệt từng máy (có máy ra mm/dd/yyyy kiểu Mỹ,
-// dễ gõ nhầm ngày/tháng) — ô chữ này LUÔN hiển thị đúng dd/mm/yyyy trên mọi máy, mọi trình
-// duyệt. Lưu trong Firebase vẫn là yyyy-mm-dd để sắp xếp/lọc theo ngày cho đúng.
-function parseDisplayDate(str){
-  const m = String(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(!m) return null;
-  const dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0'), yyyy = m[3];
-  const d = Number(dd), mo = Number(mm);
-  if(d<1||d>31||mo<1||mo>12) return null;
-  return `${yyyy}-${mm}-${dd}`;
+// Ngày chốt dùng 2 ô bấm chọn (Ngày / Tháng), KHÔNG hiện năm cho gọn — năm được giữ ngầm bên
+// trong (mặc định là năm hiện tại lúc chuyển sang "Đã chốt", chỉ đổi ngày/tháng thì năm giữ
+// nguyên). Lưu trong Firebase vẫn là yyyy-mm-dd đầy đủ để sắp xếp/lọc theo ngày cho đúng.
+function closedDateDayMonthPickerHtml(l, afterChangeJs){
+  if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
+  const iso = l.closedDate || todayStr();
+  const parts = iso.split('-');
+  const d = parts[2], m = parts[1];
+  const dayOpts = Array.from({length:31}, (_,i)=>String(i+1).padStart(2,'0'))
+    .map(dd=>`<option value="${dd}" ${dd===d?'selected':''}>${dd}</option>`).join('');
+  const monthOpts = Array.from({length:12}, (_,i)=>String(i+1).padStart(2,'0'))
+    .map(mm=>`<option value="${mm}" ${mm===m?'selected':''}>Th${Number(mm)}</option>`).join('');
+  const after = afterChangeJs ? `; ${afterChangeJs}` : '';
+  return `<div style="display:flex; gap:4px;">
+    <select style="min-height:30px; padding:2px 2px; font-size:12px; width:48px;" onchange="onClosedDayMonthChange('${l.id}', this, 'day')${after}">${dayOpts}</select>
+    <select style="min-height:30px; padding:2px 2px; font-size:12px; width:56px;" onchange="onClosedDayMonthChange('${l.id}', this, 'month')${after}">${monthOpts}</select>
+  </div>`;
 }
-function onClosedDateInputChange(leadId, inputEl){
+function onClosedDayMonthChange(leadId, selectEl, kind){
   const lead = state.leads.find(l=>l.id===leadId);
-  if(!inputEl.value.trim()){
-    updateLeadField(leadId, 'closedDate', null);
-    return;
-  }
-  const iso = parseDisplayDate(inputEl.value);
-  if(!iso){
-    showToast('Ngày chốt sai định dạng — gõ đúng dạng dd/mm/yyyy, ví dụ 16/09/2026');
-    inputEl.value = (lead && lead.closedDate) ? fmtDate(lead.closedDate) : '';
-    return;
-  }
-  updateLeadField(leadId, 'closedDate', iso);
-  inputEl.value = fmtDate(iso); // chuẩn hoá lại cách hiển thị (vd gõ 6/9/2026 -> tự sửa thành 06/09/2026)
+  if(!lead) return;
+  const iso = lead.closedDate || todayStr();
+  const parts = iso.split('-');
+  let y = parts[0], m = parts[1], d = parts[2];
+  if(kind==='day') d = selectEl.value; else m = selectEl.value;
+  updateLeadField(leadId, 'closedDate', `${y}-${m}-${d}`);
 }
 function leadClosedDateFieldHtml(l){
-  if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
-  return `<input type="text" inputmode="numeric" value="${l.closedDate?fmtDate(l.closedDate):''}" placeholder="dd/mm/yyyy" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:105px;" onchange="onClosedDateInputChange('${l.id}', this)">`;
+  return closedDateDayMonthPickerHtml(l);
 }
 function leadClosedAmountFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
@@ -2164,7 +2163,7 @@ function renderMyClosedLeads(){
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
       return `<tr>
-      <td data-label="Ngày chốt"><input type="text" inputmode="numeric" value="${l.closedDate?fmtDate(l.closedDate):''}" placeholder="dd/mm/yyyy" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:105px;" onchange="onClosedDateInputChange('${l.id}', this); renderMyClosedLeads();"></td>
+      <td data-label="Ngày chốt">${closedDateDayMonthPickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
         ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','phone',this.value)">`
