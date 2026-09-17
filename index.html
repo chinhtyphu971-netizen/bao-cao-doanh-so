@@ -1886,7 +1886,7 @@ function togglePersonLeadsStatsByDay(){
 function renderLeadsStatsByDayInto(containerId, allLeadsForPerson){
   const byDay = {};
   allLeadsForPerson.forEach(l=>{
-    const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt));
+    const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || l.importedAt || 0));
     byDay[d] = byDay[d] || {total:0, unprocessed:0};
     byDay[d].total++;
     if(isLeadUnprocessed(l)) byDay[d].unprocessed++;
@@ -2281,18 +2281,22 @@ function renderMgrLeadsList(){
       (!scope && (u.role==='general_manager' || u.role==='data_manager') && u.active!==false)
     ).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
     personSel.innerHTML = '<option value="">— Tất cả người nhận —</option>' +
+      '<option value="__unassigned__">— Chưa chia —</option>' +
       relevantUsers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
     personSel.dataset.scope = String(scope);
   }
 
+  // Data CHƯA chia cũng hiện luôn ở đây (không chỉ tóm tắt số lượng bên trang "Phân bổ data" nữa),
+  // để Quản lý chung/Data thấy được đầy đủ, kể cả những data còn đang chờ ai đó nhận.
   let leads = state.leads.filter(l=>{
-    if(!l.assignedTo) return false; // data chưa chia hiện ở khối "Kho data chưa chia" riêng, không lặp lại ở đây
     if(scope){
+      // Đang xem theo phạm vi 1 team cụ thể -> data chưa chia (chưa thuộc team nào) không tính vào đây
+      if(!l.assignedTo) return false;
       const assignee = state.users.find(u=>u.id===l.assignedTo);
       if(!assignee || assignee.branchId!==scope) return false;
     }
     return true;
-  }).sort((a,b)=>b.assignedAt-a.assignedAt);
+  }).sort((a,b)=>(b.assignedAt||b.importedAt||0)-(a.assignedAt||a.importedAt||0));
 
   // Danh sách Nguồn để lọc — lấy động theo đúng những Nguồn đang thực sự có trong phạm vi đang xem,
   // giữ nguyên lựa chọn hiện tại nếu Nguồn đó vẫn còn tồn tại sau khi có data mới.
@@ -2322,7 +2326,9 @@ function renderMgrLeadsList(){
     leads = leads.filter(l=>l.status===statusFilter);
   }
   const personFilter = personSel.value;
-  if(personFilter){
+  if(personFilter==='__unassigned__'){
+    leads = leads.filter(l=>!l.assignedTo);
+  } else if(personFilter){
     leads = leads.filter(l=>l.assignedTo===personFilter);
   }
   const sourceFilter = sourceSel.value;
@@ -2330,7 +2336,8 @@ function renderMgrLeadsList(){
     leads = leads.filter(l=>leadSource(l)===sourceFilter);
   }
 
-  const unprocessedCount = leads.filter(l=>isLeadUnprocessed(l)).length;
+  const unassignedCount = leads.filter(l=>!l.assignedTo).length;
+  const unprocessedCount = leads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length; // chỉ tính data ĐÃ chia mà Sale chưa cập nhật, không tính chung với data chưa chia
   if(document.getElementById('mgrLeadsListStatsByDay').style.display !== 'none'){
     renderLeadsStatsByDayInto('mgrLeadsListStatsByDay', leads);
   }
@@ -2347,7 +2354,10 @@ function renderMgrLeadsList(){
 
   document.getElementById('mgrLeadsListSummary').textContent = totalFiltered===0
     ? 'Không có data nào phù hợp.'
-    : `${totalFiltered} data${unprocessedCount>0?` · ${unprocessedCount} chưa xử lý`:''} — đang xem ${startIdx+1}-${Math.min(startIdx+pageSize,totalFiltered)} — Quản lý có thể sửa Tên khách/Tình trạng ngay tại đây`;
+    : `${totalFiltered} data` +
+      (unassignedCount>0?` · ${unassignedCount} chưa chia`:'') +
+      (unprocessedCount>0?` · ${unprocessedCount} đã chia nhưng chưa xử lý`:'') +
+      ` — đang xem ${startIdx+1}-${Math.min(startIdx+pageSize,totalFiltered)} — Quản lý có thể sửa Tên khách/Tình trạng ngay tại đây`;
 
   const paginationEl = document.getElementById('mgrLeadsListPagination');
   if(totalFiltered===0){
@@ -2374,10 +2384,10 @@ function renderMgrLeadsList(){
         ? `<button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${l.id}','SĐT ${leadPhone(l)} — ${mktSender.name} ↔ ${assignee.name}')">💬</button>`
         : '';
       return `<tr>
-      <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
+      <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt || l.importedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
-      <td data-label="Người nhận">${l.assignedToName || '—'}</td>
+      <td data-label="Người nhận">${l.assignedToName ? l.assignedToName : '<span class="badge badge-warn">Chưa chia</span>'}</td>
       <td data-label="Chi nhánh">${branchLabel}</td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderMgrLeadsList();"></td>
       <td data-label="Tình trạng">
