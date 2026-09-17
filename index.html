@@ -503,6 +503,13 @@
           </div>
           <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
         </div>
+
+        <div class="card">
+          <h2>Data tự tìm <span id="selfLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
+          <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
+          <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
+        </div>
       </div>
 
       <!-- ---------- MANAGER: tổng quan ---------- -->
@@ -817,6 +824,11 @@
                 <button class="btn-ghost" onclick="settingsAddMktBranch()">Thêm</button>
               </div>
             </div>
+
+            <div id="settingsTeamsTrashSection" style="display:none; margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+              <span class="history-link" onclick="toggleSettingsTeamsTrash()" id="settingsTeamsTrashToggle">Team đã xoá ▸</span>
+              <div id="settingsTeamsTrashList" style="display:none; margin-top:10px;"></div>
+            </div>
           </div>
           <div class="card">
             <h2>Người dùng đã đăng ký</h2>
@@ -861,6 +873,19 @@
     <div class="actions">
       <button class="btn-ghost" onclick="closeConfirm()">Huỷ</button>
       <button class="btn-danger" id="confirmOkBtn">Xác nhận</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="pinConfirmModal">
+  <div class="modal">
+    <h2 id="pinConfirmTitle">Xác nhận xoá</h2>
+    <p id="pinConfirmText" style="color:var(--ink-soft);"></p>
+    <div class="field"><label>Nhập lại mã PIN của bạn để xác nhận</label><input type="password" id="pinConfirmInput" maxlength="4" placeholder="****"></div>
+    <div class="login-error" id="pinConfirmError"></div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closePinConfirm()">Huỷ</button>
+      <button class="btn-danger" id="pinConfirmOkBtn">Xác nhận xoá</button>
     </div>
   </div>
 </div>
@@ -961,11 +986,13 @@ let state = {
   enforceUnprocessedLock: false,
   mktBranches: [], // "Team MKT" — tách riêng hoàn toàn với branches (team bên Sale), không liên quan gì nhau
   mktSources: [], // Danh sách Nguồn MKT dùng chung, để chọn khi gán Nguồn phụ trách cho từng người
+  teamsTrash: [], // Team Sale/MKT đã xoá, giữ lại để khôi phục được — {id, name, type:'branch'|'mktBranch', deletedAt}
+  selfLeads: [], // "Data tự tìm" — Sale tự ghi lại data họ tự kiếm được, tách biệt hoàn toàn với /leads (data hệ thống tự chia)
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1016,6 +1043,8 @@ function initFirebase(){
   fbBranches = db.ref('branches');
   fbMktBranches = db.ref('mktBranches');
   fbMktSources = db.ref('mktSources');
+  fbTeamsTrash = db.ref('teamsTrash');
+  fbSelfLeads = db.ref('selfLeads');
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
@@ -1030,6 +1059,8 @@ function initFirebase(){
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbMktBranches.on('value', snap=>{ state.mktBranches = Object.values(snap.val()||{}); markLoaded('mktBranches'); onDataChanged(); });
   fbMktSources.on('value', snap=>{ state.mktSources = Object.values(snap.val()||{}); onDataChanged(); });
+  fbTeamsTrash.on('value', snap=>{ state.teamsTrash = Object.values(snap.val()||{}); onDataChanged(); });
+  fbSelfLeads.on('value', snap=>{ state.selfLeads = Object.values(snap.val()||{}); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -1170,6 +1201,8 @@ function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
 function fbSetLead(l){ fbLeads.child(l.id).set(l); }
+function fbSetSelfLead(l){ fbSelfLeads.child(l.id).set(l); }
+function fbDeleteSelfLead(id){ fbSelfLeads.child(id).remove(); }
 function fbSetCheckin(date, userId, value){ fbCheckins.child(date).child(userId).set(value===undefined?true:value); }
 function fbSetManagerConfirm(date, userId, value){ fbManagerConfirms.child(date).child(userId).set(value===undefined?true:value); }
 function fbSetDailyRotation(date, data){ fbDailyRotation.child(date).set(data); }
@@ -1753,6 +1786,69 @@ function renderMyLeads(){
         </select>
       </td>
     </tr>`).join('') + `</tbody>`;
+  renderSelfLeadsTable();
+}
+const SELF_LEAD_SOURCE_OPTIONS = ['Facebook','TikTok','Zalo','Khác'];
+const SELF_LEAD_STATUS_OPTIONS = ['Đã nhắn tin','Đã gọi','Đang tư vấn','Đã chốt'];
+function renderSelfLeadsTable(){
+  const user = currentUser();
+  if(!user) return;
+  const mine = state.selfLeads.filter(l=>l.userId===user.id).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const countEl = document.getElementById('selfLeadsCount');
+  if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
+  const table = document.getElementById('selfLeadsTable');
+  if(!table) return;
+  if(mine.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có dòng nào — bấm "+ Thêm dòng" để bắt đầu ghi lại data bạn tự tìm được.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>STT</th><th>Số điện thoại</th><th>Nguồn</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+    mine.map((l,idx)=>`<tr>
+      <td data-label="STT">${idx+1}</td>
+      <td data-label="Số điện thoại"><input type="text" value="${l.phone||''}" placeholder="SĐT" style="width:120px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)"></td>
+      <td data-label="Nguồn">
+        <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','source',this.value)">
+          ${SELF_LEAD_SOURCE_OPTIONS.map(s=>`<option value="${s}" ${l.source===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td data-label="Trạng thái">
+        <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','status',this.value)">
+          ${SELF_LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td data-label="Ghi chú"><input type="text" value="${l.note||''}" placeholder="Ghi chú..." style="width:160px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','note',this.value)"></td>
+      <td><span class="copy-icon" title="Xoá dòng" onclick="deleteSelfLeadRow('${l.id}')">🗑️</span></td>
+    </tr>`).join('') + `</tbody>`;
+}
+function addSelfLeadRow(){
+  const user = currentUser();
+  if(!user) return;
+  const row = {
+    id: 'self_' + uid(),
+    userId: user.id,
+    phone: '',
+    source: SELF_LEAD_SOURCE_OPTIONS[0],
+    status: SELF_LEAD_STATUS_OPTIONS[0],
+    note: '',
+    createdAt: Date.now(),
+  };
+  state.selfLeads.push(row);
+  fbSetSelfLead(row);
+  renderSelfLeadsTable();
+}
+function updateSelfLeadField(id, field, value){
+  const row = state.selfLeads.find(l=>l.id===id);
+  if(!row) return;
+  row[field] = value;
+  fbSetSelfLead(row);
+}
+function deleteSelfLeadRow(id){
+  askConfirm('Xoá dòng này?', 'Xoá khỏi danh sách "Data tự tìm" của bạn?', ()=>{
+    state.selfLeads = state.selfLeads.filter(l=>l.id!==id);
+    fbDeleteSelfLead(id);
+    renderSelfLeadsTable();
+    showToast('Đã xoá');
+  });
 }
 function toggleCheckinByManager(userId){
   const today=todayStr();
@@ -2411,6 +2507,18 @@ function askConfirm(title,text,onOk){
 }
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); pendingConfirm=null; }
 
+let pendingPinConfirm = null;
+function askConfirmWithPin(title, text, onOk){
+  document.getElementById('pinConfirmTitle').textContent = title;
+  document.getElementById('pinConfirmText').textContent = text;
+  document.getElementById('pinConfirmInput').value = '';
+  document.getElementById('pinConfirmError').textContent = '';
+  document.getElementById('pinConfirmModal').classList.add('show');
+  pendingPinConfirm = onOk;
+  setTimeout(()=>document.getElementById('pinConfirmInput').focus(), 50);
+}
+function closePinConfirm(){ document.getElementById('pinConfirmModal').classList.remove('show'); pendingPinConfirm=null; }
+
 function openHistoryModal(reportId){
   const r = state.reports.find(x=>x.id===reportId) || state.trash.find(x=>x.id===reportId);
   if(!r) return;
@@ -2454,6 +2562,16 @@ function openNoteModal(reportId){
 }
 function closeNoteModal(){ document.getElementById('noteModal').classList.remove('show'); }
 document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
+document.getElementById('pinConfirmOkBtn').onclick=()=>{
+  const entered = document.getElementById('pinConfirmInput').value.trim();
+  const u = currentUser();
+  if(!u || entered !== u.pin){
+    document.getElementById('pinConfirmError').textContent = 'Mã PIN không đúng.';
+    return;
+  }
+  if(pendingPinConfirm) pendingPinConfirm();
+  closePinConfirm();
+};
 
 /* =========================== LOGIN FLOW =========================== */
 let loginStep=1, loginBranchId=null, loginRole=null;
@@ -3476,6 +3594,76 @@ function settingsImportExistingMktSources(){
   renderMgrSettings();
   showToast(`Đã lấy thêm ${toAdd.length} Nguồn từ data hiện có`);
 }
+
+/* =========================== SỬA TÊN / XOÁ (KÈM PIN) / KHÔI PHỤC TEAM SALE & TEAM MKT =========================== */
+function teamListByType(type){ return type==='branch' ? state.branches : state.mktBranches; }
+function teamMembersByType(type, id){
+  return type==='branch'
+    ? state.users.filter(u=>u.branchId===id && (u.role==='staff'||u.role==='team_manager'))
+    : state.users.filter(u=>u.mktBranchId===id && (u.role==='mkt'||u.role==='mkt_manager'));
+}
+function renameTeam(type, id){
+  const team = teamListByType(type).find(b=>b.id===id);
+  if(!team) return;
+  const newName = prompt('Đổi tên team:', team.name);
+  if(newName===null) return; // bấm Huỷ
+  const trimmed = newName.trim();
+  if(!trimmed || trimmed===team.name) return;
+  team.name = trimmed;
+  if(type==='branch') fbSetBranch(team); else fbSetMktBranch(team);
+  renderMgrSettings();
+  showToast('Đã đổi tên team');
+}
+function requestDeleteTeam(type, id){
+  const team = teamListByType(type).find(b=>b.id===id);
+  if(!team) return;
+  const members = teamMembersByType(type, id);
+  if(members.length > 0){
+    showToast(`Còn ${members.length} người đang thuộc team này — chuyển hết họ sang team khác trước khi xoá`);
+    return;
+  }
+  askConfirmWithPin(
+    'Xoá team?',
+    `Xoá "${team.name}"? Nhập lại mã PIN của bạn để xác nhận — sau khi xoá vẫn có thể khôi phục lại ở mục "Team đã xoá".`,
+    ()=>actuallyDeleteTeam(type, team)
+  );
+}
+function actuallyDeleteTeam(type, team){
+  if(type==='branch'){
+    state.branches = state.branches.filter(b=>b.id!==team.id);
+    fbBranches.child(team.id).remove();
+  } else {
+    state.mktBranches = state.mktBranches.filter(b=>b.id!==team.id);
+    fbMktBranches.child(team.id).remove();
+  }
+  const trashEntry = {id:team.id, name:team.name, type, deletedAt:Date.now()};
+  state.teamsTrash.push(trashEntry);
+  fbTeamsTrash.child(team.id).set(trashEntry);
+  renderMgrSettings();
+  showToast(`Đã xoá "${team.name}" — có thể khôi phục ở mục "Team đã xoá"`);
+}
+function restoreTeam(id){
+  const entry = state.teamsTrash.find(t=>t.id===id);
+  if(!entry) return;
+  const restored = {id:entry.id, name:entry.name};
+  if(entry.type==='branch'){
+    state.branches.push(restored);
+    fbSetBranch(restored);
+  } else {
+    state.mktBranches.push(restored);
+    fbSetMktBranch(restored);
+  }
+  state.teamsTrash = state.teamsTrash.filter(t=>t.id!==id);
+  fbTeamsTrash.child(id).remove();
+  renderMgrSettings();
+  showToast(`Đã khôi phục "${entry.name}"`);
+}
+let teamsTrashOpen = false;
+function toggleSettingsTeamsTrash(){
+  teamsTrashOpen = !teamsTrashOpen;
+  renderMgrSettings();
+}
+
 function renderMgrSettings(){
   const scope=scopeBranchId();
   document.getElementById('settingsAddBranchForm').style.display = scope ? 'none' : 'flex';
@@ -3506,9 +3694,12 @@ function renderMgrSettings(){
     const teamMgr = state.users.find(u=>u.role==='team_manager' && u.branchId===b.id);
     const members = state.users.filter(u=>u.branchId===b.id && (u.role==='staff'||u.role==='team_manager'));
     const isOpen = expandedSettingsBranchId===b.id;
+    const actionBtns = scope ? '' : `
+      <span style="cursor:pointer; margin-left:10px;" title="Sửa tên" onclick="event.stopPropagation(); renameTeam('branch','${b.id}')">✏️</span>
+      <span style="cursor:pointer; margin-left:8px;" title="Xoá" onclick="event.stopPropagation(); requestDeleteTeam('branch','${b.id}')">🗑️</span>`;
     const mainRow = `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;" onclick="toggleSettingsBranchExpand('${b.id}')">
       <span>${isOpen?'▾':'▸'} ${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— QL: ${teamMgr.name}</span>`:''}</span>
-      <span style="color:var(--ink-soft); font-size:12.5px;">${members.length} người</span>
+      <span style="color:var(--ink-soft); font-size:12.5px; flex-shrink:0;">${members.length} người${actionBtns}</span>
     </div>`;
     let expandBlock = '';
     if(isOpen){
@@ -3529,9 +3720,12 @@ function renderMgrSettings(){
       const teamMgr = state.users.find(u=>u.role==='mkt_manager' && u.mktBranchId===b.id);
       const members = state.users.filter(u=>u.mktBranchId===b.id && (u.role==='mkt'||u.role==='mkt_manager'));
       const isOpen = expandedSettingsMktBranchId===b.id;
+      const actionBtns = `
+        <span style="cursor:pointer; margin-left:10px;" title="Sửa tên" onclick="event.stopPropagation(); renameTeam('mktBranch','${b.id}')">✏️</span>
+        <span style="cursor:pointer; margin-left:8px;" title="Xoá" onclick="event.stopPropagation(); requestDeleteTeam('mktBranch','${b.id}')">🗑️</span>`;
       const mainRow = `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); cursor:pointer;" onclick="toggleSettingsMktBranchExpand('${b.id}')">
         <span>${isOpen?'▾':'▸'} ${b.name}${teamMgr?` <span style="color:var(--ink-soft); font-size:12.5px;">— Quản lý team: ${teamMgr.name}</span>`:''}</span>
-        <span style="color:var(--ink-soft); font-size:12.5px;">${members.length} người</span>
+        <span style="color:var(--ink-soft); font-size:12.5px; flex-shrink:0;">${members.length} người${actionBtns}</span>
       </div>`;
       let expandBlock = '';
       if(isOpen){
@@ -3551,6 +3745,23 @@ function renderMgrSettings(){
         <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
       </div>`;
     }).join('') || '<div class="empty-note">Chưa có Nguồn nào.</div>';
+  }
+
+  // "Team đã xoá" — hiển thị chung cả Team Sale lẫn Team MKT, chỉ Quản lý chung mới thấy/khôi phục được.
+  document.getElementById('settingsTeamsTrashSection').style.display = scope ? 'none' : 'block';
+  if(!scope){
+    const trashToggle = document.getElementById('settingsTeamsTrashToggle');
+    trashToggle.textContent = teamsTrashOpen ? 'Ẩn Team đã xoá ▾' : `Team đã xoá (${state.teamsTrash.length}) ▸`;
+    const trashListEl = document.getElementById('settingsTeamsTrashList');
+    trashListEl.style.display = teamsTrashOpen ? 'block' : 'none';
+    if(teamsTrashOpen){
+      trashListEl.innerHTML = state.teamsTrash.slice().sort((a,b2)=>b2.deletedAt-a.deletedAt).map(t=>`
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
+          <span>${t.name} <span style="color:var(--ink-soft); font-size:12px;">(${t.type==='branch'?'Team Sale':'Team MKT'})</span></span>
+          <button class="btn-ghost btn-small" onclick="restoreTeam('${t.id}')">Khôi phục</button>
+        </div>
+      `).join('') || '<div class="empty-note">Chưa có team nào bị xoá.</div>';
+    }
   }
   if(!scope && branchesToShow.length>0){
     const totalMembers = state.users.filter(u=>u.role==='staff'||u.role==='team_manager'||u.role==='data_manager'||u.role==='general_manager'||u.role==='mkt'||u.role==='mkt_manager').length;
