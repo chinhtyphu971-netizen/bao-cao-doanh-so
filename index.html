@@ -671,28 +671,16 @@
       <div id="page-mktInput" class="page" style="display:none;">
         <div class="page-head"><div><h1>Nhập data</h1><p>Data nhập ở đây sẽ tự động đổ chung vào 1 kho với data từ Google Sheet, hệ thống tự chia đều như bình thường</p></div></div>
 
-        <div class="grid-2" style="align-items:stretch;">
-          <div class="card" style="margin-bottom:0;">
-            <h2>Nhập từng số</h2>
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điền xong bấm "Thêm" hoặc nhấn Enter ở ô SĐT — form tự làm sạch để nhập tiếp số kế tiếp</p>
-            <div class="field"><label>Số điện thoại *</label><input id="mktPhone" placeholder="09xxxxxxxx" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
-            <div class="field"><label>Nguồn *</label><select id="mktSource"></select></div>
-            <div class="field"><label>Tên khách (không bắt buộc)</label><input id="mktName" placeholder="Để trống nếu chưa có" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitMktSingle();}"></div>
-            <div class="login-error" id="mktSingleError"></div>
-            <button class="btn-primary" onclick="submitMktSingle()">+ Thêm</button>
-          </div>
-
-          <div class="card" style="margin-bottom:0;">
-            <h2>Dán hàng loạt</h2>
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Dùng khi có sẵn danh sách nhiều số cùng 1 Nguồn — dán từ Excel/Zalo, mỗi dòng 1 số (có thể kèm Tên, cách nhau bởi dấu phẩy hoặc Tab)</p>
-            <div class="field"><label>Nguồn cho cả danh sách này *</label><select id="mktBulkSource" onchange="resetMktBulkPreview()"></select></div>
-            <div class="field"><label>Danh sách số điện thoại</label><textarea id="mktBulkText" rows="6" placeholder="0912345678&#10;0987654321, Chị Lan&#10;0909009009" oninput="resetMktBulkPreview()"></textarea></div>
-            <div class="login-error" id="mktBulkError"></div>
-            <div id="mktBulkPreview" style="font-size:13px; margin:6px 0; max-height:180px; overflow-y:auto;"></div>
-            <div style="display:flex; gap:10px;">
-              <button class="btn-ghost" onclick="previewMktBulk()">Xem trước</button>
-              <button class="btn-primary" id="mktBulkSubmitBtn" onclick="submitMktBulk()" disabled>+ Thêm tất cả vào danh sách</button>
-            </div>
+        <div class="card">
+          <h2>Nhập số điện thoại</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Dán từ Excel/Zalo hoặc gõ tay, mỗi dòng 1 số (có thể kèm Tên, cách nhau bởi dấu phẩy hoặc Tab) — dán 1 dòng vẫn gửi bình thường</p>
+          <div class="field"><label>Nguồn cho cả danh sách này *</label><select id="mktBulkSource" onchange="resetMktBulkPreview()"></select></div>
+          <div class="field"><label>Danh sách số điện thoại</label><textarea id="mktBulkText" rows="6" placeholder="0912345678&#10;0987654321, Chị Lan&#10;0909009009" oninput="resetMktBulkPreview()"></textarea></div>
+          <div class="login-error" id="mktBulkError"></div>
+          <div id="mktBulkPreview" style="font-size:13px; margin:6px 0; max-height:180px; overflow-y:auto;"></div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn-ghost" id="mktBulkPreviewBtn" onclick="previewMktBulk()">Xem trước</button>
+            <button class="btn-primary" id="mktBulkSubmitBtn" onclick="submitMktBulk()" disabled>+ Thêm tất cả vào danh sách</button>
           </div>
         </div>
 
@@ -830,13 +818,15 @@
         </div>
 
         <div class="card" id="settingsMktSourceCard" style="display:none;">
-          <h2>Nguồn MKT</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
-          <div id="settingsMktSourceList" style="margin:12px 0;"></div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
-            <button class="btn-ghost" onclick="settingsAddMktSource()">Thêm</button>
-            <button class="btn-ghost" onclick="settingsImportExistingMktSources()">Lấy tất cả Nguồn đang có trong data</button>
+          <span class="history-link" onclick="toggleSettingsMktSourceSection()" id="settingsMktSourceToggle">Nguồn MKT ▸</span>
+          <div id="settingsMktSourceBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay</p>
+            <div id="settingsMktSourceList" style="margin:12px 0;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
+              <button class="btn-ghost" onclick="settingsAddMktSource()">Thêm</button>
+              <button class="btn-ghost" onclick="settingsImportExistingMktSources()">Lấy tất cả Nguồn đang có trong data</button>
+            </div>
           </div>
         </div>
 
@@ -1558,26 +1548,29 @@ function createLeadFromMkt(phone, source, customerName){
 }
 function populateMktSourceList(){
   const sources = (currentUser() && currentUser().assignedSources) || [];
-  const singleSel = document.getElementById('mktSource');
   const bulkSel = document.getElementById('mktBulkSource');
   const optionsHtml = sources.length
     ? sources.map(s=>`<option value="${s}">${s}</option>`).join('')
     : '<option value="">— Chưa được gán Nguồn nào —</option>';
-  if(singleSel) singleSel.innerHTML = optionsHtml;
   if(bulkSel) bulkSel.innerHTML = optionsHtml;
 
   const warnHtml = sources.length===0
     ? '<div class="login-error" style="display:block;">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán tối đa 3 Nguồn trước khi nhập data.</div>'
     : '';
-  const singleWarnEl = document.getElementById('mktSingleError');
   const bulkWarnEl = document.getElementById('mktBulkError');
-  if(sources.length===0){
-    if(singleWarnEl && !singleWarnEl.textContent) singleWarnEl.innerHTML = warnHtml;
-    if(bulkWarnEl && !bulkWarnEl.textContent) bulkWarnEl.innerHTML = warnHtml;
+  if(sources.length===0 && bulkWarnEl && !bulkWarnEl.textContent){
+    bulkWarnEl.innerHTML = warnHtml;
   }
-  document.querySelectorAll('#page-mktInput button.btn-primary').forEach(btn=>{
-    if(sources.length===0) btn.setAttribute('disabled',''); else btn.removeAttribute('disabled');
-  });
+  const previewBtn = document.getElementById('mktBulkPreviewBtn');
+  if(previewBtn){
+    if(sources.length===0) previewBtn.setAttribute('disabled',''); else previewBtn.removeAttribute('disabled');
+  }
+  // Lưu ý: KHÔNG tự bật sáng nút "+ Thêm tất cả vào danh sách" ở đây — nút đó chỉ được bật lại
+  // đúng lúc bấm "Xem trước" ra kết quả hợp lệ (xem hàm previewMktBulk/resetMktBulkPreview).
+  if(sources.length===0){
+    const submitBtn = document.getElementById('mktBulkSubmitBtn');
+    if(submitBtn) submitBtn.setAttribute('disabled','');
+  }
 }
 // QUY TẮC: 1 SĐT được nhập tối đa 3 lần vào hệ thống, và mỗi lần PHẢI từ 1 Nguồn khác nhau — không
 // được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 3 Nguồn khác nhau.
@@ -1597,37 +1590,6 @@ function checkPhoneEntryRule(phoneDigits, source, extraSources){
     return {allowed:false, reason:'max_reached', sources:allSources};
   }
   return {allowed:true, sources:allSources};
-}
-function submitMktSingle(){
-  const phoneEl = document.getElementById('mktPhone');
-  const sourceEl = document.getElementById('mktSource');
-  const nameEl = document.getElementById('mktName');
-  const errEl = document.getElementById('mktSingleError');
-  errEl.textContent = '';
-
-  const phone = phoneEl.value.trim();
-  const source = sourceEl.value.trim();
-  const name = nameEl.value.trim();
-
-  if(!phone){ errEl.textContent = 'Vui lòng nhập số điện thoại.'; phoneEl.focus(); return; }
-  const digits = normalizePhone(phone);
-  if(digits.length < 8){ errEl.textContent = 'Số điện thoại không hợp lệ.'; phoneEl.focus(); return; }
-  if(!source){ errEl.textContent = 'Vui lòng nhập Nguồn.'; sourceEl.focus(); return; }
-
-  const check = checkPhoneEntryRule(digits, source);
-  if(!check.allowed){
-    errEl.textContent = check.reason==='same_source'
-      ? `Số này đã được nhập từ đúng Nguồn "${source}" rồi — không thể nhập trùng cùng 1 Nguồn.`
-      : `Số này đã đạt tối đa 3 lần nhập (từ 3 nguồn: ${check.sources.join(', ')}) — không thể thêm nữa.`;
-    return;
-  }
-
-  createLeadFromMkt(phone, source, name);
-  const info = check.sources.length>0 ? ` (lần ${check.sources.length+1}/3 — nguồn khác: ${check.sources.join(', ')})` : '';
-  showToast(`Đã thêm 1 số vào kho data${info}`);
-  phoneEl.value = ''; nameEl.value = '';
-  phoneEl.focus();
-  renderMktInputPage();
 }
 let mktBulkPreviewResults = null;
 function resetMktBulkPreview(){
@@ -3958,6 +3920,11 @@ function restoreTeam(id){
   renderMgrSettings();
   showToast(`Đã khôi phục "${entry.name}"`);
 }
+let settingsMktSourceOpen = false;
+function toggleSettingsMktSourceSection(){
+  settingsMktSourceOpen = !settingsMktSourceOpen;
+  renderMgrSettings();
+}
 let teamsTrashOpen = false;
 function toggleSettingsTeamsTrash(){
   teamsTrashOpen = !teamsTrashOpen;
@@ -4037,14 +4004,19 @@ function renderMgrSettings(){
       return mainRow + expandBlock;
     }).join('') || '<div class="empty-note">Chưa có Team MKT.</div>';
 
-    const mktSourceListEl = document.getElementById('settingsMktSourceList');
-    mktSourceListEl.innerHTML = state.mktSources.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(s=>{
-      const usedByCount = state.users.filter(u=>(u.assignedSources||[]).includes(s.name)).length;
-      return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
-        <span>${s.name}</span>
-        <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
-      </div>`;
-    }).join('') || '<div class="empty-note">Chưa có Nguồn nào.</div>';
+    const mktSourceToggle = document.getElementById('settingsMktSourceToggle');
+    mktSourceToggle.textContent = settingsMktSourceOpen ? `Ẩn Nguồn MKT (${state.mktSources.length}) ▾` : `Nguồn MKT (${state.mktSources.length}) ▸`;
+    document.getElementById('settingsMktSourceBody').style.display = settingsMktSourceOpen ? 'block' : 'none';
+    if(settingsMktSourceOpen){
+      const mktSourceListEl = document.getElementById('settingsMktSourceList');
+      mktSourceListEl.innerHTML = state.mktSources.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi')).map(s=>{
+        const usedByCount = state.users.filter(u=>(u.assignedSources||[]).includes(s.name)).length;
+        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line);">
+          <span>${s.name}</span>
+          <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
+        </div>`;
+      }).join('') || '<div class="empty-note">Chưa có Nguồn nào.</div>';
+    }
   }
 
   // "Team đã xoá" — hiển thị chung cả Team Sale lẫn Team MKT, chỉ Quản lý chung mới thấy/khôi phục được.
