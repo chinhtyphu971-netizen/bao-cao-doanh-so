@@ -2299,10 +2299,14 @@ function renderMgrLeadsList(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
     pageLeads.map(l=>{
       const assignee = state.users.find(u=>u.id===l.assignedTo);
       const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
+      const mktSender = l.createdBy ? state.users.find(u=>u.id===l.createdBy) : null;
+      const chatBtn = (mktSender && assignee)
+        ? `<button class="btn-ghost btn-small" onclick="viewConversationReadOnly('${chatConversationId(mktSender.id, assignee.id)}','${mktSender.name} ↔ ${assignee.name}')">💬</button>`
+        : '';
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
@@ -2316,6 +2320,7 @@ function renderMgrLeadsList(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td>${chatBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
 }
