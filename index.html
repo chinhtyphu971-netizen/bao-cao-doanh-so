@@ -715,7 +715,16 @@
       <div id="page-mktMyLeadsList" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách data</h1><p>Toàn bộ data bạn đã nhập, kèm Tên khách/Tình trạng do Sale cập nhật — chỉ xem, không sửa được</p></div></div>
         <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip" id="mktLeadsPreset_today" onclick="applyMktLeadsDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mktLeadsPreset_yesterday" onclick="applyMktLeadsDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mktLeadsPreset_week" onclick="applyMktLeadsDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mktLeadsPreset_month" onclick="applyMktLeadsDatePreset('month')">Tháng qua</div>
+            <div class="chip selected" id="mktLeadsPreset_all" onclick="applyMktLeadsDatePreset('all')">Toàn thời gian</div>
+          </div>
           <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:180px;"><label>Từ ngày</label><input type="date" id="mktLeadsFrom" onchange="applyMktLeadsCustomRange()"></div>
+            <div class="field" style="max-width:180px;"><label>Đến ngày</label><input type="date" id="mktLeadsTo" onchange="applyMktLeadsCustomRange()"></div>
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
@@ -1756,11 +1765,39 @@ function renderMktManagerStats(){
     </tr>`).join('') + `</tbody>`;
 }
 
+let mktLeadsDateFrom = null, mktLeadsDateTo = null;
+function applyMktLeadsDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  mktLeadsDateFrom = from; mktLeadsDateTo = to;
+  document.getElementById('mktLeadsFrom').value = from || '';
+  document.getElementById('mktLeadsTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktLeadsPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMktMyLeadsList();
+}
+function applyMktLeadsCustomRange(){
+  mktLeadsDateFrom = document.getElementById('mktLeadsFrom').value || null;
+  mktLeadsDateTo = document.getElementById('mktLeadsTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktLeadsPreset_'+p).classList.remove('selected');
+  });
+  renderMktMyLeadsList();
+}
 function renderMktMyLeadsList(){
   const u = currentUser();
   ensureStatusFilterPopulated('mktMyLeadsStatusFilter');
 
   let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
+
+  if(mktLeadsDateFrom || mktLeadsDateTo){
+    leads = leads.filter(l=>{
+      const dateStr = toLocalDateStr(new Date(l.importedAt||l.assignedAt||0));
+      if(mktLeadsDateFrom && dateStr < mktLeadsDateFrom) return false;
+      if(mktLeadsDateTo && dateStr > mktLeadsDateTo) return false;
+      return true;
+    });
+  }
 
   const rawQuery = document.getElementById('mktMyLeadsSearch').value.trim();
   if(rawQuery){
@@ -1780,7 +1817,8 @@ function renderMktMyLeadsList(){
     leads = leads.filter(l=>l.status===statusFilter);
   }
 
-  document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data`;
+  document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data` +
+    (mktLeadsDateFrom || mktLeadsDateTo ? ` — từ ${mktLeadsDateFrom?fmtDate(mktLeadsDateFrom):'...'} đến ${mktLeadsDateTo?fmtDate(mktLeadsDateTo):'...'}` : '');
 
   const table = document.getElementById('mktMyLeadsTable');
   if(leads.length===0){
