@@ -1819,10 +1819,15 @@ function renderSelfLeadsTable(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có dòng nào — bấm "+ Thêm dòng" để bắt đầu ghi lại data bạn tự tìm được.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>STT</th><th>Số điện thoại</th><th>Nguồn</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>STT</th><th>SĐT / Link FB</th><th>Nguồn</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
     mine.map((l,idx)=>`<tr>
       <td data-label="STT">${idx+1}</td>
-      <td data-label="Số điện thoại"><input type="text" value="${l.phone||''}" placeholder="SĐT" style="width:120px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)"></td>
+      <td data-label="SĐT / Link FB">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="text" id="selfPhone_${l.id}" value="${l.phone||''}" placeholder="SĐT hoặc link FB" style="width:150px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)">
+          <span class="copy-icon" onclick="copyText(document.getElementById('selfPhone_${l.id}').value,'Đã copy')">📋</span>
+        </div>
+      </td>
       <td data-label="Nguồn">
         <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','source',this.value)">
           ${SELF_LEAD_SOURCE_OPTIONS.map(s=>`<option value="${s}" ${l.source===s?'selected':''}>${s}</option>`).join('')}
