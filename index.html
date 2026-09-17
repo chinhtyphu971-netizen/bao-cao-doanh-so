@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -1130,6 +1131,18 @@ function initFirebase(){
     return;
   }
   firebase.initializeApp(FIREBASE_CONFIG);
+  // Đăng nhập Firebase kiểu ẩn danh (không cần tài khoản, không ảnh hưởng cách đăng nhập
+  // tên/PIN của app) — bắt buộc để đọc/ghi được, chặn việc ai đó gõ thẳng link database
+  // hoặc bot tự động quét để đọc trộm data khi Rules đã khoá "auth != null".
+  firebase.auth().signInAnonymously().then(()=>{
+    startFirebaseListeners();
+  }).catch(err=>{
+    console.error('Lỗi xác thực Firebase:', err);
+    document.getElementById('loadingText').innerHTML =
+      'Không kết nối được máy chủ (lỗi xác thực Firebase).<br>Kiểm tra đã bật "Anonymous" trong Firebase Console → Authentication → Sign-in method chưa, rồi tải lại trang.';
+  });
+}
+function startFirebaseListeners(){
   const db = firebase.database();
   fbBranches = db.ref('branches');
   fbMktBranches = db.ref('mktBranches');
