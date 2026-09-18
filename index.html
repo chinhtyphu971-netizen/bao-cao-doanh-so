@@ -748,10 +748,21 @@
       <div id="page-mktManagerStats" class="page" style="display:none;">
         <div class="page-head"><div><h1>Thống kê team MKT</h1><p id="mktManagerTeamName" style="color:var(--ink-soft);"></p></div></div>
         <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip selected" id="mktMgrStatsPreset_today" onclick="applyMktMgrStatsDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mktMgrStatsPreset_yesterday" onclick="applyMktMgrStatsDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mktMgrStatsPreset_week" onclick="applyMktMgrStatsDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mktMgrStatsPreset_month" onclick="applyMktMgrStatsDatePreset('month')">Tháng qua</div>
+            <div class="chip" id="mktMgrStatsPreset_all" onclick="applyMktMgrStatsDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="mktMgrStatsFrom" onchange="applyMktMgrStatsCustomRange()" value=""></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktMgrStatsTo" onchange="applyMktMgrStatsCustomRange()" value=""></div>
+          </div>
           <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Tổng đã nhập (cả team)</div><div class="stat-value" id="mktMgrStatTotal">0</div></div>
             <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktMgrStatAssigned">0</div></div>
-            <div class="stat-box"><div class="stat-label">Đang chờ chia</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
+            <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
           </div>
           <div class="table-wrap"><table id="mktManagerStatsTable" class="rtable"></table></div>
         </div>
@@ -1906,21 +1917,52 @@ function submitMktBulk(){
   resetMktBulkPreview();
   renderMktInputPage();
 }
+let mktMgrStatsDateFrom = todayStr(), mktMgrStatsDateTo = todayStr();
+function applyMktMgrStatsDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  mktMgrStatsDateFrom = from; mktMgrStatsDateTo = to;
+  document.getElementById('mktMgrStatsFrom').value = from || '';
+  document.getElementById('mktMgrStatsTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktMgrStatsPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMktManagerStats();
+}
+function applyMktMgrStatsCustomRange(){
+  mktMgrStatsDateFrom = document.getElementById('mktMgrStatsFrom').value || null;
+  mktMgrStatsDateTo = document.getElementById('mktMgrStatsTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktMgrStatsPreset_'+p).classList.remove('selected');
+  });
+  renderMktManagerStats();
+}
 function renderMktManagerStats(){
   const u = currentUser();
   const teamId = u.mktBranchId;
   document.getElementById('mktManagerTeamName').textContent = teamId ? `Team: ${mktBranchName(teamId)}` : 'Chưa được gán vào Team MKT nào';
+  document.getElementById('mktMgrStatsFrom').value = mktMgrStatsDateFrom || '';
+  document.getElementById('mktMgrStatsTo').value = mktMgrStatsDateTo || '';
 
   const teamMembers = state.users.filter(x=>x.mktBranchId===teamId && (x.role==='mkt'||x.role==='mkt_manager'));
   const memberIds = new Set(teamMembers.map(x=>x.id));
-  const teamLeads = state.leads.filter(l=>l.createdBy && memberIds.has(l.createdBy));
+  let teamLeads = state.leads.filter(l=>l.createdBy && memberIds.has(l.createdBy));
+  if(mktMgrStatsDateFrom || mktMgrStatsDateTo){
+    teamLeads = teamLeads.filter(l=>{
+      const d = toLocalDateStr(new Date(l.importedAt||0));
+      if(mktMgrStatsDateFrom && d < mktMgrStatsDateFrom) return false;
+      if(mktMgrStatsDateTo && d > mktMgrStatsDateTo) return false;
+      return true;
+    });
+  }
 
   const totalAll = teamLeads.length;
   const totalAssigned = teamLeads.filter(l=>l.assignedTo).length;
-  const totalPending = totalAll - totalAssigned;
+  // "Chưa xử lý (Sale)": trong số data ĐÃ chia cho Sale, có bao nhiêu cái Sale vẫn chưa cập
+  // nhật Tình trạng — khác với nghĩa cũ "chưa được chia cho ai" (đã đổi theo yêu cầu).
+  const totalUnprocessed = teamLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
   document.getElementById('mktMgrStatTotal').textContent = totalAll;
   document.getElementById('mktMgrStatAssigned').textContent = totalAssigned;
-  document.getElementById('mktMgrStatPending').textContent = totalPending;
+  document.getElementById('mktMgrStatPending').textContent = totalUnprocessed;
 
   const table = document.getElementById('mktManagerStatsTable');
   if(teamMembers.length===0){
@@ -1930,15 +1972,16 @@ function renderMktManagerStats(){
   const rows = teamMembers.map(mem=>{
     const mine = teamLeads.filter(l=>l.createdBy===mem.id);
     const assigned = mine.filter(l=>l.assignedTo).length;
-    return {name:mem.name, role:mem.role, total:mine.length, assigned, pending:mine.length-assigned};
+    const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+    return {name:mem.name, role:mem.role, total:mine.length, assigned, unprocessed};
   }).sort((a,b)=>b.total-a.total);
-  table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Đang chờ chia</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Tên">${r.name}</td>
       <td data-label="Vai trò">${roleLabel(r.role)}</td>
       <td class="num" data-label="Tổng đã nhập">${r.total}</td>
       <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
-      <td class="num" data-label="Đang chờ chia">${r.pending}</td>
+      <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
     </tr>`).join('') + `</tbody>`;
 }
 
