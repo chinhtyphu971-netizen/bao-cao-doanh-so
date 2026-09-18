@@ -105,6 +105,13 @@
   .step-dots span{height:4px; flex:1; border-radius:2px; background:var(--line);}
   .step-dots span.active{background:var(--accent);}
   .chip-row{display:flex; flex-wrap:wrap; gap:8px;}
+  /* Ô "Ngày chốt" gọn — dùng input type=date GỐC của trình duyệt (rất nhẹ, không tạo hàng
+     trăm phần tử như <select> liệt kê từng ngày), chỉ ẩn bớt phần năm bằng CSS cho gọn.
+     Hỗ trợ tốt trên Chrome/Edge/Safari (đa số người dùng); trình duyệt không hỗ trợ sẽ tự
+     hiện đầy đủ ngày/tháng/năm, không lỗi gì, chỉ là không ẩn được năm. */
+  .closed-date-input{ color-scheme: dark; }
+  .closed-date-input::-webkit-datetime-edit-year-field{ display:none; }
+  .closed-date-input::-webkit-datetime-edit-text:last-of-type{ display:none; }
   .chip{
     border:1px solid var(--line);
     background:var(--panel);
@@ -1642,27 +1649,14 @@ function updateLeadStatus(leadId, newStatus){
 }
 // Ô "Ngày chốt" / "Số tiền chốt" — chỉ hiện input khi Tình trạng đang là "Đã chốt",
 // còn lại hiện gạch ngang cho gọn (không áp dụng).
-// Ngày chốt dùng 1 ô chọn DUY NHẤT (gộp ngày+tháng thành 1 dropdown, ví dụ "18/09"), không
-// hiện năm cho gọn diện tích — năm giữ ngầm bên trong. Danh sách chọn trải dài từ 1 năm trước
-// tới 7 ngày sau hôm nay, đủ dùng cho hầu hết trường hợp; khi mở ô lên, trình duyệt sẽ tự cuộn
-// tới đúng ngày đang chọn nên chỉ cần 1 lần bấm là chọn xong, không cần cuộn tìm nhiều.
-function closedDateOptionsHtml(selectedIso){
-  const today = new Date();
-  const opts = [];
-  for(let offset = 365; offset >= -7; offset--){
-    const d = new Date(today);
-    d.setDate(d.getDate() - offset);
-    const iso = toLocalDateStr(d);
-    const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-    opts.push(`<option value="${iso}" ${iso===selectedIso?'selected':''}>${label}</option>`);
-  }
-  return opts.join('');
-}
+// QUAN TRỌNG: dùng input type="date" GỐC của trình duyệt (rất nhẹ — chỉ 1 phần tử), KHÔNG
+// tự dựng danh sách hàng trăm ngày bằng <select> nữa (cách cũ tạo ~370 option cho MỖI dòng,
+// với nhiều dòng cùng lúc sẽ làm trang bị đơ/lag). Phần năm được ẩn bớt bằng CSS cho gọn.
 function closedDatePickerHtml(l, afterChangeJs){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
   const iso = l.closedDate || todayStr();
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
-  return `<select style="min-height:28px; padding:1px 0; font-size:11px; width:48px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
+  return `<input type="date" class="closed-date-input" value="${iso}" style="min-height:30px; padding:2px 4px; font-size:12px; width:78px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">`;
 }
 function leadClosedDateFieldHtml(l){
   return closedDatePickerHtml(l);
