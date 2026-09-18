@@ -431,9 +431,12 @@
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
-        <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">🗂️ Data của tôi</span></div>
-        <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">🧾 Nộp báo cáo</span></div>
-        <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
+        <div class="nav-item" id="navPersonalToggle" onclick="toggleNavPersonalGroup()" style="display:none;"><span class="label" id="navPersonalToggleLabel">🗂️ Data của tôi ▸</span></div>
+        <div id="navPersonalItems">
+          <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">🗂️ Data của tôi</span></div>
+          <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">🧾 Nộp báo cáo</span></div>
+          <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
+        </div>
       </div>
       <div id="navManager" style="display:none;">
         <div class="nav-section-label">Quản lý Sale</div>
@@ -3707,6 +3710,13 @@ function enterApp(){
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
   document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
   document.getElementById('navPersonal').style.display = (isDataManager || isMkt || isMktManager) ? 'none' : 'block';
+  // Quản lý chung ít khi cần tự nộp báo cáo/xem data cá nhân — gộp gọn 3 mục này lại thành 1
+  // dòng bấm mới xổ ra (mặc định đóng), đỡ chiếm chỗ. Nhân viên và Quản lý team vẫn dùng phần
+  // này hằng ngày nên giữ nguyên hiện sẵn luôn, không bắt họ bấm thêm 1 bước.
+  const isGeneralManager = user.role === 'general_manager';
+  document.getElementById('navPersonalToggle').style.display = isGeneralManager ? 'flex' : 'none';
+  document.getElementById('navPersonalItems').style.display = isGeneralManager ? 'none' : 'block';
+  document.getElementById('navPersonalToggleLabel').textContent = '🗂️ Data của tôi ▸';
   document.getElementById('navManager').style.display = (isManagerRole && !isMkt && !isMktManager) ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
@@ -3737,8 +3747,20 @@ function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebarBackdrop').classList.remove('show');
 }
+function toggleNavPersonalGroup(){
+  const body = document.getElementById('navPersonalItems');
+  const label = document.getElementById('navPersonalToggleLabel');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  label.textContent = isOpen ? '🗂️ Data của tôi ▸' : '🗂️ Data của tôi ▾';
+}
 function goPage(pageId){
   refreshTrungThuSlogan();
+  const uForNav = currentUser();
+  if(uForNav && uForNav.role==='general_manager' && ['myLeads','staffReport','staffHistory'].includes(pageId)){
+    document.getElementById('navPersonalItems').style.display = 'block';
+    document.getElementById('navPersonalToggleLabel').textContent = '🗂️ Data của tôi ▾';
+  }
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
