@@ -699,7 +699,20 @@
         <div class="card">
           <div id="companyRulesReadView"></div>
           <div id="companyRulesEditView" style="display:none;">
-            <textarea id="companyRulesTextarea" rows="18" style="width:100%; padding:12px; font-size:14px; line-height:1.6;" placeholder="Gõ nội quy, quy định, văn hoá công ty vào đây..."></textarea>
+            <div class="toolbar" style="margin-bottom:8px; gap:6px; flex-wrap:wrap;">
+              <select id="companyRulesFontSize" style="width:auto; min-height:34px; padding:4px 8px;" onmousedown="event.preventDefault();" onchange="applyCompanyRulesFontSize(this.value)">
+                <option value="">Cỡ chữ...</option>
+                <option value="2">Nhỏ</option>
+                <option value="3">Thường</option>
+                <option value="5">Lớn</option>
+                <option value="7">Rất lớn</option>
+              </select>
+              <button type="button" class="btn-ghost btn-small" onmousedown="event.preventDefault();" onclick="document.execCommand('bold')"><b>B</b></button>
+              <button type="button" class="btn-ghost btn-small" onmousedown="event.preventDefault();" onclick="document.execCommand('justifyLeft')">Căn trái</button>
+              <button type="button" class="btn-ghost btn-small" onmousedown="event.preventDefault();" onclick="document.execCommand('justifyCenter')">Căn giữa</button>
+              <button type="button" class="btn-ghost btn-small" onmousedown="event.preventDefault();" onclick="document.execCommand('justifyRight')">Căn phải</button>
+            </div>
+            <div id="companyRulesEditor" contenteditable="true" style="width:100%; min-height:320px; resize:vertical; overflow:auto; padding:12px; font-size:14px; line-height:1.6; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink);"></div>
             <div style="display:flex; gap:10px; margin-top:10px;">
               <button class="btn-primary" onclick="saveCompanyRules()">Lưu</button>
               <button class="btn-ghost" onclick="toggleCompanyRulesEdit()">Huỷ</button>
@@ -1324,7 +1337,12 @@ function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
     checkNewLeadNotifications();
-    if(currentPageId && currentPageId!=='staffReport'){
+    // "staffReport" và "mktInput" bị loại trừ khỏi việc tự vẽ lại: đây là 2 trang có form đang
+    // gõ dở (nộp báo cáo / dán danh sách SĐT + bấm Xem trước) — nếu cứ có ai đó thay đổi data
+    // ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ xoá mất Nguồn đang chọn + kết quả Xem
+    // trước, khiến MKT tưởng nhầm là bị mất hết, phải làm lại từ đầu. Trang tự cập nhật lại
+    // ngay khi họ thực sự bấm gửi (đã có sẵn gọi renderMktInputPage() trực tiếp lúc đó).
+    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput'){
       clearTimeout(dataChangedRenderTimer);
       dataChangedRenderTimer = setTimeout(()=>{ goPage(currentPageId); }, 300);
     }
@@ -3632,12 +3650,18 @@ function canEditCompanyRules(){
 function renderCompanyRulesPage(){
   const canEdit = canEditCompanyRules();
   document.getElementById('companyRulesEditBtn').style.display = canEdit ? 'inline-block' : 'none';
+  const editView = document.getElementById('companyRulesEditView');
+  const isEditing = editView.style.display !== 'none';
+  // QUAN TRỌNG: nếu đang gõ dở, TUYỆT ĐỐI không đụng vào khung soạn thảo — trang này có thể bị
+  // vẽ lại bất cứ lúc nào khi có dữ liệu khác đổi ở đâu đó trong hệ thống (data, báo cáo...),
+  // trước đây hàm này cứ vẽ lại là ép về chế độ xem, làm mất sạch nội dung đang gõ dở. Giờ nếu
+  // đang mở khung soạn thảo thì bỏ qua, chỉ cập nhật khi KHÔNG ai đang gõ.
+  if(isEditing) return;
   const content = (state.companyRules && state.companyRules.content) || '';
   const readView = document.getElementById('companyRulesReadView');
   readView.innerHTML = content
-    ? `<div style="white-space:pre-wrap; line-height:1.7; font-size:14.5px;">${escapeHtml(content)}</div>`
+    ? `<div style="line-height:1.7; font-size:14.5px;">${content}</div>`
     : `<div class="empty-note">${canEdit ? 'Chưa có nội dung — bấm "✏️ Chỉnh sửa" để bắt đầu viết.' : 'Chưa có nội quy nào được đăng.'}</div>`;
-  document.getElementById('companyRulesEditView').style.display = 'none';
   readView.style.display = 'block';
   const meta = state.companyRules && state.companyRules.updatedAt
     ? `Cập nhật lần cuối: ${fmtDateTimeShort(state.companyRules.updatedAt)}${state.companyRules.updatedByName ? ' bởi '+state.companyRules.updatedByName : ''}`
@@ -3651,20 +3675,29 @@ function toggleCompanyRulesEdit(){
   if(isEditing){
     editView.style.display = 'none';
     readView.style.display = 'block';
+    renderCompanyRulesPage(); // vừa đóng khung soạn thảo -> giờ mới an toàn để vẽ lại chế độ xem
   } else {
-    document.getElementById('companyRulesTextarea').value = (state.companyRules && state.companyRules.content) || '';
+    document.getElementById('companyRulesEditor').innerHTML = (state.companyRules && state.companyRules.content) || '';
     editView.style.display = 'block';
     readView.style.display = 'none';
   }
 }
+function applyCompanyRulesFontSize(size){
+  if(!size) return;
+  document.getElementById('companyRulesEditor').focus();
+  document.execCommand('fontSize', false, size);
+  document.getElementById('companyRulesFontSize').value = '';
+}
 function saveCompanyRules(){
   if(!canEditCompanyRules()) return;
   const u = currentUser();
-  const content = document.getElementById('companyRulesTextarea').value;
+  const content = document.getElementById('companyRulesEditor').innerHTML;
   const payload = {content, updatedAt: Date.now(), updatedByName: u.name};
   state.companyRules = payload;
   fbCompanyRules.set(payload);
   showToast('Đã lưu Nội quy & Văn hoá công ty');
+  document.getElementById('companyRulesEditView').style.display = 'none';
+  document.getElementById('companyRulesReadView').style.display = 'block';
   renderCompanyRulesPage();
 }
 function myReportForDate(userId, date){
