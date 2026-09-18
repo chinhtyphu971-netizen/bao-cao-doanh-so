@@ -142,6 +142,11 @@
   }
   .nav-item:hover{background:var(--brand-soft);}
   .nav-item.active{background:var(--brand-soft); color:#fff; font-weight:600;}
+  .nav-section-label{
+    font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    color:#8B96B4; padding:14px 12px 6px; margin-top:2px;
+  }
+  .nav-section-label:first-child{padding-top:4px;}
   .sidebar-foot{margin-top:auto; font-size:12.5px; color:#8B96B4;}
   .sidebar-foot .who{color:#fff; font-weight:600; font-size:13.5px; margin-bottom:2px;}
   .logout-link{color:#E4B7A2; cursor:pointer; margin-top:8px; display:inline-block; font-size:13px;}
@@ -414,31 +419,34 @@
         <div class="nav-item" data-page="companyRules" onclick="goPage('companyRules')"><span class="label">📜 Nội quy & Văn hoá công ty</span></div>
       </div>
       <div id="navMkt" style="display:none;">
-        <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
-        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">Danh sách data</span></div>
-        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
+        <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
+        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
-        <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">Thống kê team MKT</span></div>
-        <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
-        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">Danh sách data</span></div>
-        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">Nộp báo cáo</span></div>
+        <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">📊 Thống kê team MKT</span></div>
+        <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
+        <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
-        <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">Data của tôi</span></div>
-        <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">Nộp báo cáo</span></div>
-        <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">Lịch sử của tôi</span></div>
+        <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">🗂️ Data của tôi</span></div>
+        <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">🧾 Nộp báo cáo</span></div>
+        <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
       </div>
       <div id="navManager" style="display:none;">
-        <div class="nav-item" id="navItem_mgrDashboard" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">Tổng quan</span></div>
-        <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">Danh sách báo cáo</span></div>
-        <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
-        <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">Danh sách data</span></div>
-        <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">Data chốt tổng</span></div>
-        <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">Thống kê MKT</span></div>
-        <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">Tất cả tin nhắn</span></div>
-        <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
-        <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
+        <div class="nav-section-label">Quản lý Sale</div>
+        <div class="nav-item" id="navItem_mgrDashboard" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">📈 Tổng quan</span></div>
+        <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">📄 Danh sách báo cáo</span></div>
+        <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
+        <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
+        <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
+        <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
+        <div class="nav-section-label" id="navSectionLabel_system">Hệ thống</div>
+        <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">💬 Tất cả tin nhắn</span></div>
+        <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">🗑️ Thùng rác</span></div>
+        <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label">🏢 <span id="settingsNavLabel">Chi nhánh & nhân sự</span></span></div>
       </div>
 
       <div class="sidebar-foot">
@@ -3680,6 +3688,8 @@ function enterApp(){
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navSectionLabel_mkt').style.display = (user.role==='team_manager') ? 'none' : 'block';
+  document.getElementById('navSectionLabel_system').style.display = isDataManager ? 'none' : 'block';
   // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
   document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
