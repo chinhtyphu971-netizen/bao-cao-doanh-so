@@ -2723,11 +2723,11 @@ function renderMgrLeadsList(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Chi nhánh</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Người gửi</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     pageLeads.map(l=>{
       const assignee = state.users.find(u=>u.id===l.assignedTo);
-      const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
       const mktSender = l.createdBy ? state.users.find(u=>u.id===l.createdBy) : null;
+      const senderLabel = mktSender ? mktSender.name : (l.createdByName || '—');
       const chatBtn = (mktSender && assignee)
         ? `<button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${l.id}','SĐT ${leadPhone(l)} — ${mktSender.name} ↔ ${assignee.name}')">💬</button>`
         : '';
@@ -2736,7 +2736,7 @@ function renderMgrLeadsList(){
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Người nhận">${l.assignedToName ? l.assignedToName : '<span class="badge badge-warn">Chưa chia</span>'}</td>
-      <td data-label="Chi nhánh">${branchLabel}</td>
+      <td data-label="Người gửi">${senderLabel}</td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderMgrLeadsList();"></td>
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); renderMgrLeadsList();">
