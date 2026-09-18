@@ -422,12 +422,14 @@
       <div id="navMkt" style="display:none;">
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn của tôi</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
         <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">📊 Thống kê team MKT</span></div>
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn của tôi</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
@@ -808,6 +810,27 @@
           </div>
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mktMyLeadsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MKT: Doanh thu theo Nguồn mình phụ trách ---------- -->
+      <div id="page-mktRevenue" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Doanh thu Nguồn của tôi</h1><p>Doanh thu Sale đã chốt được, tính riêng cho từng Nguồn bạn đang phụ trách</p></div></div>
+        <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip" id="mktRevenuePreset_today" onclick="applyMktRevenueDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mktRevenuePreset_yesterday" onclick="applyMktRevenueDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mktRevenuePreset_week" onclick="applyMktRevenueDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mktRevenuePreset_month" onclick="applyMktRevenueDatePreset('month')">Tháng qua</div>
+            <div class="chip selected" id="mktRevenuePreset_all" onclick="applyMktRevenueDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày (theo Ngày chốt)</label><input type="date" id="mktRevenueFrom" onchange="applyMktRevenueCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktRevenueTo" onchange="applyMktRevenueCustomRange()"></div>
+          </div>
+          <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
+          <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
+          <div class="table-wrap"><table id="mktRevenueTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -3764,8 +3787,8 @@ function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 3 trang này + Nội quy
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 4 trang này + Nội quy
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 4 trang này + Nội quy
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 5 trang này + Nội quy
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -3785,6 +3808,7 @@ function goPage(pageId){
   if(pageId==='mgrSettings') renderMgrSettings();
   if(pageId==='mktInput') renderMktInputPage();
   if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
+  if(pageId==='mktRevenue') renderMktRevenuePage();
   if(pageId==='mktManagerStats') renderMktManagerStats();
   if(pageId==='mktOverview') renderMktOverviewPage();
   if(pageId==='mktPersonDetail') renderMktPersonDetail();
@@ -3974,6 +3998,87 @@ function renderMktPersonDetail(){
       <td data-label="Nguồn">${leadSource(l)}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Trạng thái">${l.assignedTo?`Đã chia cho ${l.assignedToName||'—'}`:'Đang chờ chia'}</td>
+    </tr>`).join('') + `</tbody>`;
+}
+/* =========================== MKT: Doanh thu theo Nguồn mình phụ trách =========================== */
+let mktRevenueDateFrom = null, mktRevenueDateTo = null;
+function applyMktRevenueDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  mktRevenueDateFrom = from; mktRevenueDateTo = to;
+  document.getElementById('mktRevenueFrom').value = from || '';
+  document.getElementById('mktRevenueTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktRevenuePreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMktRevenuePage();
+}
+function applyMktRevenueCustomRange(){
+  mktRevenueDateFrom = document.getElementById('mktRevenueFrom').value || null;
+  mktRevenueDateTo = document.getElementById('mktRevenueTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktRevenuePreset_'+p).classList.remove('selected');
+  });
+  renderMktRevenuePage();
+}
+function renderMktRevenuePage(){
+  const u = currentUser();
+  document.getElementById('mktRevenueFrom').value = mktRevenueDateFrom || '';
+  document.getElementById('mktRevenueTo').value = mktRevenueDateTo || '';
+
+  const mySources = (u.assignedSources || []);
+  const boxesEl = document.getElementById('mktRevenueSourceBoxes');
+  if(mySources.length===0){
+    boxesEl.innerHTML = '<div class="empty-note">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán trước khi xem doanh thu.</div>';
+    document.getElementById('mktRevenueSummary').textContent = '';
+    document.getElementById('mktRevenueTable').innerHTML = '';
+    return;
+  }
+  // Quy về đúng Nguồn "gốc" (nếu có gộp nhóm 2-3-4 kênh làm 1) trước khi so khớp, để 1 Nguồn đã
+  // gộp nhóm vẫn tính đúng doanh thu chung, không bị tách lẻ theo từng tên kênh.
+  const myCanonicalSources = Array.from(new Set(mySources.map(s=>resolveMktSourceCanonicalName(s))));
+
+  let closedLeads = state.leads.filter(l=>{
+    if(l.status !== 'Đã chốt') return false;
+    const canonical = resolveMktSourceCanonicalName(leadSource(l));
+    return myCanonicalSources.includes(canonical);
+  });
+  if(mktRevenueDateFrom || mktRevenueDateTo){
+    closedLeads = closedLeads.filter(l=>{
+      const d = l.closedDate || '';
+      if(mktRevenueDateFrom && d < mktRevenueDateFrom) return false;
+      if(mktRevenueDateTo && d > mktRevenueDateTo) return false;
+      return true;
+    });
+  }
+  closedLeads.sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
+  // 1 hộp số liệu cho từng Nguồn được gán (giữ đúng tên Nguồn gốc bạn đang phụ trách, kể cả khi
+  // đã gộp nhóm với Nguồn khác — hộp vẫn hiện đúng tên bạn được gán, số liệu tính theo cả nhóm).
+  boxesEl.innerHTML = mySources.map(srcName=>{
+    const canonical = resolveMktSourceCanonicalName(srcName);
+    const mine = closedLeads.filter(l=>resolveMktSourceCanonicalName(leadSource(l))===canonical);
+    const amount = mine.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+    return `<div class="stat-box"><div class="stat-label">${srcName}</div><div class="stat-value">${fmtMoney(amount)} đ</div><div style="color:var(--ink-soft); font-size:12.5px; margin-top:4px;">${mine.length} đơn chốt</div></div>`;
+  }).join('');
+
+  const totalAmount = closedLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+  document.getElementById('mktRevenueSummary').textContent = closedLeads.length===0
+    ? 'Chưa có đơn nào được chốt từ Nguồn bạn phụ trách trong khoảng đang lọc.'
+    : `${closedLeads.length} đơn đã chốt · Tổng doanh thu: ${fmtMoney(totalAmount)} đ`;
+
+  const table = document.getElementById('mktRevenueTable');
+  if(closedLeads.length===0){
+    table.innerHTML = '';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Sale chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
+    closedLeads.map(l=>`<tr>
+      <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
+      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="Tên khách">${l.customerName||'—'}</td>
+      <td data-label="Sale chốt">${l.assignedToName||'—'}</td>
+      <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
     </tr>`).join('') + `</tbody>`;
 }
 // Chỉ Quản lý chung (general_manager) được viết/sửa — mọi vai trò khác chỉ xem. Nếu sau này
