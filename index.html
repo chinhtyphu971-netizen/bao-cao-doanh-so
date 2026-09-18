@@ -435,6 +435,7 @@
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">Data chốt tổng</span></div>
+        <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">Thống kê MKT</span></div>
         <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">Tất cả tin nhắn</span></div>
         <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">Thùng rác</span></div>
         <div class="nav-item" id="navItem_mgrSettings" data-page="mgrSettings" onclick="goPage('mgrSettings')"><span class="label" id="settingsNavLabel">Chi nhánh & nhân sự</span></div>
@@ -868,6 +869,46 @@
           </div>
           <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrClosedLeadsTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER (chỉ Quản lý chung/Data): Thống kê MKT toàn công ty ---------- -->
+      <div id="page-mktOverview" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Thống kê MKT</h1><p>Tổng hợp toàn bộ Team MKT trong công ty — bấm vào từng Team để xem từng người, bấm vào từng người để xem chi tiết theo ngày</p></div></div>
+        <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip selected" id="mktOverviewPreset_today" onclick="applyMktOverviewDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mktOverviewPreset_yesterday" onclick="applyMktOverviewDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mktOverviewPreset_week" onclick="applyMktOverviewDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mktOverviewPreset_month" onclick="applyMktOverviewDatePreset('month')">Tháng qua</div>
+            <div class="chip" id="mktOverviewPreset_all" onclick="applyMktOverviewDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày (theo ngày nhập)</label><input type="date" id="mktOverviewFrom" onchange="applyMktOverviewCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktOverviewTo" onchange="applyMktOverviewCustomRange()"></div>
+          </div>
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Tổng đã nhập (toàn công ty)</div><div class="stat-value" id="mktOverviewStatTotal">0</div></div>
+            <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktOverviewStatAssigned">0</div></div>
+            <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktOverviewStatUnprocessed">0</div></div>
+          </div>
+          <span class="history-link" onclick="toggleMktOverviewStatsByDay()" id="mktOverviewStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="mktOverviewStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
+          <div id="mktOverviewTeamsList" style="margin-top:14px;"></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER: xem chi tiết data của 1 người MKT theo ngày ---------- -->
+      <div id="page-mktPersonDetail" class="page" style="display:none;">
+        <div class="page-head">
+          <div><h1 id="mktPersonDetailTitle">Data của...</h1><p id="mktPersonDetailSub"></p></div>
+        </div>
+        <button class="btn-ghost" onclick="goPage('mktOverview')" style="margin-bottom:14px;">← Quay lại Thống kê MKT</button>
+        <div class="card">
+          <span class="history-link" onclick="toggleMktPersonDetailStatsByDay()" id="mktPersonDetailStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="mktPersonDetailStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
+          <div id="mktPersonDetailSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:10px;"></div>
+          <div class="table-wrap"><table id="mktPersonDetailTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -3638,6 +3679,7 @@ function enterApp(){
   // "Danh sách data" (bảng tổng gộp mọi người) chỉ dành cho Quản lý chung / Quản lý Data — Quản lý
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
   document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
@@ -3659,6 +3701,7 @@ function closeSidebar(){
 function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
+  if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 3 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 4 trang này + Nội quy
   currentPageId = pageId;
@@ -3681,10 +3724,196 @@ function goPage(pageId){
   if(pageId==='mktInput') renderMktInputPage();
   if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
   if(pageId==='mktManagerStats') renderMktManagerStats();
+  if(pageId==='mktOverview') renderMktOverviewPage();
+  if(pageId==='mktPersonDetail') renderMktPersonDetail();
   if(pageId==='companyRules') renderCompanyRulesPage();
 }
 
-/* =========================== CHUNG: Nội quy & Văn hoá công ty =========================== */
+/* =========================== MANAGER: Thống kê MKT toàn công ty =========================== */
+let mktOverviewDateFrom = todayStr(), mktOverviewDateTo = todayStr();
+let mktOverviewOpenTeams = new Set();
+function applyMktOverviewDatePreset(preset){
+  const [from, to] = dateRangeFor(preset);
+  mktOverviewDateFrom = from; mktOverviewDateTo = to;
+  document.getElementById('mktOverviewFrom').value = from || '';
+  document.getElementById('mktOverviewTo').value = to || '';
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktOverviewPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderMktOverviewPage();
+}
+function applyMktOverviewCustomRange(){
+  mktOverviewDateFrom = document.getElementById('mktOverviewFrom').value || null;
+  mktOverviewDateTo = document.getElementById('mktOverviewTo').value || null;
+  ['today','yesterday','week','month','all'].forEach(p=>{
+    document.getElementById('mktOverviewPreset_'+p).classList.remove('selected');
+  });
+  renderMktOverviewPage();
+}
+function toggleMktOverviewStatsByDay(){
+  const body = document.getElementById('mktOverviewStatsByDay');
+  const btn = document.getElementById('mktOverviewStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderMktOverviewPage();
+}
+function toggleMktOverviewTeam(teamKey){
+  if(mktOverviewOpenTeams.has(teamKey)) mktOverviewOpenTeams.delete(teamKey);
+  else mktOverviewOpenTeams.add(teamKey);
+  renderMktOverviewPage();
+}
+function openMktPersonDetail(userId){
+  viewingMktPersonId = userId;
+  goPage('mktPersonDetail');
+}
+function renderMktOverviewPage(){
+  document.getElementById('mktOverviewFrom').value = mktOverviewDateFrom || '';
+  document.getElementById('mktOverviewTo').value = mktOverviewDateTo || '';
+
+  const mktUsers = state.users.filter(x=>x.role==='mkt' || x.role==='mkt_manager');
+  const mktUserIds = new Set(mktUsers.map(x=>x.id));
+  let allLeads = state.leads.filter(l=>l.createdBy && mktUserIds.has(l.createdBy));
+  if(mktOverviewDateFrom || mktOverviewDateTo){
+    allLeads = allLeads.filter(l=>{
+      const d = toLocalDateStr(new Date(l.importedAt||0));
+      if(mktOverviewDateFrom && d < mktOverviewDateFrom) return false;
+      if(mktOverviewDateTo && d > mktOverviewDateTo) return false;
+      return true;
+    });
+  }
+
+  const totalAll = allLeads.length;
+  const totalAssigned = allLeads.filter(l=>l.assignedTo).length;
+  const totalUnprocessed = allLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+  document.getElementById('mktOverviewStatTotal').textContent = totalAll;
+  document.getElementById('mktOverviewStatAssigned').textContent = totalAssigned;
+  document.getElementById('mktOverviewStatUnprocessed').textContent = totalUnprocessed;
+
+  if(document.getElementById('mktOverviewStatsByDay').style.display !== 'none'){
+    renderMktStatsByDayInto('mktOverviewStatsByDay', allLeads);
+  }
+
+  // Gom theo Team MKT — người chưa có Team xếp vào nhóm riêng "Chưa có Team"
+  const teamsMap = {}; // teamId(hoặc '__none__') -> {name, members:[...]}
+  mktUsers.forEach(u=>{
+    const key = u.mktBranchId || '__none__';
+    if(!teamsMap[key]) teamsMap[key] = {name: u.mktBranchId ? mktBranchName(u.mktBranchId) : 'Chưa có Team', members: []};
+    teamsMap[key].members.push(u);
+  });
+
+  const leadsByUser = {};
+  allLeads.forEach(l=>{
+    leadsByUser[l.createdBy] = leadsByUser[l.createdBy] || [];
+    leadsByUser[l.createdBy].push(l);
+  });
+
+  const teamKeys = Object.keys(teamsMap).sort((a,b)=>{
+    if(a==='__none__') return 1;
+    if(b==='__none__') return -1;
+    return teamsMap[a].name.localeCompare(teamsMap[b].name,'vi');
+  });
+
+  const container = document.getElementById('mktOverviewTeamsList');
+  if(teamKeys.length===0){
+    container.innerHTML = '<div class="empty-note">Chưa có nhân sự MKT nào trong hệ thống.</div>';
+    return;
+  }
+  container.innerHTML = teamKeys.map(key=>{
+    const team = teamsMap[key];
+    let teamTotal=0, teamAssigned=0, teamUnprocessed=0;
+    const memberRows = team.members.map(m=>{
+      const mine = leadsByUser[m.id] || [];
+      const assigned = mine.filter(l=>l.assignedTo).length;
+      const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+      teamTotal += mine.length; teamAssigned += assigned; teamUnprocessed += unprocessed;
+      return {name:m.name, role:m.role, id:m.id, total:mine.length, assigned, unprocessed};
+    }).sort((a,b)=>b.total-a.total);
+    const isOpen = mktOverviewOpenTeams.has(key);
+    const memberTableHtml = isOpen ? `
+      <div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">
+        <table class="rtable"><thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th></tr></thead><tbody>
+        ${memberRows.map(r=>`<tr style="cursor:pointer;" onclick="openMktPersonDetail('${r.id}')" onmouseenter="this.style.background='var(--panel)'" onmouseleave="this.style.background=''">
+          <td data-label="Tên"><span style="color:var(--accent); text-decoration:underline;">${r.name} ›</span></td>
+          <td data-label="Vai trò">${roleLabel(r.role)}</td>
+          <td class="num" data-label="Tổng đã nhập">${r.total}</td>
+          <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
+          <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
+        </tr>`).join('') || '<tr><td class="empty-note">Team chưa có ai.</td></tr>'}
+        </tbody></table>
+      </div>` : '';
+    return `<div style="border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden;">
+      <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:var(--panel);" onclick="toggleMktOverviewTeam('${key}')">
+        <span style="font-weight:600;">${isOpen?'▾':'▸'} ${team.name} <span style="font-weight:400; color:var(--ink-soft); font-size:12.5px;">(${team.members.length} người)</span></span>
+        <span style="font-size:13px; color:var(--ink-soft);">${teamTotal} data · ${teamAssigned} đã chia · ${teamUnprocessed} chưa xử lý</span>
+      </div>
+      ${memberTableHtml}
+    </div>`;
+  }).join('');
+}
+// Thống kê theo ngày cho MKT — nhóm theo NGÀY NHẬP (importedAt), khác với bên Sale nhóm theo
+// ngày phân bổ, vì đây là góc nhìn "team MKT hoạt động ngày nào", không phải "Sale nhận ngày nào".
+function renderMktStatsByDayInto(containerId, leads){
+  const byDay = {};
+  leads.forEach(l=>{
+    const d = toLocalDateStr(new Date(l.importedAt||0));
+    byDay[d] = byDay[d] || {total:0, assigned:0, unprocessed:0};
+    byDay[d].total++;
+    if(l.assignedTo){
+      byDay[d].assigned++;
+      if(isLeadUnprocessed(l)) byDay[d].unprocessed++;
+    }
+  });
+  const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
+  const body = document.getElementById(containerId);
+  if(days.length===0){ body.innerHTML='<div class="empty-note">Chưa có data nào.</div>'; return; }
+  body.innerHTML = days.map(d=>{
+    const b = byDay[d];
+    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} nhập · ${b.assigned} đã chia · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+  }).join('');
+}
+
+let viewingMktPersonId = null;
+function toggleMktPersonDetailStatsByDay(){
+  const body = document.getElementById('mktPersonDetailStatsByDay');
+  const btn = document.getElementById('mktPersonDetailStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderMktPersonDetail();
+}
+function renderMktPersonDetail(){
+  const userId = viewingMktPersonId;
+  const u = state.users.find(x=>x.id===userId);
+  if(!u){ goPage('mktOverview'); return; }
+  document.getElementById('mktPersonDetailTitle').textContent = `Data của ${u.name}`;
+  document.getElementById('mktPersonDetailSub').textContent = u.mktBranchId ? `Team: ${mktBranchName(u.mktBranchId)}` : 'Chưa có Team';
+
+  const mine = state.leads.filter(l=>l.createdBy===userId).sort((a,b)=>(b.importedAt||0)-(a.importedAt||0));
+
+  if(document.getElementById('mktPersonDetailStatsByDay').style.display !== 'none'){
+    renderMktStatsByDayInto('mktPersonDetailStatsByDay', mine);
+  }
+
+  const assigned = mine.filter(l=>l.assignedTo).length;
+  const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+  document.getElementById('mktPersonDetailSummary').textContent =
+    `${mine.length} data đã nhập · ${assigned} đã chia cho Sale · ${unprocessed} chưa xử lý`;
+
+  const table = document.getElementById('mktPersonDetailTable');
+  if(mine.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa nhập data nào.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày nhập</th><th>SĐT</th><th>Nguồn</th><th>Tên khách</th><th>Trạng thái</th></tr></thead><tbody>` +
+    mine.map(l=>`<tr>
+      <td data-label="Ngày nhập">${fmtDateTimeShort(l.importedAt)}</td>
+      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="Nguồn">${leadSource(l)}</td>
+      <td data-label="Tên khách">${l.customerName||'—'}</td>
+      <td data-label="Trạng thái">${l.assignedTo?`Đã chia cho ${l.assignedToName||'—'}`:'Đang chờ chia'}</td>
+    </tr>`).join('') + `</tbody>`;
+}
 // Chỉ Quản lý chung (general_manager) được viết/sửa — mọi vai trò khác chỉ xem. Nếu sau này
 // muốn thêm vai trò khác cũng được sửa, chỉ cần thêm điều kiện vào hàm canEditCompanyRules().
 function canEditCompanyRules(){
