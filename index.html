@@ -883,7 +883,7 @@
         <div class="card" id="settingsMktSourceCard" style="display:none;">
           <span class="history-link" onclick="toggleSettingsMktSourceSection()" id="settingsMktSourceToggle">Nguồn MKT ▸</span>
           <div id="settingsMktSourceBody" style="display:none; margin-top:10px;">
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay. Nếu 2 kênh khác tên nhưng cùng 1 người/nguồn thật, chọn "Cùng nhóm với" bên dưới mỗi Nguồn để hệ thống tính chung khi áp quy tắc tối đa 3 lần/số điện thoại.</p>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách Nguồn dùng chung — thêm vào đây để lúc gán Nguồn phụ trách cho MKT chỉ cần chọn, không cần gõ tay. Nếu nhiều kênh khác tên nhưng cùng 1 người/nguồn thật (2, 3, 4... không giới hạn), chọn "Cùng nhóm với" bên dưới mỗi Nguồn — tất cả Nguồn cùng chọn chung 1 Nguồn gốc sẽ được tính là 1 nhóm duy nhất khi áp quy tắc tối đa 3 lần/số điện thoại.</p>
             <div id="settingsMktSourceList" style="margin:12px 0;"></div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <input id="settingsNewMktSource" placeholder="Tên Nguồn mới">
@@ -1662,7 +1662,7 @@ function closedDatePickerHtml(l, afterChangeJs){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
   const iso = l.closedDate || todayStr();
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
-  return `<select style="min-height:30px; padding:2px 1px; font-size:12px; width:56px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
+  return `<select style="min-height:28px; padding:1px 0; font-size:11px; width:48px;" onchange="updateLeadField('${l.id}','closedDate',this.value)${after}">${closedDateOptionsHtml(iso)}</select>`;
 }
 function leadClosedDateFieldHtml(l){
   return closedDatePickerHtml(l);
@@ -4617,13 +4617,18 @@ function renderMgrSettings(){
       mktSourceListEl.innerHTML = sortedSources.map(s=>{
         const usedByCount = state.users.filter(u=>(u.assignedSources||[]).includes(s.name)).length;
         const groupInfo = s.aliasOf ? state.mktSources.find(x=>x.id===s.aliasOf) : null;
+        // Đếm tổng số Nguồn trong CÙNG 1 NHÓM (không giới hạn 2 — có thể 3, 4, hoặc nhiều hơn),
+        // để Quản lý thấy rõ nhóm này đang gộp bao nhiêu kênh lại với nhau.
+        const rootId = groupInfo ? groupInfo.id : s.id;
+        const groupSize = state.mktSources.filter(x=>x.id===rootId || x.aliasOf===rootId).length;
+        const groupBadge = groupSize>1 ? ` <span style="color:var(--accent); font-size:11.5px;">· nhóm ${groupSize} Nguồn</span>` : '';
         const aliasSelect = `<select style="min-height:28px; padding:2px 6px; font-size:12.5px; width:auto;" onchange="setMktSourceAlias('${s.id}', this.value)">` +
           `<option value="">— Không gộp —</option>` +
           state.mktSources.filter(x=>x.id!==s.id).map(x=>`<option value="${x.id}" ${s.aliasOf===x.id?'selected':''}>Cùng nhóm với: ${x.name}</option>`).join('') +
           `</select>`;
         return `<div style="padding:8px 0; border-bottom:1px solid var(--line);">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-            <span>${s.name}${groupInfo?` <span style="color:var(--accent); font-size:12px;">(cùng nhóm với "${groupInfo.name}")</span>`:''}</span>
+            <span>${s.name}${groupInfo?` <span style="color:var(--accent); font-size:12px;">(cùng nhóm với "${groupInfo.name}")</span>`:''}${groupBadge}</span>
             <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
               <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} người đang dùng`:''}</span>
               <span style="cursor:pointer;" title="Sửa tên" onclick="renameMktSourceItem('${s.id}')">✏️</span>
