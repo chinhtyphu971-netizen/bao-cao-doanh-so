@@ -556,9 +556,11 @@
             <h2>Data đã chốt <span id="myClosedLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data hệ thống chia rồi bạn chốt sẽ tự hiện ở đây. Bạn cũng có thể bấm "+ Thêm dòng" để tự ghi thêm 1 đơn chốt (ví dụ chốt từ data tự tìm, không qua hệ thống chia).</p>
             <div id="myClosedLeadsSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:6px;"></div>
-            <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMyClosedLeads()">⬇️ Xuất Excel</button>
+            <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+              <button class="btn-primary btn-small" onclick="addManualClosedLead()">+ Thêm dòng</button>
+              <button class="btn-ghost btn-small" onclick="exportMyClosedLeads()">⬇️ Xuất Excel</button>
+            </div>
             <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
-            <button class="btn-ghost" style="margin-top:10px;" onclick="addManualClosedLead()">+ Thêm dòng</button>
           </div>
         </div>
       </div>
