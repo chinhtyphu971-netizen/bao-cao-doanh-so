@@ -821,12 +821,15 @@
             <div class="chip" id="mktRevenuePreset_today" onclick="applyMktRevenueDatePreset('today')">Hôm nay</div>
             <div class="chip" id="mktRevenuePreset_yesterday" onclick="applyMktRevenueDatePreset('yesterday')">Hôm qua</div>
             <div class="chip" id="mktRevenuePreset_week" onclick="applyMktRevenueDatePreset('week')">Tuần qua</div>
-            <div class="chip" id="mktRevenuePreset_month" onclick="applyMktRevenueDatePreset('month')">Tháng qua</div>
+            <div class="chip" id="mktRevenuePreset_thismonth" onclick="applyMktRevenueDatePreset('thismonth')">Tháng này</div>
+            <div class="chip" id="mktRevenuePreset_lastmonth" onclick="applyMktRevenueDatePreset('lastmonth')">Tháng trước</div>
             <div class="chip selected" id="mktRevenuePreset_all" onclick="applyMktRevenueDatePreset('all')">Toàn thời gian</div>
           </div>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:170px;"><label>Từ ngày (theo Ngày chốt)</label><input type="date" id="mktRevenueFrom" onchange="applyMktRevenueCustomRange()"></div>
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktRevenueTo" onchange="applyMktRevenueCustomRange()"></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktRevenueSourceFilter" onchange="renderMktRevenuePage()"></select></div>
+            <div class="field" style="max-width:200px;"><label>Lọc theo Sale chốt</label><select id="mktRevenueSaleFilter" onchange="renderMktRevenuePage()"></select></div>
           </div>
           <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
           <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
@@ -4002,12 +4005,28 @@ function renderMktPersonDetail(){
 }
 /* =========================== MKT: Doanh thu theo Nguồn mình phụ trách =========================== */
 let mktRevenueDateFrom = null, mktRevenueDateTo = null;
+const MKT_REVENUE_PRESET_IDS = ['today','yesterday','week','thismonth','lastmonth','all'];
+// "Tháng này" / "Tháng trước" tính theo ĐÚNG mốc lịch (ngày 1 tới hôm nay / cả tháng trước đó),
+// khác với "Tuần qua" (7 ngày gần nhất) — phù hợp hơn khi cần xem doanh thu theo tháng dương lịch.
+function calendarMonthRangeFor(preset){
+  const now = new Date();
+  if(preset==='thismonth'){
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return [toLocalDateStr(start), todayStr()];
+  }
+  if(preset==='lastmonth'){
+    const start = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0); // ngày 0 của tháng này = ngày cuối tháng trước
+    return [toLocalDateStr(start), toLocalDateStr(end)];
+  }
+  return [null, null];
+}
 function applyMktRevenueDatePreset(preset){
-  const [from, to] = dateRangeFor(preset);
+  const [from, to] = (preset==='thismonth'||preset==='lastmonth') ? calendarMonthRangeFor(preset) : dateRangeFor(preset);
   mktRevenueDateFrom = from; mktRevenueDateTo = to;
   document.getElementById('mktRevenueFrom').value = from || '';
   document.getElementById('mktRevenueTo').value = to || '';
-  ['today','yesterday','week','month','all'].forEach(p=>{
+  MKT_REVENUE_PRESET_IDS.forEach(p=>{
     document.getElementById('mktRevenuePreset_'+p).classList.toggle('selected', p===preset);
   });
   renderMktRevenuePage();
@@ -4015,7 +4034,7 @@ function applyMktRevenueDatePreset(preset){
 function applyMktRevenueCustomRange(){
   mktRevenueDateFrom = document.getElementById('mktRevenueFrom').value || null;
   mktRevenueDateTo = document.getElementById('mktRevenueTo').value || null;
-  ['today','yesterday','week','month','all'].forEach(p=>{
+  MKT_REVENUE_PRESET_IDS.forEach(p=>{
     document.getElementById('mktRevenuePreset_'+p).classList.remove('selected');
   });
   renderMktRevenuePage();
@@ -4033,14 +4052,11 @@ function renderMktRevenuePage(){
     document.getElementById('mktRevenueTable').innerHTML = '';
     return;
   }
-  // Quy về đúng Nguồn "gốc" (nếu có gộp nhóm 2-3-4 kênh làm 1) trước khi so khớp, để 1 Nguồn đã
-  // gộp nhóm vẫn tính đúng doanh thu chung, không bị tách lẻ theo từng tên kênh.
-  const myCanonicalSources = Array.from(new Set(mySources.map(s=>resolveMktSourceCanonicalName(s))));
-
+  // Thống kê ĐÚNG theo tên Nguồn thực tế Sale đã chốt — KHÔNG gộp nhóm các Nguồn đã liên kết
+  // với nhau (khác với quy tắc "tối đa 3 lần/số điện thoại" ở chỗ khác có gộp nhóm).
   let closedLeads = state.leads.filter(l=>{
     if(l.status !== 'Đã chốt') return false;
-    const canonical = resolveMktSourceCanonicalName(leadSource(l));
-    return myCanonicalSources.includes(canonical);
+    return mySources.includes(leadSource(l));
   });
   if(mktRevenueDateFrom || mktRevenueDateTo){
     closedLeads = closedLeads.filter(l=>{
@@ -4052,27 +4068,46 @@ function renderMktRevenuePage(){
   }
   closedLeads.sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
 
-  // 1 hộp số liệu cho từng Nguồn được gán (giữ đúng tên Nguồn gốc bạn đang phụ trách, kể cả khi
-  // đã gộp nhóm với Nguồn khác — hộp vẫn hiện đúng tên bạn được gán, số liệu tính theo cả nhóm).
+  // 1 hộp số liệu riêng cho từng Nguồn được gán — so khớp CHÍNH XÁC theo tên, không gộp nhóm.
+  // Các hộp này luôn tính theo TOÀN BỘ (chỉ áp dụng bộ lọc ngày), không bị ảnh hưởng bởi 2 bộ
+  // lọc Nguồn/Sale bên dưới, để giữ nguyên bức tranh tổng quan theo từng Nguồn.
   boxesEl.innerHTML = mySources.map(srcName=>{
-    const canonical = resolveMktSourceCanonicalName(srcName);
-    const mine = closedLeads.filter(l=>resolveMktSourceCanonicalName(leadSource(l))===canonical);
+    const mine = closedLeads.filter(l=>leadSource(l)===srcName);
     const amount = mine.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
     return `<div class="stat-box"><div class="stat-label">${srcName}</div><div class="stat-value">${fmtMoney(amount)} đ</div><div style="color:var(--ink-soft); font-size:12.5px; margin-top:4px;">${mine.length} đơn chốt</div></div>`;
   }).join('');
 
-  const totalAmount = closedLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
-  document.getElementById('mktRevenueSummary').textContent = closedLeads.length===0
+  // Đổ danh sách chọn cho 2 bộ lọc Nguồn/Sale (chỉ đổ lại khi cần, tránh mất lựa chọn đang chọn)
+  const sourceSel = document.getElementById('mktRevenueSourceFilter');
+  if(sourceSel.dataset.filled !== mySources.join('|')){
+    sourceSel.innerHTML = '<option value="">— Tất cả Nguồn của tôi —</option>' + mySources.map(s=>`<option value="${s}">${s}</option>`).join('');
+    sourceSel.dataset.filled = mySources.join('|');
+  }
+  const saleSel = document.getElementById('mktRevenueSaleFilter');
+  const saleNames = Array.from(new Set(closedLeads.map(l=>l.assignedToName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  const prevSaleVal = saleSel.value;
+  saleSel.innerHTML = '<option value="">— Tất cả Sale —</option>' + saleNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if(saleNames.includes(prevSaleVal)) saleSel.value = prevSaleVal;
+
+  // Áp 2 bộ lọc Nguồn/Sale — chỉ ảnh hưởng bảng chi tiết bên dưới, không đụng tới 3 hộp tổng quan ở trên.
+  let filteredLeads = closedLeads;
+  const sourceFilter = sourceSel.value;
+  if(sourceFilter) filteredLeads = filteredLeads.filter(l=>leadSource(l)===sourceFilter);
+  const saleFilter = saleSel.value;
+  if(saleFilter) filteredLeads = filteredLeads.filter(l=>l.assignedToName===saleFilter);
+
+  const totalAmount = filteredLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
+  document.getElementById('mktRevenueSummary').textContent = filteredLeads.length===0
     ? 'Chưa có đơn nào được chốt từ Nguồn bạn phụ trách trong khoảng đang lọc.'
-    : `${closedLeads.length} đơn đã chốt · Tổng doanh thu: ${fmtMoney(totalAmount)} đ`;
+    : `${filteredLeads.length} đơn đã chốt · Tổng doanh thu: ${fmtMoney(totalAmount)} đ`;
 
   const table = document.getElementById('mktRevenueTable');
-  if(closedLeads.length===0){
+  if(filteredLeads.length===0){
     table.innerHTML = '';
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Sale chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
-    closedLeads.map(l=>`<tr>
+    filteredLeads.map(l=>`<tr>
       <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
       <td data-label="SĐT">${leadPhone(l)}</td>
