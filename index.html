@@ -351,6 +351,7 @@
   <div class="login-card">
     <h1>Báo cáo doanh số</h1>
     <div class="login-sub">Đăng nhập nhẹ — không cần email, chỉ cần tên và mã PIN riêng.</div>
+    <div class="trungthu-banner" id="trungThuLoginBanner"></div>
     <div class="step-dots">
       <span id="dot1" class="active"></span><span id="dot2"></span><span id="dot3"></span>
     </div>
@@ -1379,6 +1380,7 @@ function onReady(){
   document.getElementById('loadingOverlay').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   goStep(1);
+  initTrungThu(); // để màn đăng nhập cũng có trang trí + khẩu hiệu, không chỉ riêng sau khi vào app
   const user=currentUser();
   if(user) enterApp();
 }
@@ -3365,6 +3367,30 @@ const TRUNGTHU_SLOGANS = [
   '🐇 Cố lên nào, mùa trăng này mình cùng nhau bứt phá!',
   '🥮 Một miếng bánh dẻo, một đơn hàng ngọt ngào!',
   '🎑 Mâm cỗ đầy ắp — Doanh số cũng đầy ắp nhé cả nhà!',
+  '🌙 Trăng rằm sáng tỏ — Tinh thần cả team cũng sáng như vậy!',
+  '🧧 Múa lân rộn ràng — Chốt đơn cũng rộn ràng không kém!',
+  '🥁 Trống lân vang khắp phố — Khí thế cả nhà vang khắp team!',
+  '🏮 Đèn ông sao lấp lánh — Kết quả tháng này cũng lấp lánh nhé!',
+  '🍡 Bánh dẻo bánh nướng đủ vị — Sale mình cũng đủ chiêu chốt đơn!',
+  '🌕 Một năm chỉ có một rằm tháng Tám — Cố gắng để nhớ mãi mùa này thật rực rỡ!',
+  '🎊 Trung Thu không chỉ trẻ con vui — Sale vui vì đơn về đều tay!',
+  '🐲 Rồng lân bay lượn — Doanh số cũng bay lượn lên top nào!',
+  '🍵 Trà ngon bánh ngọt, chuyện trò rôm rả — Công việc cũng suôn sẻ như vậy nhé!',
+  '🌌 Đêm trăng đẹp nhất năm — Ngày làm việc đẹp nhất tháng, quyết tâm lên nào!',
+  '🧨 Pháo hoa Trung Thu rực rỡ — Kết quả cuối tháng cũng rực rỡ không kém!',
+  '🎐 Gió mùa thu mát dịu — Tinh thần làm việc cũng nhẹ nhàng mà hiệu quả!',
+  '🥮 Cắn miếng bánh Trung Thu, cắn luôn target tháng này!',
+  '🏮 Thắp đèn lồng, thắp luôn quyết tâm chốt đơn hôm nay!',
+  '🌕 Trăng tròn thì đẹp, đơn hàng tròn số thì càng đẹp hơn!',
+  '🐰 Thỏ ngọc giã bánh không nghỉ — Sale mình chốt đơn cũng không nghỉ tay!',
+  '🎆 Trung Thu về, niềm vui về, doanh số cũng về theo nhé cả nhà!',
+  '🥭 Mùa thu là mùa gặt hái — Anh chị em mình cùng nhau gặt hái thành quả!',
+  '🎇 Đèn lồng treo cao, tinh thần lên cao, đơn hàng cũng lên cao!',
+  '🍂 Lá thu rơi nhẹ nhàng, nhưng quyết tâm chốt đơn thì không hề nhẹ!',
+  '🌰 Mùa Trung Thu, mùa của sum vầy và cũng là mùa của những đơn hàng rộn ràng!',
+  '🧧 Chúc cả nhà một mùa Trung Thu ấm áp và một tháng làm việc bùng nổ!',
+  '🥮 Bánh Trung Thu tròn vị, công việc tròn vai, đơn hàng tròn số!',
+  '🌟 Sao sáng dẫn đường chú Cuội về, quyết tâm dẫn đường Sale mình về đích!',
 ];
 const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐','🌟','🧧'];
 const TRUNGTHU_BG_PATTERNS = [
@@ -3407,11 +3433,14 @@ const TRUNGTHU_LION_SVG =
   "<circle cx='150' cy='28' r='13' fill='rgba(220,60,45,0.16)'/>" +
   "<circle cx='150' cy='28' r='5' fill='rgba(255,220,120,0.20)'/>" +
   "</svg>";
-function initTrungThu(){
+function refreshTrungThuSlogan(){
   const bannerEl = document.getElementById('trungThuBanner');
-  if(bannerEl){
-    bannerEl.textContent = TRUNGTHU_SLOGANS[Math.floor(Math.random()*TRUNGTHU_SLOGANS.length)];
-  }
+  if(bannerEl) bannerEl.textContent = TRUNGTHU_SLOGANS[Math.floor(Math.random()*TRUNGTHU_SLOGANS.length)];
+  const loginBannerEl = document.getElementById('trungThuLoginBanner');
+  if(loginBannerEl) loginBannerEl.textContent = TRUNGTHU_SLOGANS[Math.floor(Math.random()*TRUNGTHU_SLOGANS.length)];
+}
+function initTrungThu(){
+  refreshTrungThuSlogan();
   if(!initTrungThu._bgApplied){
     initTrungThu._bgApplied = true;
     const svg = TRUNGTHU_BG_PATTERNS[Math.floor(Math.random()*TRUNGTHU_BG_PATTERNS.length)];
@@ -3709,6 +3738,7 @@ function closeSidebar(){
   document.getElementById('sidebarBackdrop').classList.remove('show');
 }
 function goPage(pageId){
+  refreshTrungThuSlogan();
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
