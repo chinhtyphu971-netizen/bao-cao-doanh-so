@@ -517,7 +517,7 @@
             <span class="history-link" onclick="toggleMyLeadsStatsByDay()" id="myLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
             <div id="myLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:6px;"></div>
             <div class="toolbar" style="margin-top:14px;">
-              <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMyLeads()"></div>
+              <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMyLeads()"></div>
               <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="myLeadsStatusFilter" onchange="renderMyLeads()"></select></div>
             </div>
             <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
@@ -745,7 +745,7 @@
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:180px;"><label>Từ ngày</label><input type="date" id="mktLeadsFrom" onchange="applyMktLeadsCustomRange()"></div>
             <div class="field" style="max-width:180px;"><label>Đến ngày</label><input type="date" id="mktLeadsTo" onchange="applyMktLeadsCustomRange()"></div>
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderMktMyLeadsList()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
@@ -768,7 +768,7 @@
         </div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="onMgrLeadsListFilterChange()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedOnMgrLeadsListFilterChange()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
@@ -795,7 +795,7 @@
             <div class="field" style="max-width:220px;"><label>Lọc theo Sale</label><select id="mgrSelfLeadsPersonFilter" onchange="renderMgrSelfLeadsList()"></select></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrSelfLeadsSourceFilter" onchange="renderMgrSelfLeadsList()"></select></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Trạng thái</label><select id="mgrSelfLeadsStatusFilter" onchange="renderMgrSelfLeadsList()"></select></div>
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT/Link FB hoặc tên khách</label><input id="mgrSelfLeadsSearch" placeholder="Gõ để tìm..." oninput="renderMgrSelfLeadsList()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT/Link FB hoặc tên khách</label><input id="mgrSelfLeadsSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMgrSelfLeadsList()"></div>
             <div style="align-self:flex-end;"><button class="btn-ghost btn-small" onclick="document.getElementById('mgrSelfLeadsDateFilter').value=''; document.getElementById('mgrSelfLeadsSourceFilter').value=''; document.getElementById('mgrSelfLeadsStatusFilter').value=''; document.getElementById('mgrSelfLeadsSearch').value=''; renderMgrSelfLeadsList();">Xoá hết bộ lọc</button></div>
           </div>
           <div id="mgrSelfLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
@@ -819,7 +819,7 @@
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mgrClosedTo" onchange="applyMgrClosedCustomRange()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người chốt</label><select id="mgrClosedPersonFilter" onchange="renderMgrClosedLeads()"></select></div>
             <div class="field" id="mgrClosedSourceFilterWrap" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrClosedSourceFilter" onchange="renderMgrClosedLeads()"></select></div>
-            <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm..." oninput="renderMgrClosedLeads()"></div>
+            <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMgrClosedLeads()"></div>
           </div>
           <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrClosedLeadsTable" class="rtable"></table></div>
@@ -837,7 +837,7 @@
           <span class="history-link" onclick="togglePersonLeadsStatsByDay()" id="personLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
           <div id="personLeadsStatsByDay" style="display:none; margin-top:10px;"></div>
           <div class="toolbar" style="margin-top:14px; margin-bottom:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="personLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="renderPersonLeadsPage()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="personLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderPersonLeadsPage()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="personLeadsStatusFilter" onchange="renderPersonLeadsPage()"></select></div>
           </div>
           <div class="table-wrap"><table id="personLeadsPageTable" class="rtable"></table></div>
@@ -1286,13 +1286,24 @@ function onReady(){
   if(user) enterApp();
 }
 let currentPageId=null;
+let dataChangedRenderTimer = null;
 // Khi dữ liệu trên Firebase đổi (do người khác thao tác), tự làm mới màn
 // đang xem — trừ form "Nộp báo cáo" để không xoá mất số đang gõ dở.
+// QUAN TRỌNG: việc vẽ lại màn hình được GỘP LẠI (debounce ~300ms) thay vì vẽ lại ngay lập tức
+// mỗi lần có 1 thay đổi. Lý do: hệ thống dùng listener kiểu child_added/child_changed cho
+// /leads, nên nếu có 50-100 thay đổi dồn dập cùng lúc (ví dụ MKT nhập hàng loạt, hoặc nhiều
+// người cùng thao tác), mỗi client đang mở app sẽ nhận 50-100 sự kiện liên tiếp — không debounce
+// thì màn hình sẽ bị vẽ lại 50-100 lần trong vài giây, đây chính là nguyên nhân gây đơ/lag khi
+// nhiều người dùng cùng lúc. Debounce giúp dồn tất cả các thay đổi gần nhau lại, chỉ vẽ lại 1
+// lần duy nhất sau khi dữ liệu đã "lắng" xuống.
 function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
     checkNewLeadNotifications();
-    if(currentPageId && currentPageId!=='staffReport') goPage(currentPageId);
+    if(currentPageId && currentPageId!=='staffReport'){
+      clearTimeout(dataChangedRenderTimer);
+      dataChangedRenderTimer = setTimeout(()=>{ goPage(currentPageId); }, 300);
+    }
   } else if(!state.session){
     if(loginStep===1) renderRoleChips();
     if(loginStep===2) renderBranchChips();
@@ -1300,6 +1311,22 @@ function onDataChanged(){
 }
 
 let notifiedLeadIds = new Set();
+// Trì hoãn nhẹ 1 hàm trước khi thực sự chạy — dùng cho các ô tìm kiếm trên bảng lớn (Danh sách
+// data, Data đã chốt...), tránh việc gõ mỗi phím lại vẽ lại toàn bộ bảng 1 lần (dễ giật/lag khi
+// gõ nhanh trên bảng nhiều dòng). Gõ xong khoảng 220ms không gõ tiếp mới thực sự lọc lại.
+function debounce(fn, delay){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t = setTimeout(()=>fn.apply(this,args), delay);
+  };
+}
+const debouncedRenderMyLeads = debounce(()=>renderMyLeads(), 220);
+const debouncedRenderMktMyLeadsList = debounce(()=>renderMktMyLeadsList(), 220);
+const debouncedOnMgrLeadsListFilterChange = debounce(()=>onMgrLeadsListFilterChange(), 220);
+const debouncedRenderMgrSelfLeadsList = debounce(()=>renderMgrSelfLeadsList(), 220);
+const debouncedRenderMgrClosedLeads = debounce(()=>renderMgrClosedLeads(), 220);
+const debouncedRenderPersonLeadsPage = debounce(()=>renderPersonLeadsPage(), 220);
 let leadNotifyInitialized = false;
 function resetLeadNotifyState(){
   notifiedLeadIds = new Set();
@@ -1567,11 +1594,16 @@ function runDistribution(){
 function runDistributionManual(){
   runDistributionWithLock(()=>{ showToast('Đã chạy phân bổ'); renderMgrLeads(); });
 }
+let autoDistributeTimer = null;
 function tryAutoDistribute(){
   if(!appReady) return;
   const user=currentUser();
   if(!user || (user.role!=='general_manager' && user.role!=='team_manager' && user.role!=='data_manager')) return;
-  runDistributionWithLock();
+  // Gộp lại (debounce) — MKT nhập hàng loạt sẽ bắn nhiều sự kiện "có lead mới" liên tiếp; không
+  // gộp thì mỗi sự kiện lại gọi 1 lần transaction tới Firebase, gây tốn băng thông + có thể góp
+  // phần làm chậm máy khi dồn dập.
+  clearTimeout(autoDistributeTimer);
+  autoDistributeTimer = setTimeout(()=>{ runDistributionWithLock(); }, 500);
 }
 // Nhiều người có thể cùng mở app 1 lúc (nhiều tab/thiết bị) — nếu để mỗi tab tự chạy runDistribution()
 // độc lập, khi data đổ về dồn dập, 2 tab có thể cùng lúc "tưởng" 1 người đang tới lượt và cùng gán cho
@@ -1804,12 +1836,29 @@ function previewMktBulk(){
 function submitMktBulk(){
   if(!mktBulkPreviewResults) return; // phong ho, nut da bi disable neu chua xem truoc
   const {source, results} = mktBulkPreviewResults;
+  const u = currentUser();
+  // QUAN TRỌNG: gộp TẤT CẢ số hợp lệ thành 1 lệnh ghi Firebase DUY NHẤT (multi-path update),
+  // thay vì gọi fbSetLead() từng số một như trước. Trước đây nhập 50-100 số sẽ bắn ra 50-100
+  // sự kiện "có data mới" liên tiếp tới MỌI người đang mở app, mỗi sự kiện lại làm màn hình
+  // người đó tự vẽ lại toàn bộ trang đang xem — đây là nguyên nhân chính gây đơ/lag cho cả team
+  // mỗi khi MKT nhập hàng loạt. Gộp lại còn 1 lần ghi giúp giảm hẳn số lần này.
+  const updates = {};
   let addedCount = 0;
   results.forEach(r=>{
     if(r.status!=='valid') return;
-    createLeadFromMkt(r.phone, source, r.name);
+    const lead = {
+      id: 'manual_' + uid(),
+      phone: String(r.phone).trim(),
+      source: String(source).trim(),
+      importedAt: Date.now(),
+      createdBy: u ? u.id : null,
+      createdByName: u ? u.name : '',
+    };
+    if(r.name && r.name.trim()) lead.customerName = r.name.trim();
+    updates[lead.id] = lead;
     addedCount++;
   });
+  if(addedCount>0) fbLeads.update(updates);
   showToast(`Đã thêm ${addedCount} số vào kho data.`);
   document.getElementById('mktBulkText').value = '';
   resetMktBulkPreview();
