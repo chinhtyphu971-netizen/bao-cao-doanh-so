@@ -2918,9 +2918,16 @@ function renderMyClosedLeads(){
         : '';
       // Chỉ dòng TỰ NHẬP TAY (manualEntry) mới cần kiểm tra trùng SĐT — SĐT của data hệ thống tự
       // chia thì luôn là duy nhất sẵn rồi (đã có luật riêng khi phân bổ), không cần kiểm tra lại.
-      const isDup = l.manualEntry && l.phone && isPhoneDuplicateElsewhere(l.phone, l.id);
+      const ownDup = l.manualEntry && l.phone ? findOwnDuplicateLead(l.phone, l.id) : null;
+      const isDup = ownDup || (l.manualEntry && l.phone && isPhoneDuplicateElsewhere(l.phone, l.id));
       const rowStyle = isDup ? ' style="background:rgba(220,50,50,0.14);"' : '';
-      const dupWarning = isDup ? '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ SĐT đã có sẵn trong hệ thống</div>' : '';
+      let dupWarning = '';
+      if(ownDup){
+        dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
+          <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
+      } else if(isDup){
+        dupWarning = '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ SĐT đã có sẵn trong hệ thống</div>';
+      }
       return `<tr${rowStyle}>
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
@@ -2942,12 +2949,50 @@ function isPhoneDuplicateElsewhere(phone, excludeLeadId){
   if(!norm) return false;
   return state.leads.some(l=>l.id!==excludeLeadId && l.status==='Đã chốt' && normalizePhone(leadPhone(l))===norm);
 }
+// Tìm xem SĐT vừa gõ có TRÙNG với 1 data KHÁC đang nằm sẵn trong chính danh sách của người này
+// không (bất kể trạng thái gì — Đã liên hệ, Đang tư vấn...), để gợi ý GỘP thẳng vào data cũ thay
+// vì tạo thêm 1 dòng mới trùng lặp cùng 1 khách.
+function findOwnDuplicateLead(phone, excludeLeadId){
+  const norm = normalizePhone(phone);
+  if(!norm) return null;
+  const u = currentUser();
+  return state.leads.find(l=>l.id!==excludeLeadId && l.assignedTo===u.id && normalizePhone(leadPhone(l))===norm) || null;
+}
 function onManualClosedPhoneChange(leadId, value){
   updateLeadField(leadId, 'phone', value);
-  if(isPhoneDuplicateElsewhere(value, leadId)){
+  const ownDup = findOwnDuplicateLead(value, leadId);
+  if(ownDup){
+    showToast(`⚠️ SĐT này đã có sẵn trong data của chính bạn (đang ở "${ownDup.status||'Chưa cập nhật'}") — có thể bấm "🔗 Gộp vào data có sẵn" để khỏi bị trùng 2 dòng.`);
+  } else if(isPhoneDuplicateElsewhere(value, leadId)){
     showToast('⚠️ SĐT này đã có sẵn trong hệ thống — dòng sẽ được tô đỏ để anh/chị kiểm tra lại, nếu chắc chắn đúng vẫn có thể giữ nguyên.');
   }
   renderMyClosedLeads();
+}
+// Gộp dòng tự nhập tay (đang ghi "Đã chốt") vào 1 data CÓ SẴN cùng SĐT trong danh sách của người
+// này — cập nhật data cũ thành "Đã chốt" kèm Ngày chốt/Số tiền chốt, rồi xoá dòng tự nhập vừa rồi,
+// tránh 1 khách bị hiện thành 2 dòng khác trạng thái nhau trong hệ thống.
+function mergeManualClosedIntoExisting(manualLeadId, existingLeadId){
+  const manualLead = state.leads.find(l=>l.id===manualLeadId);
+  const existingLead = state.leads.find(l=>l.id===existingLeadId);
+  if(!manualLead || !existingLead) return;
+  askConfirm(
+    'Gộp vào data có sẵn?',
+    `SĐT này đã có sẵn trong danh sách của bạn (đang ở trạng thái "${existingLead.status||'Chưa cập nhật'}"). Gộp sẽ cập nhật đúng data đó thành "Đã chốt" và xoá dòng vừa tự nhập này — tránh bị trùng 2 dòng cho cùng 1 khách. Tiếp tục?`,
+    ()=>{
+      const updates = {
+        status: 'Đã chốt',
+        closedDate: manualLead.closedDate || todayStr(),
+        closedAmount: manualLead.closedAmount || null,
+      };
+      if(!existingLead.customerName && manualLead.customerName) updates.customerName = manualLead.customerName;
+      Object.assign(existingLead, updates);
+      fbUpdateLead(existingLeadId, updates);
+      state.leads = state.leads.filter(l=>l.id!==manualLeadId);
+      fbDeleteLead(manualLeadId);
+      showToast('Đã gộp thành công vào data có sẵn.');
+      renderMyClosedLeads();
+    }
+  );
 }
 const SELF_LEAD_STATUS_OPTIONS = ['Đã nhắn tin','Đã gọi','Đang tư vấn','Đã chốt'];
 function renderSelfLeadsTable(){
