@@ -863,7 +863,7 @@
               <div id="vsNewMainActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
             </div>
             <div class="field">
-              <label>Diễn viên phụ đã dùng (20.000đ/người)</label>
+              <label>Diễn viên phụ đã dùng (20.000đ/video — 1 buổi có thể quay nhiều video)</label>
               <div id="vsNewSupportActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
             </div>
           </div>
@@ -1762,6 +1762,16 @@ function actorCheckboxListHtml(containerName){
     .map(a=>`<label style="display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;"><input type="checkbox" name="${containerName}" value="${a.id}" style="width:auto; min-height:0;"> ${a.name}</label>`)
     .join('');
 }
+// Diễn viên phụ tính theo SỐ VIDEO (1 buổi có thể quay nhiều video, mỗi video 20.000đ/người) —
+// nên mỗi diễn viên phụ có 1 ô nhập số lượng thay vì chỉ tích chọn có/không.
+function actorCountListHtml(){
+  if(state.actors.length===0) return '';
+  return state.actors.slice().sort((a,b)=>a.name.localeCompare(b.name,'vi'))
+    .map(a=>`<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13.5px;">
+      <span>${a.name}</span>
+      <input type="number" min="0" class="vsSupportActorCount" data-actor-id="${a.id}" placeholder="0" style="width:64px; min-height:32px; padding:4px 6px; font-size:13px;">
+    </div>`).join('');
+}
 function renderVideoShootActorPickers(){
   const mainEl = document.getElementById('vsNewMainActorPicker');
   const supportEl = document.getElementById('vsNewSupportActorPicker');
@@ -1774,7 +1784,17 @@ function renderVideoShootActorPickers(){
   }
   noteEl.textContent = '';
   mainEl.innerHTML = actorCheckboxListHtml('vsMainActor');
-  supportEl.innerHTML = actorCheckboxListHtml('vsSupportActor');
+  supportEl.innerHTML = actorCountListHtml();
+}
+// Chuyển object {actorId: soVideo} lưu trong Firebase thành mảng [{id, count}] để dễ lặp hiển thị.
+function supportActorEntries(shoot){
+  const map = shoot.supportActors || {};
+  return Object.keys(map).map(id=>({id, count: map[id]})).filter(e=>e.count>0);
+}
+function supportActorDisplayText(shoot){
+  const entries = supportActorEntries(shoot);
+  if(entries.length===0) return '—';
+  return entries.map(e=>`${actorName(e.id)} (x${e.count})`).join(', ');
 }
 function addVideoShoot(){
   const u = currentUser();
@@ -1782,12 +1802,17 @@ function addVideoShoot(){
   const noteEl = document.getElementById('vsNewNote');
   const date = dateEl.value || todayStr();
   const mainActorIds = Array.from(document.querySelectorAll('input[name="vsMainActor"]:checked')).map(el=>el.value);
-  const supportActorIds = Array.from(document.querySelectorAll('input[name="vsSupportActor"]:checked')).map(el=>el.value);
-  if(mainActorIds.length===0 && supportActorIds.length===0){
-    showToast('Vui lòng tích chọn ít nhất 1 diễn viên (chính hoặc phụ) trước khi thêm.');
+  const supportActors = {};
+  let supportVideoTotal = 0;
+  document.querySelectorAll('.vsSupportActorCount').forEach(el=>{
+    const n = Math.max(0, parseInt(el.value, 10) || 0);
+    if(n>0){ supportActors[el.dataset.actorId] = n; supportVideoTotal += n; }
+  });
+  if(mainActorIds.length===0 && supportVideoTotal===0){
+    showToast('Vui lòng chọn ít nhất 1 diễn viên chính hoặc nhập số video cho diễn viên phụ trước khi thêm.');
     return;
   }
-  const totalCost = mainActorIds.length*VIDEO_MAIN_ACTOR_FEE + supportActorIds.length*VIDEO_SUPPORT_ACTOR_FEE;
+  const totalCost = mainActorIds.length*VIDEO_MAIN_ACTOR_FEE + supportVideoTotal*VIDEO_SUPPORT_ACTOR_FEE;
   const shoot = {
     id: 'vs_' + uid(),
     userId: u.id,
@@ -1795,7 +1820,7 @@ function addVideoShoot(){
     mktBranchId: u.mktBranchId || null,
     date,
     mainActorIds,
-    supportActorIds,
+    supportActors, // {actorId: soVideo}
     totalCost,
     note: noteEl.value.trim(),
     createdAt: Date.now(), // thời điểm MKT thực sự thêm buổi quay này vào hệ thống
@@ -1820,20 +1845,20 @@ function renderVideoShootsPage(){
   document.getElementById('vsMyCount').textContent = mine.length ? `(${mine.length})` : '';
   const totalCost = mine.reduce((sum,s)=>sum+(s.totalCost||0),0);
   const totalMain = mine.reduce((sum,s)=>sum+(s.mainActorIds||[]).length,0);
-  const totalSupport = mine.reduce((sum,s)=>sum+(s.supportActorIds||[]).length,0);
+  const totalSupportVideos = mine.reduce((sum,s)=>sum+supportActorEntries(s).reduce((a,e)=>a+e.count,0),0);
   document.getElementById('vsMySummary').textContent = mine.length===0
     ? 'Chưa có buổi quay nào được ghi nhận.'
-    : `${mine.length} buổi quay · ${totalMain} lượt diễn viên chính · ${totalSupport} lượt diễn viên phụ · Tổng chi phí: ${fmtMoney(totalCost)} đ`;
+    : `${mine.length} buổi quay · ${totalMain} lượt diễn viên chính · ${totalSupportVideos} lượt video diễn viên phụ · Tổng chi phí: ${fmtMoney(totalCost)} đ`;
   const table = document.getElementById('vsMyTable');
   if(mine.length===0){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào — điền form ở trên để thêm.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Diễn viên chính</th><th>Diễn viên phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th><th></th></tr></thead><tbody>` +
     mine.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
       <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
-      <td data-label="Diễn viên phụ">${(s.supportActorIds||[]).map(actorName).join(', ')||'—'}</td>
+      <td data-label="Diễn viên phụ (số video)">${supportActorDisplayText(s)}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
       <td data-label="Ghi chú">${s.note||'—'}</td>
       <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
@@ -1890,7 +1915,7 @@ function renderVideoShootsOverviewPage(){
   lastFilteredVideoShoots = shoots;
 
   const totalCost = shoots.reduce((sum,s)=>sum+(s.totalCost||0),0);
-  const totalActors = shoots.reduce((sum,s)=>sum+(s.mainActorIds||[]).length+(s.supportActorIds||[]).length,0);
+  const totalActors = shoots.reduce((sum,s)=>sum+(s.mainActorIds||[]).length+supportActorEntries(s).reduce((a,e)=>a+e.count,0),0);
   document.getElementById('vsOverviewStatCount').textContent = shoots.length;
   document.getElementById('vsOverviewStatActors').textContent = totalActors;
   document.getElementById('vsOverviewStatCost').textContent = fmtMoney(totalCost) + ' đ';
@@ -1900,12 +1925,12 @@ function renderVideoShootsOverviewPage(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th>Diễn viên chính</th><th>Diễn viên phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th></tr></thead><tbody>` +
     shoots.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
       <td data-label="Người quay">${s.userName}</td>
       <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
-      <td data-label="Diễn viên phụ">${(s.supportActorIds||[]).map(actorName).join(', ')||'—'}</td>
+      <td data-label="Diễn viên phụ (số video)">${supportActorDisplayText(s)}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
       <td data-label="Ghi chú">${s.note||'—'}</td>
       <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
@@ -1918,7 +1943,7 @@ function exportVideoShootsOverview(){
     ngayQuay: fmtDate(s.date),
     nguoiQuay: s.userName,
     dienVienChinh: (s.mainActorIds||[]).map(actorName).join(', '),
-    dienVienPhu: (s.supportActorIds||[]).map(actorName).join(', '),
+    dienVienPhu: supportActorDisplayText(s),
     chiPhi: s.totalCost,
     ghiChu: s.note || '',
     themLuc: fmtDateTimeShort(s.createdAt),
@@ -5687,7 +5712,7 @@ function renameActorItem(actorId){
 function deleteActorItem(actorId){
   const a = state.actors.find(x=>x.id===actorId);
   if(!a) return;
-  const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(actorId) || (s.supportActorIds||[]).includes(actorId)).length;
+  const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(actorId) || Object.keys(s.supportActors||{}).includes(actorId)).length;
   if(usedByCount>0){
     showToast(`Diễn viên này đã được ghi nhận trong ${usedByCount} buổi quay — không xoá được để giữ nguyên lịch sử, chỉ đổi tên nếu cần.`);
     return;
@@ -5907,7 +5932,7 @@ function renderMgrSettings(){
       const actorsListEl = document.getElementById('settingsActorsList');
       const sortedActors = state.actors.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
       actorsListEl.innerHTML = sortedActors.map(a=>{
-        const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(a.id) || (s.supportActorIds||[]).includes(a.id)).length;
+        const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(a.id) || Object.keys(s.supportActors||{}).includes(a.id)).length;
         return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
           <span>${a.name}</span>
           <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
