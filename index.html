@@ -410,6 +410,9 @@
       <div class="brand-sub" id="sidebarBranch">—</div>
       <div class="trungthu-banner" id="trungThuBanner"></div>
 
+      <div id="navCommon">
+        <div class="nav-item" data-page="companyRules" onclick="goPage('companyRules')"><span class="label">📜 Nội quy & Văn hoá công ty</span></div>
+      </div>
       <div id="navMkt" style="display:none;">
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">Danh sách data</span></div>
@@ -687,6 +690,24 @@
       </div>
 
       <!-- ---------- MANAGER: danh sách data TỔNG (gộp mọi người vào 1 bảng) ---------- -->
+      <!-- ---------- CHUNG: Nội quy & Văn hoá công ty (mọi vai trò đều xem được) ---------- -->
+      <div id="page-companyRules" class="page" style="display:none;">
+        <div class="page-head">
+          <div><h1>Nội quy & Văn hoá công ty</h1><p>Áp dụng cho toàn bộ nhân sự — Quản lý chung có thể chỉnh sửa nội dung này</p></div>
+          <button class="btn-ghost btn-small" id="companyRulesEditBtn" style="display:none;" onclick="toggleCompanyRulesEdit()">✏️ Chỉnh sửa</button>
+        </div>
+        <div class="card">
+          <div id="companyRulesReadView"></div>
+          <div id="companyRulesEditView" style="display:none;">
+            <textarea id="companyRulesTextarea" rows="18" style="width:100%; padding:12px; font-size:14px; line-height:1.6;" placeholder="Gõ nội quy, quy định, văn hoá công ty vào đây..."></textarea>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button class="btn-primary" onclick="saveCompanyRules()">Lưu</button>
+              <button class="btn-ghost" onclick="toggleCompanyRulesEdit()">Huỷ</button>
+            </div>
+          </div>
+          <div id="companyRulesMeta" style="color:var(--ink-soft); font-size:12.5px; margin-top:14px;"></div>
+        </div>
+      </div>
       <!-- ---------- MKT: nhập data ---------- -->
       <div id="page-mktInput" class="page" style="display:none;">
         <div class="page-head"><div><h1>Nhập data</h1><p>Data nhập ở đây sẽ tự động đổ chung vào 1 kho với data từ Google Sheet, hệ thống tự chia đều như bình thường</p></div></div>
@@ -1122,11 +1143,12 @@ let state = {
   mktSources: [], // Danh sách Nguồn MKT dùng chung, để chọn khi gán Nguồn phụ trách cho từng người
   teamsTrash: [], // Team Sale/MKT đã xoá, giữ lại để khôi phục được — {id, name, type:'branch'|'mktBranch', deletedAt}
   selfLeads: [], // "Data tự tìm" — Sale tự ghi lại data họ tự kiếm được, tách biệt hoàn toàn với /leads (data hệ thống tự chia)
+  companyRules: {content: '', updatedAt: 0, updatedByName: ''}, // Nội quy & văn hoá công ty — 1 văn bản dùng chung cho cả công ty
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1191,6 +1213,7 @@ function startFirebaseListeners(){
   fbMktSources = db.ref('mktSources');
   fbTeamsTrash = db.ref('teamsTrash');
   fbSelfLeads = db.ref('selfLeads');
+  fbCompanyRules = db.ref('companyRules');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
   fbChatNotify = db.ref('chatNotify');
@@ -1210,6 +1233,7 @@ function startFirebaseListeners(){
   fbMktSources.on('value', snap=>{ state.mktSources = Object.values(snap.val()||{}); onDataChanged(); });
   fbTeamsTrash.on('value', snap=>{ state.teamsTrash = Object.values(snap.val()||{}); onDataChanged(); });
   fbSelfLeads.on('value', snap=>{ state.selfLeads = Object.values(snap.val()||{}); onDataChanged(); });
+  fbCompanyRules.on('value', snap=>{ state.companyRules = snap.val() || {content:'', updatedAt:0, updatedByName:''}; onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -3573,8 +3597,8 @@ function closeSidebar(){
 function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList'){ pageId='mktInput'; } // MKT: 3 trang này thôi
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList'){ pageId='mktManagerStats'; } // Quản lý team MKT: 4 trang này thôi
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 3 trang này + Nội quy
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 4 trang này + Nội quy
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -3595,9 +3619,54 @@ function goPage(pageId){
   if(pageId==='mktInput') renderMktInputPage();
   if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
   if(pageId==='mktManagerStats') renderMktManagerStats();
+  if(pageId==='companyRules') renderCompanyRulesPage();
 }
 
-/* =========================== STAFF: NỘP BÁO CÁO =========================== */
+/* =========================== CHUNG: Nội quy & Văn hoá công ty =========================== */
+// Chỉ Quản lý chung (general_manager) được viết/sửa — mọi vai trò khác chỉ xem. Nếu sau này
+// muốn thêm vai trò khác cũng được sửa, chỉ cần thêm điều kiện vào hàm canEditCompanyRules().
+function canEditCompanyRules(){
+  const u = currentUser();
+  return u && u.role === 'general_manager';
+}
+function renderCompanyRulesPage(){
+  const canEdit = canEditCompanyRules();
+  document.getElementById('companyRulesEditBtn').style.display = canEdit ? 'inline-block' : 'none';
+  const content = (state.companyRules && state.companyRules.content) || '';
+  const readView = document.getElementById('companyRulesReadView');
+  readView.innerHTML = content
+    ? `<div style="white-space:pre-wrap; line-height:1.7; font-size:14.5px;">${escapeHtml(content)}</div>`
+    : `<div class="empty-note">${canEdit ? 'Chưa có nội dung — bấm "✏️ Chỉnh sửa" để bắt đầu viết.' : 'Chưa có nội quy nào được đăng.'}</div>`;
+  document.getElementById('companyRulesEditView').style.display = 'none';
+  readView.style.display = 'block';
+  const meta = state.companyRules && state.companyRules.updatedAt
+    ? `Cập nhật lần cuối: ${fmtDateTimeShort(state.companyRules.updatedAt)}${state.companyRules.updatedByName ? ' bởi '+state.companyRules.updatedByName : ''}`
+    : '';
+  document.getElementById('companyRulesMeta').textContent = meta;
+}
+function toggleCompanyRulesEdit(){
+  const editView = document.getElementById('companyRulesEditView');
+  const readView = document.getElementById('companyRulesReadView');
+  const isEditing = editView.style.display !== 'none';
+  if(isEditing){
+    editView.style.display = 'none';
+    readView.style.display = 'block';
+  } else {
+    document.getElementById('companyRulesTextarea').value = (state.companyRules && state.companyRules.content) || '';
+    editView.style.display = 'block';
+    readView.style.display = 'none';
+  }
+}
+function saveCompanyRules(){
+  if(!canEditCompanyRules()) return;
+  const u = currentUser();
+  const content = document.getElementById('companyRulesTextarea').value;
+  const payload = {content, updatedAt: Date.now(), updatedByName: u.name};
+  state.companyRules = payload;
+  fbCompanyRules.set(payload);
+  showToast('Đã lưu Nội quy & Văn hoá công ty');
+  renderCompanyRulesPage();
+}
 function myReportForDate(userId, date){
   return state.reports.find(r=>r.userId===userId && r.date===date);
 }
