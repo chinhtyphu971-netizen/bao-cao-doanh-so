@@ -423,7 +423,7 @@
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
-        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">🎬 Chi phí quay video</span></div>
+        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">📝 Note diễn viên</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
@@ -431,7 +431,7 @@
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
-        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">🎬 Chi phí quay video</span></div>
+        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">📝 Note diễn viên</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
@@ -855,7 +855,7 @@
           <h2 style="margin-top:0;">Thêm buổi quay mới</h2>
           <div class="toolbar" style="margin-bottom:10px;">
             <div class="field" style="max-width:170px;"><label>Ngày quay</label><input type="date" id="vsNewDate"></div>
-            <div class="field" style="max-width:320px;"><label>Ghi chú (nội dung/địa điểm quay...)</label><input type="text" id="vsNewNote" placeholder="Không bắt buộc"></div>
+            <div class="field" style="max-width:320px;"><label>Note diễn viên</label><input type="text" id="vsNewNote" placeholder="Không bắt buộc"></div>
           </div>
           <div class="grid-2" style="margin-bottom:10px;">
             <div class="field">
@@ -1854,13 +1854,13 @@ function renderVideoShootsPage(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào — điền form ở trên để thêm.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Note diễn viên</th><th>Thêm lúc</th><th></th></tr></thead><tbody>` +
     mine.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
       <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
       <td data-label="Diễn viên phụ (số video)">${supportActorDisplayText(s)}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
-      <td data-label="Ghi chú">${s.note||'—'}</td>
+      <td data-label="Note diễn viên">${s.note||'—'}</td>
       <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
       <td><button class="btn-ghost btn-small" onclick="deleteVideoShoot('${s.id}')">🗑️</button></td>
     </tr>`).join('') + `</tbody>`;
@@ -1925,14 +1925,14 @@ function renderVideoShootsOverviewPage(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th>Diễn viên chính</th><th>Diễn viên phụ (số video)</th><th class="num">Chi phí</th><th>Note diễn viên</th><th>Thêm lúc</th></tr></thead><tbody>` +
     shoots.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
       <td data-label="Người quay">${s.userName}</td>
       <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
       <td data-label="Diễn viên phụ (số video)">${supportActorDisplayText(s)}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
-      <td data-label="Ghi chú">${s.note||'—'}</td>
+      <td data-label="Note diễn viên">${s.note||'—'}</td>
       <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
     </tr>`).join('') +
     `<tr class="total-row"><td colspan="4">TỔNG CỘNG</td><td class="num" style="font-weight:700;">${fmtMoney(totalCost)} đ</td><td colspan="2"></td></tr>` +
@@ -1954,7 +1954,7 @@ function exportVideoShootsOverview(){
     {key:'dienVienChinh', header:'Diễn viên chính'},
     {key:'dienVienPhu', header:'Diễn viên phụ'},
     {key:'chiPhi', header:'Chi phí'},
-    {key:'ghiChu', header:'Ghi chú'},
+    {key:'ghiChu', header:'Note diễn viên'},
     {key:'themLuc', header:'Thêm lúc'},
   ], `chi-phi-quay-video-${todayStr()}.xlsx`);
 }
