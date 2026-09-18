@@ -423,6 +423,7 @@
         <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
+        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">🎬 Chi phí quay video</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
@@ -430,6 +431,7 @@
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
+        <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">🎬 Chi phí quay video</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navPersonal" style="display:none;">
@@ -449,6 +451,7 @@
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
         <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
+        <div class="nav-item" id="navItem_videoShootsOverview" data-page="videoShootsOverview" onclick="goPage('videoShootsOverview')"><span class="label">🎬 Chi phí quay video (tổng)</span></div>
         <div class="nav-section-label" id="navSectionLabel_system">Hệ thống</div>
         <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">💬 Tất cả tin nhắn</span></div>
         <div class="nav-item" id="navItem_mgrTrash" data-page="mgrTrash" onclick="goPage('mgrTrash')"><span class="label">🗑️ Thùng rác</span></div>
@@ -842,6 +845,53 @@
           <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktRevenue()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
           <div class="table-wrap"><table id="mktRevenueTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MKT: Chi phí quay video (thuê diễn viên) ---------- -->
+      <div id="page-videoShoots" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Chi phí quay video</h1><p>Ghi lại mỗi buổi đi quay và số diễn viên đã thuê — tự động tính tiền theo đơn giá cố định (Diễn viên chính 200.000đ · Diễn viên phụ 20.000đ)</p></div></div>
+        <div class="card">
+          <h2 style="margin-top:0;">Thêm buổi quay mới</h2>
+          <div class="toolbar" style="margin-bottom:6px;">
+            <div class="field" style="max-width:170px;"><label>Ngày quay</label><input type="date" id="vsNewDate"></div>
+            <div class="field" style="max-width:170px;"><label>Số diễn viên chính (200.000đ/người)</label><input type="number" min="0" id="vsNewMainCount" placeholder="0"></div>
+            <div class="field" style="max-width:170px;"><label>Số diễn viên phụ (20.000đ/người)</label><input type="number" min="0" id="vsNewSupportCount" placeholder="0"></div>
+            <div class="field" style="max-width:260px;"><label>Ghi chú (nội dung/địa điểm quay...)</label><input type="text" id="vsNewNote" placeholder="Không bắt buộc"></div>
+          </div>
+          <button class="btn-primary" onclick="addVideoShoot()">+ Thêm buổi quay</button>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0;">Các buổi quay của tôi <span id="vsMyCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+          <div id="vsMySummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:10px;"></div>
+          <div class="table-wrap"><table id="vsMyTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+      <!-- ---------- MANAGER (chỉ Quản lý chung/Data): Chi phí quay video toàn công ty ---------- -->
+      <div id="page-videoShootsOverview" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Chi phí quay video (tổng)</h1><p>Tổng hợp toàn bộ chi phí thuê diễn viên của cả team MKT — Diễn viên chính 200.000đ · Diễn viên phụ 20.000đ</p></div></div>
+        <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip" id="vsOverviewPreset_today" onclick="applyVsOverviewDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="vsOverviewPreset_yesterday" onclick="applyVsOverviewDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="vsOverviewPreset_week" onclick="applyVsOverviewDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="vsOverviewPreset_thismonth" onclick="applyVsOverviewDatePreset('thismonth')">Tháng này</div>
+            <div class="chip" id="vsOverviewPreset_lastmonth" onclick="applyVsOverviewDatePreset('lastmonth')">Tháng trước</div>
+            <div class="chip selected" id="vsOverviewPreset_all" onclick="applyVsOverviewDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="vsOverviewFrom" onchange="applyVsOverviewCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="vsOverviewTo" onchange="applyVsOverviewCustomRange()"></div>
+            <div class="field" style="max-width:220px;"><label>Lọc theo người quay</label><select id="vsOverviewPersonFilter" onchange="renderVideoShootsOverviewPage()"></select></div>
+          </div>
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Số buổi quay</div><div class="stat-value" id="vsOverviewStatCount">0</div></div>
+            <div class="stat-box"><div class="stat-label">Tổng diễn viên đã thuê</div><div class="stat-value" id="vsOverviewStatActors">0</div></div>
+            <div class="stat-box"><div class="stat-label">Tổng chi phí</div><div class="stat-value" id="vsOverviewStatCost">0 đ</div></div>
+          </div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportVideoShootsOverview()">⬇️ Xuất Excel</button>
+          <div class="table-wrap"><table id="vsOverviewTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -1263,11 +1313,12 @@ let state = {
   teamsTrash: [], // Team Sale/MKT đã xoá, giữ lại để khôi phục được — {id, name, type:'branch'|'mktBranch', deletedAt}
   selfLeads: [], // "Data tự tìm" — Sale tự ghi lại data họ tự kiếm được, tách biệt hoàn toàn với /leads (data hệ thống tự chia)
   companyRules: {content: '', updatedAt: 0, updatedByName: ''}, // Nội quy & văn hoá công ty — 1 văn bản dùng chung cho cả công ty
+  videoShoots: [], // Ghi nhận các buổi quay video của MKT + chi phí thuê diễn viên
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1333,6 +1384,7 @@ function startFirebaseListeners(){
   fbTeamsTrash = db.ref('teamsTrash');
   fbSelfLeads = db.ref('selfLeads');
   fbCompanyRules = db.ref('companyRules');
+  fbVideoShoots = db.ref('videoShoots');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
   fbChatNotify = db.ref('chatNotify');
@@ -1353,6 +1405,7 @@ function startFirebaseListeners(){
   fbTeamsTrash.on('value', snap=>{ state.teamsTrash = Object.values(snap.val()||{}); onDataChanged(); });
   fbSelfLeads.on('value', snap=>{ state.selfLeads = Object.values(snap.val()||{}); onDataChanged(); });
   fbCompanyRules.on('value', snap=>{ state.companyRules = snap.val() || {content:'', updatedAt:0, updatedByName:''}; onDataChanged(); });
+  fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -1674,6 +1727,163 @@ function exportMktManagerStats(){
     {key:'daChiaChoSale', header:'Đã chia cho Sale'},
     {key:'chuaXuLy', header:'Chưa xử lý (Sale)'},
   ], `thong-ke-team-mkt-${todayStr()}.xlsx`);
+}
+/* =========================== MKT: Chi phí quay video (thuê diễn viên) =========================== */
+const VIDEO_MAIN_ACTOR_FEE = 200000;
+const VIDEO_SUPPORT_ACTOR_FEE = 20000;
+function addVideoShoot(){
+  const u = currentUser();
+  const dateEl = document.getElementById('vsNewDate');
+  const mainEl = document.getElementById('vsNewMainCount');
+  const supportEl = document.getElementById('vsNewSupportCount');
+  const noteEl = document.getElementById('vsNewNote');
+  const date = dateEl.value || todayStr();
+  const mainCount = Math.max(0, parseInt(mainEl.value, 10) || 0);
+  const supportCount = Math.max(0, parseInt(supportEl.value, 10) || 0);
+  if(mainCount===0 && supportCount===0){
+    showToast('Vui lòng nhập ít nhất 1 diễn viên (chính hoặc phụ) trước khi thêm.');
+    return;
+  }
+  const totalCost = mainCount*VIDEO_MAIN_ACTOR_FEE + supportCount*VIDEO_SUPPORT_ACTOR_FEE;
+  const shoot = {
+    id: 'vs_' + uid(),
+    userId: u.id,
+    userName: u.name,
+    mktBranchId: u.mktBranchId || null,
+    date,
+    mainCount,
+    supportCount,
+    totalCost,
+    note: noteEl.value.trim(),
+    createdAt: Date.now(),
+  };
+  state.videoShoots.push(shoot);
+  fbVideoShoots.child(shoot.id).set(shoot);
+  showToast(`Đã thêm buổi quay — chi phí ${fmtMoney(totalCost)} đ`);
+  dateEl.value = ''; mainEl.value = ''; supportEl.value = ''; noteEl.value = '';
+  renderVideoShootsPage();
+}
+function deleteVideoShoot(id){
+  askConfirm('Xoá buổi quay này?', 'Không thể khôi phục sau khi xoá.', ()=>{
+    state.videoShoots = state.videoShoots.filter(s=>s.id!==id);
+    fbVideoShoots.child(id).remove();
+    renderVideoShootsPage();
+  });
+}
+function renderVideoShootsPage(){
+  const u = currentUser();
+  const mine = state.videoShoots.filter(s=>s.userId===u.id).sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.createdAt-a.createdAt);
+  document.getElementById('vsMyCount').textContent = mine.length ? `(${mine.length})` : '';
+  const totalCost = mine.reduce((sum,s)=>sum+(s.totalCost||0),0);
+  const totalMain = mine.reduce((sum,s)=>sum+(s.mainCount||0),0);
+  const totalSupport = mine.reduce((sum,s)=>sum+(s.supportCount||0),0);
+  document.getElementById('vsMySummary').textContent = mine.length===0
+    ? 'Chưa có buổi quay nào được ghi nhận.'
+    : `${mine.length} buổi quay · ${totalMain} diễn viên chính · ${totalSupport} diễn viên phụ · Tổng chi phí: ${fmtMoney(totalCost)} đ`;
+  const table = document.getElementById('vsMyTable');
+  if(mine.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào — điền form ở trên để thêm.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th class="num">DV chính</th><th class="num">DV phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+    mine.map(s=>`<tr>
+      <td data-label="Ngày quay">${fmtDate(s.date)}</td>
+      <td class="num" data-label="DV chính">${s.mainCount}</td>
+      <td class="num" data-label="DV phụ">${s.supportCount}</td>
+      <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
+      <td data-label="Ghi chú">${s.note||'—'}</td>
+      <td><button class="btn-ghost btn-small" onclick="deleteVideoShoot('${s.id}')">🗑️</button></td>
+    </tr>`).join('') + `</tbody>`;
+}
+
+/* =========================== MANAGER: Chi phí quay video toàn công ty =========================== */
+let vsOverviewDateFrom = null, vsOverviewDateTo = null;
+const VS_OVERVIEW_PRESET_IDS = ['today','yesterday','week','thismonth','lastmonth','all'];
+function applyVsOverviewDatePreset(preset){
+  const [from, to] = (preset==='thismonth'||preset==='lastmonth') ? calendarMonthRangeFor(preset) : dateRangeFor(preset);
+  vsOverviewDateFrom = from; vsOverviewDateTo = to;
+  document.getElementById('vsOverviewFrom').value = from || '';
+  document.getElementById('vsOverviewTo').value = to || '';
+  VS_OVERVIEW_PRESET_IDS.forEach(p=>{
+    document.getElementById('vsOverviewPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderVideoShootsOverviewPage();
+}
+function applyVsOverviewCustomRange(){
+  vsOverviewDateFrom = document.getElementById('vsOverviewFrom').value || null;
+  vsOverviewDateTo = document.getElementById('vsOverviewTo').value || null;
+  VS_OVERVIEW_PRESET_IDS.forEach(p=>{
+    document.getElementById('vsOverviewPreset_'+p).classList.remove('selected');
+  });
+  renderVideoShootsOverviewPage();
+}
+let lastFilteredVideoShoots = [];
+function renderVideoShootsOverviewPage(){
+  document.getElementById('vsOverviewFrom').value = vsOverviewDateFrom || '';
+  document.getElementById('vsOverviewTo').value = vsOverviewDateTo || '';
+
+  const personSel = document.getElementById('vsOverviewPersonFilter');
+  const mktUserIds = new Set(state.videoShoots.map(s=>s.userId));
+  const relevantUsers = state.users.filter(u=>mktUserIds.has(u.id)).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  if(personSel.dataset.filled !== String(relevantUsers.length)){
+    personSel.innerHTML = '<option value="">— Tất cả mọi người —</option>' + relevantUsers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+    personSel.dataset.filled = String(relevantUsers.length);
+  }
+
+  let shoots = state.videoShoots.slice();
+  if(vsOverviewDateFrom || vsOverviewDateTo){
+    shoots = shoots.filter(s=>{
+      const d = s.date || '';
+      if(vsOverviewDateFrom && d < vsOverviewDateFrom) return false;
+      if(vsOverviewDateTo && d > vsOverviewDateTo) return false;
+      return true;
+    });
+  }
+  const personFilter = personSel.value;
+  if(personFilter) shoots = shoots.filter(s=>s.userId===personFilter);
+  shoots.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.createdAt-a.createdAt);
+  lastFilteredVideoShoots = shoots;
+
+  const totalCost = shoots.reduce((sum,s)=>sum+(s.totalCost||0),0);
+  const totalActors = shoots.reduce((sum,s)=>sum+(s.mainCount||0)+(s.supportCount||0),0);
+  document.getElementById('vsOverviewStatCount').textContent = shoots.length;
+  document.getElementById('vsOverviewStatActors').textContent = totalActors;
+  document.getElementById('vsOverviewStatCost').textContent = fmtMoney(totalCost) + ' đ';
+
+  const table = document.getElementById('vsOverviewTable');
+  if(shoots.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào phù hợp.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th class="num">DV chính</th><th class="num">DV phụ</th><th class="num">Chi phí</th><th>Ghi chú</th></tr></thead><tbody>` +
+    shoots.map(s=>`<tr>
+      <td data-label="Ngày quay">${fmtDate(s.date)}</td>
+      <td data-label="Người quay">${s.userName}</td>
+      <td class="num" data-label="DV chính">${s.mainCount}</td>
+      <td class="num" data-label="DV phụ">${s.supportCount}</td>
+      <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
+      <td data-label="Ghi chú">${s.note||'—'}</td>
+    </tr>`).join('') +
+    `<tr class="total-row"><td colspan="2">TỔNG CỘNG</td><td class="num">${shoots.reduce((s,x)=>s+x.mainCount,0)}</td><td class="num">${shoots.reduce((s,x)=>s+x.supportCount,0)}</td><td class="num" style="font-weight:700;">${fmtMoney(totalCost)} đ</td><td></td></tr>` +
+    `</tbody>`;
+}
+function exportVideoShootsOverview(){
+  const rows = lastFilteredVideoShoots.map(s=>({
+    ngayQuay: fmtDate(s.date),
+    nguoiQuay: s.userName,
+    dvChinh: s.mainCount,
+    dvPhu: s.supportCount,
+    chiPhi: s.totalCost,
+    ghiChu: s.note || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngayQuay', header:'Ngày quay'},
+    {key:'nguoiQuay', header:'Người quay'},
+    {key:'dvChinh', header:'DV chính'},
+    {key:'dvPhu', header:'DV phụ'},
+    {key:'chiPhi', header:'Chi phí'},
+    {key:'ghiChu', header:'Ghi chú'},
+  ], `chi-phi-quay-video-${todayStr()}.xlsx`);
 }
 function debounce(fn, delay){
   let t;
@@ -2649,12 +2859,14 @@ function renderMyClosedLeads(){
     </tr>`;
     }).join('') + `</tbody>`;
 }
-// Kiểm tra SĐT đã tồn tại ở lead KHÁC nào trong hệ thống chưa (trừ chính dòng đang sửa) — dùng
-// khi Sale tự nhập tay 1 đơn chốt mới, tránh vô tình tạo trùng data đã có sẵn ở nơi khác.
+// Kiểm tra SĐT đã tồn tại ở lead KHÁC nào ĐANG Ở TRẠNG THÁI "Đã chốt" trong hệ thống chưa (trừ
+// chính dòng đang sửa) — CHỈ so với các đơn đã chốt khác, không so với toàn bộ kho data (data
+// đang chờ xử lý/đang tư vấn không tính là trùng), tránh báo giả khi trùng SĐT với 1 data khác
+// còn đang xử lý bình thường trong hệ thống — cái cần tránh là trùng với 1 đơn ĐÃ CHỐT khác.
 function isPhoneDuplicateElsewhere(phone, excludeLeadId){
   const norm = normalizePhone(phone);
   if(!norm) return false;
-  return state.leads.some(l=>l.id!==excludeLeadId && normalizePhone(leadPhone(l))===norm);
+  return state.leads.some(l=>l.id!==excludeLeadId && l.status==='Đã chốt' && normalizePhone(leadPhone(l))===norm);
 }
 function onManualClosedPhoneChange(leadId, value){
   updateLeadField(leadId, 'phone', value);
@@ -4045,6 +4257,7 @@ function enterApp(){
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navSectionLabel_mkt').style.display = (user.role==='team_manager') ? 'none' : 'block';
   document.getElementById('navSectionLabel_system').style.display = isDataManager ? 'none' : 'block';
   // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
@@ -4082,8 +4295,9 @@ function goPage(pageId){
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 4 trang này + Nội quy
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 5 trang này + Nội quy
+  if(pageId==='videoShootsOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 5 trang này + Nội quy
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -4104,6 +4318,8 @@ function goPage(pageId){
   if(pageId==='mktInput') renderMktInputPage();
   if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
   if(pageId==='mktRevenue') renderMktRevenuePage();
+  if(pageId==='videoShoots') renderVideoShootsPage();
+  if(pageId==='videoShootsOverview') renderVideoShootsOverviewPage();
   if(pageId==='mktManagerStats') renderMktManagerStats();
   if(pageId==='mktOverview') renderMktOverviewPage();
   if(pageId==='mktPersonDetail') renderMktPersonDetail();
