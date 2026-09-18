@@ -2382,6 +2382,7 @@ function renderLeadStats(){
   const scope = scopeBranchId();
   const inRange = state.leads.filter(l=>{
     if(!l.assignedAt) return false;
+    if(l.manualEntry) return false; // dòng Sale tự thêm tay ở "Data đã chốt" — không phải data hệ thống thực sự chia, không tính vào thống kê này
     if(scope){
       const person = state.users.find(u=>u.id===l.assignedTo);
       if(!person || person.branchId!==scope) return false;
