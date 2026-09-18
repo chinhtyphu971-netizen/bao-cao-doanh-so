@@ -560,6 +560,7 @@
               <button class="btn-primary btn-small" onclick="addManualClosedLead()">+ Thêm dòng</button>
               <button class="btn-ghost btn-small" onclick="exportMyClosedLeads()">⬇️ Xuất Excel</button>
             </div>
+            <div class="field" style="max-width:280px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myClosedLeadsSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMyClosedLeads()"></div>
             <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
           </div>
         </div>
@@ -835,6 +836,7 @@
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktRevenueTo" onchange="applyMktRevenueCustomRange()"></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktRevenueSourceFilter" onchange="renderMktRevenuePage()"></select></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo Sale chốt</label><select id="mktRevenueSaleFilter" onchange="renderMktRevenuePage()"></select></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktRevenueSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMktRevenuePage()"></div>
           </div>
           <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
           <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
@@ -1686,6 +1688,8 @@ const debouncedOnMgrLeadsListFilterChange = debounce(()=>onMgrLeadsListFilterCha
 const debouncedRenderMgrSelfLeadsList = debounce(()=>renderMgrSelfLeadsList(), 220);
 const debouncedRenderMgrClosedLeads = debounce(()=>renderMgrClosedLeads(), 220);
 const debouncedRenderPersonLeadsPage = debounce(()=>renderPersonLeadsPage(), 220);
+const debouncedRenderMyClosedLeads = debounce(()=>renderMyClosedLeads(), 220);
+const debouncedRenderMktRevenuePage = debounce(()=>renderMktRevenuePage(), 220);
 let leadNotifyInitialized = false;
 function resetLeadNotifyState(){
   notifiedLeadIds = new Set();
@@ -2593,20 +2597,34 @@ function deleteManualClosedLead(id){
 }
 function renderMyClosedLeads(){
   const u = currentUser();
-  const closedLeads = state.leads.filter(l=>l.assignedTo===u.id && l.status==='Đã chốt')
+  let closedLeads = state.leads.filter(l=>l.assignedTo===u.id && l.status==='Đã chốt')
     .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
+  const rawQuery = document.getElementById('myClosedLeadsSearch').value.trim();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+    const textQuery = rawQuery.toLowerCase();
+    closedLeads = closedLeads.filter(l=>{
+      const phoneDigits = leadPhone(l).replace(/\D/g,'').replace(/^0+/,'');
+      const matchesPhone = digitsQuery && phoneDigits.includes(digitsQuery);
+      const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
+      return matchesPhone || matchesName;
+    });
+  }
 
   document.getElementById('myClosedLeadsCount').textContent = closedLeads.length ? `(${closedLeads.length})` : '';
 
   const totalAmount = closedLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
   document.getElementById('myClosedLeadsSummary').textContent = closedLeads.length===0
-    ? 'Chưa có data nào được chốt.'
+    ? (rawQuery ? 'Không có data nào khớp với tìm kiếm.' : 'Chưa có data nào được chốt.')
     : `${closedLeads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
   lastFilteredMyClosedLeads = closedLeads; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('myClosedLeadsTable');
   if(closedLeads.length===0){
-    table.innerHTML = '<tr><td class="empty-note">Chưa có data nào được chốt — khi bạn chọn Tình trạng "Đã chốt" ở tab "Data được chia", hoặc bấm "+ Thêm dòng" bên dưới, data sẽ hiện ở đây.</td></tr>';
+    table.innerHTML = rawQuery
+      ? '<tr><td class="empty-note">Không có data nào khớp với tìm kiếm.</td></tr>'
+      : '<tr><td class="empty-note">Chưa có data nào được chốt — khi bạn chọn Tình trạng "Đã chốt" ở tab "Data được chia", hoặc bấm "+ Thêm dòng" bên dưới, data sẽ hiện ở đây.</td></tr>';
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
@@ -4386,12 +4404,23 @@ function renderMktRevenuePage(){
   saleSel.innerHTML = '<option value="">— Tất cả Sale —</option>' + saleNames.map(n=>`<option value="${n}">${n}</option>`).join('');
   if(saleNames.includes(prevSaleVal)) saleSel.value = prevSaleVal;
 
-  // Áp 2 bộ lọc Nguồn/Sale — chỉ ảnh hưởng bảng chi tiết bên dưới, không đụng tới 3 hộp tổng quan ở trên.
+  // Áp 2 bộ lọc Nguồn/Sale + tìm kiếm — chỉ ảnh hưởng bảng chi tiết bên dưới, không đụng tới 3 hộp tổng quan ở trên.
   let filteredLeads = closedLeads;
   const sourceFilter = sourceSel.value;
   if(sourceFilter) filteredLeads = filteredLeads.filter(l=>leadSource(l)===sourceFilter);
   const saleFilter = saleSel.value;
   if(saleFilter) filteredLeads = filteredLeads.filter(l=>l.assignedToName===saleFilter);
+  const rawQuery = document.getElementById('mktRevenueSearch').value.trim();
+  if(rawQuery){
+    const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
+    const textQuery = rawQuery.toLowerCase();
+    filteredLeads = filteredLeads.filter(l=>{
+      const phoneDigits = leadPhone(l).replace(/\D/g,'').replace(/^0+/,'');
+      const matchesPhone = digitsQuery && phoneDigits.includes(digitsQuery);
+      const matchesName = (l.customerName||'').toLowerCase().includes(textQuery);
+      return matchesPhone || matchesName;
+    });
+  }
 
   const totalAmount = filteredLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
   document.getElementById('mktRevenueSummary').textContent = filteredLeads.length===0
