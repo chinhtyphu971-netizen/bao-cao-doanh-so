@@ -2534,12 +2534,32 @@ function mktSourceOptionsHtml(selectedValue){
 // Ô Nguồn dạng dropdown cho Quản lý sửa trực tiếp (Danh sách data / xem theo người / Data chốt tổng)
 // — CHỈ cho sửa với dòng do TỰ NHẬP TAY (manualEntry), còn Nguồn gốc từ hệ thống (MKT nhập/phân bổ
 // tự động) thì giữ nguyên, không cho sửa, tránh làm sai lệch dữ liệu gốc đã có sẵn.
+// Khi QUẢN LÝ đã chỉnh Nguồn cho 1 dòng tự nhập tay (sourceLockedByManager), nhân viên KHÔNG được
+// tự sửa lại Nguồn đó nữa (chỉ xem, có khoá 🔒) — tránh nhân viên đổi ngược lại sau khi Quản lý đã
+// kiểm tra và sửa đúng. Quản lý vẫn luôn sửa tiếp được bình thường, không bị khoá với chính mình.
 function leadSourceEditableHtml(l){
   const current = leadSource(l);
+  const u = currentUser();
+  const isManagerRole = u && (u.role==='team_manager' || u.role==='data_manager' || u.role==='general_manager');
   if(!l.manualEntry){
     return `<div style="display:flex; align-items:center; gap:6px;"><span style="max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:12px;" title="${current}">${current}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${current.replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div>`;
   }
-  return `<select style="min-height:30px; padding:4px 6px; font-size:12px; width:125px;" onchange="updateLeadField('${l.id}','source',this.value)">${mktSourceOptionsHtml(current==='—'?'':current)}</select>`;
+  if(l.sourceLockedByManager && !isManagerRole){
+    return `<div style="display:flex; align-items:center; gap:4px;" title="Quản lý đã điều chỉnh Nguồn này — không tự sửa lại được nữa"><span style="font-size:12px;">${current}</span><span style="font-size:11px;">🔒</span></div>`;
+  }
+  const onchangeCall = isManagerRole
+    ? `updateLeadSourceByManager('${l.id}', this.value)`
+    : `updateLeadField('${l.id}','source',this.value)`;
+  return `<select style="min-height:30px; padding:4px 6px; font-size:12px; width:125px;" onchange="${onchangeCall}">${mktSourceOptionsHtml(current==='—'?'':current)}</select>`;
+}
+// Quản lý sửa Nguồn -> khoá luôn, nhân viên không tự sửa lại được nữa (xem hàm trên).
+function updateLeadSourceByManager(leadId, value){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!lead) return;
+  const updates = {source: value, sourceLockedByManager: true};
+  Object.assign(lead, updates);
+  fbUpdateLead(leadId, updates);
+  showToast('Đã cập nhật Nguồn — nhân viên sẽ không tự sửa lại được Nguồn này nữa.');
 }
 function addManualClosedLead(){
   const u = currentUser();
@@ -2592,17 +2612,36 @@ function renderMyClosedLeads(){
       const deleteBtn = l.manualEntry
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
-      return `<tr>
+      // Chỉ dòng TỰ NHẬP TAY (manualEntry) mới cần kiểm tra trùng SĐT — SĐT của data hệ thống tự
+      // chia thì luôn là duy nhất sẵn rồi (đã có luật riêng khi phân bổ), không cần kiểm tra lại.
+      const isDup = l.manualEntry && l.phone && isPhoneDuplicateElsewhere(l.phone, l.id);
+      const rowStyle = isDup ? ' style="background:rgba(220,50,50,0.14);"' : '';
+      const dupWarning = isDup ? '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ SĐT đã có sẵn trong hệ thống</div>' : '';
+      return `<tr${rowStyle}>
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
-        ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','phone',this.value)">`
+        ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; ${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
         : `${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
       <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:120px; min-height:30px; padding:4px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
+}
+// Kiểm tra SĐT đã tồn tại ở lead KHÁC nào trong hệ thống chưa (trừ chính dòng đang sửa) — dùng
+// khi Sale tự nhập tay 1 đơn chốt mới, tránh vô tình tạo trùng data đã có sẵn ở nơi khác.
+function isPhoneDuplicateElsewhere(phone, excludeLeadId){
+  const norm = normalizePhone(phone);
+  if(!norm) return false;
+  return state.leads.some(l=>l.id!==excludeLeadId && normalizePhone(leadPhone(l))===norm);
+}
+function onManualClosedPhoneChange(leadId, value){
+  updateLeadField(leadId, 'phone', value);
+  if(isPhoneDuplicateElsewhere(value, leadId)){
+    showToast('⚠️ SĐT này đã có sẵn trong hệ thống — dòng sẽ được tô đỏ để anh/chị kiểm tra lại, nếu chắc chắn đúng vẫn có thể giữ nguyên.');
+  }
+  renderMyClosedLeads();
 }
 const SELF_LEAD_STATUS_OPTIONS = ['Đã nhắn tin','Đã gọi','Đang tư vấn','Đã chốt'];
 function renderSelfLeadsTable(){
