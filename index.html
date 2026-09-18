@@ -1447,12 +1447,47 @@ function onDataChanged(){
     // ngay khi họ thực sự bấm gửi (đã có sẵn gọi renderMktInputPage() trực tiếp lúc đó).
     if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput'){
       clearTimeout(dataChangedRenderTimer);
-      dataChangedRenderTimer = setTimeout(()=>{ goPage(currentPageId); }, 300);
+      dataChangedRenderTimer = setTimeout(()=>{
+        // Nếu đang gõ dở/đang chọn 1 ô nào đó trên trang (Tên khách, Tình trạng, Nguồn, Số tiền
+        // chốt...), HOÃN việc vẽ lại tới khi họ rời khỏi ô đó — tránh vừa gõ được nửa chừng thì
+        // bị "làm mới lại từ đầu" chỉ vì 1 người khác ở đâu đó vừa thao tác 1 data không liên quan.
+        if(isUserActivelyEditing()){
+          scheduleRefreshAfterBlur();
+          return;
+        }
+        refreshCurrentPagePreservingScroll();
+      }, 300);
     }
   } else if(!state.session){
     if(loginStep===1) renderRoleChips();
     if(loginStep===2) renderBranchChips();
   }
+}
+function isUserActivelyEditing(){
+  const el = document.activeElement;
+  if(!el) return false;
+  return el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA' || el.isContentEditable;
+}
+let pendingRefreshAfterBlur = false;
+function scheduleRefreshAfterBlur(){
+  if(pendingRefreshAfterBlur) return;
+  pendingRefreshAfterBlur = true;
+  const check = ()=>{
+    if(!isUserActivelyEditing()){
+      pendingRefreshAfterBlur = false;
+      refreshCurrentPagePreservingScroll();
+    } else {
+      setTimeout(check, 500);
+    }
+  };
+  setTimeout(check, 500);
+}
+// Vẽ lại trang hiện tại nhưng GIỮ NGUYÊN vị trí đang cuộn — trước đây mỗi lần có ai thao tác
+// data khác, trang tự vẽ lại từ đầu làm màn hình nhảy lên đầu trang, mất luôn vị trí đang xem.
+function refreshCurrentPagePreservingScroll(){
+  const scrollY = window.scrollY;
+  goPage(currentPageId);
+  window.scrollTo(0, scrollY);
 }
 
 let notifiedLeadIds = new Set();
