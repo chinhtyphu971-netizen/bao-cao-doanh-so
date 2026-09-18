@@ -8,10 +8,10 @@
 <meta name="theme-color" content="#0B1220">
 <title>Báo cáo doanh số hằng ngày</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg: #0B1220;
@@ -555,7 +555,8 @@
           <div class="card">
             <h2>Data đã chốt <span id="myClosedLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data hệ thống chia rồi bạn chốt sẽ tự hiện ở đây. Bạn cũng có thể bấm "+ Thêm dòng" để tự ghi thêm 1 đơn chốt (ví dụ chốt từ data tự tìm, không qua hệ thống chia).</p>
-            <div id="myClosedLeadsSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:10px;"></div>
+            <div id="myClosedLeadsSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:6px;"></div>
+            <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMyClosedLeads()">⬇️ Xuất Excel</button>
             <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
             <button class="btn-ghost" style="margin-top:10px;" onclick="addManualClosedLead()">+ Thêm dòng</button>
           </div>
@@ -779,6 +780,7 @@
             <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktMgrStatAssigned">0</div></div>
             <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
           </div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktManagerStats()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mktManagerStatsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -808,7 +810,8 @@
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
-          <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;"></div>
+          <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktMyLeadsList()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mktMyLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -832,7 +835,8 @@
             <div class="field" style="max-width:200px;"><label>Lọc theo Sale chốt</label><select id="mktRevenueSaleFilter" onchange="renderMktRevenuePage()"></select></div>
           </div>
           <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
-          <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
+          <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktRevenue()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
           <div class="table-wrap"><table id="mktRevenueTable" class="rtable"></table></div>
         </div>
       </div>
@@ -865,7 +869,10 @@
             </div>
           </div>
           <div id="mgrLeadsListSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
-          <span class="history-link" onclick="toggleMgrLeadsListStatsByDay()" id="mgrLeadsListStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span class="history-link" onclick="toggleMgrLeadsListStatsByDay()" id="mgrLeadsListStatsToggle">Xem thống kê theo ngày ▸</span>
+            <button class="btn-ghost btn-small" onclick="exportMgrLeadsList()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
+          </div>
           <div id="mgrLeadsListStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
           <div class="table-wrap"><table id="mgrLeadsListTable" class="rtable"></table></div>
           <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
@@ -883,6 +890,7 @@
             <div style="align-self:flex-end;"><button class="btn-ghost btn-small" onclick="document.getElementById('mgrSelfLeadsDateFilter').value=''; document.getElementById('mgrSelfLeadsSourceFilter').value=''; document.getElementById('mgrSelfLeadsStatusFilter').value=''; document.getElementById('mgrSelfLeadsSearch').value=''; renderMgrSelfLeadsList();">Xoá hết bộ lọc</button></div>
           </div>
           <div id="mgrSelfLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMgrSelfLeads()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mgrSelfLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -905,7 +913,8 @@
             <div class="field" id="mgrClosedSourceFilterWrap" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrClosedSourceFilter" onchange="renderMgrClosedLeads()"></select></div>
             <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMgrClosedLeads()"></div>
           </div>
-          <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:10px;"></div>
+          <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMgrClosedLeads()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
           <div class="table-wrap"><table id="mgrClosedLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -930,7 +939,10 @@
             <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktOverviewStatAssigned">0</div></div>
             <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktOverviewStatUnprocessed">0</div></div>
           </div>
-          <span class="history-link" onclick="toggleMktOverviewStatsByDay()" id="mktOverviewStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span class="history-link" onclick="toggleMktOverviewStatsByDay()" id="mktOverviewStatsToggle">Xem thống kê theo ngày ▸</span>
+            <button class="btn-ghost btn-small" onclick="exportMktOverview()">⬇️ Xuất Excel (từng người)</button>
+          </div>
           <div id="mktOverviewStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
           <div id="mktOverviewTeamsList" style="margin-top:14px;"></div>
         </div>
@@ -1447,6 +1459,183 @@ let notifiedLeadIds = new Set();
 // Trì hoãn nhẹ 1 hàm trước khi thực sự chạy — dùng cho các ô tìm kiếm trên bảng lớn (Danh sách
 // data, Data đã chốt...), tránh việc gõ mỗi phím lại vẽ lại toàn bộ bảng 1 lần (dễ giật/lag khi
 // gõ nhanh trên bảng nhiều dòng). Gõ xong khoảng 220ms không gõ tiếp mới thực sự lọc lại.
+// Xuất Excel dùng chung cho mọi bảng — luôn xuất ĐÚNG dữ liệu đang lọc/hiển thị trên màn hình
+// tại thời điểm bấm nút (không phải xuất toàn bộ dữ liệu gốc), vì rows truyền vào đã được tính
+// sẵn từ hàm render của từng trang (đã áp hết bộ lọc ngày/nguồn/người/tìm kiếm...).
+// rows: mảng object; columns: mảng {key, header} — header là tên cột tiếng Việt sẽ hiện trong Excel.
+function exportRowsToExcel(rows, columns, filename){
+  if(typeof XLSX === 'undefined'){ showToast('Không tải được thư viện xuất Excel — kiểm tra lại kết nối mạng.'); return; }
+  if(!rows || rows.length===0){ showToast('Không có dữ liệu nào để xuất (đang lọc ra 0 dòng).'); return; }
+  const data = rows.map(r=>{
+    const obj = {};
+    columns.forEach(c=>{ obj[c.header] = (r[c.key] === undefined || r[c.key] === null) ? '' : r[c.key]; });
+    return obj;
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, filename);
+  showToast(`Đã xuất ${rows.length} dòng ra Excel`);
+}
+let lastFilteredMgrLeadsList = [];
+function exportMgrLeadsList(){
+  const rows = lastFilteredMgrLeadsList.map(l=>({
+    ngayNhan: fmtDateTimeShort(l.assignedAt || l.importedAt),
+    nguon: leadSource(l),
+    sdt: leadPhone(l),
+    nguoiNhan: l.assignedToName || 'Chưa chia',
+    nguoiGui: l.createdByName || '',
+    tenKhach: l.customerName || '',
+    tinhTrang: l.status || '',
+    ngayChot: l.closedDate ? fmtDate(l.closedDate) : '',
+    soTienChot: l.closedAmount || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngayNhan', header:'Ngày nhận'},
+    {key:'nguon', header:'Nguồn'},
+    {key:'sdt', header:'SĐT'},
+    {key:'nguoiNhan', header:'Người nhận'},
+    {key:'nguoiGui', header:'Người gửi'},
+    {key:'tenKhach', header:'Tên khách'},
+    {key:'tinhTrang', header:'Tình trạng'},
+    {key:'ngayChot', header:'Ngày chốt'},
+    {key:'soTienChot', header:'Số tiền chốt'},
+  ], `danh-sach-data-${todayStr()}.xlsx`);
+}
+let lastFilteredMgrClosedLeads = [];
+let lastFilteredMgrClosedIsDetailed = true;
+function exportMgrClosedLeads(){
+  if(lastFilteredMgrClosedIsDetailed){
+    const rows = lastFilteredMgrClosedLeads.map(l=>{
+      const assignee = state.users.find(u=>u.id===l.assignedTo);
+      const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
+      return {
+        ngayChot: l.closedDate ? fmtDate(l.closedDate) : '',
+        nguoiChot: l.assignedToName || '',
+        chiNhanh: branchLabel,
+        nguon: leadSource(l),
+        sdt: leadPhone(l),
+        tenKhach: l.customerName || '',
+        soTienChot: l.closedAmount || '',
+      };
+    });
+    exportRowsToExcel(rows, [
+      {key:'ngayChot', header:'Ngày chốt'},
+      {key:'nguoiChot', header:'Người chốt'},
+      {key:'chiNhanh', header:'Chi nhánh'},
+      {key:'nguon', header:'Nguồn'},
+      {key:'sdt', header:'SĐT'},
+      {key:'tenKhach', header:'Tên khách'},
+      {key:'soTienChot', header:'Số tiền chốt'},
+    ], `data-chot-tong-${todayStr()}.xlsx`);
+  } else {
+    const rows = lastFilteredMgrClosedLeads.map(r=>({
+      ngayChot: r.date ? fmtDate(r.date) : '',
+      nhanVien: r.personName,
+      soDon: r.count,
+      tongTienChot: r.amount,
+    }));
+    exportRowsToExcel(rows, [
+      {key:'ngayChot', header:'Ngày chốt'},
+      {key:'nhanVien', header:'Nhân viên'},
+      {key:'soDon', header:'Số đơn'},
+      {key:'tongTienChot', header:'Tổng tiền chốt'},
+    ], `data-chot-tong-${todayStr()}.xlsx`);
+  }
+}
+let lastFilteredMktRevenue = [];
+function exportMktRevenue(){
+  const rows = lastFilteredMktRevenue.map(l=>({
+    ngayChot: l.closedDate ? fmtDate(l.closedDate) : '',
+    nguon: leadSource(l),
+    sdt: leadPhone(l),
+    tenKhach: l.customerName || '',
+    saleChot: l.assignedToName || '',
+    soTienChot: l.closedAmount || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngayChot', header:'Ngày chốt'},
+    {key:'nguon', header:'Nguồn'},
+    {key:'sdt', header:'SĐT'},
+    {key:'tenKhach', header:'Tên khách'},
+    {key:'saleChot', header:'Sale chốt'},
+    {key:'soTienChot', header:'Số tiền chốt'},
+  ], `doanh-thu-nguon-${todayStr()}.xlsx`);
+}
+let lastFilteredMyClosedLeads = [];
+function exportMyClosedLeads(){
+  const rows = lastFilteredMyClosedLeads.map(l=>({
+    ngayChot: l.closedDate ? fmtDate(l.closedDate) : '',
+    nguon: leadSource(l),
+    sdt: leadPhone(l),
+    tenKhach: l.customerName || '',
+    soTienChot: l.closedAmount || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngayChot', header:'Ngày chốt'},
+    {key:'nguon', header:'Nguồn'},
+    {key:'sdt', header:'SĐT'},
+    {key:'tenKhach', header:'Tên khách'},
+    {key:'soTienChot', header:'Số tiền chốt'},
+  ], `data-da-chot-cua-toi-${todayStr()}.xlsx`);
+}
+let lastFilteredMktMyLeadsList = [];
+function exportMktMyLeadsList(){
+  const rows = lastFilteredMktMyLeadsList.map(l=>({
+    ngayNhap: fmtDateTimeShort(l.importedAt||l.assignedAt),
+    sdt: leadPhone(l),
+    nguon: leadSource(l),
+    nguoiNhan: l.assignedToName || 'Đang chờ chia',
+    tenKhach: l.customerName || '',
+    tinhTrang: l.status || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngayNhap', header:'Ngày nhận'},
+    {key:'sdt', header:'SĐT'},
+    {key:'nguon', header:'Nguồn'},
+    {key:'nguoiNhan', header:'Người nhận'},
+    {key:'tenKhach', header:'Tên khách'},
+    {key:'tinhTrang', header:'Tình trạng'},
+  ], `danh-sach-data-mkt-${todayStr()}.xlsx`);
+}
+let lastFilteredMgrSelfLeads = [];
+function exportMgrSelfLeads(){
+  const rows = lastFilteredMgrSelfLeads.map(l=>({
+    ngay: fmtDateTimeShort(l.createdAt),
+    sale: userName(l.userId),
+    phone: l.phone || '',
+    tenKhach: l.customerName || '',
+    nguon: l.source || '',
+    trangThai: l.status || '',
+    ghiChu: l.note || '',
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ngay', header:'Ngày'},
+    {key:'sale', header:'Sale'},
+    {key:'phone', header:'SĐT / Link FB'},
+    {key:'tenKhach', header:'Tên khách'},
+    {key:'nguon', header:'Nguồn'},
+    {key:'trangThai', header:'Trạng thái'},
+    {key:'ghiChu', header:'Ghi chú'},
+  ], `data-tu-tim-tong-hop-${todayStr()}.xlsx`);
+}
+let lastFilteredMktManagerStats = [];
+function exportMktManagerStats(){
+  const rows = lastFilteredMktManagerStats.map(r=>({
+    ten: r.name,
+    vaiTro: roleLabel(r.role),
+    tongDaNhap: r.total,
+    daChiaChoSale: r.assigned,
+    chuaXuLy: r.unprocessed,
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ten', header:'Tên'},
+    {key:'vaiTro', header:'Vai trò'},
+    {key:'tongDaNhap', header:'Tổng đã nhập'},
+    {key:'daChiaChoSale', header:'Đã chia cho Sale'},
+    {key:'chuaXuLy', header:'Chưa xử lý (Sale)'},
+  ], `thong-ke-team-mkt-${todayStr()}.xlsx`);
+}
 function debounce(fn, delay){
   let t;
   return function(...args){
@@ -2055,6 +2244,7 @@ function renderMktManagerStats(){
     const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
     return {name:mem.name, role:mem.role, total:mine.length, assigned, unprocessed};
   }).sort((a,b)=>b.total-a.total);
+  lastFilteredMktManagerStats = rows; // lưu lại cho nút Xuất Excel
   table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Tên">${r.name}</td>
@@ -2119,6 +2309,7 @@ function renderMktMyLeadsList(){
 
   document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data` +
     (mktLeadsDateFrom || mktLeadsDateTo ? ` — từ ${mktLeadsDateFrom?fmtDate(mktLeadsDateFrom):'...'} đến ${mktLeadsDateTo?fmtDate(mktLeadsDateTo):'...'}` : '');
+  lastFilteredMktMyLeadsList = leads; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('mktMyLeadsTable');
   if(leads.length===0){
@@ -2354,6 +2545,7 @@ function renderMyClosedLeads(){
   document.getElementById('myClosedLeadsSummary').textContent = closedLeads.length===0
     ? 'Chưa có data nào được chốt.'
     : `${closedLeads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+  lastFilteredMyClosedLeads = closedLeads; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('myClosedLeadsTable');
   if(closedLeads.length===0){
@@ -2725,6 +2917,7 @@ function renderMgrLeadsList(){
 
   const unassignedCount = leads.filter(l=>!l.assignedTo).length;
   const unprocessedCount = leads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length; // chỉ tính data ĐÃ chia mà Sale chưa cập nhật, không tính chung với data chưa chia
+  lastFilteredMgrLeadsList = leads; // lưu lại đúng danh sách đã lọc (chưa cắt trang) để nút Xuất Excel dùng
   if(document.getElementById('mgrLeadsListStatsByDay').style.display !== 'none'){
     renderLeadsStatsByDayInto('mgrLeadsListStatsByDay', leads);
   }
@@ -2880,6 +3073,8 @@ function renderMgrClosedLeads(){
     document.getElementById('mgrClosedSummary').textContent = leads.length===0
       ? 'Không có data đã chốt nào phù hợp.'
       : `${leads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+    lastFilteredMgrClosedLeads = leads; // lưu lại cho nút Xuất Excel (bảng chi tiết)
+    lastFilteredMgrClosedIsDetailed = true;
 
     const table = document.getElementById('mgrClosedLeadsTable');
     if(leads.length===0){
@@ -2926,6 +3121,8 @@ function renderMgrClosedLeads(){
     groups[key].amount += Number(l.closedAmount)||0;
   });
   const rows = Object.values(groups).sort((a,b)=> b.date.localeCompare(a.date) || a.personName.localeCompare(b.personName,'vi'));
+  lastFilteredMgrClosedLeads = rows; // lưu lại cho nút Xuất Excel (bảng gộp — Quản lý team)
+  lastFilteredMgrClosedIsDetailed = false;
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nhân viên</th><th>Số đơn</th><th>Tổng tiền chốt</th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Ngày chốt">${r.date?fmtDate(r.date):'—'}</td>
@@ -3002,6 +3199,7 @@ function renderMgrSelfLeadsList(){
   document.getElementById('mgrSelfLeadsSummary').textContent = rows.length===0
     ? 'Không có data nào phù hợp.'
     : `${rows.length} data tự tìm${dateFilter?` — ngày ${fmtDate(dateFilter)}`:''}`;
+  lastFilteredMgrSelfLeads = rows; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('mgrSelfLeadsTable');
   if(rows.length===0){
@@ -3906,8 +4104,10 @@ function renderMktOverviewPage(){
   const container = document.getElementById('mktOverviewTeamsList');
   if(teamKeys.length===0){
     container.innerHTML = '<div class="empty-note">Chưa có nhân sự MKT nào trong hệ thống.</div>';
+    lastFilteredMktOverview = [];
     return;
   }
+  const flatExportRows = [];
   container.innerHTML = teamKeys.map(key=>{
     const team = teamsMap[key];
     let teamTotal=0, teamAssigned=0, teamUnprocessed=0;
@@ -3916,6 +4116,7 @@ function renderMktOverviewPage(){
       const assigned = mine.filter(l=>l.assignedTo).length;
       const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
       teamTotal += mine.length; teamAssigned += assigned; teamUnprocessed += unprocessed;
+      flatExportRows.push({team: team.name, name:m.name, role:m.role, total:mine.length, assigned, unprocessed});
       return {name:m.name, role:m.role, id:m.id, total:mine.length, assigned, unprocessed};
     }).sort((a,b)=>b.total-a.total);
     const isOpen = mktOverviewOpenTeams.has(key);
@@ -3939,6 +4140,26 @@ function renderMktOverviewPage(){
       ${memberTableHtml}
     </div>`;
   }).join('');
+  lastFilteredMktOverview = flatExportRows; // lưu lại cho nút Xuất Excel (dạng phẳng: từng người 1 dòng)
+}
+let lastFilteredMktOverview = [];
+function exportMktOverview(){
+  const rows = lastFilteredMktOverview.map(r=>({
+    team: r.team,
+    ten: r.name,
+    vaiTro: roleLabel(r.role),
+    tongDaNhap: r.total,
+    daChiaChoSale: r.assigned,
+    chuaXuLy: r.unprocessed,
+  }));
+  exportRowsToExcel(rows, [
+    {key:'team', header:'Team MKT'},
+    {key:'ten', header:'Tên'},
+    {key:'vaiTro', header:'Vai trò'},
+    {key:'tongDaNhap', header:'Tổng đã nhập'},
+    {key:'daChiaChoSale', header:'Đã chia cho Sale'},
+    {key:'chuaXuLy', header:'Chưa xử lý (Sale)'},
+  ], `thong-ke-mkt-toan-cong-ty-${todayStr()}.xlsx`);
 }
 // Thống kê theo ngày cho MKT — nhóm theo NGÀY NHẬP (importedAt), khác với bên Sale nhóm theo
 // ngày phân bổ, vì đây là góc nhìn "team MKT hoạt động ngày nào", không phải "Sale nhận ngày nào".
@@ -4100,6 +4321,7 @@ function renderMktRevenuePage(){
   document.getElementById('mktRevenueSummary').textContent = filteredLeads.length===0
     ? 'Chưa có đơn nào được chốt từ Nguồn bạn phụ trách trong khoảng đang lọc.'
     : `${filteredLeads.length} đơn đã chốt · Tổng doanh thu: ${fmtMoney(totalAmount)} đ`;
+  lastFilteredMktRevenue = filteredLeads; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('mktRevenueTable');
   if(filteredLeads.length===0){
