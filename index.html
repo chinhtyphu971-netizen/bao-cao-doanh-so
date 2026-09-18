@@ -850,15 +850,24 @@
 
       <!-- ---------- MKT: Chi phí quay video (thuê diễn viên) ---------- -->
       <div id="page-videoShoots" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Chi phí quay video</h1><p>Ghi lại mỗi buổi đi quay và số diễn viên đã thuê — tự động tính tiền theo đơn giá cố định (Diễn viên chính 200.000đ · Diễn viên phụ 20.000đ)</p></div></div>
+        <div class="page-head"><div><h1>Chi phí quay video</h1><p>Ghi lại mỗi buổi đi quay và tích chọn đúng diễn viên đã thuê — tự động tính tiền theo đơn giá cố định (Diễn viên chính 200.000đ/buổi · Diễn viên phụ 20.000đ/video)</p></div></div>
         <div class="card">
           <h2 style="margin-top:0;">Thêm buổi quay mới</h2>
-          <div class="toolbar" style="margin-bottom:6px;">
+          <div class="toolbar" style="margin-bottom:10px;">
             <div class="field" style="max-width:170px;"><label>Ngày quay</label><input type="date" id="vsNewDate"></div>
-            <div class="field" style="max-width:170px;"><label>Số diễn viên chính (200.000đ/người)</label><input type="number" min="0" id="vsNewMainCount" placeholder="0"></div>
-            <div class="field" style="max-width:170px;"><label>Số diễn viên phụ (20.000đ/người)</label><input type="number" min="0" id="vsNewSupportCount" placeholder="0"></div>
-            <div class="field" style="max-width:260px;"><label>Ghi chú (nội dung/địa điểm quay...)</label><input type="text" id="vsNewNote" placeholder="Không bắt buộc"></div>
+            <div class="field" style="max-width:320px;"><label>Ghi chú (nội dung/địa điểm quay...)</label><input type="text" id="vsNewNote" placeholder="Không bắt buộc"></div>
           </div>
+          <div class="grid-2" style="margin-bottom:10px;">
+            <div class="field">
+              <label>Diễn viên chính đã dùng (200.000đ/người)</label>
+              <div id="vsNewMainActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
+            </div>
+            <div class="field">
+              <label>Diễn viên phụ đã dùng (20.000đ/người)</label>
+              <div id="vsNewSupportActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
+            </div>
+          </div>
+          <p style="color:var(--ink-soft); font-size:12.5px; margin-top:-4px;" id="vsNewNoActorsNote"></p>
           <button class="btn-primary" onclick="addVideoShoot()">+ Thêm buổi quay</button>
         </div>
         <div class="card">
@@ -1090,6 +1099,18 @@
           </div>
         </div>
 
+        <div class="card" id="settingsActorsCard" style="display:none;">
+          <span class="history-link" onclick="toggleSettingsActorsSection()" id="settingsActorsToggle">Kho diễn viên ▸</span>
+          <div id="settingsActorsBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách diễn viên dùng chung — thêm vào đây để MKT tích chọn khi ghi buổi quay video, không cần gõ tay từng lần.</p>
+            <div id="settingsActorsList" style="margin:12px 0;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="settingsNewActor" placeholder="Tên diễn viên mới">
+              <button class="btn-ghost" onclick="settingsAddActor()">Thêm</button>
+            </div>
+          </div>
+        </div>
+
         <div class="grid-2">
           <div class="card">
             <h2>Team Sale</h2>
@@ -1314,11 +1335,12 @@ let state = {
   selfLeads: [], // "Data tự tìm" — Sale tự ghi lại data họ tự kiếm được, tách biệt hoàn toàn với /leads (data hệ thống tự chia)
   companyRules: {content: '', updatedAt: 0, updatedByName: ''}, // Nội quy & văn hoá công ty — 1 văn bản dùng chung cho cả công ty
   videoShoots: [], // Ghi nhận các buổi quay video của MKT + chi phí thuê diễn viên
+  actors: [], // "Kho diễn viên" — Quản lý thêm vào, MKT tích chọn khi ghi buổi quay
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1385,6 +1407,7 @@ function startFirebaseListeners(){
   fbSelfLeads = db.ref('selfLeads');
   fbCompanyRules = db.ref('companyRules');
   fbVideoShoots = db.ref('videoShoots');
+  fbActors = db.ref('actors');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
   fbChatNotify = db.ref('chatNotify');
@@ -1406,6 +1429,7 @@ function startFirebaseListeners(){
   fbSelfLeads.on('value', snap=>{ state.selfLeads = Object.values(snap.val()||{}); onDataChanged(); });
   fbCompanyRules.on('value', snap=>{ state.companyRules = snap.val() || {content:'', updatedAt:0, updatedByName:''}; onDataChanged(); });
   fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
+  fbActors.on('value', snap=>{ state.actors = Object.values(snap.val()||{}); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -1731,36 +1755,55 @@ function exportMktManagerStats(){
 /* =========================== MKT: Chi phí quay video (thuê diễn viên) =========================== */
 const VIDEO_MAIN_ACTOR_FEE = 200000;
 const VIDEO_SUPPORT_ACTOR_FEE = 20000;
+function actorName(id){ const a = state.actors.find(x=>x.id===id); return a ? a.name : '(đã xoá)'; }
+function actorCheckboxListHtml(containerName){
+  if(state.actors.length===0) return '';
+  return state.actors.slice().sort((a,b)=>a.name.localeCompare(b.name,'vi'))
+    .map(a=>`<label style="display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;"><input type="checkbox" name="${containerName}" value="${a.id}" style="width:auto; min-height:0;"> ${a.name}</label>`)
+    .join('');
+}
+function renderVideoShootActorPickers(){
+  const mainEl = document.getElementById('vsNewMainActorPicker');
+  const supportEl = document.getElementById('vsNewSupportActorPicker');
+  const noteEl = document.getElementById('vsNewNoActorsNote');
+  if(state.actors.length===0){
+    mainEl.innerHTML = '<div class="empty-note">Chưa có diễn viên nào trong kho.</div>';
+    supportEl.innerHTML = '<div class="empty-note">Chưa có diễn viên nào trong kho.</div>';
+    noteEl.textContent = 'Chưa có diễn viên nào trong kho — nhờ Quản lý chung/Quản lý Data thêm vào ở Cài đặt trước.';
+    return;
+  }
+  noteEl.textContent = '';
+  mainEl.innerHTML = actorCheckboxListHtml('vsMainActor');
+  supportEl.innerHTML = actorCheckboxListHtml('vsSupportActor');
+}
 function addVideoShoot(){
   const u = currentUser();
   const dateEl = document.getElementById('vsNewDate');
-  const mainEl = document.getElementById('vsNewMainCount');
-  const supportEl = document.getElementById('vsNewSupportCount');
   const noteEl = document.getElementById('vsNewNote');
   const date = dateEl.value || todayStr();
-  const mainCount = Math.max(0, parseInt(mainEl.value, 10) || 0);
-  const supportCount = Math.max(0, parseInt(supportEl.value, 10) || 0);
-  if(mainCount===0 && supportCount===0){
-    showToast('Vui lòng nhập ít nhất 1 diễn viên (chính hoặc phụ) trước khi thêm.');
+  const mainActorIds = Array.from(document.querySelectorAll('input[name="vsMainActor"]:checked')).map(el=>el.value);
+  const supportActorIds = Array.from(document.querySelectorAll('input[name="vsSupportActor"]:checked')).map(el=>el.value);
+  if(mainActorIds.length===0 && supportActorIds.length===0){
+    showToast('Vui lòng tích chọn ít nhất 1 diễn viên (chính hoặc phụ) trước khi thêm.');
     return;
   }
-  const totalCost = mainCount*VIDEO_MAIN_ACTOR_FEE + supportCount*VIDEO_SUPPORT_ACTOR_FEE;
+  const totalCost = mainActorIds.length*VIDEO_MAIN_ACTOR_FEE + supportActorIds.length*VIDEO_SUPPORT_ACTOR_FEE;
   const shoot = {
     id: 'vs_' + uid(),
     userId: u.id,
     userName: u.name,
     mktBranchId: u.mktBranchId || null,
     date,
-    mainCount,
-    supportCount,
+    mainActorIds,
+    supportActorIds,
     totalCost,
     note: noteEl.value.trim(),
-    createdAt: Date.now(),
+    createdAt: Date.now(), // thời điểm MKT thực sự thêm buổi quay này vào hệ thống
   };
   state.videoShoots.push(shoot);
   fbVideoShoots.child(shoot.id).set(shoot);
   showToast(`Đã thêm buổi quay — chi phí ${fmtMoney(totalCost)} đ`);
-  dateEl.value = ''; mainEl.value = ''; supportEl.value = ''; noteEl.value = '';
+  dateEl.value = ''; noteEl.value = '';
   renderVideoShootsPage();
 }
 function deleteVideoShoot(id){
@@ -1772,26 +1815,28 @@ function deleteVideoShoot(id){
 }
 function renderVideoShootsPage(){
   const u = currentUser();
+  renderVideoShootActorPickers();
   const mine = state.videoShoots.filter(s=>s.userId===u.id).sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.createdAt-a.createdAt);
   document.getElementById('vsMyCount').textContent = mine.length ? `(${mine.length})` : '';
   const totalCost = mine.reduce((sum,s)=>sum+(s.totalCost||0),0);
-  const totalMain = mine.reduce((sum,s)=>sum+(s.mainCount||0),0);
-  const totalSupport = mine.reduce((sum,s)=>sum+(s.supportCount||0),0);
+  const totalMain = mine.reduce((sum,s)=>sum+(s.mainActorIds||[]).length,0);
+  const totalSupport = mine.reduce((sum,s)=>sum+(s.supportActorIds||[]).length,0);
   document.getElementById('vsMySummary').textContent = mine.length===0
     ? 'Chưa có buổi quay nào được ghi nhận.'
-    : `${mine.length} buổi quay · ${totalMain} diễn viên chính · ${totalSupport} diễn viên phụ · Tổng chi phí: ${fmtMoney(totalCost)} đ`;
+    : `${mine.length} buổi quay · ${totalMain} lượt diễn viên chính · ${totalSupport} lượt diễn viên phụ · Tổng chi phí: ${fmtMoney(totalCost)} đ`;
   const table = document.getElementById('vsMyTable');
   if(mine.length===0){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào — điền form ở trên để thêm.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th class="num">DV chính</th><th class="num">DV phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Diễn viên chính</th><th>Diễn viên phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th><th></th></tr></thead><tbody>` +
     mine.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
-      <td class="num" data-label="DV chính">${s.mainCount}</td>
-      <td class="num" data-label="DV phụ">${s.supportCount}</td>
+      <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
+      <td data-label="Diễn viên phụ">${(s.supportActorIds||[]).map(actorName).join(', ')||'—'}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
       <td data-label="Ghi chú">${s.note||'—'}</td>
+      <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
       <td><button class="btn-ghost btn-small" onclick="deleteVideoShoot('${s.id}')">🗑️</button></td>
     </tr>`).join('') + `</tbody>`;
 }
@@ -1845,7 +1890,7 @@ function renderVideoShootsOverviewPage(){
   lastFilteredVideoShoots = shoots;
 
   const totalCost = shoots.reduce((sum,s)=>sum+(s.totalCost||0),0);
-  const totalActors = shoots.reduce((sum,s)=>sum+(s.mainCount||0)+(s.supportCount||0),0);
+  const totalActors = shoots.reduce((sum,s)=>sum+(s.mainActorIds||[]).length+(s.supportActorIds||[]).length,0);
   document.getElementById('vsOverviewStatCount').textContent = shoots.length;
   document.getElementById('vsOverviewStatActors').textContent = totalActors;
   document.getElementById('vsOverviewStatCost').textContent = fmtMoney(totalCost) + ' đ';
@@ -1855,34 +1900,37 @@ function renderVideoShootsOverviewPage(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có buổi quay nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th class="num">DV chính</th><th class="num">DV phụ</th><th class="num">Chi phí</th><th>Ghi chú</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày quay</th><th>Người quay</th><th>Diễn viên chính</th><th>Diễn viên phụ</th><th class="num">Chi phí</th><th>Ghi chú</th><th>Thêm lúc</th></tr></thead><tbody>` +
     shoots.map(s=>`<tr>
       <td data-label="Ngày quay">${fmtDate(s.date)}</td>
       <td data-label="Người quay">${s.userName}</td>
-      <td class="num" data-label="DV chính">${s.mainCount}</td>
-      <td class="num" data-label="DV phụ">${s.supportCount}</td>
+      <td data-label="Diễn viên chính">${(s.mainActorIds||[]).map(actorName).join(', ')||'—'}</td>
+      <td data-label="Diễn viên phụ">${(s.supportActorIds||[]).map(actorName).join(', ')||'—'}</td>
       <td class="num" data-label="Chi phí" style="font-weight:600; color:var(--success);">${fmtMoney(s.totalCost)} đ</td>
       <td data-label="Ghi chú">${s.note||'—'}</td>
+      <td data-label="Thêm lúc" style="color:var(--ink-soft); font-size:12px;">${fmtDateTimeShort(s.createdAt)}</td>
     </tr>`).join('') +
-    `<tr class="total-row"><td colspan="2">TỔNG CỘNG</td><td class="num">${shoots.reduce((s,x)=>s+x.mainCount,0)}</td><td class="num">${shoots.reduce((s,x)=>s+x.supportCount,0)}</td><td class="num" style="font-weight:700;">${fmtMoney(totalCost)} đ</td><td></td></tr>` +
+    `<tr class="total-row"><td colspan="4">TỔNG CỘNG</td><td class="num" style="font-weight:700;">${fmtMoney(totalCost)} đ</td><td colspan="2"></td></tr>` +
     `</tbody>`;
 }
 function exportVideoShootsOverview(){
   const rows = lastFilteredVideoShoots.map(s=>({
     ngayQuay: fmtDate(s.date),
     nguoiQuay: s.userName,
-    dvChinh: s.mainCount,
-    dvPhu: s.supportCount,
+    dienVienChinh: (s.mainActorIds||[]).map(actorName).join(', '),
+    dienVienPhu: (s.supportActorIds||[]).map(actorName).join(', '),
     chiPhi: s.totalCost,
     ghiChu: s.note || '',
+    themLuc: fmtDateTimeShort(s.createdAt),
   }));
   exportRowsToExcel(rows, [
     {key:'ngayQuay', header:'Ngày quay'},
     {key:'nguoiQuay', header:'Người quay'},
-    {key:'dvChinh', header:'DV chính'},
-    {key:'dvPhu', header:'DV phụ'},
+    {key:'dienVienChinh', header:'Diễn viên chính'},
+    {key:'dienVienPhu', header:'Diễn viên phụ'},
     {key:'chiPhi', header:'Chi phí'},
     {key:'ghiChu', header:'Ghi chú'},
+    {key:'themLuc', header:'Thêm lúc'},
   ], `chi-phi-quay-video-${todayStr()}.xlsx`);
 }
 function debounce(fn, delay){
@@ -1971,6 +2019,7 @@ function playTingSound(){
 function fbSetBranch(b){ fbBranches.child(b.id).set(b); }
 function fbSetMktBranch(b){ fbMktBranches.child(b.id).set(b); }
 function fbSetMktSource(s){ fbMktSources.child(s.id).set(s); }
+function fbSetActor(a){ fbActors.child(a.id).set(a); }
 function fbSetUser(u){ fbUsers.child(u.id).set(u); }
 function fbUpdateUser(id, patch){ fbUsers.child(id).update(patch); }
 function fbSetReport(r){ fbReports.child(r.id).set(r); }
@@ -5608,6 +5657,48 @@ function deleteMktSourceItem(sourceId){
     showToast('Đã xoá Nguồn');
   });
 }
+function settingsAddActor(){
+  const input = document.getElementById('settingsNewActor');
+  const name = input.value.trim();
+  if(!name) return;
+  const exists = state.actors.some(a=>a.name.toLowerCase()===name.toLowerCase());
+  if(exists){ showToast('Diễn viên này đã có trong danh sách rồi'); return; }
+  const a = {id:uid(), name};
+  state.actors.push(a);
+  fbSetActor(a);
+  input.value='';
+  renderMgrSettings();
+  showToast('Đã thêm diễn viên');
+}
+function renameActorItem(actorId){
+  const a = state.actors.find(x=>x.id===actorId);
+  if(!a) return;
+  const newName = prompt('Đổi tên diễn viên:', a.name);
+  if(newName===null) return;
+  const trimmed = newName.trim();
+  if(!trimmed || trimmed===a.name) return;
+  const dup = state.actors.some(x=>x.id!==actorId && x.name.toLowerCase()===trimmed.toLowerCase());
+  if(dup){ showToast('Đã có diễn viên khác trùng tên này rồi'); return; }
+  a.name = trimmed;
+  fbSetActor(a);
+  renderMgrSettings();
+  showToast('Đã đổi tên diễn viên');
+}
+function deleteActorItem(actorId){
+  const a = state.actors.find(x=>x.id===actorId);
+  if(!a) return;
+  const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(actorId) || (s.supportActorIds||[]).includes(actorId)).length;
+  if(usedByCount>0){
+    showToast(`Diễn viên này đã được ghi nhận trong ${usedByCount} buổi quay — không xoá được để giữ nguyên lịch sử, chỉ đổi tên nếu cần.`);
+    return;
+  }
+  askConfirm('Xoá diễn viên?', `Xoá "${a.name}" khỏi kho diễn viên?`, ()=>{
+    state.actors = state.actors.filter(x=>x.id!==actorId);
+    fbActors.child(actorId).remove();
+    renderMgrSettings();
+    showToast('Đã xoá diễn viên');
+  });
+}
 function settingsImportExistingMktSources(){
   // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
   // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
@@ -5692,6 +5783,11 @@ function toggleSettingsMktSourceSection(){
   settingsMktSourceOpen = !settingsMktSourceOpen;
   renderMgrSettings();
 }
+let settingsActorsOpen = false;
+function toggleSettingsActorsSection(){
+  settingsActorsOpen = !settingsActorsOpen;
+  renderMgrSettings();
+}
 let teamsTrashOpen = false;
 function toggleSettingsTeamsTrash(){
   teamsTrashOpen = !teamsTrashOpen;
@@ -5748,6 +5844,7 @@ function renderMgrSettings(){
   // "Team MKT" (lồng trong card Team Sale) + "Nguồn MKT" (card riêng) — chỉ Quản lý chung mới quản lý được.
   document.getElementById('settingsMktBranchSection').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsMktSourceCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsActorsCard').style.display = scope ? 'none' : 'block';
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
     mktListEl.innerHTML = state.mktBranches.map(b=>{
@@ -5801,6 +5898,25 @@ function renderMgrSettings(){
           <div style="margin-top:6px;">${aliasSelect}</div>
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có Nguồn nào.</div>';
+    }
+
+    const actorsToggle = document.getElementById('settingsActorsToggle');
+    actorsToggle.textContent = settingsActorsOpen ? `Ẩn Kho diễn viên (${state.actors.length}) ▾` : `Kho diễn viên (${state.actors.length}) ▸`;
+    document.getElementById('settingsActorsBody').style.display = settingsActorsOpen ? 'block' : 'none';
+    if(settingsActorsOpen){
+      const actorsListEl = document.getElementById('settingsActorsList');
+      const sortedActors = state.actors.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
+      actorsListEl.innerHTML = sortedActors.map(a=>{
+        const usedByCount = state.videoShoots.filter(s=>(s.mainActorIds||[]).includes(a.id) || (s.supportActorIds||[]).includes(a.id)).length;
+        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
+          <span>${a.name}</span>
+          <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} buổi quay`:''}</span>
+            <span style="cursor:pointer;" title="Sửa tên" onclick="renameActorItem('${a.id}')">✏️</span>
+            <span style="cursor:pointer;" title="Xoá" onclick="deleteActorItem('${a.id}')">🗑️</span>
+          </span>
+        </div>`;
+      }).join('') || '<div class="empty-note">Chưa có diễn viên nào.</div>';
     }
   }
 
