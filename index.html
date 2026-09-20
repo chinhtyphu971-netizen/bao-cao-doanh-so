@@ -1999,20 +1999,32 @@ function callAttemptFieldHtml(l, afterChangeJs){
     ${CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}" ${current===o?'selected':''}>${o}</option>`).join('')}
   </select>`;
 }
-// Tính 4 số liệu hiệu quả của 1 người MKT trong khoảng ngày (lọc theo ngày NHẬP data — importedAt):
-// Tổng data đã gửi, Số đơn đã chốt (trong chính lô data đó), Doanh thu, và Tỉ lệ chốt đơn (%).
+// Tính 4 số liệu hiệu quả của 1 người MKT: Tổng data đã gửi (lọc theo ngày NHẬP — importedAt),
+// Số đơn đã chốt / Doanh thu (lọc theo NGÀY CHỐT — closedDate, KHÔNG bắt buộc phải cùng lô nhập
+// trong khoảng ngày đó — vì data nhập trước có thể được Sale chốt sau), và Tỉ lệ chốt đơn (%) =
+// Số đơn chốt / Tổng data đã gửi.
 function computeMktPersonConversionStats(personId, dateFrom, dateTo){
   let leads = state.leads.filter(l=>l.createdBy===personId);
+  let submittedLeads = leads;
   if(dateFrom || dateTo){
-    leads = leads.filter(l=>{
+    submittedLeads = leads.filter(l=>{
       const d = toLocalDateStr(new Date(l.importedAt||0));
       if(dateFrom && d < dateFrom) return false;
       if(dateTo && d > dateTo) return false;
       return true;
     });
   }
-  const total = leads.length;
-  const closedLeads = leads.filter(l=>l.status==='Đã chốt');
+  const total = submittedLeads.length;
+
+  let closedLeads = leads.filter(l=>l.status==='Đã chốt');
+  if(dateFrom || dateTo){
+    closedLeads = closedLeads.filter(l=>{
+      const d = l.closedDate || '';
+      if(dateFrom && d < dateFrom) return false;
+      if(dateTo && d > dateTo) return false;
+      return true;
+    });
+  }
   const closedCount = closedLeads.length;
   const revenue = closedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
   const rate = total>0 ? (closedCount/total*100) : 0;
@@ -2599,10 +2611,22 @@ function renderMktManagerStats(){
 
   const teamMembers = state.users.filter(x=>x.mktBranchId===teamId && (x.role==='mkt'||x.role==='mkt_manager'));
   const memberIds = new Set(teamMembers.map(x=>x.id));
-  let teamLeads = state.leads.filter(l=>l.createdBy && memberIds.has(l.createdBy));
+  const teamLeadsAll = state.leads.filter(l=>l.createdBy && memberIds.has(l.createdBy)); // KHÔNG lọc ngày — dùng riêng để tính đơn chốt theo Ngày chốt
+  let teamLeads = teamLeadsAll;
   if(mktMgrStatsDateFrom || mktMgrStatsDateTo){
     teamLeads = teamLeads.filter(l=>{
       const d = toLocalDateStr(new Date(l.importedAt||0));
+      if(mktMgrStatsDateFrom && d < mktMgrStatsDateFrom) return false;
+      if(mktMgrStatsDateTo && d > mktMgrStatsDateTo) return false;
+      return true;
+    });
+  }
+  // Đơn chốt/Doanh thu tính theo NGÀY CHỐT (không bắt buộc cùng lô nhập trong khoảng đang lọc —
+  // data nhập trước có thể được Sale chốt sau, vẫn phải tính vào).
+  let teamClosedInRange = teamLeadsAll.filter(l=>l.status==='Đã chốt');
+  if(mktMgrStatsDateFrom || mktMgrStatsDateTo){
+    teamClosedInRange = teamClosedInRange.filter(l=>{
+      const d = l.closedDate || '';
       if(mktMgrStatsDateFrom && d < mktMgrStatsDateFrom) return false;
       if(mktMgrStatsDateTo && d > mktMgrStatsDateTo) return false;
       return true;
@@ -2614,9 +2638,8 @@ function renderMktManagerStats(){
   // "Chưa xử lý (Sale)": trong số data ĐÃ chia cho Sale, có bao nhiêu cái Sale vẫn chưa cập
   // nhật Tình trạng — khác với nghĩa cũ "chưa được chia cho ai" (đã đổi theo yêu cầu).
   const totalUnprocessed = teamLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
-  const totalClosed = teamLeads.filter(l=>l.status==='Đã chốt');
-  const totalOrders = totalClosed.length;
-  const totalRevenue = totalClosed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const totalOrders = teamClosedInRange.length;
+  const totalRevenue = teamClosedInRange.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
   const avgRate = totalAll>0 ? (totalOrders/totalAll*100) : 0;
   document.getElementById('mktMgrStatTotal').textContent = totalAll;
   document.getElementById('mktMgrStatAssigned').textContent = totalAssigned;
@@ -2634,7 +2657,7 @@ function renderMktManagerStats(){
     const mine = teamLeads.filter(l=>l.createdBy===mem.id);
     const assigned = mine.filter(l=>l.assignedTo).length;
     const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
-    const closed = mine.filter(l=>l.status==='Đã chốt');
+    const closed = teamClosedInRange.filter(l=>l.createdBy===mem.id);
     const orders = closed.length;
     const revenue = closed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
     const rate = mine.length>0 ? (orders/mine.length*100) : 0;
@@ -4574,10 +4597,21 @@ function renderMktOverviewPage(){
 
   const mktUsers = state.users.filter(x=>x.role==='mkt' || x.role==='mkt_manager');
   const mktUserIds = new Set(mktUsers.map(x=>x.id));
-  let allLeads = state.leads.filter(l=>l.createdBy && mktUserIds.has(l.createdBy));
+  const allLeadsUnrestricted = state.leads.filter(l=>l.createdBy && mktUserIds.has(l.createdBy)); // KHÔNG lọc ngày — dùng để tính đơn chốt theo Ngày chốt
+  let allLeads = allLeadsUnrestricted;
   if(mktOverviewDateFrom || mktOverviewDateTo){
     allLeads = allLeads.filter(l=>{
       const d = toLocalDateStr(new Date(l.importedAt||0));
+      if(mktOverviewDateFrom && d < mktOverviewDateFrom) return false;
+      if(mktOverviewDateTo && d > mktOverviewDateTo) return false;
+      return true;
+    });
+  }
+  // Đơn chốt/Doanh thu tính theo NGÀY CHỐT (không bắt buộc cùng lô nhập trong khoảng đang lọc).
+  let allClosedInRange = allLeadsUnrestricted.filter(l=>l.status==='Đã chốt');
+  if(mktOverviewDateFrom || mktOverviewDateTo){
+    allClosedInRange = allClosedInRange.filter(l=>{
+      const d = l.closedDate || '';
       if(mktOverviewDateFrom && d < mktOverviewDateFrom) return false;
       if(mktOverviewDateTo && d > mktOverviewDateTo) return false;
       return true;
@@ -4587,9 +4621,8 @@ function renderMktOverviewPage(){
   const totalAll = allLeads.length;
   const totalAssigned = allLeads.filter(l=>l.assignedTo).length;
   const totalUnprocessed = allLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
-  const totalClosedLeads = allLeads.filter(l=>l.status==='Đã chốt');
-  const totalOrders = totalClosedLeads.length;
-  const totalRevenue = totalClosedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const totalOrders = allClosedInRange.length;
+  const totalRevenue = allClosedInRange.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
   const avgRate = totalAll>0 ? (totalOrders/totalAll*100) : 0;
   document.getElementById('mktOverviewStatTotal').textContent = totalAll;
   document.getElementById('mktOverviewStatAssigned').textContent = totalAssigned;
@@ -4615,6 +4648,11 @@ function renderMktOverviewPage(){
     leadsByUser[l.createdBy] = leadsByUser[l.createdBy] || [];
     leadsByUser[l.createdBy].push(l);
   });
+  const closedByUser = {}; // đơn chốt theo Ngày chốt, tách riêng khỏi lô nhập ở trên
+  allClosedInRange.forEach(l=>{
+    closedByUser[l.createdBy] = closedByUser[l.createdBy] || [];
+    closedByUser[l.createdBy].push(l);
+  });
 
   const teamKeys = Object.keys(teamsMap).sort((a,b)=>{
     if(a==='__none__') return 1;
@@ -4636,7 +4674,7 @@ function renderMktOverviewPage(){
       const mine = leadsByUser[m.id] || [];
       const assigned = mine.filter(l=>l.assignedTo).length;
       const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
-      const closed = mine.filter(l=>l.status==='Đã chốt');
+      const closed = closedByUser[m.id] || [];
       const orders = closed.length;
       const revenue = closed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
       const rate = mine.length>0 ? (orders/mine.length*100) : 0;
