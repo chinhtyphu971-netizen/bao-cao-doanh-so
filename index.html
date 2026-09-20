@@ -854,6 +854,12 @@
             <div class="field" style="max-width:200px;"><label>Lọc theo Sale chốt</label><select id="mktRevenueSaleFilter" onchange="renderMktRevenuePage()"></select></div>
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktRevenueSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMktRevenuePage()"></div>
           </div>
+          <div id="mktRevenuePersonalStatsBoxes" class="grid-4" style="margin-bottom:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+            <div class="stat-box"><div class="stat-label">Tổng data đã gửi (theo ngày nhập)</div><div class="stat-value" id="mktRevenuePersonalTotal">0</div></div>
+            <div class="stat-box"><div class="stat-label">Số đơn Sale đã chốt</div><div class="stat-value" id="mktRevenuePersonalOrders">0</div></div>
+            <div class="stat-box"><div class="stat-label">Doanh thu</div><div class="stat-value" id="mktRevenuePersonalRevenue">0 đ</div></div>
+            <div class="stat-box"><div class="stat-label">Tỉ lệ chốt đơn</div><div class="stat-value" id="mktRevenuePersonalRate">0%</div></div>
+          </div>
           <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
           <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktRevenue()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
@@ -4797,6 +4803,14 @@ function renderMktRevenuePage(){
   const u = currentUser();
   document.getElementById('mktRevenueFrom').value = mktRevenueDateFrom || '';
   document.getElementById('mktRevenueTo').value = mktRevenueDateTo || '';
+
+  // 4 ô thống kê tổng quan cá nhân — tổng TOÀN BỘ data người này đã gửi (không chỉ riêng theo
+  // Nguồn được gán) và số đơn Sale đã chốt được từ chính lô data đó, theo cùng khoảng ngày.
+  const personalStats = computeMktPersonConversionStats(u.id, mktRevenueDateFrom, mktRevenueDateTo);
+  document.getElementById('mktRevenuePersonalTotal').textContent = personalStats.total;
+  document.getElementById('mktRevenuePersonalOrders').textContent = personalStats.closedCount;
+  document.getElementById('mktRevenuePersonalRevenue').textContent = fmtMoney(personalStats.revenue) + ' đ';
+  document.getElementById('mktRevenuePersonalRate').textContent = personalStats.rate.toFixed(1) + '%';
 
   const mySources = (u.assignedSources || []);
   const boxesEl = document.getElementById('mktRevenueSourceBoxes');
