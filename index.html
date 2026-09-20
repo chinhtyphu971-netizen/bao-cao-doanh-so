@@ -786,6 +786,11 @@
             <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktMgrStatAssigned">0</div></div>
             <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktMgrStatPending">0</div></div>
           </div>
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Số đơn chốt (cả team)</div><div class="stat-value" id="mktMgrStatOrders">0</div></div>
+            <div class="stat-box"><div class="stat-label">Doanh thu (cả team)</div><div class="stat-value" id="mktMgrStatRevenue">0 đ</div></div>
+            <div class="stat-box"><div class="stat-label">Tỉ lệ chốt đơn trung bình</div><div class="stat-value" id="mktMgrStatRate">0%</div></div>
+          </div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktManagerStats()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mktManagerStatsTable" class="rtable"></table></div>
         </div>
@@ -813,6 +818,14 @@
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:180px;"><label>Từ ngày</label><input type="date" id="mktLeadsFrom" onchange="applyMktLeadsCustomRange()"></div>
             <div class="field" style="max-width:180px;"><label>Đến ngày</label><input type="date" id="mktLeadsTo" onchange="applyMktLeadsCustomRange()"></div>
+          </div>
+          <div class="grid-4" id="mktMyStatsBoxes" style="margin-bottom:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+            <div class="stat-box"><div class="stat-label">Tổng data đã gửi</div><div class="stat-value" id="mktMyStatTotal">0</div></div>
+            <div class="stat-box"><div class="stat-label">Số đơn chốt</div><div class="stat-value" id="mktMyStatOrders">0</div></div>
+            <div class="stat-box"><div class="stat-label">Doanh thu</div><div class="stat-value" id="mktMyStatRevenue">0 đ</div></div>
+            <div class="stat-box"><div class="stat-label">Tỉ lệ chốt đơn</div><div class="stat-value" id="mktMyStatRate">0%</div></div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
@@ -1001,6 +1014,11 @@
             <div class="stat-box"><div class="stat-label">Tổng đã nhập (toàn công ty)</div><div class="stat-value" id="mktOverviewStatTotal">0</div></div>
             <div class="stat-box"><div class="stat-label">Đã chia cho Sale</div><div class="stat-value" id="mktOverviewStatAssigned">0</div></div>
             <div class="stat-box"><div class="stat-label">Chưa xử lý (Sale)</div><div class="stat-value" id="mktOverviewStatUnprocessed">0</div></div>
+          </div>
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Số đơn chốt (toàn công ty)</div><div class="stat-value" id="mktOverviewStatOrders">0</div></div>
+            <div class="stat-box"><div class="stat-label">Doanh thu (toàn công ty)</div><div class="stat-value" id="mktOverviewStatRevenue">0 đ</div></div>
+            <div class="stat-box"><div class="stat-label">Tỉ lệ chốt đơn trung bình</div><div class="stat-value" id="mktOverviewStatRate">0%</div></div>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <span class="history-link" onclick="toggleMktOverviewStatsByDay()" id="mktOverviewStatsToggle">Xem thống kê theo ngày ▸</span>
@@ -1743,6 +1761,9 @@ function exportMktManagerStats(){
     tongDaNhap: r.total,
     daChiaChoSale: r.assigned,
     chuaXuLy: r.unprocessed,
+    soDonChot: r.orders,
+    doanhThu: r.revenue,
+    tiLeChot: r.rate.toFixed(1) + '%',
   }));
   exportRowsToExcel(rows, [
     {key:'ten', header:'Tên'},
@@ -1750,6 +1771,9 @@ function exportMktManagerStats(){
     {key:'tongDaNhap', header:'Tổng đã nhập'},
     {key:'daChiaChoSale', header:'Đã chia cho Sale'},
     {key:'chuaXuLy', header:'Chưa xử lý (Sale)'},
+    {key:'soDonChot', header:'Số đơn chốt'},
+    {key:'doanhThu', header:'Doanh thu'},
+    {key:'tiLeChot', header:'Tỉ lệ chốt'},
   ], `thong-ke-team-mkt-${todayStr()}.xlsx`);
 }
 /* =========================== MKT: Chi phí quay video (thuê diễn viên) =========================== */
@@ -1957,6 +1981,36 @@ function exportVideoShootsOverview(){
     {key:'ghiChu', header:'Note diễn viên'},
     {key:'themLuc', header:'Thêm lúc'},
   ], `chi-phi-quay-video-${todayStr()}.xlsx`);
+}
+// Ô "Gọi điện" — theo dõi đã gọi khách lần mấy, cạnh ô Tình trạng. Mặc định "Chưa gọi" (giá trị
+// rỗng), chọn dần lên "Gọi lần 1/2/3" hoặc đánh dấu "Không có nhu cầu" nếu khách từ chối hẳn.
+const CALL_ATTEMPT_OPTIONS = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
+function callAttemptFieldHtml(l, afterChangeJs){
+  const current = l.callAttempt || '';
+  const after = afterChangeJs ? `; ${afterChangeJs}` : '';
+  return `<select style="width:130px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','callAttempt',this.value)${after}">
+    <option value="" ${current===''?'selected':''}>Chưa gọi</option>
+    ${CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}" ${current===o?'selected':''}>${o}</option>`).join('')}
+  </select>`;
+}
+// Tính 4 số liệu hiệu quả của 1 người MKT trong khoảng ngày (lọc theo ngày NHẬP data — importedAt):
+// Tổng data đã gửi, Số đơn đã chốt (trong chính lô data đó), Doanh thu, và Tỉ lệ chốt đơn (%).
+function computeMktPersonConversionStats(personId, dateFrom, dateTo){
+  let leads = state.leads.filter(l=>l.createdBy===personId);
+  if(dateFrom || dateTo){
+    leads = leads.filter(l=>{
+      const d = toLocalDateStr(new Date(l.importedAt||0));
+      if(dateFrom && d < dateFrom) return false;
+      if(dateTo && d > dateTo) return false;
+      return true;
+    });
+  }
+  const total = leads.length;
+  const closedLeads = leads.filter(l=>l.status==='Đã chốt');
+  const closedCount = closedLeads.length;
+  const revenue = closedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const rate = total>0 ? (closedCount/total*100) : 0;
+  return {total, closedCount, revenue, rate};
 }
 function debounce(fn, delay){
   let t;
@@ -2554,9 +2608,16 @@ function renderMktManagerStats(){
   // "Chưa xử lý (Sale)": trong số data ĐÃ chia cho Sale, có bao nhiêu cái Sale vẫn chưa cập
   // nhật Tình trạng — khác với nghĩa cũ "chưa được chia cho ai" (đã đổi theo yêu cầu).
   const totalUnprocessed = teamLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+  const totalClosed = teamLeads.filter(l=>l.status==='Đã chốt');
+  const totalOrders = totalClosed.length;
+  const totalRevenue = totalClosed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const avgRate = totalAll>0 ? (totalOrders/totalAll*100) : 0;
   document.getElementById('mktMgrStatTotal').textContent = totalAll;
   document.getElementById('mktMgrStatAssigned').textContent = totalAssigned;
   document.getElementById('mktMgrStatPending').textContent = totalUnprocessed;
+  document.getElementById('mktMgrStatOrders').textContent = totalOrders;
+  document.getElementById('mktMgrStatRevenue').textContent = fmtMoney(totalRevenue) + ' đ';
+  document.getElementById('mktMgrStatRate').textContent = avgRate.toFixed(1) + '%';
 
   const table = document.getElementById('mktManagerStatsTable');
   if(teamMembers.length===0){
@@ -2567,16 +2628,23 @@ function renderMktManagerStats(){
     const mine = teamLeads.filter(l=>l.createdBy===mem.id);
     const assigned = mine.filter(l=>l.assignedTo).length;
     const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
-    return {name:mem.name, role:mem.role, total:mine.length, assigned, unprocessed};
+    const closed = mine.filter(l=>l.status==='Đã chốt');
+    const orders = closed.length;
+    const revenue = closed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+    const rate = mine.length>0 ? (orders/mine.length*100) : 0;
+    return {name:mem.name, role:mem.role, total:mine.length, assigned, unprocessed, orders, revenue, rate};
   }).sort((a,b)=>b.total-a.total);
   lastFilteredMktManagerStats = rows; // lưu lại cho nút Xuất Excel
-  table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th><th class="num">Số đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỉ lệ chốt</th></tr></thead><tbody>` +
     rows.map(r=>`<tr>
       <td data-label="Tên">${r.name}</td>
       <td data-label="Vai trò">${roleLabel(r.role)}</td>
       <td class="num" data-label="Tổng đã nhập">${r.total}</td>
       <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
       <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
+      <td class="num" data-label="Số đơn chốt">${r.orders}</td>
+      <td class="num" data-label="Doanh thu" style="font-weight:600; color:var(--success);">${fmtMoney(r.revenue)} đ</td>
+      <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(1)}%</td>
     </tr>`).join('') + `</tbody>`;
 }
 
@@ -2602,6 +2670,14 @@ function applyMktLeadsCustomRange(){
 function renderMktMyLeadsList(){
   const u = currentUser();
   ensureStatusFilterPopulated('mktMyLeadsStatusFilter');
+
+  // 4 ô thống kê hiệu quả — tính riêng, luôn theo ĐÚNG bộ lọc ngày hiện tại (không bị ảnh hưởng
+  // bởi ô tìm kiếm/lọc Tình trạng bên dưới, để giữ nguyên bức tranh tổng quan theo ngày).
+  const myStats = computeMktPersonConversionStats(u.id, mktLeadsDateFrom, mktLeadsDateTo);
+  document.getElementById('mktMyStatTotal').textContent = myStats.total;
+  document.getElementById('mktMyStatOrders').textContent = myStats.closedCount;
+  document.getElementById('mktMyStatRevenue').textContent = fmtMoney(myStats.revenue) + ' đ';
+  document.getElementById('mktMyStatRate').textContent = myStats.rate.toFixed(1) + '%';
 
   let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
 
@@ -2805,16 +2881,8 @@ function renderMyLeads(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td data-label="Gọi điện">
-        <select style="width:125px; min-width:0; min-height:30px; padding:4px 6px; font-size:13px;" onchange="updateLeadField('${l.id}','callStatus',this.value); renderMyLeads();">
-          <option value="Chưa gọi" ${(!l.callStatus || l.callStatus==='Chưa gọi')?'selected':''}>Chưa gọi</option>
-          <option value="Gọi lần 1" ${l.callStatus==='Gọi lần 1'?'selected':''}>Gọi lần 1</option>
-          <option value="Gọi lần 2" ${l.callStatus==='Gọi lần 2'?'selected':''}>Gọi lần 2</option>
-          <option value="Gọi lần 3" ${l.callStatus==='Gọi lần 3'?'selected':''}>Gọi lần 3</option>
-          <option value="Không có nhu cầu" ${l.callStatus==='Không có nhu cầu'?'selected':''}>Không có nhu cầu</option>
-        </select>
-      </td>
-      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}
+      <td data-label="Gọi điện">${callAttemptFieldHtml(l)}</td>
+      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
     </tr>`;
@@ -3241,7 +3309,7 @@ function renderPersonLeadsPage(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào trong khoảng này.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
     leads.map(l=>`<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
@@ -3253,6 +3321,7 @@ function renderPersonLeadsPage(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td data-label="Gọi điện">${callAttemptFieldHtml(l, 'renderPersonLeadsPage()')}</td>
       <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
     </tr>`).join('') + `</tbody>`;
@@ -3389,7 +3458,7 @@ function renderMgrLeadsList(){
     table.innerHTML = '<tr><td class="empty-note">Không có data nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Người gửi</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Người nhận</th><th>Người gửi</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     pageLeads.map(l=>{
       const assignee = state.users.find(u=>u.id===l.assignedTo);
       const mktSender = l.createdBy ? state.users.find(u=>u.id===l.createdBy) : null;
@@ -3410,6 +3479,7 @@ function renderMgrLeadsList(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
+      <td data-label="Gọi điện">${callAttemptFieldHtml(l, 'renderMgrLeadsList()')}</td>
       <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
@@ -4511,9 +4581,16 @@ function renderMktOverviewPage(){
   const totalAll = allLeads.length;
   const totalAssigned = allLeads.filter(l=>l.assignedTo).length;
   const totalUnprocessed = allLeads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+  const totalClosedLeads = allLeads.filter(l=>l.status==='Đã chốt');
+  const totalOrders = totalClosedLeads.length;
+  const totalRevenue = totalClosedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const avgRate = totalAll>0 ? (totalOrders/totalAll*100) : 0;
   document.getElementById('mktOverviewStatTotal').textContent = totalAll;
   document.getElementById('mktOverviewStatAssigned').textContent = totalAssigned;
   document.getElementById('mktOverviewStatUnprocessed').textContent = totalUnprocessed;
+  document.getElementById('mktOverviewStatOrders').textContent = totalOrders;
+  document.getElementById('mktOverviewStatRevenue').textContent = fmtMoney(totalRevenue) + ' đ';
+  document.getElementById('mktOverviewStatRate').textContent = avgRate.toFixed(1) + '%';
 
   if(document.getElementById('mktOverviewStatsByDay').style.display !== 'none'){
     renderMktStatsByDayInto('mktOverviewStatsByDay', allLeads);
@@ -4548,32 +4625,40 @@ function renderMktOverviewPage(){
   const flatExportRows = [];
   container.innerHTML = teamKeys.map(key=>{
     const team = teamsMap[key];
-    let teamTotal=0, teamAssigned=0, teamUnprocessed=0;
+    let teamTotal=0, teamAssigned=0, teamUnprocessed=0, teamOrders=0, teamRevenue=0;
     const memberRows = team.members.map(m=>{
       const mine = leadsByUser[m.id] || [];
       const assigned = mine.filter(l=>l.assignedTo).length;
       const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+      const closed = mine.filter(l=>l.status==='Đã chốt');
+      const orders = closed.length;
+      const revenue = closed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+      const rate = mine.length>0 ? (orders/mine.length*100) : 0;
       teamTotal += mine.length; teamAssigned += assigned; teamUnprocessed += unprocessed;
-      flatExportRows.push({team: team.name, name:m.name, role:m.role, total:mine.length, assigned, unprocessed});
-      return {name:m.name, role:m.role, id:m.id, total:mine.length, assigned, unprocessed};
+      teamOrders += orders; teamRevenue += revenue;
+      flatExportRows.push({team: team.name, name:m.name, role:m.role, total:mine.length, assigned, unprocessed, orders, revenue, rate});
+      return {name:m.name, role:m.role, id:m.id, total:mine.length, assigned, unprocessed, orders, revenue, rate};
     }).sort((a,b)=>b.total-a.total);
     const isOpen = mktOverviewOpenTeams.has(key);
     const memberTableHtml = isOpen ? `
       <div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">
-        <table class="rtable"><thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th></tr></thead><tbody>
+        <table class="rtable"><thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th><th class="num">Số đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỉ lệ chốt</th></tr></thead><tbody>
         ${memberRows.map(r=>`<tr style="cursor:pointer;" onclick="openMktPersonDetail('${r.id}')" onmouseenter="this.style.background='var(--panel)'" onmouseleave="this.style.background=''">
           <td data-label="Tên"><span style="color:var(--accent); text-decoration:underline;">${r.name} ›</span></td>
           <td data-label="Vai trò">${roleLabel(r.role)}</td>
           <td class="num" data-label="Tổng đã nhập">${r.total}</td>
           <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
           <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
+          <td class="num" data-label="Số đơn chốt">${r.orders}</td>
+          <td class="num" data-label="Doanh thu" style="font-weight:600; color:var(--success);">${fmtMoney(r.revenue)} đ</td>
+          <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(1)}%</td>
         </tr>`).join('') || '<tr><td class="empty-note">Team chưa có ai.</td></tr>'}
         </tbody></table>
       </div>` : '';
     return `<div style="border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden;">
       <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:var(--panel);" onclick="toggleMktOverviewTeam('${key}')">
         <span style="font-weight:600;">${isOpen?'▾':'▸'} ${team.name} <span style="font-weight:400; color:var(--ink-soft); font-size:12.5px;">(${team.members.length} người)</span></span>
-        <span style="font-size:13px; color:var(--ink-soft);">${teamTotal} data · ${teamAssigned} đã chia · ${teamUnprocessed} chưa xử lý</span>
+        <span style="font-size:13px; color:var(--ink-soft);">${teamTotal} data · ${teamAssigned} đã chia · ${teamUnprocessed} chưa xử lý · ${teamOrders} đơn chốt · ${fmtMoney(teamRevenue)} đ</span>
       </div>
       ${memberTableHtml}
     </div>`;
@@ -4589,6 +4674,9 @@ function exportMktOverview(){
     tongDaNhap: r.total,
     daChiaChoSale: r.assigned,
     chuaXuLy: r.unprocessed,
+    soDonChot: r.orders,
+    doanhThu: r.revenue,
+    tiLeChot: r.rate.toFixed(1) + '%',
   }));
   exportRowsToExcel(rows, [
     {key:'team', header:'Team MKT'},
@@ -4597,6 +4685,9 @@ function exportMktOverview(){
     {key:'tongDaNhap', header:'Tổng đã nhập'},
     {key:'daChiaChoSale', header:'Đã chia cho Sale'},
     {key:'chuaXuLy', header:'Chưa xử lý (Sale)'},
+    {key:'soDonChot', header:'Số đơn chốt'},
+    {key:'doanhThu', header:'Doanh thu'},
+    {key:'tiLeChot', header:'Tỉ lệ chốt'},
   ], `thong-ke-mkt-toan-cong-ty-${todayStr()}.xlsx`);
 }
 // Thống kê theo ngày cho MKT — nhóm theo NGÀY NHẬP (importedAt), khác với bên Sale nhóm theo
@@ -4645,8 +4736,12 @@ function renderMktPersonDetail(){
 
   const assigned = mine.filter(l=>l.assignedTo).length;
   const unprocessed = mine.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length;
+  const closed = mine.filter(l=>l.status==='Đã chốt');
+  const orders = closed.length;
+  const revenue = closed.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const rate = mine.length>0 ? (orders/mine.length*100) : 0;
   document.getElementById('mktPersonDetailSummary').textContent =
-    `${mine.length} data đã nhập · ${assigned} đã chia cho Sale · ${unprocessed} chưa xử lý`;
+    `${mine.length} data đã nhập · ${assigned} đã chia cho Sale · ${unprocessed} chưa xử lý · ${orders} đơn chốt · ${fmtMoney(revenue)} đ doanh thu · Tỉ lệ chốt ${rate.toFixed(1)}%`;
 
   const table = document.getElementById('mktPersonDetailTable');
   if(mine.length===0){
