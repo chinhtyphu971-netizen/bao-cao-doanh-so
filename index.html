@@ -1008,7 +1008,7 @@
         <div class="card" id="mktLegacyCountsCard" style="display:none;">
           <span class="history-link" onclick="toggleMktLegacyCountsSection()" id="mktLegacyCountsToggle">Bổ sung data đã nhập tay lên Sheet (trước khi có tính năng "Nhập data") ▸</span>
           <div id="mktLegacyCountsBody" style="display:none; margin-top:10px;">
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Trước khi có tính năng "Nhập data" trong app, MKT nhập số điện thoại trực tiếp lên Google Sheet nên hệ thống không đếm được — điền bổ sung số lượng ở đây để "Tổng data đã gửi"/"Tỉ lệ chốt đơn" tính đúng hơn. Chỉ cộng vào khi khoảng ngày bên dưới giao với khoảng ngày đang lọc ở trang này (hoặc luôn cộng nếu đang xem "Toàn thời gian").</p>
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Trước khi có tính năng "Nhập data" trong app, MKT nhập số điện thoại trực tiếp lên Google Sheet nên hệ thống không đếm được — điền bổ sung số lượng theo TỪNG NGUỒN của mỗi người ở đây để "Tổng data đã gửi"/"Tỉ lệ chốt đơn" tính đúng hơn. Chỉ cộng vào khi khoảng ngày bên dưới giao với khoảng ngày đang lọc ở trang này (hoặc luôn cộng nếu đang xem "Toàn thời gian").</p>
             <div id="mktLegacyCountsList" style="margin-top:12px;"></div>
           </div>
         </div>
@@ -2015,19 +2015,24 @@ function callAttemptFieldHtml(l, afterChangeJs){
 // Số đơn đã chốt / Doanh thu (lọc theo NGÀY CHỐT — closedDate, KHÔNG bắt buộc phải cùng lô nhập
 // trong khoảng ngày đó — vì data nhập trước có thể được Sale chốt sau), và Tỉ lệ chốt đơn (%) =
 // Số đơn chốt / Tổng data đã gửi.
-function fbSetMktLegacyCount(entry){ fbMktLegacyCounts.child(entry.userId).set(entry); }
-// Trả về số liệu data đã nhập tay lên Sheet (trước khi có tính năng "Nhập data") cho 1 người,
-// CHỈ cộng vào nếu khoảng ngày Quản lý ghi (fromDate-toDate) GIAO với khoảng ngày đang lọc hiện
-// tại (hoặc luôn cộng nếu đang xem "Toàn thời gian" — không lọc ngày gì cả).
+function fbSetMktLegacyCount(entry){ fbMktLegacyCounts.child(entry.id).set(entry); }
+// Trả về TỔNG số liệu data đã nhập tay lên Sheet (trước khi có tính năng "Nhập data") cho 1
+// người, CỘNG DỒN qua tất cả các Nguồn của người đó — mỗi Nguồn có thể có 1 khoảng ngày/số lượng
+// riêng. Chỉ cộng vào nếu khoảng ngày Quản lý ghi (fromDate-toDate) GIAO với khoảng ngày đang lọc
+// hiện tại (hoặc luôn cộng nếu đang xem "Toàn thời gian" — không lọc ngày gì cả).
 function legacyDataCountFor(personId, dateFrom, dateTo){
-  const entry = state.mktLegacyCounts.find(e=>e.userId===personId);
-  if(!entry || !entry.count) return 0;
-  if(!dateFrom && !dateTo) return entry.count;
-  const from = entry.fromDate || '0000-01-01';
-  const to = entry.toDate || '9999-12-31';
-  if(dateTo && from > dateTo) return 0;
-  if(dateFrom && to < dateFrom) return 0;
-  return entry.count;
+  const entries = state.mktLegacyCounts.filter(e=>e.userId===personId);
+  let sum = 0;
+  entries.forEach(entry=>{
+    if(!entry.count) return;
+    if(!dateFrom && !dateTo){ sum += entry.count; return; }
+    const from = entry.fromDate || '0000-01-01';
+    const to = entry.toDate || '9999-12-31';
+    if(dateTo && from > dateTo) return;
+    if(dateFrom && to < dateFrom) return;
+    sum += entry.count;
+  });
+  return sum;
 }
 function computeMktPersonConversionStats(personId, dateFrom, dateTo){
   let leads = state.leads.filter(l=>l.createdBy===personId);
@@ -4633,24 +4638,28 @@ function toggleMktLegacyCountsSection(){
   mktLegacyCountsOpen = !mktLegacyCountsOpen;
   renderMktOverviewPage();
 }
-function saveMktLegacyCount(userId){
-  const countEl = document.getElementById(`mktLegacyCount_${userId}`);
-  const fromEl = document.getElementById(`mktLegacyFrom_${userId}`);
-  const toEl = document.getElementById(`mktLegacyTo_${userId}`);
+function saveMktLegacyCount(userId, sourceIdx){
+  const countEl = document.getElementById(`mktLegacyCount_${userId}_${sourceIdx}`);
+  const fromEl = document.getElementById(`mktLegacyFrom_${userId}_${sourceIdx}`);
+  const toEl = document.getElementById(`mktLegacyTo_${userId}_${sourceIdx}`);
+  const sourceName = countEl.dataset.source;
   const count = Math.max(0, parseInt(countEl.value, 10) || 0);
   const u = state.users.find(x=>x.id===userId);
+  const existing = state.mktLegacyCounts.find(e=>e.userId===userId && e.source===sourceName);
   const entry = {
+    id: existing ? existing.id : ('mlc_' + uid()),
     userId,
     userName: u ? u.name : '',
+    source: sourceName,
     count,
     fromDate: fromEl.value || null,
     toDate: toEl.value || null,
     updatedAt: Date.now(),
     updatedByName: currentUser().name,
   };
-  state.mktLegacyCounts = state.mktLegacyCounts.filter(e=>e.userId!==userId).concat([entry]);
+  state.mktLegacyCounts = state.mktLegacyCounts.filter(e=>!(e.userId===userId && e.source===sourceName)).concat([entry]);
   fbSetMktLegacyCount(entry);
-  showToast(`Đã lưu bổ sung ${count} data cho ${entry.userName}`);
+  showToast(`Đã lưu bổ sung ${count} data cho ${entry.userName} — Nguồn "${sourceName}"`);
   renderMktOverviewPage();
 }
 function renderMktOverviewPage(){
@@ -4675,14 +4684,27 @@ function renderMktOverviewPage(){
       const listEl = document.getElementById('mktLegacyCountsList');
       const sortedMkt = mktUsers.slice().sort((a,b)=>a.name.localeCompare(b.name,'vi'));
       listEl.innerHTML = sortedMkt.map(m=>{
-        const entry = state.mktLegacyCounts.find(e=>e.userId===m.id);
-        return `<div style="display:flex; align-items:flex-end; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;">
-          <div style="min-width:140px; font-size:13.5px;">${m.name}</div>
-          <div class="field" style="max-width:110px; margin-bottom:0;"><label style="font-size:11px;">Số lượng</label><input type="number" min="0" id="mktLegacyCount_${m.id}" value="${entry?entry.count:''}" placeholder="0" style="min-height:32px; padding:4px 6px;"></div>
-          <div class="field" style="max-width:150px; margin-bottom:0;"><label style="font-size:11px;">Từ ngày</label><input type="date" id="mktLegacyFrom_${m.id}" value="${entry&&entry.fromDate?entry.fromDate:''}" style="min-height:32px; padding:4px 6px;"></div>
-          <div class="field" style="max-width:150px; margin-bottom:0;"><label style="font-size:11px;">Đến ngày</label><input type="date" id="mktLegacyTo_${m.id}" value="${entry&&entry.toDate?entry.toDate:''}" style="min-height:32px; padding:4px 6px;"></div>
-          <button class="btn-ghost btn-small" onclick="saveMktLegacyCount('${m.id}')">Lưu</button>
-          ${entry ? `<span style="color:var(--ink-soft); font-size:11px;">Cập nhật lúc ${fmtDateTimeShort(entry.updatedAt)}</span>` : ''}
+        const sources = m.assignedSources || [];
+        if(sources.length===0){
+          return `<div style="padding:8px 0; border-bottom:1px solid var(--line);">
+            <div style="font-size:13.5px; font-weight:600;">${m.name}</div>
+            <div class="empty-note" style="padding:4px 0;">Chưa được gán Nguồn nào, không điền bổ sung được.</div>
+          </div>`;
+        }
+        const sourceRows = sources.map((src,idx)=>{
+          const entry = state.mktLegacyCounts.find(e=>e.userId===m.id && e.source===src);
+          return `<div style="display:flex; align-items:flex-end; gap:8px; padding:6px 0; flex-wrap:wrap;">
+            <div style="min-width:140px; font-size:13px; color:var(--ink-soft);">↳ ${src}</div>
+            <div class="field" style="max-width:110px; margin-bottom:0;"><label style="font-size:11px;">Số lượng</label><input type="number" min="0" id="mktLegacyCount_${m.id}_${idx}" data-source="${src.replace(/"/g,'&quot;')}" value="${entry?entry.count:''}" placeholder="0" style="min-height:32px; padding:4px 6px;"></div>
+            <div class="field" style="max-width:150px; margin-bottom:0;"><label style="font-size:11px;">Từ ngày</label><input type="date" id="mktLegacyFrom_${m.id}_${idx}" value="${entry&&entry.fromDate?entry.fromDate:''}" style="min-height:32px; padding:4px 6px;"></div>
+            <div class="field" style="max-width:150px; margin-bottom:0;"><label style="font-size:11px;">Đến ngày</label><input type="date" id="mktLegacyTo_${m.id}_${idx}" value="${entry&&entry.toDate?entry.toDate:''}" style="min-height:32px; padding:4px 6px;"></div>
+            <button class="btn-ghost btn-small" onclick="saveMktLegacyCount('${m.id}', ${idx})">Lưu</button>
+            ${entry ? `<span style="color:var(--ink-soft); font-size:11px;">Cập nhật lúc ${fmtDateTimeShort(entry.updatedAt)}</span>` : ''}
+          </div>`;
+        }).join('');
+        return `<div style="padding:8px 0; border-bottom:1px solid var(--line);">
+          <div style="font-size:13.5px; font-weight:600;">${m.name}</div>
+          ${sourceRows}
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có nhân sự MKT nào.</div>';
     }
