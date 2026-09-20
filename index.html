@@ -2785,7 +2785,7 @@ function renderMyLeads(){
     renderSelfLeadsTable();
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     allMyLeads.map(l=>{
       const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
       const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
@@ -2805,7 +2805,16 @@ function renderMyLeads(){
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
+      <td data-label="Gọi điện">
+        <select style="width:125px; min-width:0; min-height:30px; padding:4px 6px; font-size:13px;" onchange="updateLeadField('${l.id}','callStatus',this.value); renderMyLeads();">
+          <option value="">— Chọn —</option>
+          <option value="Gọi lần 1" ${l.callStatus==='Gọi lần 1'?'selected':''}>Gọi lần 1</option>
+          <option value="Gọi lần 2" ${l.callStatus==='Gọi lần 2'?'selected':''}>Gọi lần 2</option>
+          <option value="Gọi lần 3" ${l.callStatus==='Gọi lần 3'?'selected':''}>Gọi lần 3</option>
+          <option value="Không có nhu cầu" ${l.callStatus==='Không có nhu cầu'?'selected':''}>Không có nhu cầu</option>
+        </select>
+      </td>
+      <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
     </tr>`;
