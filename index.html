@@ -819,15 +819,11 @@
             <div class="field" style="max-width:180px;"><label>Từ ngày</label><input type="date" id="mktLeadsFrom" onchange="applyMktLeadsCustomRange()"></div>
             <div class="field" style="max-width:180px;"><label>Đến ngày</label><input type="date" id="mktLeadsTo" onchange="applyMktLeadsCustomRange()"></div>
           </div>
-          <div class="grid-4" id="mktMyStatsBoxes" style="margin-bottom:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
-            <div class="stat-box"><div class="stat-label">Tổng data đã gửi</div><div class="stat-value" id="mktMyStatTotal">0</div></div>
-            <div class="stat-box"><div class="stat-label">Số đơn chốt</div><div class="stat-value" id="mktMyStatOrders">0</div></div>
-            <div class="stat-box"><div class="stat-label">Doanh thu</div><div class="stat-value" id="mktMyStatRevenue">0 đ</div></div>
-            <div class="stat-box"><div class="stat-label">Tỉ lệ chốt đơn</div><div class="stat-value" id="mktMyStatRate">0%</div></div>
-          </div>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktMyLeadsSourceFilter" onchange="renderMktMyLeadsList()"></select></div>
+            <div class="field" style="max-width:200px;"><label>Lọc theo Người nhận</label><select id="mktMyLeadsAssigneeFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktMyLeadsList()">⬇️ Xuất Excel</button>
@@ -1740,6 +1736,7 @@ function exportMktMyLeadsList(){
     nguoiNhan: l.assignedToName || 'Đang chờ chia',
     tenKhach: l.customerName || '',
     tinhTrang: l.status || '',
+    goiDien: l.callAttempt || 'Chưa gọi',
   }));
   exportRowsToExcel(rows, [
     {key:'ngayNhap', header:'Ngày nhận'},
@@ -1748,6 +1745,7 @@ function exportMktMyLeadsList(){
     {key:'nguoiNhan', header:'Người nhận'},
     {key:'tenKhach', header:'Tên khách'},
     {key:'tinhTrang', header:'Tình trạng'},
+    {key:'goiDien', header:'Gọi điện'},
   ], `danh-sach-data-mkt-${todayStr()}.xlsx`);
 }
 let lastFilteredMgrSelfLeads = [];
@@ -2047,17 +2045,13 @@ function computeMktPersonConversionStats(personId, dateFrom, dateTo){
   }
   const total = submittedLeads.length + legacyDataCountFor(personId, dateFrom, dateTo);
 
-  let closedLeads = leads.filter(l=>l.status==='Đã chốt');
-  if(dateFrom || dateTo){
-    closedLeads = closedLeads.filter(l=>{
-      const d = l.closedDate || '';
-      if(dateFrom && d < dateFrom) return false;
-      if(dateTo && d > dateTo) return false;
-      return true;
-    });
-  }
-  const closedCount = closedLeads.length;
-  const revenue = closedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  // Số đơn chốt/Doanh thu tính theo ĐÚNG NGUỒN người này đang phụ trách (không theo người đã
+  // nhập data) — khớp với cách tính ở trang "Doanh thu Nguồn" và các trang Thống kê MKT khác,
+  // vì Sale có thể tự thêm tay 1 đơn chốt gắn đúng Nguồn mà không qua MKT nhập.
+  const u = state.users.find(x=>x.id===personId);
+  const closedStats = closedStatsForSources((u && u.assignedSources) || [], dateFrom, dateTo);
+  const closedCount = closedStats.orders;
+  const revenue = closedStats.revenue;
   const rate = total>0 ? (closedCount/total*100) : 0;
   return {total, closedCount, revenue, rate};
 }
@@ -2742,14 +2736,6 @@ function renderMktMyLeadsList(){
   const u = currentUser();
   ensureStatusFilterPopulated('mktMyLeadsStatusFilter');
 
-  // 4 ô thống kê hiệu quả — tính riêng, luôn theo ĐÚNG bộ lọc ngày hiện tại (không bị ảnh hưởng
-  // bởi ô tìm kiếm/lọc Tình trạng bên dưới, để giữ nguyên bức tranh tổng quan theo ngày).
-  const myStats = computeMktPersonConversionStats(u.id, mktLeadsDateFrom, mktLeadsDateTo);
-  document.getElementById('mktMyStatTotal').textContent = myStats.total;
-  document.getElementById('mktMyStatOrders').textContent = myStats.closedCount;
-  document.getElementById('mktMyStatRevenue').textContent = fmtMoney(myStats.revenue) + ' đ';
-  document.getElementById('mktMyStatRate').textContent = myStats.rate.toFixed(1) + '%';
-
   let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
 
   if(mktLeadsDateFrom || mktLeadsDateTo){
@@ -2779,6 +2765,29 @@ function renderMktMyLeadsList(){
     leads = leads.filter(l=>l.status===statusFilter);
   }
 
+  // Đổ danh sách chọn cho 2 bộ lọc Nguồn/Người nhận (chỉ đổ lại khi cần, tránh mất lựa chọn đang chọn)
+  const sourceSel = document.getElementById('mktMyLeadsSourceFilter');
+  const sourceList = Array.from(new Set(leads.map(l=>leadSource(l)).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  const prevSourceVal = sourceSel.value;
+  sourceSel.innerHTML = '<option value="">— Tất cả Nguồn —</option>' + sourceList.map(s=>`<option value="${s}">${s}</option>`).join('');
+  if(sourceList.includes(prevSourceVal)) sourceSel.value = prevSourceVal;
+
+  const assigneeSel = document.getElementById('mktMyLeadsAssigneeFilter');
+  const assigneeNames = Array.from(new Set(leads.map(l=>l.assignedToName).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  const prevAssigneeVal = assigneeSel.value;
+  assigneeSel.innerHTML = '<option value="">— Tất cả người nhận —</option><option value="__unassigned__">— Chưa chia —</option>' + assigneeNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+  if(assigneeSel.dataset.filled===undefined || assigneeNames.includes(prevAssigneeVal) || prevAssigneeVal==='__unassigned__') assigneeSel.value = prevAssigneeVal;
+  assigneeSel.dataset.filled = '1';
+
+  const sourceFilter = sourceSel.value;
+  if(sourceFilter) leads = leads.filter(l=>leadSource(l)===sourceFilter);
+  const assigneeFilter = assigneeSel.value;
+  if(assigneeFilter==='__unassigned__'){
+    leads = leads.filter(l=>!l.assignedTo);
+  } else if(assigneeFilter){
+    leads = leads.filter(l=>l.assignedToName===assigneeFilter);
+  }
+
   document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data` +
     (mktLeadsDateFrom || mktLeadsDateTo ? ` — từ ${mktLeadsDateFrom?fmtDate(mktLeadsDateFrom):'...'} đến ${mktLeadsDateTo?fmtDate(mktLeadsDateTo):'...'}` : '');
   lastFilteredMktMyLeadsList = leads; // lưu lại cho nút Xuất Excel
@@ -2788,7 +2797,7 @@ function renderMktMyLeadsList(){
     table.innerHTML = '<tr><td class="empty-note">Chưa có data nào phù hợp.</td></tr>';
     return;
   }
-  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>SĐT</th><th>Nguồn</th><th>Người nhận</th><th>Tên khách</th><th>Tình trạng</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>SĐT</th><th>Nguồn</th><th>Người nhận</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th></th></tr></thead><tbody>` +
     leads.map(l=>{
       const assignee = state.users.find(x=>x.id===l.assignedTo);
       const statusHtml = l.status
@@ -2802,6 +2811,7 @@ function renderMktMyLeadsList(){
         <td data-label="Người nhận">${l.assignedToName || 'Chưa chia'}</td>
         <td data-label="Tên khách">${l.customerName || '—'}</td>
         <td data-label="Tình trạng">${statusHtml}</td>
+        <td data-label="Gọi điện">${l.callAttempt || 'Chưa gọi'}</td>
         <td>${chatBtn}</td>
       </tr>`;
     }).join('') + `</tbody>`;
