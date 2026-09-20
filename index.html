@@ -2807,7 +2807,7 @@ function renderMyLeads(){
       </td>
       <td data-label="Gọi điện">
         <select style="width:125px; min-width:0; min-height:30px; padding:4px 6px; font-size:13px;" onchange="updateLeadField('${l.id}','callStatus',this.value); renderMyLeads();">
-          <option value="">— Chọn —</option>
+          <option value="Chưa gọi" ${(!l.callStatus || l.callStatus==='Chưa gọi')?'selected':''}>Chưa gọi</option>
           <option value="Gọi lần 1" ${l.callStatus==='Gọi lần 1'?'selected':''}>Gọi lần 1</option>
           <option value="Gọi lần 2" ${l.callStatus==='Gọi lần 2'?'selected':''}>Gọi lần 2</option>
           <option value="Gọi lần 3" ${l.callStatus==='Gọi lần 3'?'selected':''}>Gọi lần 3</option>
