@@ -4804,20 +4804,16 @@ function renderMktRevenuePage(){
   document.getElementById('mktRevenueFrom').value = mktRevenueDateFrom || '';
   document.getElementById('mktRevenueTo').value = mktRevenueDateTo || '';
 
-  // 4 ô thống kê tổng quan cá nhân — tổng TOÀN BỘ data người này đã gửi (không chỉ riêng theo
-  // Nguồn được gán) và số đơn Sale đã chốt được từ chính lô data đó, theo cùng khoảng ngày.
-  const personalStats = computeMktPersonConversionStats(u.id, mktRevenueDateFrom, mktRevenueDateTo);
-  document.getElementById('mktRevenuePersonalTotal').textContent = personalStats.total;
-  document.getElementById('mktRevenuePersonalOrders').textContent = personalStats.closedCount;
-  document.getElementById('mktRevenuePersonalRevenue').textContent = fmtMoney(personalStats.revenue) + ' đ';
-  document.getElementById('mktRevenuePersonalRate').textContent = personalStats.rate.toFixed(1) + '%';
-
   const mySources = (u.assignedSources || []);
   const boxesEl = document.getElementById('mktRevenueSourceBoxes');
   if(mySources.length===0){
     boxesEl.innerHTML = '<div class="empty-note">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán trước khi xem doanh thu.</div>';
     document.getElementById('mktRevenueSummary').textContent = '';
     document.getElementById('mktRevenueTable').innerHTML = '';
+    document.getElementById('mktRevenuePersonalTotal').textContent = 0;
+    document.getElementById('mktRevenuePersonalOrders').textContent = 0;
+    document.getElementById('mktRevenuePersonalRevenue').textContent = '0 đ';
+    document.getElementById('mktRevenuePersonalRate').textContent = '0%';
     return;
   }
   // Thống kê ĐÚNG theo tên Nguồn thực tế Sale đã chốt — KHÔNG gộp nhóm các Nguồn đã liên kết
@@ -4835,6 +4831,21 @@ function renderMktRevenuePage(){
     });
   }
   closedLeads.sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+
+  // 4 ô thống kê tổng quan cá nhân:
+  // - Tổng data đã gửi: TOÀN BỘ data người này đã nhập trong khoảng ngày đang lọc (theo ngày nhập).
+  // - Số đơn Sale đã chốt / Doanh thu: lấy ĐÚNG theo tổng từ các Nguồn đang phụ trách (closedLeads
+  //   ở trên, lọc theo Ngày chốt) — KHÔNG giới hạn phải cùng lô nhập trong khoảng ngày đó, vì đơn
+  //   chốt có thể đến từ data nhập trước đó rồi Sale mới xử lý xong sau.
+  // - Tỉ lệ chốt đơn = Số đơn đã chốt (từ Nguồn) / Tổng data đã gửi (trong khoảng ngày).
+  const totalSubmitted = computeMktPersonConversionStats(u.id, mktRevenueDateFrom, mktRevenueDateTo).total;
+  const totalOrdersFromSources = closedLeads.length;
+  const totalRevenueFromSources = closedLeads.reduce((sum,l)=>sum+(Number(l.closedAmount)||0),0);
+  const overallRate = totalSubmitted>0 ? (totalOrdersFromSources/totalSubmitted*100) : 0;
+  document.getElementById('mktRevenuePersonalTotal').textContent = totalSubmitted;
+  document.getElementById('mktRevenuePersonalOrders').textContent = totalOrdersFromSources;
+  document.getElementById('mktRevenuePersonalRevenue').textContent = fmtMoney(totalRevenueFromSources) + ' đ';
+  document.getElementById('mktRevenuePersonalRate').textContent = overallRate.toFixed(1) + '%';
 
   // 1 hộp số liệu riêng cho từng Nguồn được gán — so khớp CHÍNH XÁC theo tên, không gộp nhóm.
   // Các hộp này luôn tính theo TOÀN BỘ (chỉ áp dụng bộ lọc ngày), không bị ảnh hưởng bởi 2 bộ
