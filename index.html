@@ -929,14 +929,18 @@
             <div class="stat-box"><div class="stat-label">Tổng diễn viên đã thuê</div><div class="stat-value" id="vsOverviewStatActors">0</div></div>
             <div class="stat-box"><div class="stat-label">Tổng chi phí</div><div class="stat-value" id="vsOverviewStatCost">0 đ</div></div>
           </div>
-          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportVideoShootsOverview()">⬇️ Xuất Excel</button>
-          <div class="table-wrap"><table id="vsOverviewTable" class="rtable"></table></div>
         </div>
 
         <div class="card">
           <h2 style="margin-top:0;">Tổng hợp theo diễn viên</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Số buổi/số video của từng diễn viên trong khoảng ngày đang lọc ở trên (Diễn viên chính: tính theo số buổi được chọn làm chính · Diễn viên phụ: tính theo số video, khớp với cách tính tiền 20.000đ/video)</p>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Diễn viên chính: ghi rõ từng ngày trong tháng đã làm chính, ví dụ Lan (2) (4) (9) nghĩa là làm chính vào ngày 2, 4, 9 · Diễn viên phụ: tính theo tổng số video (khớp cách tính tiền 20.000đ/video) · Tổng tiền tính theo đúng khoảng ngày đang lọc ở trên.</p>
           <div class="table-wrap"><table id="vsByActorTable" class="rtable"></table></div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:0;">Chi tiết từng buổi quay</h2>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportVideoShootsOverview()">⬇️ Xuất Excel</button>
+          <div class="table-wrap"><table id="vsOverviewTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -2027,34 +2031,43 @@ function renderVideoShootsOverviewPage(){
   // Bảng tổng hợp theo diễn viên — số BUỔI (không phải số video) mỗi diễn viên tham gia, tách
   // riêng vai trò chính/phụ, trong đúng khoảng ngày đang lọc ở trên.
   const byActorTable = document.getElementById('vsByActorTable');
-  const actorStats = {}; // actorId -> {mainCount: số buổi làm chính, supportVideoCount: tổng số video làm phụ}
+  const actorStats = {}; // actorId -> {mainDays: [ngày trong tháng đã làm chính], supportVideoCount: tổng số video làm phụ}
   shoots.forEach(s=>{
+    const dayOfMonth = s.date ? parseInt(s.date.split('-')[2], 10) : null;
     (s.mainActorIds||[]).forEach(id=>{
-      actorStats[id] = actorStats[id] || {mainCount:0, supportVideoCount:0};
-      actorStats[id].mainCount++;
+      actorStats[id] = actorStats[id] || {mainDays:[], supportVideoCount:0};
+      if(dayOfMonth) actorStats[id].mainDays.push(dayOfMonth);
     });
     supportActorEntries(s).forEach(e=>{
-      actorStats[e.id] = actorStats[e.id] || {mainCount:0, supportVideoCount:0};
+      actorStats[e.id] = actorStats[e.id] || {mainDays:[], supportVideoCount:0};
       actorStats[e.id].supportVideoCount += e.count; // đếm ĐÚNG theo số video (khớp cách tính tiền 20.000đ/video)
     });
   });
-  const actorRows = Object.keys(actorStats).map(id=>({
-    name: actorName(id),
-    mainCount: actorStats[id].mainCount,
-    supportVideoCount: actorStats[id].supportVideoCount,
-  })).sort((a,b)=>(b.mainCount+b.supportVideoCount)-(a.mainCount+a.supportVideoCount));
+  const actorRows = Object.keys(actorStats).map(id=>{
+    const mainDays = actorStats[id].mainDays.slice().sort((a,b)=>a-b);
+    const supportVideoCount = actorStats[id].supportVideoCount;
+    const totalCost = mainDays.length*VIDEO_MAIN_ACTOR_FEE + supportVideoCount*VIDEO_SUPPORT_ACTOR_FEE;
+    return {
+      name: actorName(id),
+      mainDays,
+      supportVideoCount,
+      totalCost,
+    };
+  }).sort((a,b)=>b.totalCost-a.totalCost);
   if(actorRows.length===0){
     byActorTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu diễn viên nào phù hợp.</td></tr>';
   } else {
-    const totalMainCount = actorRows.reduce((sum,r)=>sum+r.mainCount,0);
+    const totalMainCount = actorRows.reduce((sum,r)=>sum+r.mainDays.length,0);
     const totalSupportVideoCount = actorRows.reduce((sum,r)=>sum+r.supportVideoCount,0);
-    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th class="num">Số buổi (Diễn viên chính)</th><th class="num">Số video (Diễn viên phụ)</th></tr></thead><tbody>` +
+    const totalCostAll = actorRows.reduce((sum,r)=>sum+r.totalCost,0);
+    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th>Diễn viên chính (ngày trong tháng)</th><th class="num">Số video (Diễn viên phụ)</th><th class="num">Tổng tiền</th></tr></thead><tbody>` +
       actorRows.map(r=>`<tr>
         <td data-label="Diễn viên">${r.name}</td>
-        <td class="num" data-label="Số buổi (Diễn viên chính)">${r.mainCount||'—'}</td>
+        <td data-label="Diễn viên chính (ngày trong tháng)">${r.mainDays.length ? r.mainDays.map(d=>`(${d})`).join(' ') : '—'}</td>
         <td class="num" data-label="Số video (Diễn viên phụ)">${r.supportVideoCount||'—'}</td>
+        <td class="num" data-label="Tổng tiền" style="font-weight:600; color:var(--success);">${fmtMoney(r.totalCost)} đ</td>
       </tr>`).join('') +
-      `<tr class="total-row"><td>TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalMainCount}</td><td class="num" style="font-weight:700;">${totalSupportVideoCount}</td></tr>` +
+      `<tr class="total-row"><td>TỔNG CỘNG</td><td>${totalMainCount} buổi chính</td><td class="num" style="font-weight:700;">${totalSupportVideoCount}</td><td class="num" style="font-weight:700;">${fmtMoney(totalCostAll)} đ</td></tr>` +
       `</tbody>`;
   }
 
