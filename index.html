@@ -3265,8 +3265,14 @@ function renderMyClosedLeads(){
       const rowStyle = isDup ? ' style="background:rgba(220,50,50,0.14);"' : '';
       let dupWarning = '';
       if(ownDup){
-        dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
-          <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
+        if(ownDup.status==='Đã chốt'){
+          // Data cũ CŨNG đã chốt rồi -> đây là khách MUA LẦN 2, không được gộp (gộp sẽ mất luôn
+          // doanh thu của lần mua trước) — chỉ tô đỏ cảnh báo để Sale biết mà thôi.
+          dupWarning = '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Khách đã mua lần trước — đây là lần mua thứ 2</div>';
+        } else {
+          dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
+            <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
+        }
       } else if(isDup){
         dupWarning = '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ SĐT đã có sẵn trong hệ thống</div>';
       }
