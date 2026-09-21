@@ -888,10 +888,12 @@
           <div class="grid-2" style="margin-bottom:10px;">
             <div class="field">
               <label>Diễn viên chính đã dùng (200.000đ/người)</label>
+              <input type="text" id="vsMainActorSearch" placeholder="🔍 Gõ tìm diễn viên..." oninput="filterVideoShootActorPicker('main')" style="margin-bottom:6px;">
               <div id="vsNewMainActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
             </div>
             <div class="field">
               <label>Diễn viên phụ đã dùng (20.000đ/video — 1 buổi có thể quay nhiều video)</label>
+              <input type="text" id="vsSupportActorSearch" placeholder="🔍 Gõ tìm diễn viên..." oninput="filterVideoShootActorPicker('support')" style="margin-bottom:6px;">
               <div id="vsNewSupportActorPicker" style="display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:var(--radius-s);"></div>
             </div>
           </div>
@@ -929,6 +931,12 @@
           </div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportVideoShootsOverview()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="vsOverviewTable" class="rtable"></table></div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:0;">Tổng hợp theo diễn viên</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Số buổi quay của từng diễn viên trong khoảng ngày đang lọc ở trên (Diễn viên chính: số buổi được chọn làm chính · Diễn viên phụ: số buổi có tham gia làm phụ, không tính theo số video)</p>
+          <div class="table-wrap"><table id="vsByActorTable" class="rtable"></table></div>
         </div>
       </div>
 
@@ -1153,18 +1161,6 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <input id="settingsNewActor" placeholder="Tên diễn viên mới">
               <button class="btn-ghost" onclick="settingsAddActor()">Thêm</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="settingsLeadStatusCard" style="display:none;">
-          <span class="history-link" onclick="toggleSettingsLeadStatusSection()" id="settingsLeadStatusToggle">Danh sách Tình trạng ▸</span>
-          <div id="settingsLeadStatusBody" style="display:none; margin-top:10px;">
-            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách "Tình trạng" dùng chung cho toàn bộ Sale/Quản lý chọn khi cập nhật data — thêm/sửa/xoá ở đây sẽ áp dụng cho mọi người ngay.</p>
-            <div id="settingsLeadStatusList" style="margin:12px 0;"></div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <input id="settingsNewLeadStatus" placeholder="Tình trạng mới">
-              <button class="btn-ghost" onclick="settingsAddLeadStatus()">Thêm</button>
             </div>
           </div>
         </div>
@@ -1406,14 +1402,13 @@ let state = {
   companyRules: {content: '', updatedAt: 0, updatedByName: ''}, // Nội quy & văn hoá công ty — 1 văn bản dùng chung cho cả công ty
   videoShoots: [], // Ghi nhận các buổi quay video của MKT + chi phí thuê diễn viên
   actors: [], // "Kho diễn viên" — Quản lý thêm vào, MKT tích chọn khi ghi buổi quay
-  leadStatusOptions: [], // Danh sách "Tình trạng" dùng chung — Quản lý tự thêm/sửa/xoá ở Cài đặt
   callAttemptOptions: [], // Danh sách "Gọi điện" dùng chung — Quản lý tự thêm/sửa/xoá ở Cài đặt
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbLeadStatusOptions, fbCallAttemptOptions;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1482,7 +1477,6 @@ function startFirebaseListeners(){
   fbVideoShoots = db.ref('videoShoots');
   fbActors = db.ref('actors');
   fbMktLegacyCounts = db.ref('mktLegacyCounts');
-  fbLeadStatusOptions = db.ref('leadStatusOptions');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
@@ -1507,17 +1501,6 @@ function startFirebaseListeners(){
   fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
   fbActors.on('value', snap=>{ state.actors = Object.values(snap.val()||{}); onDataChanged(); });
   fbMktLegacyCounts.on('value', snap=>{ state.mktLegacyCounts = Object.values(snap.val()||{}); onDataChanged(); });
-  fbLeadStatusOptions.once('value').then(snap=>{
-    if(!snap.exists()){
-      // Chưa có dữ liệu -> gieo sẵn đúng danh sách Tình trạng đang dùng cố định từ trước, để
-      // không ai bị mất tuỳ chọn đang quen dùng khi tính năng này mới bật lên.
-      const defaults = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
-      const seed = {};
-      defaults.forEach(name=>{ const id = uid(); seed[id] = {id, name}; });
-      fbLeadStatusOptions.set(seed);
-    }
-  });
-  fbLeadStatusOptions.on('value', snap=>{ state.leadStatusOptions = Object.values(snap.val()||{}); onDataChanged(); });
   fbCallAttemptOptions.once('value').then(snap=>{
     if(!snap.exists()){
       const defaults = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
@@ -1864,7 +1847,7 @@ function actorName(id){ const a = state.actors.find(x=>x.id===id); return a ? a.
 function actorCheckboxListHtml(containerName){
   if(state.actors.length===0) return '';
   return state.actors.slice().sort((a,b)=>a.name.localeCompare(b.name,'vi'))
-    .map(a=>`<label style="display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;"><input type="checkbox" name="${containerName}" value="${a.id}" style="width:auto; min-height:0;"> ${a.name}</label>`)
+    .map(a=>`<label data-actor-name="${a.name.toLowerCase()}" style="display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;"><input type="checkbox" name="${containerName}" value="${a.id}" style="width:auto; min-height:0;"> ${a.name}</label>`)
     .join('');
 }
 // Diễn viên phụ tính theo SỐ VIDEO (1 buổi có thể quay nhiều video, mỗi video 20.000đ/người) —
@@ -1872,10 +1855,21 @@ function actorCheckboxListHtml(containerName){
 function actorCountListHtml(){
   if(state.actors.length===0) return '';
   return state.actors.slice().sort((a,b)=>a.name.localeCompare(b.name,'vi'))
-    .map(a=>`<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13.5px;">
+    .map(a=>`<div data-actor-name="${a.name.toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13.5px;">
       <span>${a.name}</span>
       <input type="number" min="0" class="vsSupportActorCount" data-actor-id="${a.id}" placeholder="0" style="width:64px; min-height:32px; padding:4px 6px; font-size:13px;">
     </div>`).join('');
+}
+// Gõ tìm diễn viên trong picker — chỉ ẨN/HIỆN dòng qua CSS (không dựng lại HTML), để không làm
+// mất các ô đã tích chọn/đã nhập số khi đang lọc.
+function filterVideoShootActorPicker(kind){
+  const searchEl = document.getElementById(kind==='main' ? 'vsMainActorSearch' : 'vsSupportActorSearch');
+  const pickerEl = document.getElementById(kind==='main' ? 'vsNewMainActorPicker' : 'vsNewSupportActorPicker');
+  const query = searchEl.value.trim().toLowerCase();
+  Array.from(pickerEl.children).forEach(row=>{
+    const name = row.dataset.actorName || '';
+    row.style.display = (!query || name.includes(query)) ? '' : 'none';
+  });
 }
 function renderVideoShootActorPickers(){
   const mainEl = document.getElementById('vsNewMainActorPicker');
@@ -1905,7 +1899,12 @@ function addVideoShoot(){
   const u = currentUser();
   const dateEl = document.getElementById('vsNewDate');
   const noteEl = document.getElementById('vsNewNote');
-  const date = dateEl.value || todayStr();
+  if(!dateEl.value){
+    showToast('Vui lòng chọn Ngày quay trước khi gửi.');
+    dateEl.focus();
+    return;
+  }
+  const date = dateEl.value;
   const mainActorIds = Array.from(document.querySelectorAll('input[name="vsMainActor"]:checked')).map(el=>el.value);
   const supportActors = {};
   let supportVideoTotal = 0;
@@ -2024,6 +2023,36 @@ function renderVideoShootsOverviewPage(){
   document.getElementById('vsOverviewStatCount').textContent = shoots.length;
   document.getElementById('vsOverviewStatActors').textContent = totalActors;
   document.getElementById('vsOverviewStatCost').textContent = fmtMoney(totalCost) + ' đ';
+
+  // Bảng tổng hợp theo diễn viên — số BUỔI (không phải số video) mỗi diễn viên tham gia, tách
+  // riêng vai trò chính/phụ, trong đúng khoảng ngày đang lọc ở trên.
+  const byActorTable = document.getElementById('vsByActorTable');
+  const actorStats = {}; // actorId -> {mainCount, supportCount}
+  shoots.forEach(s=>{
+    (s.mainActorIds||[]).forEach(id=>{
+      actorStats[id] = actorStats[id] || {mainCount:0, supportCount:0};
+      actorStats[id].mainCount++;
+    });
+    supportActorEntries(s).forEach(e=>{
+      actorStats[e.id] = actorStats[e.id] || {mainCount:0, supportCount:0};
+      actorStats[e.id].supportCount++; // đếm SỐ BUỔI có tham gia, không cộng dồn theo số video
+    });
+  });
+  const actorRows = Object.keys(actorStats).map(id=>({
+    name: actorName(id),
+    mainCount: actorStats[id].mainCount,
+    supportCount: actorStats[id].supportCount,
+  })).sort((a,b)=>(b.mainCount+b.supportCount)-(a.mainCount+a.supportCount));
+  if(actorRows.length===0){
+    byActorTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu diễn viên nào phù hợp.</td></tr>';
+  } else {
+    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th class="num">Số buổi (Diễn viên chính)</th><th class="num">Số buổi (Diễn viên phụ)</th></tr></thead><tbody>` +
+      actorRows.map(r=>`<tr>
+        <td data-label="Diễn viên">${r.name}</td>
+        <td class="num" data-label="Số buổi (Diễn viên chính)">${r.mainCount||'—'}</td>
+        <td class="num" data-label="Số buổi (Diễn viên phụ)">${r.supportCount||'—'}</td>
+      </tr>`).join('') + `</tbody>`;
+  }
 
   const table = document.getElementById('vsOverviewTable');
   if(shoots.length===0){
@@ -2268,14 +2297,19 @@ function isEligibleTodayByAttendance(userId, date){
 // đương nhiên không thể có tên khách, nên không tính là thiếu sót).
 function isLeadUnprocessed(l){
   if(!l.status) return true;
-  if(l.status==='Không liên lạc được' || l.status==='không tìm thấy tk') return false;
+  if(l.status==='k liên lạc được' || l.status==='k tìm thấy tk') return false;
   return !l.customerName;
 }
-function hasUnprocessedBacklog(userId){
-  return state.leads.some(l=>l.assignedTo===userId && isLeadUnprocessed(l));
+function countUnprocessedBacklog(userId){
+  return state.leads.filter(l=>l.assignedTo===userId && isLeadUnprocessed(l)).length;
 }
-// Nếu bật khoá (state.enforceUnprocessedLock), người còn data CHƯA cập nhật tình trạng sẽ bị loại
-// khỏi vòng chia data mới, cho tới khi xử lý (cập nhật Tình trạng) hết toàn bộ data cũ đang có.
+function hasUnprocessedBacklog(userId){
+  // Đổi quy định: phải có TỪ 5 DATA CHƯA XỬ LÝ TRỞ LÊN mới bị coi là "tồn đọng" và bị loại khỏi
+  // vòng chia (khi bật khoá) — trước đây chỉ cần 1 data chưa xử lý là đã bị loại, giờ nới ra 5.
+  return countUnprocessedBacklog(userId) >= 5;
+}
+// Nếu bật khoá (state.enforceUnprocessedLock), người có TỪ 5 DATA CHƯA CẬP NHẬT TÌNH TRẠNG TRỞ
+// LÊN sẽ bị loại khỏi vòng chia data mới, cho tới khi xử lý bớt xuống dưới 5.
 function isEligibleForNewData(userId, date){
   if(!isEligibleTodayByAttendance(userId, date)) return false;
   if(state.enforceUnprocessedLock && hasUnprocessedBacklog(userId)) return false;
@@ -2469,7 +2503,9 @@ function checkinToday(){
 }
 // Danh sách "Tình trạng" giờ lấy động từ Firebase (Quản lý tự thêm/sửa/xoá ở Cài đặt) — hàm này
 // trả về mảng tên, luôn dùng thay cho việc gõ cứng danh sách như trước.
-function getLeadStatusNames(){ return state.leadStatusOptions.map(o=>o.name); }
+// Danh sách "Tình trạng" CỐ ĐỊNH — không cho chỉnh sửa nữa (đã chốt bộ tên cuối cùng, dùng luôn).
+const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không có nhu cầu','nhắn tin chưa gọi','k liên lạc được','k tìm thấy tk'];
+function getLeadStatusNames(){ return LEAD_STATUS_OPTIONS; }
 function statusFilterOptionsHtml(){
   return `<option value="">— Tất cả —</option><option value="__unprocessed__">Chưa xử lý</option>` +
     getLeadStatusNames().map(s=>`<option value="${s}">${s}</option>`).join('');
@@ -2482,10 +2518,10 @@ const LEAD_STATUS_COLORS = {
   'Đã liên hệ':          {bg:'#1F2547', color:'#93A4F0'},
   'Đang tư vấn':         {bg:'#3A2E12', color:'#E0AB53'},
   'Đã chốt':             {bg:'#123320', color:'#57C76A'},
-  'Không liên lạc được': {bg:'#2A1F3D', color:'#B083E0'},
+  'k liên lạc được':     {bg:'#2A1F3D', color:'#B083E0'},
   'Không có nhu cầu':    {bg:'#3A1519', color:'#EA6B6B'},
   'nhắn tin chưa gọi':   {bg:'#132A42', color:'#5B9FE0'},
-  'không tìm thấy tk':   {bg:'#0F2E33', color:'#3ECDD9'},
+  'k tìm thấy tk':       {bg:'#0F2E33', color:'#3ECDD9'},
 };
 function leadStatusStyle(status){
   const c = LEAD_STATUS_COLORS[status];
@@ -6198,50 +6234,6 @@ function deleteActorItem(actorId){
     showToast('Đã xoá diễn viên');
   });
 }
-function fbSetLeadStatusOption(o){ fbLeadStatusOptions.child(o.id).set(o); }
-function settingsAddLeadStatus(){
-  const input = document.getElementById('settingsNewLeadStatus');
-  const name = input.value.trim();
-  if(!name) return;
-  const exists = state.leadStatusOptions.some(o=>o.name.toLowerCase()===name.toLowerCase());
-  if(exists){ showToast('Tình trạng này đã có trong danh sách rồi'); return; }
-  const o = {id:uid(), name};
-  state.leadStatusOptions.push(o);
-  fbSetLeadStatusOption(o);
-  input.value='';
-  renderMgrSettings();
-  showToast('Đã thêm Tình trạng');
-}
-function renameLeadStatusItem(optId){
-  const o = state.leadStatusOptions.find(x=>x.id===optId);
-  if(!o) return;
-  const newName = prompt('Đổi tên Tình trạng:', o.name);
-  if(newName===null) return;
-  const trimmed = newName.trim();
-  if(!trimmed || trimmed===o.name) return;
-  const dup = state.leadStatusOptions.some(x=>x.id!==optId && x.name.toLowerCase()===trimmed.toLowerCase());
-  if(dup){ showToast('Đã có Tình trạng khác trùng tên này rồi'); return; }
-  const oldName = o.name;
-  o.name = trimmed;
-  fbSetLeadStatusOption(o);
-  renderMgrSettings();
-  showToast(`Đã đổi tên — lưu ý: data cũ đang ghi "${oldName}" sẽ KHÔNG tự đổi theo, chỉ áp dụng cho lựa chọn mới.`);
-}
-function deleteLeadStatusItem(optId){
-  const o = state.leadStatusOptions.find(x=>x.id===optId);
-  if(!o) return;
-  const usedByCount = state.leads.filter(l=>l.status===o.name).length;
-  askConfirm(
-    'Xoá Tình trạng?',
-    `Xoá "${o.name}" khỏi danh sách lựa chọn?${usedByCount>0?` Hiện có ${usedByCount} data đang ghi tình trạng này — data đó vẫn giữ nguyên, chỉ là không ai chọn lại được tình trạng này nữa.`:''}`,
-    ()=>{
-      state.leadStatusOptions = state.leadStatusOptions.filter(x=>x.id!==optId);
-      fbLeadStatusOptions.child(optId).remove();
-      renderMgrSettings();
-      showToast('Đã xoá Tình trạng');
-    }
-  );
-}
 function fbSetCallAttemptOption(o){ fbCallAttemptOptions.child(o.id).set(o); }
 function settingsAddCallAttempt(){
   const input = document.getElementById('settingsNewCallAttempt');
@@ -6375,11 +6367,6 @@ function toggleSettingsActorsSection(){
   settingsActorsOpen = !settingsActorsOpen;
   renderMgrSettings();
 }
-let settingsLeadStatusOpen = false;
-function toggleSettingsLeadStatusSection(){
-  settingsLeadStatusOpen = !settingsLeadStatusOpen;
-  renderMgrSettings();
-}
 let settingsCallAttemptOpen = false;
 function toggleSettingsCallAttemptSection(){
   settingsCallAttemptOpen = !settingsCallAttemptOpen;
@@ -6442,7 +6429,6 @@ function renderMgrSettings(){
   document.getElementById('settingsMktBranchSection').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsMktSourceCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsActorsCard').style.display = scope ? 'none' : 'block';
-  document.getElementById('settingsLeadStatusCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsCallAttemptCard').style.display = scope ? 'none' : 'block';
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
@@ -6516,25 +6502,6 @@ function renderMgrSettings(){
           </span>
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có diễn viên nào.</div>';
-    }
-
-    const leadStatusToggle = document.getElementById('settingsLeadStatusToggle');
-    leadStatusToggle.textContent = settingsLeadStatusOpen ? `Ẩn Danh sách Tình trạng (${state.leadStatusOptions.length}) ▾` : `Danh sách Tình trạng (${state.leadStatusOptions.length}) ▸`;
-    document.getElementById('settingsLeadStatusBody').style.display = settingsLeadStatusOpen ? 'block' : 'none';
-    if(settingsLeadStatusOpen){
-      const listEl = document.getElementById('settingsLeadStatusList');
-      const sorted = state.leadStatusOptions.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
-      listEl.innerHTML = sorted.map(o=>{
-        const usedByCount = state.leads.filter(l=>l.status===o.name).length;
-        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
-          <span>${o.name}</span>
-          <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-            <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} data`:''}</span>
-            <span style="cursor:pointer;" title="Sửa tên" onclick="renameLeadStatusItem('${o.id}')">✏️</span>
-            <span style="cursor:pointer;" title="Xoá" onclick="deleteLeadStatusItem('${o.id}')">🗑️</span>
-          </span>
-        </div>`;
-      }).join('') || '<div class="empty-note">Chưa có Tình trạng nào.</div>';
     }
 
     const callAttemptToggle = document.getElementById('settingsCallAttemptToggle');
