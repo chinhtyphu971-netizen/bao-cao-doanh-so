@@ -158,6 +158,10 @@
     background:var(--brand); color:#fff; border:none;
     align-items:center; justify-content:center; font-size:20px; cursor:pointer;
   }
+  #hamburgerBtn{ display:flex; } /* luôn hiện nút thu gọn/mở sidebar, kể cả trên máy tính */
+  @media (min-width:721px){
+    .sidebar.collapsed-desktop{ display:none; }
+  }
   .sidebar-backdrop{display:none;}
 
   .main{flex:1; min-width:0; padding: calc(24px + var(--safe-top)) 28px 40px; max-width:1100px;}
@@ -4610,6 +4614,7 @@ function enterApp(){
 
 function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
+  document.querySelector('.sidebar').classList.toggle('collapsed-desktop');
   document.getElementById('sidebarBackdrop').classList.toggle('show');
 }
 function closeSidebar(){
@@ -5396,6 +5401,14 @@ function scopeBranchId(){
   return (u && u.role==='team_manager') ? u.branchId : null;
 }
 let dashDateFrom = null, dashDateTo = null, dashPreset = 'yesterday';
+// Ẩn/hiện từng Team trong khối "Chưa nộp"/"Đã nộp" — mặc định thu gọn để thấy được nhiều Team
+// cùng lúc hơn (giống cách các mục dài tự thu gọn trên điện thoại), bấm vào mới xổ tên ra.
+let dashReminderOpenGroups = new Set();
+function toggleDashReminderGroup(key){
+  if(dashReminderOpenGroups.has(key)) dashReminderOpenGroups.delete(key);
+  else dashReminderOpenGroups.add(key);
+  renderMgrDashboard();
+}
 (function initDashDefault(){
   const [from, to] = dateRangeFor('yesterday');
   dashDateFrom = from; dashDateTo = to;
@@ -5503,7 +5516,7 @@ function renderMgrDashboard(){
   const listEl=document.getElementById('mgrReminderList');
   const submittedEl=document.getElementById('mgrSubmittedList');
 
-  function renderGrouped(users, badgeClass, emptyMsg){
+  function renderGrouped(users, badgeClass, emptyMsg, groupPrefix){
     if(users.length===0) return `<div class="empty-note">${emptyMsg}</div>`;
     const byBranchGroup={};
     users.forEach(u=>{
@@ -5512,11 +5525,17 @@ function renderMgrDashboard(){
       byBranchGroup[key].push(u);
     });
     const branchKeys=Object.keys(byBranchGroup).sort((a,b)=>branchName(a).localeCompare(branchName(b),'vi'));
-    return branchKeys.map(bId=>`
-      <div style="margin-bottom:10px;">
-        <div style="font-weight:600; font-size:13px; color:var(--ink-soft); margin-bottom:6px;">${branchName(bId)}</div>
-        <div>${byBranchGroup[bId].map(u=>`<span class="badge ${badgeClass}" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>
-      </div>`).join('');
+    return branchKeys.map(bId=>{
+      const groupKey = groupPrefix + '_' + bId;
+      const isOpen = dashReminderOpenGroups.has(groupKey);
+      return `
+      <div style="margin-bottom:6px;">
+        <div style="font-weight:600; font-size:13px; color:var(--ink-soft); margin-bottom:4px; cursor:pointer; display:flex; align-items:center; gap:4px;" onclick="toggleDashReminderGroup('${groupKey}')">
+          <span>${isOpen?'▾':'▸'}</span> ${branchName(bId)} <span style="color:var(--ink-soft); font-weight:400;">(${byBranchGroup[bId].length})</span>
+        </div>
+        ${isOpen ? `<div>${byBranchGroup[bId].map(u=>`<span class="badge ${badgeClass}" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
   }
 
   document.getElementById('notSubmittedCount').textContent = `(${notSubmitted.length})`;
@@ -5525,8 +5544,8 @@ function renderMgrDashboard(){
     listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
     submittedEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
   } else {
-    listEl.innerHTML = renderGrouped(notSubmitted, 'badge-warn', `Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)} 🎉`);
-    submittedEl.innerHTML = renderGrouped(submitted, 'badge-ok', `Chưa có ai nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}`);
+    listEl.innerHTML = renderGrouped(notSubmitted, 'badge-warn', `Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)} 🎉`, 'notsub');
+    submittedEl.innerHTML = renderGrouped(submitted, 'badge-ok', `Chưa có ai nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}`, 'sub');
   }
 
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
