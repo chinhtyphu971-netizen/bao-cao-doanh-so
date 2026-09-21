@@ -933,7 +933,7 @@
 
         <div class="card">
           <h2 style="margin-top:0;">Tổng hợp theo diễn viên</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Diễn viên chính: ghi rõ từng ngày trong tháng đã làm chính, ví dụ Lan (2) (4) (9) nghĩa là làm chính vào ngày 2, 4, 9 · Diễn viên phụ: tính theo tổng số video (khớp cách tính tiền 20.000đ/video) · Tổng tiền tính theo đúng khoảng ngày đang lọc ở trên.</p>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Diễn viên chính: có cột riêng đếm tổng số buổi, kèm cột ghi rõ từng ngày trong tháng, ví dụ (2) (4) (9) nghĩa là làm chính vào ngày 2, 4, 9 · Diễn viên phụ: tính theo tổng số video (khớp cách tính tiền 20.000đ/video) · Tổng tiền tính theo đúng khoảng ngày đang lọc ở trên.</p>
           <div class="table-wrap"><table id="vsByActorTable" class="rtable"></table></div>
         </div>
 
@@ -2060,14 +2060,15 @@ function renderVideoShootsOverviewPage(){
     const totalMainCount = actorRows.reduce((sum,r)=>sum+r.mainDays.length,0);
     const totalSupportVideoCount = actorRows.reduce((sum,r)=>sum+r.supportVideoCount,0);
     const totalCostAll = actorRows.reduce((sum,r)=>sum+r.totalCost,0);
-    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th>Diễn viên chính (ngày trong tháng)</th><th class="num">Số video (Diễn viên phụ)</th><th class="num">Tổng tiền</th></tr></thead><tbody>` +
+    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th class="num">Số buổi (Diễn viên chính)</th><th>Ngày quay chính (trong tháng)</th><th class="num">Số video (Diễn viên phụ)</th><th class="num">Tổng tiền</th></tr></thead><tbody>` +
       actorRows.map(r=>`<tr>
         <td data-label="Diễn viên">${r.name}</td>
-        <td data-label="Diễn viên chính (ngày trong tháng)">${r.mainDays.length ? r.mainDays.map(d=>`(${d})`).join(' ') : '—'}</td>
+        <td class="num" data-label="Số buổi (Diễn viên chính)" style="font-weight:600;">${r.mainDays.length||'—'}</td>
+        <td data-label="Ngày quay chính (trong tháng)">${r.mainDays.length ? r.mainDays.map(d=>`(${d})`).join(' ') : '—'}</td>
         <td class="num" data-label="Số video (Diễn viên phụ)">${r.supportVideoCount||'—'}</td>
         <td class="num" data-label="Tổng tiền" style="font-weight:600; color:var(--success);">${fmtMoney(r.totalCost)} đ</td>
       </tr>`).join('') +
-      `<tr class="total-row"><td>TỔNG CỘNG</td><td>${totalMainCount} buổi chính</td><td class="num" style="font-weight:700;">${totalSupportVideoCount}</td><td class="num" style="font-weight:700;">${fmtMoney(totalCostAll)} đ</td></tr>` +
+      `<tr class="total-row"><td>TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalMainCount}</td><td></td><td class="num" style="font-weight:700;">${totalSupportVideoCount}</td><td class="num" style="font-weight:700;">${fmtMoney(totalCostAll)} đ</td></tr>` +
       `</tbody>`;
   }
 
