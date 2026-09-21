@@ -198,7 +198,7 @@
   table{width:auto; border-collapse:collapse; font-size:11.5px;}
   #myLeadsTable, #personLeadsTable, #mgrLeadsListTable{width:auto; min-width:0;}
   #myLeadsTable td{font-weight:600; color:var(--ink); font-size:12.5px;}
-  th,td{text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  th,td{text-align:left; padding:4px 5px; border-bottom:1px solid var(--line); white-space:nowrap;}
   thead th{
     position:sticky; top:0; z-index:3;
     background:var(--panel); box-shadow:0 1px 0 var(--line);
@@ -2035,7 +2035,7 @@ function applyCallFilter(leads, selectId){
 function callAttemptFieldHtml(l, afterChangeJs){
   const current = l.callAttempt || '';
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
-  return `<select style="width:130px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','callAttempt',this.value)${after}">
+  return `<select style="width:105px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','callAttempt',this.value)${after}">
     <option value="" ${current===''?'selected':''}>Chưa gọi</option>
     ${CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}" ${current===o?'selected':''}>${o}</option>`).join('')}
   </select>`;
@@ -2481,7 +2481,7 @@ function leadClosedDateFieldHtml(l){
 }
 function leadClosedAmountFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
-  return `<input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null)">`;
+  return `<input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:3px 5px; font-size:12px; width:92px;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null)">`;
 }
 function leadSource(lead){
   if(lead.source) return lead.source;
@@ -3007,16 +3007,16 @@ function renderMyLeads(){
       const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
-      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
+      <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
-          <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
+          <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
           <span class="copy-icon" style="white-space:nowrap;" onclick="copyText(document.getElementById('custName_${l.id}').value,'Đã copy tên khách')">📋</span>
         </div>
       </td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;'; renderMyLeads();">
+        <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;'; renderMyLeads();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
@@ -3049,7 +3049,7 @@ function leadSourceEditableHtml(l){
   const u = currentUser();
   const isManagerRole = u && (u.role==='team_manager' || u.role==='data_manager' || u.role==='general_manager');
   if(!l.manualEntry){
-    return `<div style="display:flex; align-items:center; gap:6px;"><span style="max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:12px;" title="${current}">${current}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${current.replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div>`;
+    return `<div style="display:flex; align-items:center; gap:6px;"><span style="max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:12px;" title="${current}">${current}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${current.replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div>`;
   }
   if(l.sourceLockedByManager && !isManagerRole){
     return `<div style="display:flex; align-items:center; gap:4px;" title="Quản lý đã điều chỉnh Nguồn này — không tự sửa lại được nữa"><span style="font-size:12px;">${current}</span><span style="font-size:11px;">🔒</span></div>`;
@@ -3057,7 +3057,7 @@ function leadSourceEditableHtml(l){
   const onchangeCall = isManagerRole
     ? `updateLeadSourceByManager('${l.id}', this.value)`
     : `updateLeadField('${l.id}','source',this.value)`;
-  return `<select style="min-height:30px; padding:4px 6px; font-size:12px; width:125px;" onchange="${onchangeCall}">${mktSourceOptionsHtml(current==='—'?'':current)}</select>`;
+  return `<select style="min-height:30px; padding:3px 5px; font-size:12px; width:100px;" onchange="${onchangeCall}">${mktSourceOptionsHtml(current==='—'?'':current)}</select>`;
 }
 // Quản lý sửa Nguồn -> khoá luôn, nhân viên không tự sửa lại được nữa (xem hàm trên).
 function updateLeadSourceByManager(leadId, value){
@@ -3149,9 +3149,9 @@ function renderMyClosedLeads(){
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
-        ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; ${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
+        ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:3px 5px; font-size:12px; width:98px; ${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
         : `${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:120px; min-height:30px; padding:4px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:100px; min-height:30px; padding:3px 5px; font-size:12px;" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
@@ -3229,11 +3229,11 @@ function renderSelfLeadsTable(){
       <td data-label="STT">${idx+1}</td>
       <td data-label="SĐT / Link FB">
         <div style="display:flex; align-items:center; gap:6px;">
-          <input type="text" id="selfPhone_${l.id}" value="${l.phone||''}" placeholder="SĐT hoặc link FB" style="width:150px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)">
+          <input type="text" id="selfPhone_${l.id}" value="${l.phone||''}" placeholder="SĐT hoặc link FB" style="width:135px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)">
           <span class="copy-icon" onclick="copyText(document.getElementById('selfPhone_${l.id}').value,'Đã copy')">📋</span>
         </div>
       </td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:120px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','customerName',this.value)"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:100px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateSelfLeadField('${l.id}','customerName',this.value)"></td>
       <td data-label="Nguồn">
         <select style="min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','source',this.value)">
           <option value="" ${!l.source?'selected':''}>— Chọn —</option>
@@ -3246,7 +3246,7 @@ function renderSelfLeadsTable(){
           ${SELF_LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
-      <td data-label="Ghi chú"><input type="text" value="${l.note||''}" placeholder="Ghi chú..." style="width:160px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateSelfLeadField('${l.id}','note',this.value)"></td>
+      <td data-label="Ghi chú"><input type="text" value="${l.note||''}" placeholder="Ghi chú..." style="width:135px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateSelfLeadField('${l.id}','note',this.value)"></td>
       <td><span class="copy-icon" title="Xoá dòng" onclick="deleteSelfLeadRow('${l.id}')">🗑️</span></td>
     </tr>`).join('') + `</tbody>`;
 }
@@ -3456,9 +3456,9 @@ function renderPersonLeadsPage(){
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderPersonLeadsPage();"></td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); renderPersonLeadsPage();">
+        <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); renderPersonLeadsPage();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
@@ -3616,9 +3616,9 @@ function renderMgrLeadsList(){
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Người nhận">${l.assignedToName ? l.assignedToName : '<span class="badge badge-warn">Chưa chia</span>'}</td>
       <td data-label="Người gửi">${senderLabel}</td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:130px; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderMgrLeadsList();"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value); renderMgrLeadsList();"></td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:150px; min-width:0; min-height:30px; padding:4px 8px; font-size:13px;" onchange="updateLeadStatus('${l.id}',this.value); renderMgrLeadsList();">
+        <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); renderMgrLeadsList();">
           <option value="">— Chọn —</option>
           ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
