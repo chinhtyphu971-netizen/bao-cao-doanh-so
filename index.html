@@ -828,6 +828,8 @@
             <div class="field" style="max-width:180px;"><label>Lọc theo Gọi điện</label><select id="mktMyLeadsCallFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
+          <span class="history-link" onclick="toggleMktMyLeadsStatsByDay()" id="mktMyLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
+          <div id="mktMyLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktMyLeadsList()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mktMyLeadsTable" class="rtable"></table></div>
         </div>
@@ -2761,9 +2763,22 @@ function applyMktLeadsCustomRange(){
   });
   renderMktMyLeadsList();
 }
+function toggleMktMyLeadsStatsByDay(){
+  const body = document.getElementById('mktMyLeadsStatsByDay');
+  const btn = document.getElementById('mktMyLeadsStatsToggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
+  if(!isOpen) renderMktMyLeadsList();
+}
 function renderMktMyLeadsList(){
   const u = currentUser();
   ensureStatusFilterPopulated('mktMyLeadsStatusFilter');
+
+  if(document.getElementById('mktMyLeadsStatsByDay').style.display !== 'none'){
+    const allMine = state.leads.filter(l=>l.createdBy===u.id);
+    renderMktStatsByDayInto('mktMyLeadsStatsByDay', allMine);
+  }
 
   let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
 
