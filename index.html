@@ -934,6 +934,7 @@
         <div class="card">
           <h2 style="margin-top:0;">Tổng hợp theo diễn viên</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Diễn viên chính: có cột riêng đếm tổng số buổi, kèm cột ghi rõ từng ngày trong tháng, ví dụ (2) (4) (9) nghĩa là làm chính vào ngày 2, 4, 9 · Diễn viên phụ: tính theo tổng số video (khớp cách tính tiền 20.000đ/video) · Tổng tiền tính theo đúng khoảng ngày đang lọc ở trên.</p>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportVideoShootsByActor()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="vsByActorTable" class="rtable"></table></div>
         </div>
 
@@ -2054,6 +2055,7 @@ function renderVideoShootsOverviewPage(){
       totalCost,
     };
   }).sort((a,b)=>b.totalCost-a.totalCost);
+  lastFilteredVideoShootsByActor = actorRows; // lưu lại cho nút Xuất Excel
   if(actorRows.length===0){
     byActorTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu diễn viên nào phù hợp.</td></tr>';
   } else {
@@ -2109,6 +2111,23 @@ function exportVideoShootsOverview(){
     {key:'ghiChu', header:'Note diễn viên'},
     {key:'themLuc', header:'Thêm lúc'},
   ], `chi-phi-quay-video-${todayStr()}.xlsx`);
+}
+let lastFilteredVideoShootsByActor = [];
+function exportVideoShootsByActor(){
+  const rows = lastFilteredVideoShootsByActor.map(r=>({
+    dienVien: r.name,
+    soBuoiChinh: r.mainDays.length,
+    ngayQuayChinh: r.mainDays.map(d=>`(${d})`).join(' '),
+    soVideoPhu: r.supportVideoCount,
+    tongTien: r.totalCost,
+  }));
+  exportRowsToExcel(rows, [
+    {key:'dienVien', header:'Diễn viên'},
+    {key:'soBuoiChinh', header:'Số buổi (Diễn viên chính)'},
+    {key:'ngayQuayChinh', header:'Ngày quay chính (trong tháng)'},
+    {key:'soVideoPhu', header:'Số video (Diễn viên phụ)'},
+    {key:'tongTien', header:'Tổng tiền'},
+  ], `tong-hop-theo-dien-vien-${todayStr()}.xlsx`);
 }
 // Ô "Gọi điện" — theo dõi đã gọi khách lần mấy, cạnh ô Tình trạng. Mặc định "Chưa gọi" (giá trị
 // rỗng), chọn dần lên "Gọi lần 1/2/3" hoặc đánh dấu "Không có nhu cầu" nếu khách từ chối hẳn.
