@@ -3260,8 +3260,9 @@ function renderMyClosedLeads(){
         : '';
       // Chỉ dòng TỰ NHẬP TAY (manualEntry) mới cần kiểm tra trùng SĐT — SĐT của data hệ thống tự
       // chia thì luôn là duy nhất sẵn rồi (đã có luật riêng khi phân bổ), không cần kiểm tra lại.
+      // CHỈ so trong data của CHÍNH Sale này, không so chéo với data của Sale khác trong hệ thống.
       const ownDup = l.manualEntry && l.phone ? findOwnDuplicateLead(l.phone, l.id) : null;
-      const isDup = ownDup || (l.manualEntry && l.phone && isPhoneDuplicateElsewhere(l.phone, l.id));
+      const isDup = !!ownDup;
       const rowStyle = isDup ? ' style="background:rgba(220,50,50,0.14);"' : '';
       let dupWarning = '';
       if(ownDup){
@@ -3273,8 +3274,6 @@ function renderMyClosedLeads(){
           dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
             <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
         }
-      } else if(isDup){
-        dupWarning = '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ SĐT đã có sẵn trong hệ thống</div>';
       }
       return `<tr${rowStyle}>
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
@@ -3288,15 +3287,6 @@ function renderMyClosedLeads(){
     </tr>`;
     }).join('') + `</tbody>`;
 }
-// Kiểm tra SĐT đã tồn tại ở lead KHÁC nào ĐANG Ở TRẠNG THÁI "Đã chốt" trong hệ thống chưa (trừ
-// chính dòng đang sửa) — CHỈ so với các đơn đã chốt khác, không so với toàn bộ kho data (data
-// đang chờ xử lý/đang tư vấn không tính là trùng), tránh báo giả khi trùng SĐT với 1 data khác
-// còn đang xử lý bình thường trong hệ thống — cái cần tránh là trùng với 1 đơn ĐÃ CHỐT khác.
-function isPhoneDuplicateElsewhere(phone, excludeLeadId){
-  const norm = normalizePhone(phone);
-  if(!norm) return false;
-  return state.leads.some(l=>l.id!==excludeLeadId && l.status==='Đã chốt' && normalizePhone(leadPhone(l))===norm);
-}
 // Tìm xem SĐT vừa gõ có TRÙNG với 1 data KHÁC đang nằm sẵn trong chính danh sách của người này
 // không (bất kể trạng thái gì — Đã liên hệ, Đang tư vấn...), để gợi ý GỘP thẳng vào data cũ thay
 // vì tạo thêm 1 dòng mới trùng lặp cùng 1 khách.
@@ -3309,10 +3299,10 @@ function findOwnDuplicateLead(phone, excludeLeadId){
 function onManualClosedPhoneChange(leadId, value){
   updateLeadField(leadId, 'phone', value);
   const ownDup = findOwnDuplicateLead(value, leadId);
-  if(ownDup){
+  if(ownDup && ownDup.status==='Đã chốt'){
+    showToast('⚠️ SĐT này đã từng được bạn chốt trước đó — đây là lần mua thứ 2 của khách, dòng sẽ được tô đỏ để lưu ý.');
+  } else if(ownDup){
     showToast(`⚠️ SĐT này đã có sẵn trong data của chính bạn (đang ở "${ownDup.status||'Chưa cập nhật'}") — có thể bấm "🔗 Gộp vào data có sẵn" để khỏi bị trùng 2 dòng.`);
-  } else if(isPhoneDuplicateElsewhere(value, leadId)){
-    showToast('⚠️ SĐT này đã có sẵn trong hệ thống — dòng sẽ được tô đỏ để anh/chị kiểm tra lại, nếu chắc chắn đúng vẫn có thể giữ nguyên.');
   }
   renderMyClosedLeads();
 }
