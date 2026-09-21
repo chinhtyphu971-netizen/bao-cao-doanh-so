@@ -540,6 +540,7 @@
             <div class="toolbar" style="margin-top:14px;">
               <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMyLeads()"></div>
               <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="myLeadsStatusFilter" onchange="renderMyLeads()"></select></div>
+              <div class="field" style="max-width:180px;"><label>Lọc theo Gọi điện</label><select id="myLeadsCallFilter" onchange="renderMyLeads()"></select></div>
             </div>
             <div class="table-wrap"><table id="myLeadsTable" class="rtable"></table></div>
           </div>
@@ -824,6 +825,7 @@
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktMyLeadsSourceFilter" onchange="renderMktMyLeadsList()"></select></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo Người nhận</label><select id="mktMyLeadsAssigneeFilter" onchange="renderMktMyLeadsList()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Gọi điện</label><select id="mktMyLeadsCallFilter" onchange="renderMktMyLeadsList()"></select></div>
           </div>
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktMyLeadsList()">⬇️ Xuất Excel</button>
@@ -938,6 +940,7 @@
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Gọi điện</label><select id="mgrLeadsListCallFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:140px;"><label>Số dòng/trang</label>
               <select id="mgrLeadsListPageSize" onchange="onMgrLeadsListFilterChange()">
                 <option value="20">20</option>
@@ -1067,6 +1070,7 @@
           <div class="toolbar" style="margin-top:14px; margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="personLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderPersonLeadsPage()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="personLeadsStatusFilter" onchange="renderPersonLeadsPage()"></select></div>
+            <div class="field" style="max-width:180px;"><label>Lọc theo Gọi điện</label><select id="personLeadsCallFilter" onchange="renderPersonLeadsPage()"></select></div>
           </div>
           <div class="table-wrap"><table id="personLeadsPageTable" class="rtable"></table></div>
         </div>
@@ -2001,6 +2005,20 @@ function exportVideoShootsOverview(){
 // Ô "Gọi điện" — theo dõi đã gọi khách lần mấy, cạnh ô Tình trạng. Mặc định "Chưa gọi" (giá trị
 // rỗng), chọn dần lên "Gọi lần 1/2/3" hoặc đánh dấu "Không có nhu cầu" nếu khách từ chối hẳn.
 const CALL_ATTEMPT_OPTIONS = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
+// Đổ sẵn danh sách chọn cho ô "Lọc theo Gọi điện" — dùng chung ở mọi nơi có cột Gọi điện.
+function ensureCallFilterPopulated(selectId){
+  const sel = document.getElementById(selectId);
+  if(sel.dataset.filled) return;
+  sel.innerHTML = '<option value="">— Tất cả —</option><option value="__none__">Chưa gọi</option>' +
+    CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}">${o}</option>`).join('');
+  sel.dataset.filled = '1';
+}
+function applyCallFilter(leads, selectId){
+  const val = document.getElementById(selectId).value;
+  if(val==='__none__') return leads.filter(l=>!l.callAttempt);
+  if(val) return leads.filter(l=>l.callAttempt===val);
+  return leads;
+}
 function callAttemptFieldHtml(l, afterChangeJs){
   const current = l.callAttempt || '';
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
@@ -2031,6 +2049,17 @@ function legacyDataCountFor(personId, dateFrom, dateTo){
     sum += entry.count;
   });
   return sum;
+}
+// Giống legacyDataCountFor nhưng chỉ tính riêng cho 1 Nguồn cụ thể — dùng cho từng ô Nguồn.
+function legacyDataCountForSource(personId, source, dateFrom, dateTo){
+  const entry = state.mktLegacyCounts.find(e=>e.userId===personId && e.source===source);
+  if(!entry || !entry.count) return 0;
+  if(!dateFrom && !dateTo) return entry.count;
+  const from = entry.fromDate || '0000-01-01';
+  const to = entry.toDate || '9999-12-31';
+  if(dateTo && from > dateTo) return 0;
+  if(dateFrom && to < dateFrom) return 0;
+  return entry.count;
 }
 function computeMktPersonConversionStats(personId, dateFrom, dateTo){
   let leads = state.leads.filter(l=>l.createdBy===personId);
@@ -2787,6 +2816,8 @@ function renderMktMyLeadsList(){
   } else if(assigneeFilter){
     leads = leads.filter(l=>l.assignedToName===assigneeFilter);
   }
+  ensureCallFilterPopulated('mktMyLeadsCallFilter');
+  leads = applyCallFilter(leads, 'mktMyLeadsCallFilter');
 
   document.getElementById('mktMyLeadsSummary').textContent = `${leads.length} data` +
     (mktLeadsDateFrom || mktLeadsDateTo ? ` — từ ${mktLeadsDateFrom?fmtDate(mktLeadsDateFrom):'...'} đến ${mktLeadsDateTo?fmtDate(mktLeadsDateTo):'...'}` : '');
@@ -2935,6 +2966,8 @@ function renderMyLeads(){
   } else if(statusFilter){
     allMyLeads = allMyLeads.filter(l=>l.status===statusFilter);
   }
+  ensureCallFilterPopulated('myLeadsCallFilter');
+  allMyLeads = applyCallFilter(allMyLeads, 'myLeadsCallFilter');
 
   const table=document.getElementById('myLeadsTable');
   if(allMyLeads.length===0){
@@ -3378,6 +3411,8 @@ function renderPersonLeadsPage(){
   } else if(statusFilter){
     leads = leads.filter(l=>l.status===statusFilter);
   }
+  ensureCallFilterPopulated('personLeadsCallFilter');
+  leads = applyCallFilter(leads, 'personLeadsCallFilter');
 
   document.getElementById('personLeadsPageTitle').textContent = `Data của ${u.name}`;
   const periodText = (leadStatsDateFrom||leadStatsDateTo)
@@ -3498,6 +3533,8 @@ function renderMgrLeadsList(){
   if(sourceFilter){
     leads = leads.filter(l=>leadSource(l)===sourceFilter);
   }
+  ensureCallFilterPopulated('mgrLeadsListCallFilter');
+  leads = applyCallFilter(leads, 'mgrLeadsListCallFilter');
 
   const unassignedCount = leads.filter(l=>!l.assignedTo).length;
   const unprocessedCount = leads.filter(l=>l.assignedTo && isLeadUnprocessed(l)).length; // chỉ tính data ĐÃ chia mà Sale chưa cập nhật, không tính chung với data chưa chia
@@ -5002,12 +5039,34 @@ function renderMktRevenuePage(){
   document.getElementById('mktRevenuePersonalRate').textContent = overallRate.toFixed(1) + '%';
 
   // 1 hộp số liệu riêng cho từng Nguồn được gán — so khớp CHÍNH XÁC theo tên, không gộp nhóm.
-  // Các hộp này luôn tính theo TOÀN BỘ (chỉ áp dụng bộ lọc ngày), không bị ảnh hưởng bởi 2 bộ
-  // lọc Nguồn/Sale bên dưới, để giữ nguyên bức tranh tổng quan theo từng Nguồn.
+  // Mỗi hộp hiện đủ 4 số liệu giống hệt hộp tổng ở trên (Tổng data/Số đơn chốt/Doanh thu/Tỉ lệ
+  // chốt), nhưng tính RIÊNG cho đúng Nguồn đó. Các hộp này luôn tính theo TOÀN BỘ (chỉ áp dụng
+  // bộ lọc ngày), không bị ảnh hưởng bởi 2 bộ lọc Nguồn/Sale bên dưới.
   boxesEl.innerHTML = mySources.map(srcName=>{
     const mine = closedLeads.filter(l=>leadSource(l)===srcName);
     const amount = mine.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
-    return `<div class="stat-box"><div class="stat-label">${srcName}</div><div class="stat-value">${fmtMoney(amount)} đ</div><div style="color:var(--ink-soft); font-size:12.5px; margin-top:4px;">${mine.length} đơn chốt</div></div>`;
+
+    let totalForSource = state.leads.filter(l=>leadSource(l)===srcName);
+    if(mktRevenueDateFrom || mktRevenueDateTo){
+      totalForSource = totalForSource.filter(l=>{
+        const d = toLocalDateStr(new Date(l.importedAt||0));
+        if(mktRevenueDateFrom && d < mktRevenueDateFrom) return false;
+        if(mktRevenueDateTo && d > mktRevenueDateTo) return false;
+        return true;
+      });
+    }
+    const totalCount = totalForSource.length + legacyDataCountForSource(u.id, srcName, mktRevenueDateFrom, mktRevenueDateTo);
+    const rate = totalCount>0 ? (mine.length/totalCount*100) : 0;
+
+    return `<div class="stat-box">
+      <div class="stat-label">${srcName}</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px;">
+        <div><div style="font-size:11px; color:var(--ink-soft);">Tổng data</div><div style="font-weight:700; font-size:16px;">${totalCount}</div></div>
+        <div><div style="font-size:11px; color:var(--ink-soft);">Số đơn chốt</div><div style="font-weight:700; font-size:16px;">${mine.length}</div></div>
+        <div><div style="font-size:11px; color:var(--ink-soft);">Doanh thu</div><div style="font-weight:700; font-size:16px; color:var(--success);">${fmtMoney(amount)} đ</div></div>
+        <div><div style="font-size:11px; color:var(--ink-soft);">Tỉ lệ chốt</div><div style="font-weight:700; font-size:16px;">${rate.toFixed(1)}%</div></div>
+      </div>
+    </div>`;
   }).join('');
 
   // Đổ danh sách chọn cho 2 bộ lọc Nguồn/Sale (chỉ đổ lại khi cần, tránh mất lựa chọn đang chọn)
