@@ -935,7 +935,7 @@
 
         <div class="card">
           <h2 style="margin-top:0;">Tổng hợp theo diễn viên</h2>
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Số buổi quay của từng diễn viên trong khoảng ngày đang lọc ở trên (Diễn viên chính: số buổi được chọn làm chính · Diễn viên phụ: số buổi có tham gia làm phụ, không tính theo số video)</p>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-6px;">Số buổi/số video của từng diễn viên trong khoảng ngày đang lọc ở trên (Diễn viên chính: tính theo số buổi được chọn làm chính · Diễn viên phụ: tính theo số video, khớp với cách tính tiền 20.000đ/video)</p>
           <div class="table-wrap"><table id="vsByActorTable" class="rtable"></table></div>
         </div>
       </div>
@@ -2027,31 +2027,35 @@ function renderVideoShootsOverviewPage(){
   // Bảng tổng hợp theo diễn viên — số BUỔI (không phải số video) mỗi diễn viên tham gia, tách
   // riêng vai trò chính/phụ, trong đúng khoảng ngày đang lọc ở trên.
   const byActorTable = document.getElementById('vsByActorTable');
-  const actorStats = {}; // actorId -> {mainCount, supportCount}
+  const actorStats = {}; // actorId -> {mainCount: số buổi làm chính, supportVideoCount: tổng số video làm phụ}
   shoots.forEach(s=>{
     (s.mainActorIds||[]).forEach(id=>{
-      actorStats[id] = actorStats[id] || {mainCount:0, supportCount:0};
+      actorStats[id] = actorStats[id] || {mainCount:0, supportVideoCount:0};
       actorStats[id].mainCount++;
     });
     supportActorEntries(s).forEach(e=>{
-      actorStats[e.id] = actorStats[e.id] || {mainCount:0, supportCount:0};
-      actorStats[e.id].supportCount++; // đếm SỐ BUỔI có tham gia, không cộng dồn theo số video
+      actorStats[e.id] = actorStats[e.id] || {mainCount:0, supportVideoCount:0};
+      actorStats[e.id].supportVideoCount += e.count; // đếm ĐÚNG theo số video (khớp cách tính tiền 20.000đ/video)
     });
   });
   const actorRows = Object.keys(actorStats).map(id=>({
     name: actorName(id),
     mainCount: actorStats[id].mainCount,
-    supportCount: actorStats[id].supportCount,
-  })).sort((a,b)=>(b.mainCount+b.supportCount)-(a.mainCount+a.supportCount));
+    supportVideoCount: actorStats[id].supportVideoCount,
+  })).sort((a,b)=>(b.mainCount+b.supportVideoCount)-(a.mainCount+a.supportVideoCount));
   if(actorRows.length===0){
     byActorTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu diễn viên nào phù hợp.</td></tr>';
   } else {
-    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th class="num">Số buổi (Diễn viên chính)</th><th class="num">Số buổi (Diễn viên phụ)</th></tr></thead><tbody>` +
+    const totalMainCount = actorRows.reduce((sum,r)=>sum+r.mainCount,0);
+    const totalSupportVideoCount = actorRows.reduce((sum,r)=>sum+r.supportVideoCount,0);
+    byActorTable.innerHTML = `<thead><tr><th>Diễn viên</th><th class="num">Số buổi (Diễn viên chính)</th><th class="num">Số video (Diễn viên phụ)</th></tr></thead><tbody>` +
       actorRows.map(r=>`<tr>
         <td data-label="Diễn viên">${r.name}</td>
         <td class="num" data-label="Số buổi (Diễn viên chính)">${r.mainCount||'—'}</td>
-        <td class="num" data-label="Số buổi (Diễn viên phụ)">${r.supportCount||'—'}</td>
-      </tr>`).join('') + `</tbody>`;
+        <td class="num" data-label="Số video (Diễn viên phụ)">${r.supportVideoCount||'—'}</td>
+      </tr>`).join('') +
+      `<tr class="total-row"><td>TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalMainCount}</td><td class="num" style="font-weight:700;">${totalSupportVideoCount}</td></tr>` +
+      `</tbody>`;
   }
 
   const table = document.getElementById('vsOverviewTable');
