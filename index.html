@@ -3269,7 +3269,7 @@ function renderMyClosedLeads(){
         if(ownDup.status==='Đã chốt'){
           // Data cũ CŨNG đã chốt rồi -> đây là khách MUA LẦN 2, không được gộp (gộp sẽ mất luôn
           // doanh thu của lần mua trước) — chỉ tô đỏ cảnh báo để Sale biết mà thôi.
-          dupWarning = '<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Khách đã mua lần trước — đây là lần mua thứ 2</div>';
+          dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Khách đã mua lần trước — đây là lần mua thứ ${purchaseNumberForLead(l, u.id)}</div>`;
         } else {
           dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
             <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
@@ -3296,11 +3296,29 @@ function findOwnDuplicateLead(phone, excludeLeadId){
   const u = currentUser();
   return state.leads.find(l=>l.id!==excludeLeadId && l.assignedTo===u.id && normalizePhone(leadPhone(l))===norm) || null;
 }
+// Đếm ĐÚNG đây là lần mua thứ mấy của khách (theo đúng SĐT, trong data của chính Sale này) —
+// xếp theo thứ tự Ngày chốt (rồi tới thời điểm nhập nếu trùng ngày), trả về số thứ tự 1,2,3...
+// thay vì lúc nào cũng ghi cứng "lần thứ 2".
+function purchaseNumberForLead(lead, userId){
+  const norm = normalizePhone(leadPhone(lead));
+  if(!norm) return 1;
+  const sameGroup = state.leads.filter(x=>x.assignedTo===userId && x.status==='Đã chốt' && normalizePhone(leadPhone(x))===norm);
+  sameGroup.sort((a,b)=>{
+    const da = a.closedDate || '';
+    const db = b.closedDate || '';
+    if(da !== db) return da.localeCompare(db);
+    return (a.createdAt||a.importedAt||0) - (b.createdAt||b.importedAt||0);
+  });
+  const idx = sameGroup.findIndex(x=>x.id===lead.id);
+  return idx>=0 ? idx+1 : sameGroup.length+1;
+}
 function onManualClosedPhoneChange(leadId, value){
   updateLeadField(leadId, 'phone', value);
   const ownDup = findOwnDuplicateLead(value, leadId);
   if(ownDup && ownDup.status==='Đã chốt'){
-    showToast('⚠️ SĐT này đã từng được bạn chốt trước đó — đây là lần mua thứ 2 của khách, dòng sẽ được tô đỏ để lưu ý.');
+    const lead = state.leads.find(l=>l.id===leadId);
+    const num = lead ? purchaseNumberForLead(lead, lead.assignedTo) : 2;
+    showToast(`⚠️ SĐT này đã từng được bạn chốt trước đó — đây là lần mua thứ ${num} của khách, dòng sẽ được tô đỏ để lưu ý.`);
   } else if(ownDup){
     showToast(`⚠️ SĐT này đã có sẵn trong data của chính bạn (đang ở "${ownDup.status||'Chưa cập nhật'}") — có thể bấm "🔗 Gộp vào data có sẵn" để khỏi bị trùng 2 dòng.`);
   }
