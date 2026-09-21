@@ -566,7 +566,6 @@
             <div id="myClosedLeadsSummary" style="color:var(--ink-soft); font-size:13.5px; margin-bottom:6px;"></div>
             <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
               <button class="btn-primary btn-small" onclick="addManualClosedLead()">+ Thêm dòng</button>
-              <button class="btn-ghost btn-small" onclick="exportMyClosedLeads()">⬇️ Xuất Excel</button>
             </div>
             <div class="field" style="max-width:280px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myClosedLeadsSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMyClosedLeads()"></div>
             <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
@@ -839,7 +838,6 @@
           <div id="mktMyLeadsSummary" style="color:var(--ink-soft); font-size:13px; margin-bottom:6px;"></div>
           <span class="history-link" onclick="toggleMktMyLeadsStatsByDay()" id="mktMyLeadsStatsToggle">Xem thống kê theo ngày ▸</span>
           <div id="mktMyLeadsStatsByDay" style="display:none; margin-top:10px; margin-bottom:10px;"></div>
-          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktMyLeadsList()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="mktMyLeadsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -871,7 +869,6 @@
           </div>
           <div id="mktRevenueSourceBoxes" class="grid-3" style="margin-bottom:14px;"></div>
           <div id="mktRevenueSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
-          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMktRevenue()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
           <div class="table-wrap"><table id="mktRevenueTable" class="rtable"></table></div>
         </div>
       </div>
