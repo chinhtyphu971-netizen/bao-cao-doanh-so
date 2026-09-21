@@ -1157,6 +1157,30 @@
           </div>
         </div>
 
+        <div class="card" id="settingsLeadStatusCard" style="display:none;">
+          <span class="history-link" onclick="toggleSettingsLeadStatusSection()" id="settingsLeadStatusToggle">Danh sách Tình trạng ▸</span>
+          <div id="settingsLeadStatusBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách "Tình trạng" dùng chung cho toàn bộ Sale/Quản lý chọn khi cập nhật data — thêm/sửa/xoá ở đây sẽ áp dụng cho mọi người ngay.</p>
+            <div id="settingsLeadStatusList" style="margin:12px 0;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="settingsNewLeadStatus" placeholder="Tình trạng mới">
+              <button class="btn-ghost" onclick="settingsAddLeadStatus()">Thêm</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="settingsCallAttemptCard" style="display:none;">
+          <span class="history-link" onclick="toggleSettingsCallAttemptSection()" id="settingsCallAttemptToggle">Danh sách Gọi điện ▸</span>
+          <div id="settingsCallAttemptBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Danh sách "Gọi điện" dùng chung — thêm/sửa/xoá ở đây sẽ áp dụng cho mọi người ngay (lựa chọn mặc định "Chưa gọi" luôn có sẵn, không cần thêm).</p>
+            <div id="settingsCallAttemptList" style="margin:12px 0;"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="settingsNewCallAttempt" placeholder="Lựa chọn Gọi điện mới">
+              <button class="btn-ghost" onclick="settingsAddCallAttempt()">Thêm</button>
+            </div>
+          </div>
+        </div>
+
         <div class="grid-2">
           <div class="card">
             <h2>Team Sale</h2>
@@ -1382,12 +1406,14 @@ let state = {
   companyRules: {content: '', updatedAt: 0, updatedByName: ''}, // Nội quy & văn hoá công ty — 1 văn bản dùng chung cho cả công ty
   videoShoots: [], // Ghi nhận các buổi quay video của MKT + chi phí thuê diễn viên
   actors: [], // "Kho diễn viên" — Quản lý thêm vào, MKT tích chọn khi ghi buổi quay
+  leadStatusOptions: [], // Danh sách "Tình trạng" dùng chung — Quản lý tự thêm/sửa/xoá ở Cài đặt
+  callAttemptOptions: [], // Danh sách "Gọi điện" dùng chung — Quản lý tự thêm/sửa/xoá ở Cài đặt
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbLeadStatusOptions, fbCallAttemptOptions;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1456,6 +1482,8 @@ function startFirebaseListeners(){
   fbVideoShoots = db.ref('videoShoots');
   fbActors = db.ref('actors');
   fbMktLegacyCounts = db.ref('mktLegacyCounts');
+  fbLeadStatusOptions = db.ref('leadStatusOptions');
+  fbCallAttemptOptions = db.ref('callAttemptOptions');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
   fbChatNotify = db.ref('chatNotify');
@@ -1479,6 +1507,26 @@ function startFirebaseListeners(){
   fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
   fbActors.on('value', snap=>{ state.actors = Object.values(snap.val()||{}); onDataChanged(); });
   fbMktLegacyCounts.on('value', snap=>{ state.mktLegacyCounts = Object.values(snap.val()||{}); onDataChanged(); });
+  fbLeadStatusOptions.once('value').then(snap=>{
+    if(!snap.exists()){
+      // Chưa có dữ liệu -> gieo sẵn đúng danh sách Tình trạng đang dùng cố định từ trước, để
+      // không ai bị mất tuỳ chọn đang quen dùng khi tính năng này mới bật lên.
+      const defaults = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
+      const seed = {};
+      defaults.forEach(name=>{ const id = uid(); seed[id] = {id, name}; });
+      fbLeadStatusOptions.set(seed);
+    }
+  });
+  fbLeadStatusOptions.on('value', snap=>{ state.leadStatusOptions = Object.values(snap.val()||{}); onDataChanged(); });
+  fbCallAttemptOptions.once('value').then(snap=>{
+    if(!snap.exists()){
+      const defaults = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
+      const seed = {};
+      defaults.forEach(name=>{ const id = uid(); seed[id] = {id, name}; });
+      fbCallAttemptOptions.set(seed);
+    }
+  });
+  fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
   fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -2017,13 +2065,15 @@ function exportVideoShootsOverview(){
 }
 // Ô "Gọi điện" — theo dõi đã gọi khách lần mấy, cạnh ô Tình trạng. Mặc định "Chưa gọi" (giá trị
 // rỗng), chọn dần lên "Gọi lần 1/2/3" hoặc đánh dấu "Không có nhu cầu" nếu khách từ chối hẳn.
-const CALL_ATTEMPT_OPTIONS = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
+// Danh sách "Gọi điện" giờ lấy động từ Firebase (Quản lý tự thêm/sửa/xoá ở Cài đặt) — hàm này
+// trả về mảng tên, luôn dùng thay cho việc gõ cứng danh sách như trước.
+function getCallAttemptNames(){ return state.callAttemptOptions.map(o=>o.name); }
 // Đổ sẵn danh sách chọn cho ô "Lọc theo Gọi điện" — dùng chung ở mọi nơi có cột Gọi điện.
 function ensureCallFilterPopulated(selectId){
   const sel = document.getElementById(selectId);
   if(sel.dataset.filled) return;
   sel.innerHTML = '<option value="">— Tất cả —</option><option value="__none__">Chưa gọi</option>' +
-    CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}">${o}</option>`).join('');
+    getCallAttemptNames().map(o=>`<option value="${o}">${o}</option>`).join('');
   sel.dataset.filled = '1';
 }
 function applyCallFilter(leads, selectId){
@@ -2037,7 +2087,7 @@ function callAttemptFieldHtml(l, afterChangeJs){
   const after = afterChangeJs ? `; ${afterChangeJs}` : '';
   return `<select style="width:105px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','callAttempt',this.value)${after}">
     <option value="" ${current===''?'selected':''}>Chưa gọi</option>
-    ${CALL_ATTEMPT_OPTIONS.map(o=>`<option value="${o}" ${current===o?'selected':''}>${o}</option>`).join('')}
+    ${getCallAttemptNames().map(o=>`<option value="${o}" ${current===o?'selected':''}>${o}</option>`).join('')}
   </select>`;
 }
 // Tính 4 số liệu hiệu quả của 1 người MKT: Tổng data đã gửi (lọc theo ngày NHẬP — importedAt),
@@ -2417,10 +2467,12 @@ function checkinToday(){
   showToast('Đã điểm danh đi làm hôm nay');
   renderMyLeads();
 }
-const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không liên lạc được','Không có nhu cầu','nhắn tin chưa gọi','không tìm thấy tk'];
+// Danh sách "Tình trạng" giờ lấy động từ Firebase (Quản lý tự thêm/sửa/xoá ở Cài đặt) — hàm này
+// trả về mảng tên, luôn dùng thay cho việc gõ cứng danh sách như trước.
+function getLeadStatusNames(){ return state.leadStatusOptions.map(o=>o.name); }
 function statusFilterOptionsHtml(){
   return `<option value="">— Tất cả —</option><option value="__unprocessed__">Chưa xử lý</option>` +
-    LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}">${s}</option>`).join('');
+    getLeadStatusNames().map(s=>`<option value="${s}">${s}</option>`).join('');
 }
 function ensureStatusFilterPopulated(selectId){
   const sel = document.getElementById(selectId);
@@ -3018,7 +3070,7 @@ function renderMyLeads(){
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;'; renderMyLeads();">
           <option value="">— Chọn —</option>
-          ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+          ${getLeadStatusNames().map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
       <td data-label="Gọi điện">${callAttemptFieldHtml(l)}</td>
@@ -3460,7 +3512,7 @@ function renderPersonLeadsPage(){
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); renderPersonLeadsPage();">
           <option value="">— Chọn —</option>
-          ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+          ${getLeadStatusNames().map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
       <td data-label="Gọi điện">${callAttemptFieldHtml(l, 'renderPersonLeadsPage()')}</td>
@@ -3620,7 +3672,7 @@ function renderMgrLeadsList(){
       <td data-label="Tình trạng">
         <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); renderMgrLeadsList();">
           <option value="">— Chọn —</option>
-          ${LEAD_STATUS_OPTIONS.map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+          ${getLeadStatusNames().map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </td>
       <td data-label="Gọi điện">${callAttemptFieldHtml(l, 'renderMgrLeadsList()')}</td>
@@ -6146,6 +6198,94 @@ function deleteActorItem(actorId){
     showToast('Đã xoá diễn viên');
   });
 }
+function fbSetLeadStatusOption(o){ fbLeadStatusOptions.child(o.id).set(o); }
+function settingsAddLeadStatus(){
+  const input = document.getElementById('settingsNewLeadStatus');
+  const name = input.value.trim();
+  if(!name) return;
+  const exists = state.leadStatusOptions.some(o=>o.name.toLowerCase()===name.toLowerCase());
+  if(exists){ showToast('Tình trạng này đã có trong danh sách rồi'); return; }
+  const o = {id:uid(), name};
+  state.leadStatusOptions.push(o);
+  fbSetLeadStatusOption(o);
+  input.value='';
+  renderMgrSettings();
+  showToast('Đã thêm Tình trạng');
+}
+function renameLeadStatusItem(optId){
+  const o = state.leadStatusOptions.find(x=>x.id===optId);
+  if(!o) return;
+  const newName = prompt('Đổi tên Tình trạng:', o.name);
+  if(newName===null) return;
+  const trimmed = newName.trim();
+  if(!trimmed || trimmed===o.name) return;
+  const dup = state.leadStatusOptions.some(x=>x.id!==optId && x.name.toLowerCase()===trimmed.toLowerCase());
+  if(dup){ showToast('Đã có Tình trạng khác trùng tên này rồi'); return; }
+  const oldName = o.name;
+  o.name = trimmed;
+  fbSetLeadStatusOption(o);
+  renderMgrSettings();
+  showToast(`Đã đổi tên — lưu ý: data cũ đang ghi "${oldName}" sẽ KHÔNG tự đổi theo, chỉ áp dụng cho lựa chọn mới.`);
+}
+function deleteLeadStatusItem(optId){
+  const o = state.leadStatusOptions.find(x=>x.id===optId);
+  if(!o) return;
+  const usedByCount = state.leads.filter(l=>l.status===o.name).length;
+  askConfirm(
+    'Xoá Tình trạng?',
+    `Xoá "${o.name}" khỏi danh sách lựa chọn?${usedByCount>0?` Hiện có ${usedByCount} data đang ghi tình trạng này — data đó vẫn giữ nguyên, chỉ là không ai chọn lại được tình trạng này nữa.`:''}`,
+    ()=>{
+      state.leadStatusOptions = state.leadStatusOptions.filter(x=>x.id!==optId);
+      fbLeadStatusOptions.child(optId).remove();
+      renderMgrSettings();
+      showToast('Đã xoá Tình trạng');
+    }
+  );
+}
+function fbSetCallAttemptOption(o){ fbCallAttemptOptions.child(o.id).set(o); }
+function settingsAddCallAttempt(){
+  const input = document.getElementById('settingsNewCallAttempt');
+  const name = input.value.trim();
+  if(!name) return;
+  const exists = state.callAttemptOptions.some(o=>o.name.toLowerCase()===name.toLowerCase());
+  if(exists){ showToast('Lựa chọn này đã có trong danh sách rồi'); return; }
+  const o = {id:uid(), name};
+  state.callAttemptOptions.push(o);
+  fbSetCallAttemptOption(o);
+  input.value='';
+  renderMgrSettings();
+  showToast('Đã thêm lựa chọn Gọi điện');
+}
+function renameCallAttemptItem(optId){
+  const o = state.callAttemptOptions.find(x=>x.id===optId);
+  if(!o) return;
+  const newName = prompt('Đổi tên lựa chọn Gọi điện:', o.name);
+  if(newName===null) return;
+  const trimmed = newName.trim();
+  if(!trimmed || trimmed===o.name) return;
+  const dup = state.callAttemptOptions.some(x=>x.id!==optId && x.name.toLowerCase()===trimmed.toLowerCase());
+  if(dup){ showToast('Đã có lựa chọn khác trùng tên này rồi'); return; }
+  const oldName = o.name;
+  o.name = trimmed;
+  fbSetCallAttemptOption(o);
+  renderMgrSettings();
+  showToast(`Đã đổi tên — lưu ý: data cũ đang ghi "${oldName}" sẽ KHÔNG tự đổi theo.`);
+}
+function deleteCallAttemptItem(optId){
+  const o = state.callAttemptOptions.find(x=>x.id===optId);
+  if(!o) return;
+  const usedByCount = state.leads.filter(l=>l.callAttempt===o.name).length;
+  askConfirm(
+    'Xoá lựa chọn Gọi điện?',
+    `Xoá "${o.name}" khỏi danh sách lựa chọn?${usedByCount>0?` Hiện có ${usedByCount} data đang ghi lựa chọn này — data đó vẫn giữ nguyên, chỉ là không ai chọn lại được nữa.`:''}`,
+    ()=>{
+      state.callAttemptOptions = state.callAttemptOptions.filter(x=>x.id!==optId);
+      fbCallAttemptOptions.child(optId).remove();
+      renderMgrSettings();
+      showToast('Đã xoá lựa chọn Gọi điện');
+    }
+  );
+}
 function settingsImportExistingMktSources(){
   // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
   // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
@@ -6235,6 +6375,16 @@ function toggleSettingsActorsSection(){
   settingsActorsOpen = !settingsActorsOpen;
   renderMgrSettings();
 }
+let settingsLeadStatusOpen = false;
+function toggleSettingsLeadStatusSection(){
+  settingsLeadStatusOpen = !settingsLeadStatusOpen;
+  renderMgrSettings();
+}
+let settingsCallAttemptOpen = false;
+function toggleSettingsCallAttemptSection(){
+  settingsCallAttemptOpen = !settingsCallAttemptOpen;
+  renderMgrSettings();
+}
 let teamsTrashOpen = false;
 function toggleSettingsTeamsTrash(){
   teamsTrashOpen = !teamsTrashOpen;
@@ -6292,6 +6442,8 @@ function renderMgrSettings(){
   document.getElementById('settingsMktBranchSection').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsMktSourceCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsActorsCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsLeadStatusCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsCallAttemptCard').style.display = scope ? 'none' : 'block';
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
     mktListEl.innerHTML = state.mktBranches.map(b=>{
@@ -6364,6 +6516,44 @@ function renderMgrSettings(){
           </span>
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có diễn viên nào.</div>';
+    }
+
+    const leadStatusToggle = document.getElementById('settingsLeadStatusToggle');
+    leadStatusToggle.textContent = settingsLeadStatusOpen ? `Ẩn Danh sách Tình trạng (${state.leadStatusOptions.length}) ▾` : `Danh sách Tình trạng (${state.leadStatusOptions.length}) ▸`;
+    document.getElementById('settingsLeadStatusBody').style.display = settingsLeadStatusOpen ? 'block' : 'none';
+    if(settingsLeadStatusOpen){
+      const listEl = document.getElementById('settingsLeadStatusList');
+      const sorted = state.leadStatusOptions.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
+      listEl.innerHTML = sorted.map(o=>{
+        const usedByCount = state.leads.filter(l=>l.status===o.name).length;
+        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
+          <span>${o.name}</span>
+          <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} data`:''}</span>
+            <span style="cursor:pointer;" title="Sửa tên" onclick="renameLeadStatusItem('${o.id}')">✏️</span>
+            <span style="cursor:pointer;" title="Xoá" onclick="deleteLeadStatusItem('${o.id}')">🗑️</span>
+          </span>
+        </div>`;
+      }).join('') || '<div class="empty-note">Chưa có Tình trạng nào.</div>';
+    }
+
+    const callAttemptToggle = document.getElementById('settingsCallAttemptToggle');
+    callAttemptToggle.textContent = settingsCallAttemptOpen ? `Ẩn Danh sách Gọi điện (${state.callAttemptOptions.length}) ▾` : `Danh sách Gọi điện (${state.callAttemptOptions.length}) ▸`;
+    document.getElementById('settingsCallAttemptBody').style.display = settingsCallAttemptOpen ? 'block' : 'none';
+    if(settingsCallAttemptOpen){
+      const listEl = document.getElementById('settingsCallAttemptList');
+      const sorted = state.callAttemptOptions.slice().sort((a,b2)=>a.name.localeCompare(b2.name,'vi'));
+      listEl.innerHTML = sorted.map(o=>{
+        const usedByCount = state.leads.filter(l=>l.callAttempt===o.name).length;
+        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);">
+          <span>${o.name}</span>
+          <span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <span style="color:var(--ink-soft); font-size:12.5px;">${usedByCount>0?`${usedByCount} data`:''}</span>
+            <span style="cursor:pointer;" title="Sửa tên" onclick="renameCallAttemptItem('${o.id}')">✏️</span>
+            <span style="cursor:pointer;" title="Xoá" onclick="deleteCallAttemptItem('${o.id}')">🗑️</span>
+          </span>
+        </div>`;
+      }).join('') || '<div class="empty-note">Chưa có lựa chọn nào.</div>';
     }
   }
 
