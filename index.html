@@ -5046,7 +5046,9 @@ function renderMktRevenuePage(){
     const mine = closedLeads.filter(l=>leadSource(l)===srcName);
     const amount = mine.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
 
-    let totalForSource = state.leads.filter(l=>leadSource(l)===srcName);
+    // "Tổng data" tính đúng theo data CHÍNH NGƯỜI NÀY đã gửi với Nguồn đó (không tính data
+    // người khác cũng dùng chung tên Nguồn) — để khớp logic với ô tổng "Tổng data đã gửi" ở trên.
+    let totalForSource = state.leads.filter(l=>l.createdBy===u.id && leadSource(l)===srcName);
     if(mktRevenueDateFrom || mktRevenueDateTo){
       totalForSource = totalForSource.filter(l=>{
         const d = toLocalDateStr(new Date(l.importedAt||0));
