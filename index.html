@@ -1785,7 +1785,7 @@ function exportMktManagerStats(){
     chuaXuLy: r.unprocessed,
     soDonChot: r.orders,
     doanhThu: r.revenue,
-    tiLeChot: r.rate.toFixed(1) + '%',
+    tiLeChot: r.rate.toFixed(2) + '%',
   }));
   exportRowsToExcel(rows, [
     {key:'ten', header:'Tên'},
@@ -2711,7 +2711,7 @@ function renderMktManagerStats(){
   document.getElementById('mktMgrStatPending').textContent = totalUnprocessed;
   document.getElementById('mktMgrStatOrders').textContent = totalOrders;
   document.getElementById('mktMgrStatRevenue').textContent = fmtMoney(totalRevenue) + ' đ';
-  document.getElementById('mktMgrStatRate').textContent = avgRate.toFixed(1) + '%';
+  document.getElementById('mktMgrStatRate').textContent = avgRate.toFixed(2) + '%';
 
   const table = document.getElementById('mktManagerStatsTable');
   if(teamMembers.length===0){
@@ -2740,7 +2740,7 @@ function renderMktManagerStats(){
       <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
       <td class="num" data-label="Số đơn chốt">${r.orders}</td>
       <td class="num" data-label="Doanh thu" style="font-weight:600; color:var(--success);">${fmtMoney(r.revenue)} đ</td>
-      <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(1)}%</td>
+      <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(2)}%</td>
     </tr>`).join('') + `</tbody>`;
 }
 
@@ -4800,7 +4800,7 @@ function renderMktOverviewPage(){
   document.getElementById('mktOverviewStatUnprocessed').textContent = totalUnprocessed;
   document.getElementById('mktOverviewStatOrders').textContent = totalOrders;
   document.getElementById('mktOverviewStatRevenue').textContent = fmtMoney(totalRevenue) + ' đ';
-  document.getElementById('mktOverviewStatRate').textContent = avgRate.toFixed(1) + '%';
+  document.getElementById('mktOverviewStatRate').textContent = avgRate.toFixed(2) + '%';
 
   if(document.getElementById('mktOverviewStatsByDay').style.display !== 'none'){
     renderMktStatsByDayInto('mktOverviewStatsByDay', allLeads);
@@ -4863,7 +4863,7 @@ function renderMktOverviewPage(){
           <td class="num" data-label="Chưa xử lý (Sale)">${r.unprocessed}</td>
           <td class="num" data-label="Số đơn chốt">${r.orders}</td>
           <td class="num" data-label="Doanh thu" style="font-weight:600; color:var(--success);">${fmtMoney(r.revenue)} đ</td>
-          <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(1)}%</td>
+          <td class="num" data-label="Tỉ lệ chốt">${r.rate.toFixed(2)}%</td>
         </tr>`).join('') || '<tr><td class="empty-note">Team chưa có ai.</td></tr>'}
         </tbody></table>
       </div>` : '';
@@ -4888,7 +4888,7 @@ function exportMktOverview(){
     chuaXuLy: r.unprocessed,
     soDonChot: r.orders,
     doanhThu: r.revenue,
-    tiLeChot: r.rate.toFixed(1) + '%',
+    tiLeChot: r.rate.toFixed(2) + '%',
   }));
   exportRowsToExcel(rows, [
     {key:'team', header:'Team MKT'},
@@ -4953,7 +4953,7 @@ function renderMktPersonDetail(){
   const revenue = closedStats.revenue;
   const rate = mine.length>0 ? (orders/mine.length*100) : 0;
   document.getElementById('mktPersonDetailSummary').textContent =
-    `${mine.length} data đã nhập · ${assigned} đã chia cho Sale · ${unprocessed} chưa xử lý · ${orders} đơn chốt (theo Nguồn) · ${fmtMoney(revenue)} đ doanh thu · Tỉ lệ chốt ${rate.toFixed(1)}%`;
+    `${mine.length} data đã nhập · ${assigned} đã chia cho Sale · ${unprocessed} chưa xử lý · ${orders} đơn chốt (theo Nguồn) · ${fmtMoney(revenue)} đ doanh thu · Tỉ lệ chốt ${rate.toFixed(2)}%`;
 
   const table = document.getElementById('mktPersonDetailTable');
   if(mine.length===0){
@@ -5051,7 +5051,7 @@ function renderMktRevenuePage(){
   document.getElementById('mktRevenuePersonalTotal').textContent = totalSubmitted;
   document.getElementById('mktRevenuePersonalOrders').textContent = totalOrdersFromSources;
   document.getElementById('mktRevenuePersonalRevenue').textContent = fmtMoney(totalRevenueFromSources) + ' đ';
-  document.getElementById('mktRevenuePersonalRate').textContent = overallRate.toFixed(1) + '%';
+  document.getElementById('mktRevenuePersonalRate').textContent = overallRate.toFixed(2) + '%';
 
   // 1 hộp số liệu riêng cho từng Nguồn được gán — so khớp CHÍNH XÁC theo tên, không gộp nhóm.
   // Mỗi hộp hiện đủ 4 số liệu giống hệt hộp tổng ở trên (Tổng data/Số đơn chốt/Doanh thu/Tỉ lệ
@@ -5081,7 +5081,7 @@ function renderMktRevenuePage(){
         <div><div style="font-size:11px; color:var(--ink-soft);">Tổng data</div><div style="font-weight:700; font-size:16px;">${totalCount}</div></div>
         <div><div style="font-size:11px; color:var(--ink-soft);">Số đơn chốt</div><div style="font-weight:700; font-size:16px;">${mine.length}</div></div>
         <div><div style="font-size:11px; color:var(--ink-soft);">Doanh thu</div><div style="font-weight:700; font-size:16px; color:var(--success);">${fmtMoney(amount)} đ</div></div>
-        <div><div style="font-size:11px; color:var(--ink-soft);">Tỉ lệ chốt</div><div style="font-weight:700; font-size:16px;">${rate.toFixed(1)}%</div></div>
+        <div><div style="font-size:11px; color:var(--ink-soft);">Tỉ lệ chốt</div><div style="font-weight:700; font-size:16px;">${rate.toFixed(2)}%</div></div>
       </div>
     </div>`;
   }).join('');
