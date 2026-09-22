@@ -4285,13 +4285,16 @@ function sendChatMessage(){
 }
 // Quét các nút chat đang hiển thị trên trang, kiểm tra tin nhắn mới nhất của từng cuộc trò chuyện
 // so với lần đọc gần nhất của MÌNH — nếu có tin mới chưa đọc (không phải do mình gửi) thì gắn chấm đỏ.
+// Sau khi vẽ xong 1 bảng có nút Chat, hàm này: (1) đánh dấu chấm đỏ cho các cuộc trò chuyện
+// đang có tin nhắn CHƯA ĐỌC, và (2) đẩy chính DÒNG đó lên ĐẦU bảng (kể cả data của ngày trước
+// đó), để luôn thấy ngay không cần cuộn xuống — dù tin nhắn đó là của Sale hay MKT gửi.
 function refreshUnreadChatDots(){
   const me = currentUser();
   if(!me) return;
   const buttons = document.querySelectorAll('.chat-btn[data-conv]');
   if(buttons.length===0) return;
   const convIds = Array.from(new Set(Array.from(buttons).map(b=>b.dataset.conv)));
-  convIds.forEach(convId=>{
+  Promise.all(convIds.map(convId=>
     Promise.all([
       fbChats.child(convId).limitToLast(1).once('value'),
       fbChatReads.child(me.id).child(convId).once('value')
@@ -4299,13 +4302,41 @@ function refreshUnreadChatDots(){
       const msgs = Object.values(msgsSnap.val()||{});
       const last = msgs[0];
       const lastReadAt = readSnap.val() || 0;
-      const isUnread = last && last.senderId!==me.id && last.sentAt > lastReadAt;
+      const isUnread = !!(last && last.senderId!==me.id && last.sentAt > lastReadAt);
+      return {convId, isUnread, lastSentAt: last ? (last.sentAt||0) : 0};
+    }).catch(()=>({convId, isUnread:false, lastSentAt:0}))
+  )).then(results=>{
+    // Cập nhật chấm đỏ trên từng nút Chat như cũ.
+    results.forEach(({convId, isUnread})=>{
       document.querySelectorAll(`.chat-btn[data-conv="${convId}"]`).forEach(btn=>{
         const dotHtml = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--danger); margin-left:5px;"></span>';
         btn.innerHTML = '💬 Chat' + (isUnread ? dotHtml : '');
       });
-    }).catch(()=>{});
-  });
+    });
+    // Đẩy các DÒNG có tin nhắn chưa đọc lên đầu — tin mới nhất lên trước, không đụng tới thứ tự
+    // các dòng còn lại (đã đọc) với nhau. Xử lý riêng cho từng bảng (tbody) trên trang, vì 1
+    // trang có thể có nhiều bảng khác nhau đều có nút Chat.
+    const unreadConvIdsNewestFirst = results.filter(r=>r.isUnread).sort((a,b)=>b.lastSentAt-a.lastSentAt).map(r=>r.convId);
+    if(unreadConvIdsNewestFirst.length===0) return;
+    const tbodiesToReorder = new Set();
+    unreadConvIdsNewestFirst.forEach(convId=>{
+      const btn = document.querySelector(`.chat-btn[data-conv="${convId}"]`);
+      const tr = btn && btn.closest('tr');
+      if(tr && tr.parentNode) tbodiesToReorder.add(tr.parentNode);
+    });
+    tbodiesToReorder.forEach(tbody=>{
+      const rowsToMove = [];
+      unreadConvIdsNewestFirst.forEach(convId=>{
+        const btn = tbody.querySelector(`.chat-btn[data-conv="${convId}"]`);
+        const tr = btn && btn.closest('tr');
+        if(tr) rowsToMove.push(tr);
+      });
+      // Chèn theo thứ tự ngược (cũ nhất trước) để cuối cùng dòng có tin MỚI NHẤT nằm trên cùng.
+      rowsToMove.slice().reverse().forEach(tr=>{
+        tbody.insertBefore(tr, tbody.firstChild);
+      });
+    });
+  }).catch(()=>{});
 }
 function closeChatModal(){
   document.getElementById('chatModal').classList.remove('show');
