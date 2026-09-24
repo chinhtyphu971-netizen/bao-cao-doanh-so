@@ -338,6 +338,15 @@
   .detail-row .k{color:var(--ink-soft);}
   .detail-row .k.history-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .detail-row .v{font-weight:600; text-align:right;}
+  @media print{
+    .sidebar, .hamburger-btn, .sidebar-backdrop, .page-head, .no-print{ display:none !important; }
+    .main{ padding:0 !important; max-width:100% !important; }
+    .card{ border:none !important; box-shadow:none !important; padding:0 !important; }
+    body{ background:#fff !important; color:#000 !important; }
+    #invoicePrintArea select, #invoicePrintArea input{
+      border:none !important; background:transparent !important; color:#000 !important; -webkit-appearance:none; appearance:none;
+    }
+  }
 </style>
 </head>
 <body>
@@ -442,6 +451,7 @@
         <div class="nav-item" id="navPersonalToggle" onclick="toggleNavPersonalGroup()" style="display:none;"><span class="label" id="navPersonalToggleLabel">🗂️ Data của tôi ▸</span></div>
         <div id="navPersonalItems">
           <div class="nav-item" data-page="myLeads" onclick="goPage('myLeads')"><span class="label">🗂️ Data của tôi</span></div>
+          <div class="nav-item" data-page="invoices" onclick="goPage('invoices')"><span class="label">🧾 Hoá đơn</span></div>
           <div class="nav-item active" id="navItem_staffReport" data-page="staffReport" onclick="goPage('staffReport')"><span class="label">🧾 Nộp báo cáo</span></div>
           <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
         </div>
@@ -453,6 +463,7 @@
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
+        <div class="nav-item" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
         <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
         <div class="nav-item" id="navItem_videoShootsOverview" data-page="videoShootsOverview" onclick="goPage('videoShootsOverview')"><span class="label">🎬 Chi phí quay video (tổng)</span></div>
@@ -1022,6 +1033,61 @@
         </div>
       </div>
 
+      <!-- ---------- SALE: Hoá đơn (tạo/xem/in hoá đơn cho từng đơn hàng khách) ---------- -->
+      <div id="page-invoices" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Hoá đơn</h1><p>Tạo hoá đơn cho đơn hàng của khách — chọn sản phẩm, hệ thống tự tính giá theo đúng bậc số lượng</p></div></div>
+
+        <div id="invoicesListWrap">
+          <div class="card">
+            <button class="btn-primary" onclick="startNewInvoiceDraft()">+ Tạo hoá đơn mới</button>
+          </div>
+          <div class="card">
+            <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+            <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
+          </div>
+        </div>
+
+        <div id="invoiceEditorWrap" style="display:none;"></div>
+      </div>
+
+      <!-- ---------- MANAGER: Tổng hợp hoá đơn ---------- -->
+      <div id="page-invoicesOverview" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Tổng hợp hoá đơn</h1><p>Tổng hợp toàn bộ hoá đơn Sale đã xuất — xem theo sản phẩm/màu để đặt hàng đúng số lượng</p></div></div>
+        <div class="card">
+          <div class="chip-row" style="margin-bottom:14px;">
+            <div class="chip" id="invOverviewPreset_today" onclick="applyInvOverviewDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="invOverviewPreset_yesterday" onclick="applyInvOverviewDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="invOverviewPreset_week" onclick="applyInvOverviewDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="invOverviewPreset_thismonth" onclick="applyInvOverviewDatePreset('thismonth')">Tháng này</div>
+            <div class="chip" id="invOverviewPreset_lastmonth" onclick="applyInvOverviewDatePreset('lastmonth')">Tháng trước</div>
+            <div class="chip selected" id="invOverviewPreset_all" onclick="applyInvOverviewDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:14px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="invOverviewFrom" onchange="applyInvOverviewCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="invOverviewTo" onchange="applyInvOverviewCustomRange()"></div>
+            <div class="field" style="max-width:200px;"><label>Lọc theo Sale</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
+          </div>
+          <div class="grid-3" style="margin-bottom:14px;">
+            <div class="stat-box"><div class="stat-label">Số hoá đơn</div><div class="stat-value" id="invOverviewStatCount">0</div></div>
+            <div class="stat-box"><div class="stat-label">Tổng số lượng sản phẩm</div><div class="stat-value" id="invOverviewStatQty">0</div></div>
+            <div class="stat-box"><div class="stat-label">Tổng tiền hàng</div><div class="stat-value" id="invOverviewStatAmount">0 đ</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:0;">Tổng hợp theo sản phẩm/màu</h2>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportInvoicesByProduct()">⬇️ Xuất Excel</button>
+          <div class="table-wrap"><table id="invByProductTable" class="rtable"></table></div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:0;">Danh sách hoá đơn</h2>
+          <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportInvoicesOverview()">⬇️ Xuất Excel</button>
+          <div class="table-wrap"><table id="invOverviewTable" class="rtable"></table></div>
+        </div>
+      </div>
+
+
       <!-- ---------- MANAGER (chỉ Quản lý chung/Data): Thống kê MKT toàn công ty ---------- -->
       <div id="page-mktOverview" class="page" style="display:none;">
         <div class="page-head"><div><h1>Thống kê MKT</h1><p>Tổng hợp toàn bộ Team MKT trong công ty — bấm vào từng Team để xem từng người, bấm vào từng người để xem chi tiết theo ngày</p></div></div>
@@ -1176,6 +1242,37 @@
               <input id="settingsNewCallAttempt" placeholder="Lựa chọn Gọi điện mới">
               <button class="btn-ghost" onclick="settingsAddCallAttempt()">Thêm</button>
             </div>
+          </div>
+        </div>
+
+        <div class="card" id="settingsProductsCard" style="display:none;">
+          <span class="history-link" onclick="toggleSettingsProductsSection()" id="settingsProductsToggle">Danh mục sản phẩm (Hoá đơn) ▸</span>
+          <div id="settingsProductsBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Đồng bộ Mã/Tên/Giá theo bậc số lượng/Màu/Size từ Google Sheet (ảnh sản phẩm không đồng bộ được qua CSV). Sheet phải để chế độ "Publish to web" dạng CSV.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+              <input id="productSheetUrlInput" placeholder="Dán link CSV đã Publish to web..." style="flex:1; min-width:260px;">
+              <button class="btn-ghost" onclick="saveProductSheetUrl()">Lưu link</button>
+              <button class="btn-primary" onclick="syncProductsFromSheet()">🔄 Cập nhật mã mới</button>
+            </div>
+            <div id="settingsProductsList" style="margin:12px 0;"></div>
+          </div>
+        </div>
+
+        <div class="card" id="settingsInvoiceInfoCard" style="display:none;">
+          <span class="history-link" onclick="toggleSettingsInvoiceInfoSection()" id="settingsInvoiceInfoToggle">Thông tin in trên hoá đơn ▸</span>
+          <div id="settingsInvoiceInfoBody" style="display:none; margin-top:10px;">
+            <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Thông tin này sẽ hiện ở đầu mọi hoá đơn Sale xuất ra.</p>
+            <div class="toolbar" style="margin-bottom:10px;">
+              <div class="field"><label>Tên cửa hàng/xưởng</label><input id="invSettingShopName" placeholder="VD: Xưởng may Nhung Ba Vì"></div>
+              <div class="field"><label>Địa chỉ</label><input id="invSettingAddress" placeholder="VD: Tri Lai, Vật Lại, Hà Nội"></div>
+              <div class="field"><label>Số điện thoại</label><input id="invSettingPhone" placeholder="VD: 0397538222"></div>
+            </div>
+            <div class="toolbar" style="margin-bottom:10px;">
+              <div class="field"><label>Số tài khoản</label><input id="invSettingBankNumber" placeholder="VD: 89556699999"></div>
+              <div class="field"><label>Tên chủ tài khoản</label><input id="invSettingBankOwner" placeholder="VD: NGUYEN NGOC CHINH"></div>
+              <div class="field"><label>Mã ngân hàng (VietQR)</label><input id="invSettingBankName" placeholder="VD: MB, VCB, TCB..."></div>
+            </div>
+            <button class="btn-ghost" onclick="saveInvoiceSettings()">Lưu thông tin</button>
           </div>
         </div>
 
@@ -1405,12 +1502,16 @@ let state = {
   videoShoots: [], // Ghi nhận các buổi quay video của MKT + chi phí thuê diễn viên
   actors: [], // "Kho diễn viên" — Quản lý thêm vào, MKT tích chọn khi ghi buổi quay
   callAttemptOptions: [], // Danh sách "Gọi điện" dùng chung — Quản lý tự thêm/sửa/xoá ở Cài đặt
+  products: [], // Danh mục sản phẩm (mã, tên, giá theo bậc SL, màu, size) — đồng bộ từ Google Sheet
+  productSheetUrl: '', // Link CSV đã Publish to web của Sheet mã sản phẩm
+  invoices: [], // Hoá đơn Sale xuất cho từng đơn hàng khách
+  invoiceSettings: {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}, // Thông tin cửa hàng in trên hoá đơn
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
   session: LocalDB.read('session', null),
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions, fbProducts, fbProductSheetUrl, fbInvoices, fbInvoiceSettings;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1479,6 +1580,10 @@ function startFirebaseListeners(){
   fbVideoShoots = db.ref('videoShoots');
   fbActors = db.ref('actors');
   fbMktLegacyCounts = db.ref('mktLegacyCounts');
+  fbProducts = db.ref('products');
+  fbProductSheetUrl = db.ref('productSheetUrl');
+  fbInvoices = db.ref('invoices');
+  fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
@@ -1503,6 +1608,10 @@ function startFirebaseListeners(){
   fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
   fbActors.on('value', snap=>{ state.actors = Object.values(snap.val()||{}); onDataChanged(); });
   fbMktLegacyCounts.on('value', snap=>{ state.mktLegacyCounts = Object.values(snap.val()||{}); onDataChanged(); });
+  fbProducts.on('value', snap=>{ state.products = Object.values(snap.val()||{}); onDataChanged(); });
+  fbProductSheetUrl.on('value', snap=>{ state.productSheetUrl = snap.val() || ''; onDataChanged(); });
+  fbInvoices.on('value', snap=>{ state.invoices = Object.values(snap.val()||{}); onDataChanged(); });
+  fbInvoiceSettings.on('value', snap=>{ state.invoiceSettings = snap.val() || {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); });
   fbCallAttemptOptions.once('value').then(snap=>{
     if(!snap.exists()){
       const defaults = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
@@ -2210,6 +2319,496 @@ function computeMktPersonConversionStats(personId, dateFrom, dateTo){
   const rate = total>0 ? (closedCount/total*100) : 0;
   return {total, closedCount, revenue, rate};
 }
+/* =========================== HOÁ ĐƠN: Danh mục sản phẩm + đồng bộ từ Google Sheet =========================== */
+// Đọc CSV đúng chuẩn (xử lý được ô có dấu phẩy/xuống dòng bên trong, do Google Sheet luôn bọc
+// nháy kép "..." cho các ô này khi xuất CSV) — không dùng split(',') đơn giản vì sẽ sai.
+function parseCsv(text){
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\r'){ /* bỏ qua */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else field += c;
+    }
+  }
+  if(field.length>0 || row.length>0){ row.push(field); rows.push(row); }
+  return rows;
+}
+function parsePriceNumber(s){
+  if(!s) return 0;
+  return parseInt(String(s).replace(/[^\d]/g,''),10) || 0;
+}
+// Cấu trúc cột cố định theo đúng bảng Sheet mẫu: A=STT, B=Mã, C=Tên, D=Giá 10SP, E=Giá 100SP,
+// F=Giá 1000SP, G=Ảnh (bỏ qua, không đọc được qua CSV), H=Màu, I=Size.
+async function syncProductsFromSheet(){
+  const url = (state.productSheetUrl||'').trim();
+  if(!url){ showToast('Chưa có link Google Sheet — điền ở mục bên dưới trước.'); return; }
+  showToast('Đang tải dữ liệu từ Sheet...');
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('fetch failed');
+    const text = await res.text();
+    const rows = parseCsv(text);
+    const products = {};
+    rows.forEach(r=>{
+      const code = (r[1]||'').trim();
+      if(!code || /^(mã|sản phẩm)$/i.test(code)) return; // bỏ dòng tiêu đề/trống
+      const name = (r[2]||'').trim();
+      if(!name) return;
+      const price10 = parsePriceNumber(r[3]);
+      const price100 = parsePriceNumber(r[4]);
+      const price1000 = parsePriceNumber(r[5]);
+      const colors = (r[7]||'').trim();
+      const sizeInfo = (r[8]||'').trim();
+      products[code] = {code, name, price10, price100, price1000, colors, sizeInfo, updatedAt: Date.now()};
+    });
+    const count = Object.keys(products).length;
+    if(count===0){
+      showToast('Không đọc được sản phẩm nào — kiểm tra lại link (phải là link Publish to web dạng CSV) và đúng thứ tự cột.');
+      return;
+    }
+    await fbProducts.set(products);
+    showToast(`Đã cập nhật ${count} mã sản phẩm từ Sheet.`);
+    renderMgrSettings();
+  } catch(e){
+    showToast('Lỗi khi tải Sheet — kiểm tra lại link đã Publish to web (File > Share > Publish to web > CSV) chưa.');
+  }
+}
+function saveProductSheetUrl(){
+  const url = document.getElementById('productSheetUrlInput').value.trim();
+  fbProductSheetUrl.set(url);
+  showToast('Đã lưu link Sheet.');
+}
+// Tách chuỗi Màu thô (VD: "4 MÀU ;ĐEN -TRẮNG - GHI - BE") thành mảng từng màu riêng.
+function parseColorOptions(colorsStr){
+  if(!colorsStr) return [];
+  const s = colorsStr.replace(/^\s*\d+\s*MÀU\s*[;:]?\s*/i, '');
+  return s.split(/[-;,]/).map(x=>x.trim()).filter(Boolean);
+}
+// Tách chuỗi Size thô (mỗi dòng 1 size, VD: "S 40-45kg\nM 45-55kg") thành mảng {code, label}.
+function parseSizeOptions(sizeStr){
+  if(!sizeStr) return [];
+  return sizeStr.split(/\n|\/|,/).map(x=>x.trim()).filter(Boolean).map(line=>{
+    const code = line.split(/\s+/)[0] || line;
+    return {code, label: line};
+  });
+}
+// Tính đơn giá theo ĐÚNG bậc số lượng — dùng TỔNG số lượng của cùng 1 mã sản phẩm (cộng dồn mọi
+// màu/size trong cùng 1 dòng hoá đơn) để xác định bậc giá, không tính riêng theo từng màu.
+function priceForQty(product, qty){
+  if(!product) return 0;
+  if(qty >= 1000 && product.price1000) return product.price1000;
+  if(qty >= 100 && product.price100) return product.price100;
+  return product.price10 || product.price100 || product.price1000 || 0;
+}
+
+/* =========================== HOÁ ĐƠN: tạo/sửa/xem/in hoá đơn cho từng đơn hàng khách =========================== */
+let currentInvoiceDraft = null; // null = đang xem danh sách, có giá trị = đang tạo/sửa hoá đơn
+
+function newInvoiceDraft(){
+  const u = currentUser();
+  return {
+    id: null,
+    invoiceNumber: '—',
+    invoiceDate: todayStr(),
+    customerName: '',
+    saleId: u.id,
+    saleName: u.name,
+    teamId: u.branchId || '',
+    productGroups: [], // {productCode, colorLines:[{color,size,qty}]}
+    deposit: 0,
+    createdAt: null,
+  };
+}
+function startNewInvoiceDraft(){
+  currentInvoiceDraft = newInvoiceDraft();
+  renderInvoicesPage();
+}
+function editInvoiceDraft(invoiceId){
+  const inv = state.invoices.find(x=>x.id===invoiceId);
+  if(!inv) return;
+  currentInvoiceDraft = JSON.parse(JSON.stringify(inv)); // sửa bản sao, không đụng bản gốc tới khi Lưu
+  renderInvoicesPage();
+}
+function cancelInvoiceDraft(){
+  askConfirm('Huỷ bỏ?', 'Các thay đổi chưa lưu sẽ mất. Tiếp tục?', ()=>{
+    currentInvoiceDraft = null;
+    renderInvoicesPage();
+  });
+}
+function addProductGroupToDraft(){
+  currentInvoiceDraft.productGroups.push({productCode:'', colorLines:[{color:'', size:'', qty:1}]});
+  renderInvoiceEditor();
+}
+function removeProductGroupFromDraft(gi){
+  currentInvoiceDraft.productGroups.splice(gi,1);
+  renderInvoiceEditor();
+}
+function addColorLineToDraft(gi){
+  currentInvoiceDraft.productGroups[gi].colorLines.push({color:'', size:'', qty:1});
+  renderInvoiceEditor();
+}
+function removeColorLineFromDraft(gi, ci){
+  const group = currentInvoiceDraft.productGroups[gi];
+  group.colorLines.splice(ci,1);
+  if(group.colorLines.length===0) currentInvoiceDraft.productGroups.splice(gi,1);
+  renderInvoiceEditor();
+}
+function updateDraftField(field, value){
+  currentInvoiceDraft[field] = value;
+  if(field!=='customerName') renderInvoiceEditor(); // ô tên khách không cần vẽ lại (đỡ mất focus khi gõ)
+}
+function updateDraftProductGroup(gi, value){
+  currentInvoiceDraft.productGroups[gi].productCode = value;
+  renderInvoiceEditor();
+}
+function updateDraftColorLine(gi, ci, field, value){
+  currentInvoiceDraft.productGroups[gi].colorLines[ci][field] = field==='qty' ? (parseInt(value,10)||0) : value;
+  renderInvoiceEditor();
+}
+function productByCode(code){ return state.products.find(p=>p.code===code); }
+// Tính toán đầy đủ cho 1 nhóm sản phẩm: tổng SL cộng dồn mọi màu để xác định ĐÚNG bậc giá, áp
+// dụng chung 1 đơn giá cho cả nhóm, rồi nhân ra thành tiền của nhóm đó.
+function computeGroupTotals(group){
+  const product = productByCode(group.productCode);
+  const totalQty = group.colorLines.reduce((s,l)=>s+(Number(l.qty)||0),0);
+  const unitPrice = priceForQty(product, totalQty);
+  const groupTotal = unitPrice * totalQty;
+  return {product, totalQty, unitPrice, groupTotal};
+}
+function computeDraftTotals(){
+  let totalQty = 0, totalAmount = 0;
+  (currentInvoiceDraft.productGroups||[]).forEach(g=>{
+    const {totalQty:gq, groupTotal} = computeGroupTotals(g);
+    totalQty += gq; totalAmount += groupTotal;
+  });
+  const deposit = Number(currentInvoiceDraft.deposit)||0;
+  return {totalQty, totalAmount, deposit, finalAmount: totalAmount - deposit};
+}
+function nextInvoiceNumber(){
+  return 'HD' + String(state.invoices.length + 1).padStart(4,'0');
+}
+function saveInvoiceDraft(){
+  const d = currentInvoiceDraft;
+  const customerNameEl = document.getElementById('invEditCustomerName');
+  if(customerNameEl) d.customerName = customerNameEl.value.trim();
+  if(!d.customerName){ showToast('Vui lòng nhập tên khách hàng.'); return; }
+  if(!d.productGroups || d.productGroups.length===0){ showToast('Vui lòng thêm ít nhất 1 sản phẩm.'); return; }
+  for(const g of d.productGroups){
+    if(!g.productCode){ showToast('Vui lòng chọn đầy đủ Sản phẩm cho từng dòng.'); return; }
+    for(const l of g.colorLines){
+      if(!l.qty || l.qty<=0){ showToast('Số lượng phải lớn hơn 0.'); return; }
+    }
+  }
+  const u = currentUser();
+  const isNew = !d.id;
+  const id = d.id || ('inv_' + uid());
+  const totals = computeDraftTotals();
+  const productGroupsFinal = d.productGroups.map(g=>{
+    const {product, unitPrice} = computeGroupTotals(g);
+    return {
+      productCode: g.productCode,
+      productName: product ? product.name : '(đã xoá khỏi danh mục)',
+      unitPrice,
+      colorLines: g.colorLines.map(l=>({color:l.color||'', size:l.size||'', qty:Number(l.qty)||0})),
+    };
+  });
+  const finalInvoice = {
+    id,
+    invoiceNumber: isNew ? nextInvoiceNumber() : d.invoiceNumber,
+    invoiceDate: d.invoiceDate,
+    customerName: d.customerName,
+    saleId: d.saleId,
+    saleName: d.saleName,
+    teamId: d.teamId,
+    teamName: d.teamId ? branchName(d.teamId) : '',
+    productGroups: productGroupsFinal,
+    totalQty: totals.totalQty,
+    totalAmount: totals.totalAmount,
+    deposit: totals.deposit,
+    finalAmount: totals.finalAmount,
+    createdAt: d.createdAt || Date.now(),
+    updatedAt: Date.now(),
+  };
+  state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
+  fbInvoices.child(id).set(finalInvoice);
+  showToast('Đã lưu hoá đơn.');
+  currentInvoiceDraft = null;
+  renderInvoicesPage();
+}
+function deleteInvoice(invoiceId){
+  askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.', ()=>{
+    state.invoices = state.invoices.filter(x=>x.id!==invoiceId);
+    fbInvoices.child(invoiceId).remove();
+    renderInvoicesPage();
+  });
+}
+function printInvoice(invoiceId){
+  editInvoiceDraft(invoiceId);
+  setTimeout(()=>window.print(), 200);
+}
+
+function renderInvoicesPage(){
+  const u = currentUser();
+  if(currentInvoiceDraft){
+    document.getElementById('invoicesListWrap').style.display = 'none';
+    document.getElementById('invoiceEditorWrap').style.display = 'block';
+    renderInvoiceEditor();
+    return;
+  }
+  document.getElementById('invoicesListWrap').style.display = 'block';
+  document.getElementById('invoiceEditorWrap').style.display = 'none';
+  const mine = state.invoices.filter(inv=>inv.saleId===u.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  document.getElementById('myInvoicesCount').textContent = mine.length ? `(${mine.length})` : '';
+  const table = document.getElementById('myInvoicesTable');
+  if(mine.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào — bấm "+ Tạo hoá đơn mới" ở trên.</td></tr>';
+    return;
+  }
+  table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th class="num">SL</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
+    mine.map(inv=>`<tr>
+      <td data-label="Số HĐ">${inv.invoiceNumber}</td>
+      <td data-label="Ngày">${fmtDate(inv.invoiceDate)}</td>
+      <td data-label="Khách hàng">${inv.customerName}</td>
+      <td class="num" data-label="SL">${inv.totalQty}</td>
+      <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
+      <td>
+        <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
+        <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
+        <button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>
+      </td>
+    </tr>`).join('') + `</tbody>`;
+}
+
+function productOptionsHtmlFor(selectedCode){
+  return '<option value="">— Chọn sản phẩm —</option>' +
+    state.products.slice().sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}))
+      .map(p=>`<option value="${p.code}" ${p.code===selectedCode?'selected':''}>${p.code} - ${p.name}</option>`).join('');
+}
+function renderInvoiceEditor(){
+  const d = currentInvoiceDraft;
+  const wrap = document.getElementById('invoiceEditorWrap');
+  const totals = computeDraftTotals();
+  const settings = state.invoiceSettings || {};
+  const qrUrl = (settings.bankName && settings.bankNumber)
+    ? `https://img.vietqr.io/image/${encodeURIComponent(settings.bankName)}-${encodeURIComponent(settings.bankNumber)}-compact2.png`
+    : '';
+
+  let rowsHtml = '';
+  (d.productGroups||[]).forEach((g, gi)=>{
+    const {product, unitPrice, groupTotal} = computeGroupTotals(g);
+    const colorOptions = product ? parseColorOptions(product.colors) : [];
+    const sizeOptions = product ? parseSizeOptions(product.sizeInfo) : [];
+    const rowspan = g.colorLines.length;
+    g.colorLines.forEach((line, ci)=>{
+      rowsHtml += '<tr>';
+      if(ci===0){
+        rowsHtml += `<td rowspan="${rowspan}">${gi+1}</td>`;
+        rowsHtml += `<td rowspan="${rowspan}"><select onchange="updateDraftProductGroup(${gi}, this.value)" style="min-width:170px;">${productOptionsHtmlFor(g.productCode)}</select></td>`;
+      }
+      rowsHtml += `<td>`;
+      if(colorOptions.length>0){
+        rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'color',this.value)"><option value="">—</option>${colorOptions.map(c=>`<option value="${c}" ${line.color===c?'selected':''}>${c}</option>`).join('')}</select>`;
+      } else {
+        rowsHtml += `<input type="text" value="${line.color||''}" placeholder="Màu" style="width:80px;" onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">`;
+      }
+      rowsHtml += `</td>`;
+      rowsHtml += `<td>`;
+      if(sizeOptions.length>0){
+        rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value="">—</option>${sizeOptions.map(s=>`<option value="${s.code}" ${line.size===s.code?'selected':''}>${s.code}</option>`).join('')}</select>`;
+      } else {
+        rowsHtml += `<input type="text" value="${line.size||''}" placeholder="Size" style="width:60px;" onchange="updateDraftColorLine(${gi},${ci},'size',this.value)">`;
+      }
+      rowsHtml += `</td>`;
+      rowsHtml += `<td><input type="number" min="1" value="${line.qty||1}" style="width:56px;" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"></td>`;
+      rowsHtml += `<td class="num">${fmtMoney(unitPrice)}</td>`;
+      if(ci===0){
+        rowsHtml += `<td rowspan="${rowspan}" class="num" style="font-weight:600;">${fmtMoney(groupTotal)} đ</td>`;
+      }
+      rowsHtml += `<td class="no-print"><button class="btn-ghost btn-small" onclick="removeColorLineFromDraft(${gi},${ci})">🗑️</button></td>`;
+      rowsHtml += '</tr>';
+    });
+    rowsHtml += `<tr class="no-print"><td></td><td colspan="6" style="padding:2px 8px;"><span class="history-link" style="font-size:12px;" onclick="addColorLineToDraft(${gi})">+ Thêm màu cho sản phẩm này</span></td><td></td></tr>`;
+  });
+
+  const teamOptionsHtml = '<option value="">— Chọn team —</option>' + (state.branches||[]).map(b=>`<option value="${b.id}" ${d.teamId===b.id?'selected':''}>${b.name}</option>`).join('');
+
+  wrap.innerHTML = `
+    <div class="card" id="invoicePrintArea">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e04b4b; padding-bottom:10px; margin-bottom:14px;">
+        <div>
+          <h2 style="color:#e04b4b; margin:0 0 8px 0;">HÓA ĐƠN BÁN HÀNG · ${settings.shopName||'(Chưa đặt tên cửa hàng — vào Cài đặt điền)'}</h2>
+          <div style="font-size:13px;">ĐC: ${settings.address||'—'}</div>
+          <div style="font-size:13px;"><b>SĐT:</b> ${settings.phone||'—'}</div>
+          <div style="font-size:13px;"><b>STK:</b> ${settings.bankNumber||'—'} - ${settings.bankOwner||'—'} - Ngân hàng ${settings.bankName||'—'}</div>
+        </div>
+        ${qrUrl ? `<img src="${qrUrl}" style="width:90px; height:90px; object-fit:contain;">` : ''}
+      </div>
+      <div class="toolbar" style="margin-bottom:14px;">
+        <div class="field" style="max-width:140px;"><label>Số HĐ</label><div style="padding:8px 0; font-weight:600;">${d.invoiceNumber}</div></div>
+        <div class="field" style="max-width:170px;"><label>Ngày</label><input type="date" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"></div>
+        <div class="field" style="max-width:260px;"><label>Khách hàng</label><input id="invEditCustomerName" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
+      </div>
+      <div class="table-wrap">
+        <table class="rtable">
+          <thead><tr><th>STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th>SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th class="no-print"></th></tr></thead>
+          <tbody>${rowsHtml || '<tr><td colspan="8" class="empty-note">Chưa có sản phẩm nào — bấm "+ Thêm sản phẩm" bên dưới.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <button class="btn-ghost btn-small no-print" style="margin-top:10px;" onclick="addProductGroupToDraft()">+ Thêm sản phẩm</button>
+
+      <div class="toolbar" style="margin-top:20px; align-items:flex-end;">
+        <div class="field" style="max-width:180px;"><label>Nhân viên</label><div style="padding:8px 0; font-weight:600;">${d.saleName}</div></div>
+        <div class="field" style="max-width:180px;"><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
+        <div style="flex:1;"></div>
+        <div style="text-align:right;">
+          <div style="font-size:13px; color:var(--ink-soft);">Tổng số lượng: <b>${totals.totalQty} sản phẩm</b></div>
+          <div style="font-size:13px; color:var(--ink-soft);">Tổng tiền hàng: <b>${fmtMoney(totals.totalAmount)}đ</b></div>
+          <div style="font-size:13px; margin-top:4px;">Cọc: <input type="number" min="0" value="${d.deposit||0}" style="width:110px;" onchange="updateDraftField('deposit', this.value)"></div>
+          <div style="font-size:18px; font-weight:700; color:#e04b4b; margin-top:6px;">TỔNG THANH TOÁN: ${fmtMoney(totals.finalAmount)}đ</div>
+        </div>
+      </div>
+
+      <div class="no-print" style="display:flex; gap:8px; margin-top:20px;">
+        <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
+        <button class="btn-ghost" onclick="window.print()">🖨️ In</button>
+        <button class="btn-ghost" onclick="cancelInvoiceDraft()">Huỷ, quay lại danh sách</button>
+      </div>
+    </div>
+  `;
+}
+
+/* =========================== MANAGER: Tổng hợp hoá đơn =========================== */
+let invOverviewDateFrom = null, invOverviewDateTo = null;
+const INV_OVERVIEW_PRESET_IDS = ['today','yesterday','week','thismonth','lastmonth','all'];
+function applyInvOverviewDatePreset(preset){
+  const [from, to] = (preset==='thismonth'||preset==='lastmonth') ? calendarMonthRangeFor(preset) : dateRangeFor(preset);
+  invOverviewDateFrom = from; invOverviewDateTo = to;
+  document.getElementById('invOverviewFrom').value = from || '';
+  document.getElementById('invOverviewTo').value = to || '';
+  INV_OVERVIEW_PRESET_IDS.forEach(p=>{
+    document.getElementById('invOverviewPreset_'+p).classList.toggle('selected', p===preset);
+  });
+  renderInvoicesOverviewPage();
+}
+function applyInvOverviewCustomRange(){
+  invOverviewDateFrom = document.getElementById('invOverviewFrom').value || null;
+  invOverviewDateTo = document.getElementById('invOverviewTo').value || null;
+  INV_OVERVIEW_PRESET_IDS.forEach(p=>{
+    document.getElementById('invOverviewPreset_'+p).classList.remove('selected');
+  });
+  renderInvoicesOverviewPage();
+}
+let lastFilteredInvoices = [];
+let lastFilteredInvoicesByProduct = [];
+function renderInvoicesOverviewPage(){
+  document.getElementById('invOverviewFrom').value = invOverviewDateFrom || '';
+  document.getElementById('invOverviewTo').value = invOverviewDateTo || '';
+
+  const saleSel = document.getElementById('invOverviewSaleFilter');
+  const saleNames = Array.from(new Set(state.invoices.map(i=>i.saleName))).sort((a,b)=>a.localeCompare(b,'vi'));
+  if(saleSel.dataset.filled !== saleNames.join('|')){
+    saleSel.innerHTML = '<option value="">— Tất cả Sale —</option>' + saleNames.map(n=>`<option value="${n}">${n}</option>`).join('');
+    saleSel.dataset.filled = saleNames.join('|');
+  }
+
+  let invoices = state.invoices.slice();
+  if(invOverviewDateFrom || invOverviewDateTo){
+    invoices = invoices.filter(inv=>{
+      const d = inv.invoiceDate || '';
+      if(invOverviewDateFrom && d < invOverviewDateFrom) return false;
+      if(invOverviewDateTo && d > invOverviewDateTo) return false;
+      return true;
+    });
+  }
+  const saleFilter = saleSel.value;
+  if(saleFilter) invoices = invoices.filter(inv=>inv.saleName===saleFilter);
+  invoices.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  lastFilteredInvoices = invoices;
+
+  const totalQty = invoices.reduce((s,i)=>s+(i.totalQty||0),0);
+  const totalAmount = invoices.reduce((s,i)=>s+(i.totalAmount||0),0);
+  document.getElementById('invOverviewStatCount').textContent = invoices.length;
+  document.getElementById('invOverviewStatQty').textContent = totalQty;
+  document.getElementById('invOverviewStatAmount').textContent = fmtMoney(totalAmount) + ' đ';
+
+  // Bảng tổng hợp theo sản phẩm + màu
+  const byProduct = {}; // key: code|color -> {code,name,color,qty,amount}
+  invoices.forEach(inv=>{
+    (inv.productGroups||[]).forEach(g=>{
+      g.colorLines.forEach(l=>{
+        const key = g.productCode + '|' + (l.color||'');
+        byProduct[key] = byProduct[key] || {code:g.productCode, name:g.productName, color:l.color||'—', qty:0, amount:0};
+        byProduct[key].qty += Number(l.qty)||0;
+        byProduct[key].amount += (Number(l.qty)||0) * (g.unitPrice||0);
+      });
+    });
+  });
+  const byProductRows = Object.values(byProduct).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.color.localeCompare(b.color,'vi'));
+  lastFilteredInvoicesByProduct = byProductRows;
+  const byProductTable = document.getElementById('invByProductTable');
+  if(byProductRows.length===0){
+    byProductTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu phù hợp.</td></tr>';
+  } else {
+    const totalQtyAll = byProductRows.reduce((s,r)=>s+r.qty,0);
+    const totalAmountAll = byProductRows.reduce((s,r)=>s+r.amount,0);
+    byProductTable.innerHTML = `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+      byProductRows.map(r=>`<tr>
+        <td>${r.code}</td><td>${r.name}</td><td>${r.color}</td>
+        <td class="num" style="font-weight:600;">${r.qty}</td>
+        <td class="num">${fmtMoney(r.amount)} đ</td>
+      </tr>`).join('') +
+      `<tr class="total-row"><td colspan="3">TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr>` +
+      `</tbody>`;
+  }
+
+  const invTable = document.getElementById('invOverviewTable');
+  if(invoices.length===0){
+    invTable.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào phù hợp.</td></tr>';
+    return;
+  }
+  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Sale</th><th>Team</th><th class="num">SL</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
+    invoices.map(inv=>`<tr>
+      <td>${inv.invoiceNumber}</td>
+      <td>${fmtDate(inv.invoiceDate)}</td>
+      <td>${inv.customerName}</td>
+      <td>${inv.saleName}</td>
+      <td>${inv.teamName||'—'}</td>
+      <td class="num">${inv.totalQty}</td>
+      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
+    </tr>`).join('') + `</tbody>`;
+}
+function exportInvoicesByProduct(){
+  const rows = lastFilteredInvoicesByProduct.map(r=>({
+    ma: r.code, ten: r.name, mau: r.color, soLuong: r.qty, thanhTien: r.amount,
+  }));
+  exportRowsToExcel(rows, [
+    {key:'ma', header:'Mã'}, {key:'ten', header:'Tên sản phẩm'}, {key:'mau', header:'Màu'},
+    {key:'soLuong', header:'Số lượng'}, {key:'thanhTien', header:'Thành tiền'},
+  ], `tong-hop-hoa-don-theo-san-pham-${todayStr()}.xlsx`);
+}
+function exportInvoicesOverview(){
+  const rows = lastFilteredInvoices.map(inv=>({
+    soHd: inv.invoiceNumber, ngay: fmtDate(inv.invoiceDate), khachHang: inv.customerName,
+    sale: inv.saleName, team: inv.teamName||'', soLuong: inv.totalQty, tongThanhToan: inv.finalAmount,
+  }));
+  exportRowsToExcel(rows, [
+    {key:'soHd', header:'Số HĐ'}, {key:'ngay', header:'Ngày'}, {key:'khachHang', header:'Khách hàng'},
+    {key:'sale', header:'Sale'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
+  ], `danh-sach-hoa-don-${todayStr()}.xlsx`);
+}
+
 function debounce(fn, delay){
   let t;
   return function(...args){
@@ -4827,6 +5426,8 @@ function goPage(pageId){
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
   if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
+  if(pageId==='invoices') renderInvoicesPage();
+  if(pageId==='invoicesOverview') renderInvoicesOverviewPage();
   if(pageId==='mgrAllChats') renderMgrAllChats();
   if(pageId==='personLeads') renderPersonLeadsPage();
   if(pageId==='mgrTrash') renderMgrTrash();
@@ -6447,6 +7048,28 @@ function toggleSettingsActorsSection(){
   renderMgrSettings();
 }
 let settingsCallAttemptOpen = false;
+let settingsProductsOpen = false;
+function toggleSettingsProductsSection(){
+  settingsProductsOpen = !settingsProductsOpen;
+  renderMgrSettings();
+}
+let settingsInvoiceInfoOpen = false;
+function toggleSettingsInvoiceInfoSection(){
+  settingsInvoiceInfoOpen = !settingsInvoiceInfoOpen;
+  renderMgrSettings();
+}
+function saveInvoiceSettings(){
+  const settings = {
+    shopName: document.getElementById('invSettingShopName').value.trim(),
+    address: document.getElementById('invSettingAddress').value.trim(),
+    phone: document.getElementById('invSettingPhone').value.trim(),
+    bankNumber: document.getElementById('invSettingBankNumber').value.trim(),
+    bankOwner: document.getElementById('invSettingBankOwner').value.trim(),
+    bankName: document.getElementById('invSettingBankName').value.trim(),
+  };
+  fbInvoiceSettings.set(settings);
+  showToast('Đã lưu thông tin hoá đơn.');
+}
 function toggleSettingsCallAttemptSection(){
   settingsCallAttemptOpen = !settingsCallAttemptOpen;
   renderMgrSettings();
@@ -6509,6 +7132,8 @@ function renderMgrSettings(){
   document.getElementById('settingsMktSourceCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsActorsCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsCallAttemptCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsProductsCard').style.display = scope ? 'none' : 'block';
+  document.getElementById('settingsInvoiceInfoCard').style.display = scope ? 'none' : 'block';
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
     mktListEl.innerHTML = state.mktBranches.map(b=>{
@@ -6601,6 +7226,37 @@ function renderMgrSettings(){
         </div>`;
       }).join('') || '<div class="empty-note">Chưa có lựa chọn nào.</div>';
     }
+
+    // Đổ lại link Sheet (chỉ đổ khi khác nội dung hiện có trong ô, tránh mất lúc đang gõ dở).
+    const urlInput = document.getElementById('productSheetUrlInput');
+    if(document.activeElement !== urlInput && urlInput.value !== state.productSheetUrl){
+      urlInput.value = state.productSheetUrl || '';
+    }
+    const productsToggle = document.getElementById('settingsProductsToggle');
+    productsToggle.textContent = settingsProductsOpen ? `Ẩn Danh mục sản phẩm (${state.products.length}) ▾` : `Danh mục sản phẩm (Hoá đơn) (${state.products.length}) ▸`;
+    document.getElementById('settingsProductsBody').style.display = settingsProductsOpen ? 'block' : 'none';
+    if(settingsProductsOpen){
+      const listEl = document.getElementById('settingsProductsList');
+      const sorted = state.products.slice().sort((a,b2)=>a.code.localeCompare(b2.code,'vi',{numeric:true}));
+      listEl.innerHTML = sorted.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th><th>Tên</th><th class="num">10SP</th><th class="num">100SP</th><th class="num">1000SP</th><th>Màu</th><th>Size</th></tr></thead><tbody>` +
+        sorted.map(p=>`<tr>
+          <td>${p.code}</td><td>${p.name}</td>
+          <td class="num">${fmtMoney(p.price10)}</td><td class="num">${fmtMoney(p.price100)}</td><td class="num">${fmtMoney(p.price1000)}</td>
+          <td>${p.colors||'—'}</td><td style="white-space:pre-line;">${p.sizeInfo||'—'}</td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : '<div class="empty-note">Chưa có sản phẩm nào — dán link Sheet rồi bấm "Cập nhật mã mới".</div>';
+    }
+
+    // Đổ lại thông tin hoá đơn (chỉ đổ khi không đang gõ dở ô nào trong nhóm này).
+    const invInputs = ['invSettingShopName','invSettingAddress','invSettingPhone','invSettingBankNumber','invSettingBankOwner','invSettingBankName'];
+    const invKeys = ['shopName','address','phone','bankNumber','bankOwner','bankName'];
+    const anyInvFocused = invInputs.includes(document.activeElement && document.activeElement.id);
+    if(!anyInvFocused){
+      invInputs.forEach((id,i)=>{ document.getElementById(id).value = state.invoiceSettings[invKeys[i]] || ''; });
+    }
+    const invToggle = document.getElementById('settingsInvoiceInfoToggle');
+    invToggle.textContent = settingsInvoiceInfoOpen ? 'Ẩn thông tin hoá đơn ▾' : 'Thông tin in trên hoá đơn ▸';
+    document.getElementById('settingsInvoiceInfoBody').style.display = settingsInvoiceInfoOpen ? 'block' : 'none';
   }
 
   // "Team đã xoá" — hiển thị chung cả Team Sale lẫn Team MKT, chỉ Quản lý chung mới thấy/khôi phục được.
