@@ -392,6 +392,10 @@
   #invoicePrintArea .inv-totals-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:3px 0;}
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
   #invoicePrintArea select.inv-prod-select{min-width:150px;}
+  /* Khổ hoá đơn gọn như tờ giấy, dồn về bên trái — bảng giãn đủ khổ để cân với phần tổng tiền */
+  #invoicePrintArea{ max-width:760px; }
+  #invoicePrintArea table{ width:100%; }
+  #invoicePrintArea .inv-title{ font-size:20px; padding-right:125px; }
   /* Mũi tên nhỏ ▲▼ tăng/giảm số lượng */
   #invoicePrintArea .qty-wrap{ display:inline-flex; align-items:center; gap:1px; }
   #invoicePrintArea .qty-arrows{ display:inline-flex; flex-direction:column; opacity:0; transition:opacity .15s; }
@@ -425,7 +429,7 @@
   /* ===== Hoá đơn trên điện thoại: gọn lại để không phải kéo ngang ===== */
   @media (max-width:720px){
     #invoicePrintArea{ padding:14px 8px !important; font-size:12px; }
-    #invoicePrintArea .inv-title{ font-size:17px; margin-bottom:8px; }
+    #invoicePrintArea .inv-title{ font-size:17px; margin-bottom:8px; padding:0; }
     /* QR neo theo phần thông tin cửa hàng (dưới tiêu đề) để không đè lên tiêu đề */
     #invoicePrintArea .inv-header{ padding-right:88px; position:relative; min-height:84px; }
     #invoicePrintArea .inv-qr{ top:0; right:0; width:76px; height:76px; padding:2px; }
@@ -461,6 +465,7 @@
     .sidebar, .hamburger-btn, .sidebar-backdrop, .page-head, .no-print{ display:none !important; }
     .main{ padding:0 !important; max-width:100% !important; }
     .card{ border:none !important; box-shadow:none !important; padding:0 !important; }
+    #invoicePrintArea{ max-width:none !important; }
     body{ background:#fff !important; color:#000 !important; }
     #invoicePrintArea select, #invoicePrintArea input{
       border:none !important; background:transparent !important; color:#000 !important; -webkit-appearance:none; appearance:none;
