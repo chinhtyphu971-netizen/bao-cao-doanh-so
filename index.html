@@ -392,6 +392,15 @@
   #invoicePrintArea .inv-totals-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:3px 0;}
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
   #invoicePrintArea select.inv-prod-select{min-width:150px;}
+  /* Mũi tên nhỏ ▲▼ tăng/giảm số lượng */
+  #invoicePrintArea .qty-wrap{ display:inline-flex; align-items:center; gap:1px; }
+  #invoicePrintArea .qty-arrows{ display:inline-flex; flex-direction:column; opacity:0; transition:opacity .15s; }
+  #invoicePrintArea tr:hover .qty-arrows, #invoicePrintArea .qty-wrap:focus-within .qty-arrows{ opacity:1; }
+  #invoicePrintArea .qty-arrows button{
+    min-height:0 !important; height:11px !important; width:14px; padding:0 !important; margin:0;
+    background:none; border:none; color:#1c5fa8; font-size:8px; line-height:11px; cursor:pointer;
+  }
+  #invoicePrintArea .qty-arrows button:hover{ color:#c0392b; }
   /* ===== Bảng hoá đơn gọn: giảm khoảng cách dòng + cỡ chữ để 1 trang chứa được nhiều dòng ===== */
   #invoicePrintArea table{ font-size:12px; }
   #invoicePrintArea th{ padding:4px 8px; font-size:11px; }
@@ -410,6 +419,7 @@
   /* Máy cảm ứng không có hover → luôn hiện nút xoá dòng / thêm màu */
   @media (hover:none){
     #invoicePrintArea .row-delete-btn{ opacity:.55; }
+    #invoicePrintArea .qty-arrows{ opacity:1; }
     #invoicePrintArea .add-color-link{ opacity:1; }
   }
   /* ===== Hoá đơn trên điện thoại: gọn lại để không phải kéo ngang ===== */
@@ -430,13 +440,14 @@
     /* Sản phẩm: hiện Mã + đầu tên; ô chọn trong suốt phủ lên trên nên bấm vào vẫn thấy đủ tên để chọn */
     #invoicePrintArea .inv-prod-wrap{ position:relative; display:block; }
     /* Hiện "Mã - Tên" trong 1 ô nhỏ, dài quá thì cắt bằng dấu … */
-    #invoicePrintArea .inv-prod-code{ display:block; width:clamp(70px, calc(100vw - 290px), 160px); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#000; padding:3px 2px; border-bottom:1px dashed #bbb; }
+    #invoicePrintArea .inv-prod-code{ display:block; width:clamp(54px, calc(50vw - 126px), 80px); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#000; padding:3px 1px; font-size:11px; border-bottom:1px dashed #bbb; }
     #invoicePrintArea select.inv-prod-select{ position:absolute; inset:0; width:100%; min-width:0 !important; max-width:none; opacity:0; }
     #invoicePrintArea .table-wrap select{ min-width:38px; max-width:56px; }
     #invoicePrintArea td.num{ font-size:11px; }
     #invoicePrintArea select, #invoicePrintArea input,
     #invoicePrintArea td select, #invoicePrintArea td input{ font-size:12px !important; padding:1px 2px !important; }
-    #invoicePrintArea input[type=number]{ width:32px !important; }
+    #invoicePrintArea input[type=number]{ width:30px !important; }
+    #invoicePrintArea .qty-arrows button{ width:12px; height:12px !important; line-height:12px; font-size:8px; }
     #invoicePrintArea input[type=text]{ width:54px !important; }
     #invoicePrintArea .row-delete-btn{ width:16px; font-size:16px; }
     #invoicePrintArea .inv-footer{ flex-direction:column; align-items:stretch; }
@@ -2608,6 +2619,12 @@ function updateDraftColorLine(gi, ci, field, value){
   currentInvoiceDraft.productGroups[gi].colorLines[ci][field] = field==='qty' ? (parseInt(value,10)||0) : value;
   renderInvoiceEditor();
 }
+// Mũi tên ▲▼ cạnh ô SL: tăng/giảm 1, không cho xuống dưới 1
+function stepDraftQty(gi, ci, delta){
+  const line = currentInvoiceDraft.productGroups[gi].colorLines[ci];
+  const next = Math.max(1, (parseInt(line.qty,10)||0) + delta);
+  updateDraftColorLine(gi, ci, 'qty', next);
+}
 function productByCode(code){ return state.products.find(p=>p.code===code); }
 // Tính toán đầy đủ cho 1 nhóm sản phẩm: tổng SL cộng dồn mọi màu để xác định ĐÚNG bậc giá, áp
 // dụng chung 1 đơn giá cho cả nhóm, rồi nhân ra thành tiền của nhóm đó.
@@ -2757,7 +2774,7 @@ function renderInvoiceEditor(){
       rowsHtml += `</td>`;
       // Size dùng danh sách cố định S/M/L/XL/Đủ size — mặc định để trống chưa chọn.
       rowsHtml += `<td><select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value=""></option>${FIXED_SIZE_OPTIONS.map(s=>`<option value="${s}" ${line.size===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
-      rowsHtml += `<td><input type="number" min="1" value="${line.qty||1}" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"></td>`;
+      rowsHtml += `<td><span class="qty-wrap"><input type="number" min="1" value="${line.qty||1}" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"><span class="qty-arrows no-print"><button type="button" title="Tăng 1" onclick="stepDraftQty(${gi},${ci},1)">▲</button><button type="button" title="Giảm 1" onclick="stepDraftQty(${gi},${ci},-1)">▼</button></span></span></td>`;
       rowsHtml += `<td class="num">${fmtMoney(unitPrice)}</td>`;
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="num inv-money">${fmtMoney(groupTotal)}đ</td>`;
@@ -2791,7 +2808,7 @@ function renderInvoiceEditor(){
       <div class="inv-toprow">
         <div><label>Số HĐ</label><div class="inv-static-val">${d.invoiceNumber}</div></div>
         <div><label>Ngày</label><input type="date" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"></div>
-        <div style="flex:1; min-width:200px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
+        <div style="flex:1; min-width:200px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
       </div>
       <div class="table-wrap">
         <table>
