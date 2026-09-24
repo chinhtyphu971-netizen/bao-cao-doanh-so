@@ -2470,6 +2470,12 @@ function startNewInvoiceDraft(){
   currentInvoiceDraft = newInvoiceDraft();
   renderInvoicesPage();
 }
+// Dùng riêng cho nút "Hoá đơn mới" NGAY TRONG khung đang sửa — hỏi trước để tránh mất dở việc đang làm.
+function startNewInvoiceDraftFromEditor(){
+  askConfirm('Tạo hoá đơn mới?', 'Các thay đổi chưa lưu ở hoá đơn hiện tại sẽ mất. Tiếp tục?', ()=>{
+    startNewInvoiceDraft();
+  });
+}
 function editInvoiceDraft(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
@@ -2680,6 +2686,12 @@ function renderInvoiceEditor(){
   const teamOptionsHtml = '<option value="">— Chọn team —</option>' + (state.branches||[]).map(b=>`<option value="${b.id}" ${d.teamId===b.id?'selected':''}>${b.name}</option>`).join('');
 
   wrap.innerHTML = `
+    <div class="no-print" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+      <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
+      <button class="btn-ghost" onclick="window.print()">🖨️ In / Lưu PDF</button>
+      <button class="btn-ghost" onclick="startNewInvoiceDraftFromEditor()">🧾 Hoá đơn mới</button>
+      <button class="btn-ghost" onclick="cancelInvoiceDraft()">↩️ Quay lại danh sách</button>
+    </div>
     <div id="invoicePrintArea">
       <div class="inv-header">
         <div>
@@ -2714,12 +2726,6 @@ function renderInvoiceEditor(){
           <div style="margin-top:4px;">Cọc: <input type="number" min="0" value="${d.deposit||0}" style="width:100px; border-radius:6px;" onchange="updateDraftField('deposit', this.value)"></div>
           <div class="inv-grand">TỔNG THANH TOÁN: ${fmtMoney(totals.finalAmount)}đ</div>
         </div>
-      </div>
-
-      <div class="no-print" style="display:flex; gap:8px; margin-top:20px;">
-        <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
-        <button class="btn-ghost" onclick="window.print()">🖨️ In</button>
-        <button class="btn-ghost" onclick="cancelInvoiceDraft()">Huỷ, quay lại danh sách</button>
       </div>
     </div>
   `;
