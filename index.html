@@ -2673,11 +2673,11 @@ function renderInvoiceEditor(){
     ? `https://img.vietqr.io/image/${encodeURIComponent(settings.bankName)}-${encodeURIComponent(settings.bankNumber)}-qr_only.png`
     : '';
 
+  const FIXED_SIZE_OPTIONS = ['S','M','L','XL','Đủ size'];
   let rowsHtml = '';
   (d.productGroups||[]).forEach((g, gi)=>{
     const {product, unitPrice, groupTotal} = computeGroupTotals(g);
     const colorOptions = product ? parseColorOptions(product.colors) : [];
-    const sizeOptions = product ? parseSizeOptions(product.sizeInfo) : [];
     const rowspan = g.colorLines.length;
     g.colorLines.forEach((line, ci)=>{
       rowsHtml += '<tr>';
@@ -2692,13 +2692,8 @@ function renderInvoiceEditor(){
         rowsHtml += `<input type="text" value="${line.color||''}" placeholder="Màu" style="width:70px;" onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">`;
       }
       rowsHtml += `</td>`;
-      rowsHtml += `<td>`;
-      if(sizeOptions.length>0){
-        rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value="">—</option>${sizeOptions.map(s=>`<option value="${s.code}" ${line.size===s.code?'selected':''}>${s.code}</option>`).join('')}</select>`;
-      } else {
-        rowsHtml += `<input type="text" value="${line.size||''}" placeholder="Size" style="width:50px;" onchange="updateDraftColorLine(${gi},${ci},'size',this.value)">`;
-      }
-      rowsHtml += `</td>`;
+      // Size dùng danh sách cố định S/M/L/XL/Đủ size — mặc định để trống chưa chọn.
+      rowsHtml += `<td><select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value=""></option>${FIXED_SIZE_OPTIONS.map(s=>`<option value="${s}" ${line.size===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
       rowsHtml += `<td><input type="number" min="1" value="${line.qty||1}" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"></td>`;
       rowsHtml += `<td class="num">${fmtMoney(unitPrice)}</td>`;
       if(ci===0){
