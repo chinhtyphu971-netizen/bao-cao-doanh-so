@@ -426,11 +426,19 @@
   #invoicePrintArea .add-color-link{ width:14px; height:14px; font-size:11px; line-height:14px; vertical-align:middle; }
   /* Nút "+ Thêm sản phẩm" nằm trong khung nền trắng → cho chữ màu xanh để nhìn thấy được */
   #invoicePrintArea > .btn-ghost{ color:#1c5fa8; border-color:#1c5fa8; background:#fff; }
+  /* "+ Thêm sản phẩm" ẩn mặc định (để chụp hoá đơn gửi khách cho sạch), rê chuột vào bảng sản phẩm
+     hoặc đúng chỗ nút thì hiện. Hoá đơn chưa có sản phẩm nào thì luôn hiện để biết chỗ bấm. */
+  #invoicePrintArea .inv-add-product-btn{ opacity:0; transition:opacity .15s; }
+  #invoicePrintArea .table-wrap:hover + .inv-add-product-btn,
+  #invoicePrintArea .inv-add-product-btn:hover,
+  #invoicePrintArea .inv-add-product-btn:focus-visible,
+  #invoicePrintArea .inv-add-product-btn.inv-always-show{ opacity:1; }
   #invoicePrintArea .inv-prod-code{display:none;}
   /* Máy cảm ứng không có hover → luôn hiện nút xoá dòng / thêm màu */
   @media screen and (hover:none){
     #invoicePrintArea .row-delete-btn{ opacity:.55; }
     #invoicePrintArea .qty-arrows{ opacity:1; }
+    #invoicePrintArea .inv-add-product-btn{ opacity:1; }
     #invoicePrintArea .add-color-link{ opacity:1; }
   }
   /* ===== Hoá đơn trên điện thoại: gọn lại để không phải kéo ngang ===== */
@@ -497,6 +505,8 @@
     #invoicePrintArea td:has(.inv-prod-wrap){ white-space:normal; min-width:150px; }
     /* Không in các dòng chưa chọn sản phẩm, chữ gợi ý trong ô trống, team chưa chọn */
     #invoicePrintArea tr.inv-row-empty{ display:none !important; }
+    #invoicePrintArea .inv-add-product-btn, #invoicePrintArea .add-color-row, #invoicePrintArea .add-color-link,
+    #invoicePrintArea .row-delete-btn, #invoicePrintArea .qty-arrows, #invoicePrintArea button{ display:none !important; }
     #invoicePrintArea ::placeholder{ color:transparent !important; }
     #invoicePrintArea .inv-team-empty{ display:none !important; }
     /* Cọc: in số đã định dạng thay cho ô nhập */
@@ -2929,7 +2939,7 @@ function renderInvoiceEditor(){
           <tbody>${rowsHtml || '<tr><td colspan="9" class="empty-note">Chưa có sản phẩm nào — bấm "+ Thêm sản phẩm" bên dưới.</td></tr>'}</tbody>
         </table>
       </div>
-      <button class="btn-ghost btn-small no-print" style="margin-top:10px;" onclick="addProductGroupToDraft()">+ Thêm sản phẩm</button>
+      <button class="btn-ghost btn-small no-print inv-add-product-btn ${(d.productGroups||[]).length ? '' : 'inv-always-show'}" style="margin-top:10px;" onclick="addProductGroupToDraft()">+ Thêm sản phẩm</button>
 
       <div class="inv-footer">
         <div class="inv-staff-row" style="display:flex; gap:24px;">
