@@ -368,6 +368,9 @@
     background-image:none !important; padding:4px 2px !important; cursor:pointer;
   }
   #invoicePrintArea input[type=number]{width:52px !important; border-radius:14px !important; text-align:center;}
+  #invoicePrintArea input[type=number]::-webkit-inner-spin-button,
+  #invoicePrintArea input[type=number]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+  #invoicePrintArea input.inv-deposit-input{ -moz-appearance:textfield; width:250px !important; border-radius:6px !important; text-align:right !important; }
   #invoicePrintArea .inv-money{color:#1c5fa8; font-weight:600;}
   #invoicePrintArea .row-delete-btn{
     opacity:0; transition:opacity 0.15s; background:none; border:none; color:#c0392b;
@@ -2740,7 +2743,7 @@ function renderInvoiceEditor(){
         <div class="inv-totals">
           <div class="inv-totals-row"><span>Tổng số lượng:</span><span>${totals.totalQty} sản phẩm</span></div>
           <div class="inv-totals-row"><span>Tổng tiền hàng:</span><span>${fmtMoney(totals.totalAmount)}đ</span></div>
-          <div class="inv-totals-row"><span>Cọc:</span><input type="number" min="0" value="${d.deposit||0}" style="width:140px; border-radius:6px; text-align:right;" onchange="updateDraftField('deposit', this.value)"></div>
+          <div class="inv-totals-row"><span>Cọc:</span><input type="number" min="0" value="${d.deposit||0}" class="inv-deposit-input" style="width:250px; border-radius:6px; text-align:right;" onchange="updateDraftField('deposit', this.value)"></div>
           <div class="inv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(totals.finalAmount)}đ</span></div>
         </div>
       </div>
