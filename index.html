@@ -1764,12 +1764,12 @@ function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
     checkNewLeadNotifications();
-    // "staffReport" và "mktInput" bị loại trừ khỏi việc tự vẽ lại: đây là 2 trang có form đang
-    // gõ dở (nộp báo cáo / dán danh sách SĐT + bấm Xem trước) — nếu cứ có ai đó thay đổi data
-    // ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ xoá mất Nguồn đang chọn + kết quả Xem
-    // trước, khiến MKT tưởng nhầm là bị mất hết, phải làm lại từ đầu. Trang tự cập nhật lại
-    // ngay khi họ thực sự bấm gửi (đã có sẵn gọi renderMktInputPage() trực tiếp lúc đó).
-    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput'){
+    // "staffReport", "mktInput" và "invoices" bị loại trừ khỏi việc tự vẽ lại: đây là các trang
+    // có form đang gõ/chỉnh dở (nộp báo cáo / nhập data MKT / đang soạn 1 hoá đơn) — nếu cứ có
+    // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
+    // đang gõ dở hoặc nhảy màn hình giữa chừng. Trang "invoices" có nút "🔄 Làm mới" riêng để
+    // Sale chủ động cập nhật (VD: khi Quản lý vừa thêm sản phẩm mới) mà không mất phần đang soạn.
+    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices'){
       clearTimeout(dataChangedRenderTimer);
       dataChangedRenderTimer = setTimeout(()=>{
         // Nếu đang gõ dở/đang chọn 1 ô nào đó trên trang (Tên khách, Tình trạng, Nguồn, Số tiền
@@ -2491,6 +2491,13 @@ function startNewInvoiceDraft(){
   renderInvoicesPage();
 }
 // Dùng riêng cho nút "Hoá đơn mới" NGAY TRONG khung đang sửa — hỏi trước để tránh mất dở việc đang làm.
+// Nút "🔄 Làm mới" — chỉ cập nhật lại danh mục sản phẩm/thông tin cửa hàng mới nhất từ Firebase
+// (không tải lại toàn bộ trang), GIỮ NGUYÊN toàn bộ dữ liệu đang soạn dở của hoá đơn hiện tại.
+function refreshInvoiceEditor(){
+  if(!currentInvoiceDraft) return;
+  renderInvoiceEditor();
+  showToast('Đã cập nhật danh mục sản phẩm mới nhất — giữ nguyên hoá đơn đang soạn.');
+}
 function startNewInvoiceDraftFromEditor(){
   askConfirm('Tạo hoá đơn mới?', 'Các thay đổi chưa lưu ở hoá đơn hiện tại sẽ mất. Tiếp tục?', ()=>{
     startNewInvoiceDraft();
@@ -2710,6 +2717,7 @@ function renderInvoiceEditor(){
       <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
       <button class="btn-ghost" onclick="window.print()">🖨️ In / Lưu PDF</button>
       <button class="btn-ghost" onclick="startNewInvoiceDraftFromEditor()">🧾 Hoá đơn mới</button>
+      <button class="btn-ghost" onclick="refreshInvoiceEditor()">🔄 Làm mới</button>
       <button class="btn-ghost" onclick="cancelInvoiceDraft()">↩️ Quay lại danh sách</button>
     </div>
     <div id="invoicePrintArea">
