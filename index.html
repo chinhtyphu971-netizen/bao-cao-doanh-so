@@ -1635,7 +1635,7 @@ let state = {
 };
 function persistSession(){ LocalDB.write('session', state.session); }
 
-let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions, fbProducts, fbProductSheetUrl, fbInvoices, fbInvoiceSettings;
+let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions, fbProducts, fbProductSheetUrl, fbInvoices, fbInvoiceSettings, fbInvoiceCounter;
 const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
@@ -1707,6 +1707,7 @@ function startFirebaseListeners(){
   fbProducts = db.ref('products');
   fbProductSheetUrl = db.ref('productSheetUrl');
   fbInvoices = db.ref('invoices');
+  fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
   fbChats = db.ref('chats');
@@ -2649,8 +2650,26 @@ function computeDraftTotals(){
   const deposit = Number(currentInvoiceDraft.deposit)||0;
   return {totalQty, totalAmount, deposit, finalAmount: totalAmount - deposit};
 }
-function nextInvoiceNumber(){
-  return 'HD' + String(state.invoices.length + 1).padStart(4,'0');
+function formatInvoiceNumber(n){ return 'HD' + String(n).padStart(4,'0'); }
+// Số HĐ lớn nhất hiện có (dùng làm điểm bắt đầu cho bộ đếm ở lần đầu)
+function maxExistingInvoiceNumber(){
+  return state.invoices.reduce((m,inv)=>{
+    const n = parseInt(String(inv.invoiceNumber||'').replace(/\D/g,''),10);
+    return (n && n>m) ? n : m;
+  }, 0);
+}
+// Cấp số HĐ mới qua bộ đếm chung trên Firebase (transaction) — mọi Sale dùng chung 1 dãy số,
+// ai lưu trước nhận số trước, 2 người lưu cùng lúc cũng không bị trùng, xoá hoá đơn không làm lùi số.
+function reserveInvoiceNumber(cb){
+  const seed = maxExistingInvoiceNumber();
+  if(!fbInvoiceCounter){ cb(null, formatInvoiceNumber(seed+1)); return; }
+  fbInvoiceCounter.transaction(current=>{
+    const base = Math.max(Number(current)||0, seed);
+    return base + 1;
+  }, (error, committed, snap)=>{
+    if(error || !committed){ cb(error || new Error('not committed')); return; }
+    cb(null, formatInvoiceNumber(snap.val()));
+  });
 }
 function saveInvoiceDraft(){
   const d = currentInvoiceDraft;
@@ -2664,7 +2683,21 @@ function saveInvoiceDraft(){
       if(!l.qty || l.qty<=0){ showToast('Số lượng phải lớn hơn 0.'); return; }
     }
   }
-  const u = currentUser();
+  const isNew = !d.id;
+  if(isNew){
+    if(invoiceSaving) return; // chặn bấm Lưu 2 lần khi đang xin số HĐ
+    invoiceSaving = true;
+    reserveInvoiceNumber((err, number)=>{
+      invoiceSaving = false;
+      if(err){ showToast('Không lấy được số hoá đơn — kiểm tra mạng rồi bấm Lưu lại.'); return; }
+      finishSaveInvoiceDraft(d, number);
+    });
+    return;
+  }
+  finishSaveInvoiceDraft(d, d.invoiceNumber);
+}
+let invoiceSaving = false;
+function finishSaveInvoiceDraft(d, invoiceNumber){
   const isNew = !d.id;
   const id = d.id || ('inv_' + uid());
   const totals = computeDraftTotals();
@@ -2679,7 +2712,7 @@ function saveInvoiceDraft(){
   });
   const finalInvoice = {
     id,
-    invoiceNumber: isNew ? nextInvoiceNumber() : d.invoiceNumber,
+    invoiceNumber,
     invoiceDate: d.invoiceDate,
     customerName: d.customerName,
     saleId: d.saleId,
@@ -2696,7 +2729,7 @@ function saveInvoiceDraft(){
   };
   state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
   fbInvoices.child(id).set(finalInvoice);
-  showToast('Đã lưu hoá đơn.');
+  showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
   currentInvoiceDraft = null;
   renderInvoicesPage();
 }
