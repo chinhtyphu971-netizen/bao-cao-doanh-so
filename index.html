@@ -424,17 +424,19 @@
     #invoicePrintArea .inv-toprow > div[style*="min-width"]{ min-width:0 !important; flex-basis:100%; }
     #invoicePrintArea .inv-stt{ display:none; }
     #invoicePrintArea table{ width:100%; font-size:11.5px; }
-    #invoicePrintArea th{ padding:4px 2px; font-size:10.5px; white-space:normal; line-height:1.2; }
-    #invoicePrintArea td{ padding:2px 2px; }
+    #invoicePrintArea th{ padding:4px 1px; font-size:10.5px; white-space:normal; line-height:1.2; }
+    #invoicePrintArea td{ padding:2px 1px; }
     /* Sản phẩm: ô chọn chỉ rộng vừa hiện Mã (phần tên bị cắt), bấm vào vẫn thấy đủ tên để chọn */
-    /* Sản phẩm: chỉ hiện Mã; ô chọn trong suốt phủ lên trên nên bấm vào vẫn thấy đủ tên để chọn */
-    #invoicePrintArea .inv-prod-wrap{ position:relative; display:inline-block; }
-    #invoicePrintArea .inv-prod-code{ display:inline-block; font-weight:600; color:#000; padding:3px 2px; border-bottom:1px dashed #bbb; }
+    /* Sản phẩm: hiện Mã + đầu tên; ô chọn trong suốt phủ lên trên nên bấm vào vẫn thấy đủ tên để chọn */
+    #invoicePrintArea .inv-prod-wrap{ position:relative; display:block; }
+    /* Hiện "Mã - Tên" trong 1 ô nhỏ, dài quá thì cắt bằng dấu … */
+    #invoicePrintArea .inv-prod-code{ display:block; width:clamp(70px, calc(100vw - 290px), 160px); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#000; padding:3px 2px; border-bottom:1px dashed #bbb; }
     #invoicePrintArea select.inv-prod-select{ position:absolute; inset:0; width:100%; min-width:0 !important; max-width:none; opacity:0; }
-    #invoicePrintArea .table-wrap select{ min-width:0; max-width:64px; }
+    #invoicePrintArea .table-wrap select{ min-width:38px; max-width:56px; }
+    #invoicePrintArea td.num{ font-size:11px; }
     #invoicePrintArea select, #invoicePrintArea input,
     #invoicePrintArea td select, #invoicePrintArea td input{ font-size:12px !important; padding:1px 2px !important; }
-    #invoicePrintArea input[type=number]{ width:34px !important; }
+    #invoicePrintArea input[type=number]{ width:32px !important; }
     #invoicePrintArea input[type=text]{ width:54px !important; }
     #invoicePrintArea .row-delete-btn{ width:16px; font-size:16px; }
     #invoicePrintArea .inv-footer{ flex-direction:column; align-items:stretch; }
@@ -2744,7 +2746,7 @@ function renderInvoiceEditor(){
       rowsHtml += '<tr>';
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${g.productCode||'Chọn SP'}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span></td>`;
+        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (product.code + ' - ' + (product.name||'')) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span></td>`;
       }
       rowsHtml += `<td>`;
       if(colorOptions.length>0){
