@@ -391,6 +391,44 @@
   #invoicePrintArea .inv-totals{font-size:12.5px; color:#333; min-width:230px;}
   #invoicePrintArea .inv-totals-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:3px 0;}
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
+  #invoicePrintArea select.inv-prod-select{min-width:150px;}
+  #invoicePrintArea .inv-prod-code{display:none;}
+  /* Máy cảm ứng không có hover → luôn hiện nút xoá dòng / thêm màu */
+  @media (hover:none){
+    #invoicePrintArea .row-delete-btn{ opacity:.55; }
+    #invoicePrintArea .add-color-link{ opacity:1; }
+  }
+  /* ===== Hoá đơn trên điện thoại: gọn lại để không phải kéo ngang ===== */
+  @media (max-width:720px){
+    #invoicePrintArea{ padding:14px 8px !important; font-size:12px; }
+    #invoicePrintArea .inv-title{ font-size:17px; margin-bottom:8px; }
+    /* QR neo theo phần thông tin cửa hàng (dưới tiêu đề) để không đè lên tiêu đề */
+    #invoicePrintArea .inv-header{ padding-right:88px; position:relative; min-height:84px; }
+    #invoicePrintArea .inv-qr{ top:0; right:0; width:76px; height:76px; padding:2px; }
+    #invoicePrintArea .inv-meta-line{ font-size:11.5px; word-break:break-word; }
+    #invoicePrintArea .inv-toprow{ gap:10px; }
+    #invoicePrintArea .inv-toprow > div[style*="min-width"]{ min-width:0 !important; flex-basis:100%; }
+    #invoicePrintArea .inv-stt{ display:none; }
+    #invoicePrintArea table{ width:100%; font-size:11.5px; }
+    #invoicePrintArea th{ padding:4px 2px; font-size:10.5px; white-space:normal; line-height:1.2; }
+    #invoicePrintArea td{ padding:4px 2px; }
+    /* Sản phẩm: ô chọn chỉ rộng vừa hiện Mã (phần tên bị cắt), bấm vào vẫn thấy đủ tên để chọn */
+    /* Sản phẩm: chỉ hiện Mã; ô chọn trong suốt phủ lên trên nên bấm vào vẫn thấy đủ tên để chọn */
+    #invoicePrintArea .inv-prod-wrap{ position:relative; display:inline-block; }
+    #invoicePrintArea .inv-prod-code{ display:inline-block; font-weight:600; color:#000; padding:3px 2px; border-bottom:1px dashed #bbb; }
+    #invoicePrintArea select.inv-prod-select{ position:absolute; inset:0; width:100%; min-width:0 !important; max-width:none; opacity:0; }
+    #invoicePrintArea .table-wrap select{ min-width:0; max-width:64px; }
+    #invoicePrintArea select, #invoicePrintArea input{ font-size:12px !important; padding:3px 2px !important; }
+    #invoicePrintArea input[type=number]{ width:34px !important; }
+    #invoicePrintArea input[type=text]{ width:54px !important; }
+    #invoicePrintArea .row-delete-btn{ width:16px; font-size:16px; }
+    #invoicePrintArea .inv-footer{ flex-direction:column; align-items:stretch; }
+    #invoicePrintArea .inv-staff-row{ gap:10px !important; flex-wrap:wrap; }
+    #invoicePrintArea input.inv-staff-input{ width:130px !important; }
+    #invoicePrintArea .inv-totals{ min-width:0; width:100%; }
+    #invoicePrintArea input.inv-deposit-input{ width:140px !important; }
+    #invoicePrintArea .inv-totals .inv-grand{ font-size:15px; }
+  }
   @media print{
     .sidebar, .hamburger-btn, .sidebar-backdrop, .page-head, .no-print{ display:none !important; }
     .main{ padding:0 !important; max-width:100% !important; }
@@ -2690,8 +2728,8 @@ function renderInvoiceEditor(){
     g.colorLines.forEach((line, ci)=>{
       rowsHtml += '<tr>';
       if(ci===0){
-        rowsHtml += `<td rowspan="${rowspan}">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><select onchange="updateDraftProductGroup(${gi}, this.value)" style="min-width:150px;">${productOptionsHtmlFor(g.productCode)}</select></td>`;
+        rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
+        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${g.productCode||'Chọn SP'}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span></td>`;
       }
       rowsHtml += `<td>`;
       if(colorOptions.length>0){
@@ -2710,7 +2748,7 @@ function renderInvoiceEditor(){
       rowsHtml += `<td class="no-print"><button class="row-delete-btn" onclick="removeColorLineFromDraft(${gi},${ci})" title="Xoá dòng này">×</button></td>`;
       rowsHtml += '</tr>';
     });
-    rowsHtml += `<tr class="no-print add-color-row"><td></td><td colspan="6" style="padding:2px 8px;"><span class="add-color-link" title="Thêm màu cho sản phẩm này" onclick="addColorLineToDraft(${gi})">+</span></td><td></td></tr>`;
+    rowsHtml += `<tr class="no-print add-color-row"><td class="inv-stt"></td><td colspan="6" style="padding:2px 8px;"><span class="add-color-link" title="Thêm màu cho sản phẩm này" onclick="addColorLineToDraft(${gi})">+</span></td><td></td></tr>`;
   });
 
   const teamOptionsHtml = '<option value="">— Chọn team —</option>' + (state.branches||[]).map(b=>`<option value="${b.id}" ${d.teamId===b.id?'selected':''}>${b.name}</option>`).join('');
@@ -2740,15 +2778,15 @@ function renderInvoiceEditor(){
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th>SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th class="no-print"></th></tr></thead>
+          <thead><tr><th class="inv-stt">STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th>SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th class="no-print"></th></tr></thead>
           <tbody>${rowsHtml || '<tr><td colspan="8" class="empty-note">Chưa có sản phẩm nào — bấm "+ Thêm sản phẩm" bên dưới.</td></tr>'}</tbody>
         </table>
       </div>
       <button class="btn-ghost btn-small no-print" style="margin-top:10px;" onclick="addProductGroupToDraft()">+ Thêm sản phẩm</button>
 
       <div class="inv-footer">
-        <div style="display:flex; gap:24px;">
-          <div><label>Nhân viên</label><input value="${(d.saleName||'').replace(/"/g,'&quot;')}" placeholder="Tên nhân viên" style="width:150px;" onchange="updateDraftField('saleName', this.value)"></div>
+        <div class="inv-staff-row" style="display:flex; gap:24px;">
+          <div><label>Nhân viên</label><input class="inv-staff-input" value="${(d.saleName||'').replace(/"/g,'&quot;')}" placeholder="Tên nhân viên" style="width:150px;" onchange="updateDraftField('saleName', this.value)"></div>
           <div><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
         </div>
         <div class="inv-totals">
