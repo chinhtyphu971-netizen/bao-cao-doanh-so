@@ -2670,7 +2670,7 @@ function renderInvoiceEditor(){
   const totals = computeDraftTotals();
   const settings = state.invoiceSettings || {};
   const qrUrl = (settings.bankName && settings.bankNumber)
-    ? `https://img.vietqr.io/image/${encodeURIComponent(settings.bankName)}-${encodeURIComponent(settings.bankNumber)}-compact2.png`
+    ? `https://img.vietqr.io/image/${encodeURIComponent(settings.bankName)}-${encodeURIComponent(settings.bankNumber)}-qr_only.png`
     : '';
 
   let rowsHtml = '';
