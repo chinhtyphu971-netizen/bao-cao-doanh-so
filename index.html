@@ -356,7 +356,7 @@
   #invoicePrintArea .table-wrap table td:first-child, #invoicePrintArea .table-wrap table th:first-child{
     background:#fff !important; box-shadow:none !important; position:static !important;
   }
-  #invoicePrintArea th{color:#555; font-weight:600; font-size:11.5px; border-bottom:1px solid #ddd; padding:6px 8px; text-align:left;}
+  #invoicePrintArea th{color:#555; font-weight:600; font-size:11.5px; border-bottom:1px solid #ddd; padding:6px 8px; text-align:left; background:#fff !important; position:static !important; box-shadow:none !important;}
   #invoicePrintArea td{border-bottom:1px solid #eee; padding:5px 8px; color:#1a1a1a; vertical-align:middle;}
   #invoicePrintArea td.num, #invoicePrintArea th.num{text-align:right;}
   #invoicePrintArea input, #invoicePrintArea select{
@@ -2475,7 +2475,7 @@ function newInvoiceDraft(){
     saleName: u.name,
     teamId: u.branchId || '',
     productGroups: [], // {productCode, colorLines:[{color,size,qty}]}
-    deposit: 0,
+    deposit: 100000, // mặc định mọi hoá đơn mới đều để sẵn cọc 100.000đ
     createdAt: null,
   };
 }
