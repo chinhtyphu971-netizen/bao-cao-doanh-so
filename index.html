@@ -344,11 +344,11 @@
     background:#fff !important; color:#1a1a1a !important;
     padding:22px 26px !important; border-radius:10px; font-size:13px;
   }
-  #invoicePrintArea .inv-header{display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #c0392b; padding-bottom:10px; margin-bottom:14px;}
+  #invoicePrintArea .inv-header{position:relative; border-bottom:2px solid #c0392b; padding-bottom:10px; margin-bottom:14px; padding-right:120px;}
   #invoicePrintArea .inv-title{color:#c0392b; font-weight:700; font-size:24px; text-align:center; margin:0 0 10px 0;}
   #invoicePrintArea .inv-meta-line{font-size:12.5px; color:#222; line-height:1.55;}
   #invoicePrintArea .inv-meta-line b{color:#000;}
-  #invoicePrintArea .inv-qr{width:150px; height:150px; object-fit:contain;}
+  #invoicePrintArea .inv-qr{position:absolute; top:0; right:0; width:105px; height:105px; object-fit:contain;}
   #invoicePrintArea .inv-toprow{display:flex; gap:24px; margin-bottom:14px; font-size:12.5px; flex-wrap:wrap;}
   #invoicePrintArea .inv-toprow label{display:block; color:#777; font-size:11.5px; margin-bottom:2px;}
   #invoicePrintArea .inv-toprow .inv-static-val{font-weight:600; color:#000;}
