@@ -345,7 +345,7 @@
     padding:22px 26px !important; border-radius:10px; font-size:13px;
   }
   #invoicePrintArea .inv-header{display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #c0392b; padding-bottom:10px; margin-bottom:14px;}
-  #invoicePrintArea .inv-title{color:#c0392b; font-weight:700; font-size:17px; margin:0 0 6px 0;}
+  #invoicePrintArea .inv-title{color:#c0392b; font-weight:700; font-size:24px; text-align:center; margin:0 0 10px 0;}
   #invoicePrintArea .inv-meta-line{font-size:12.5px; color:#222; line-height:1.55;}
   #invoicePrintArea .inv-meta-line b{color:#000;}
   #invoicePrintArea .inv-qr{width:78px; height:78px; object-fit:contain;}
@@ -2713,9 +2713,9 @@ function renderInvoiceEditor(){
       <button class="btn-ghost" onclick="cancelInvoiceDraft()">↩️ Quay lại danh sách</button>
     </div>
     <div id="invoicePrintArea">
+      <div class="inv-title">HÓA ĐƠN BÁN HÀNG · ${settings.shopName||'(Chưa đặt tên cửa hàng — vào Cài đặt điền)'}</div>
       <div class="inv-header">
         <div>
-          <div class="inv-title">HÓA ĐƠN BÁN HÀNG · ${settings.shopName||'(Chưa đặt tên cửa hàng — vào Cài đặt điền)'}</div>
           <div class="inv-meta-line">ĐC: ${settings.address||'—'}</div>
           <div class="inv-meta-line"><b>SĐT:</b> ${settings.phone||'—'}</div>
           <div class="inv-meta-line"><b>STK:</b> ${settings.bankNumber||'—'} - ${settings.bankOwner||'—'} - Ngân hàng ${settings.bankName||'—'}</div>
