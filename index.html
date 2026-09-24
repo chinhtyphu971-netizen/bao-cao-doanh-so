@@ -392,7 +392,7 @@
   #invoicePrintArea .inv-totals-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:3px 0;}
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
   #invoicePrintArea select.inv-prod-select{min-width:150px;}
-  #invoicePrintArea td.inv-group-qty{ font-weight:700; color:#000; }
+  #invoicePrintArea td.inv-group-qty{ font-weight:800; color:#000; font-size:13.5px !important; }
   /* Tổng SL / Đơn giá / Thành tiền (ô gộp nhiều dòng) nằm ngang với dòng màu ĐẦU TIÊN, không ở giữa */
   #invoicePrintArea td[rowspan]{ vertical-align:top; padding-top:6px; }
   /* Khổ hoá đơn gọn như tờ giấy, dồn về bên trái — bảng giãn đủ khổ để cân với phần tổng tiền */
@@ -424,13 +424,13 @@
   #invoicePrintArea > .btn-ghost{ color:#1c5fa8; border-color:#1c5fa8; background:#fff; }
   #invoicePrintArea .inv-prod-code{display:none;}
   /* Máy cảm ứng không có hover → luôn hiện nút xoá dòng / thêm màu */
-  @media (hover:none){
+  @media screen and (hover:none){
     #invoicePrintArea .row-delete-btn{ opacity:.55; }
     #invoicePrintArea .qty-arrows{ opacity:1; }
     #invoicePrintArea .add-color-link{ opacity:1; }
   }
   /* ===== Hoá đơn trên điện thoại: gọn lại để không phải kéo ngang ===== */
-  @media (max-width:720px){
+  @media screen and (max-width:720px){
     #invoicePrintArea{ padding:14px 8px !important; font-size:12px; }
     #invoicePrintArea .inv-title{ font-size:17px; margin-bottom:8px; padding:0; }
     /* QR neo theo phần thông tin cửa hàng (dưới tiêu đề) để không đè lên tiêu đề */
@@ -473,7 +473,34 @@
     #invoicePrintArea select, #invoicePrintArea input{
       border:none !important; background:transparent !important; color:#000 !important; -webkit-appearance:none; appearance:none;
     }
+    /* ---- Bản in hoá đơn: đầy đủ, gọn, dễ đọc ---- */
+    @page{ size:A4; margin:12mm 10mm; }
+    #invoicePrintArea{ padding:0 !important; font-size:12.5px; color:#000; }
+    #invoicePrintArea .inv-title{ font-size:20px; }
+    #invoicePrintArea table{ width:100% !important; font-size:12.5px; }
+    #invoicePrintArea th{ font-size:11.5px; color:#000; border-bottom:1.5px solid #000; padding:5px 6px; white-space:nowrap; }
+    #invoicePrintArea td{ padding:4px 6px !important; border-bottom:1px solid #ccc; color:#000; }
+    #invoicePrintArea tr{ page-break-inside:avoid; }
+    /* Sản phẩm: in đủ "Mã - Tên", cho xuống dòng nếu dài */
+    #invoicePrintArea .inv-prod-select{ display:none !important; }
+    #invoicePrintArea .inv-prod-wrap{ position:static !important; display:block !important; }
+    #invoicePrintArea .inv-prod-code{
+      display:block !important; width:auto !important; max-width:none !important; overflow:visible !important;
+      white-space:normal !important; text-overflow:clip !important; border:none !important; padding:0 !important;
+      font-size:12.5px !important; font-weight:600; color:#000;
+    }
+    #invoicePrintArea td:has(.inv-prod-wrap){ white-space:normal; min-width:150px; }
+    /* Không in các dòng chưa chọn sản phẩm, chữ gợi ý trong ô trống, team chưa chọn */
+    #invoicePrintArea tr.inv-row-empty{ display:none !important; }
+    #invoicePrintArea ::placeholder{ color:transparent !important; }
+    #invoicePrintArea .inv-team-empty{ display:none !important; }
+    /* Cọc: in số đã định dạng thay cho ô nhập */
+    #invoicePrintArea input.inv-deposit-input{ display:none !important; }
+    #invoicePrintArea .print-only{ display:inline !important; }
+    #invoicePrintArea input[type=number]{ width:auto !important; max-width:48px; text-align:center; font-weight:600; }
+    #invoicePrintArea .inv-footer{ page-break-inside:avoid; }
   }
+  #invoicePrintArea .print-only{ display:none; }
 </style>
 </head>
 <body>
@@ -2654,6 +2681,7 @@ function computeGroupTotals(group){
 function computeDraftTotals(){
   let totalQty = 0, totalAmount = 0;
   (currentInvoiceDraft.productGroups||[]).forEach(g=>{
+    if(!g.productCode) return; // dòng chưa chọn sản phẩm không tính vào tổng
     const {totalQty:gq, groupTotal} = computeGroupTotals(g);
     totalQty += gq; totalAmount += groupTotal;
   });
@@ -2834,7 +2862,7 @@ function renderInvoiceEditor(){
     const colorOptions = product ? parseColorOptions(product.colors) : [];
     const rowspan = g.colorLines.length;
     g.colorLines.forEach((line, ci)=>{
-      rowsHtml += '<tr>';
+      rowsHtml += g.productCode ? '<tr>' : '<tr class="inv-row-empty">';
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
         rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (product.code + ' - ' + (product.name||'')) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span></td>`;
@@ -2849,9 +2877,9 @@ function renderInvoiceEditor(){
       // Size dùng danh sách cố định S/M/L/XL/Đủ size — mặc định để trống chưa chọn.
       rowsHtml += `<td><select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value=""></option>${FIXED_SIZE_OPTIONS.map(s=>`<option value="${s}" ${line.size===s?'selected':''}>${s}</option>`).join('')}</select></td>`;
       rowsHtml += `<td><span class="qty-wrap"><input type="number" min="1" value="${line.qty||1}" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"><span class="qty-arrows no-print"><button type="button" title="Tăng 1" onclick="stepDraftQty(${gi},${ci},1)">▲</button><button type="button" title="Giảm 1" onclick="stepDraftQty(${gi},${ci},-1)">▼</button></span></span></td>`;
-      // Cột "Tổng SL": chỉ hiện khi mã này có từ 2 dòng màu/size trở lên (1 dòng thì SL đã là tổng)
+      // Cột "Tổng SL": hiện tổng số lượng của mọi mã (kể cả mã chỉ có 1 dòng), in đậm
       if(ci===0){
-        rowsHtml += `<td rowspan="${rowspan}" class="num inv-group-qty">${rowspan>=2 ? totalQty : ''}</td>`;
+        rowsHtml += `<td rowspan="${rowspan}" class="num inv-group-qty">${totalQty}</td>`;
       }
       // Đơn giá: cả mã dùng chung 1 giá (theo tổng SL) → gộp thành 1 ô, không lặp lại từng dòng màu
       if(ci===0){
@@ -2900,12 +2928,12 @@ function renderInvoiceEditor(){
       <div class="inv-footer">
         <div class="inv-staff-row" style="display:flex; gap:24px;">
           <div><label>Nhân viên</label><input class="inv-staff-input" value="${(d.saleName||'').replace(/"/g,'&quot;')}" placeholder="Tên nhân viên" style="width:150px;" onchange="updateDraftField('saleName', this.value)"></div>
-          <div><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
+          <div class="${d.teamId?'':'inv-team-empty'}"><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
         </div>
         <div class="inv-totals">
           <div class="inv-totals-row"><span>Tổng số lượng:</span><span>${totals.totalQty} sản phẩm</span></div>
           <div class="inv-totals-row"><span>Tổng tiền hàng:</span><span>${fmtMoney(totals.totalAmount)}đ</span></div>
-          <div class="inv-totals-row"><span>Cọc:</span><input type="number" min="0" value="${d.deposit||0}" class="inv-deposit-input" style="width:250px; border-radius:6px; text-align:right;" onchange="updateDraftField('deposit', this.value)"></div>
+          <div class="inv-totals-row"><span>Cọc:</span><input type="number" min="0" value="${d.deposit||0}" class="inv-deposit-input" style="width:250px; border-radius:6px; text-align:right;" onchange="updateDraftField('deposit', this.value)"><span class="print-only">${fmtMoney(Number(d.deposit)||0)}đ</span></div>
           <div class="inv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(totals.finalAmount)}đ</span></div>
         </div>
       </div>
