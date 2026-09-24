@@ -451,7 +451,9 @@
     #invoicePrintArea .inv-meta-line{ font-size:11.5px; word-break:break-word; }
     #invoicePrintArea .inv-toprow{ gap:6px 12px; }
     #invoicePrintArea .inv-toprow label{ font-size:11px; }
-    #invoicePrintArea .inv-toprow .inv-cust{ min-width:0 !important; flex:1 1 100% !important; }
+    #invoicePrintArea .inv-toprow .inv-cust{ min-width:0 !important; flex:1 1 150px !important; }
+    #invoicePrintArea .inv-toprow .inv-cust input{ min-width:0; }
+    #invoicePrintArea .inv-toprow .inv-phone input{ width:100px !important; }
     #invoicePrintArea .inv-stt{ display:none; }
     #invoicePrintArea table{ width:100%; font-size:11.5px; }
     #invoicePrintArea th{ padding:4px 1px; font-size:10.5px; white-space:normal; line-height:1.2; }
@@ -509,9 +511,13 @@
     #invoicePrintArea .row-delete-btn, #invoicePrintArea .qty-arrows, #invoicePrintArea button{ display:none !important; }
     #invoicePrintArea ::placeholder{ color:transparent !important; }
     #invoicePrintArea .inv-team-empty{ display:none !important; }
+    #invoicePrintArea .inv-phone:has(input:placeholder-shown){ display:none !important; }
+    #invoicePrintArea .inv-toprow .inv-phone input{ font-weight:600; padding-left:0 !important; }
     /* Cọc: in số đã định dạng thay cho ô nhập */
     #invoicePrintArea input.inv-deposit-input, #invoicePrintArea input.inv-date-input{ display:none !important; }
     #invoicePrintArea .inv-toprow .inv-cust input{ font-weight:600; padding-left:0 !important; }
+    #invoicePrintArea .inv-toprow .inv-cust{ flex:0 1 auto !important; min-width:0 !important; }
+    #invoicePrintArea .inv-toprow .inv-cust input, #invoicePrintArea .inv-toprow .inv-phone input{ display:none !important; }
     #invoicePrintArea .print-only{ display:inline !important; }
     #invoicePrintArea input[type=number]{ width:auto !important; max-width:48px; text-align:center; font-weight:600; }
     #invoicePrintArea .inv-footer{ page-break-inside:avoid; }
@@ -679,7 +685,7 @@
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
-        <div class="nav-item" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
+        <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
         <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
         <div class="nav-item" id="navItem_videoShootsOverview" data-page="videoShootsOverview" onclick="goPage('videoShootsOverview')"><span class="label">🎬 Chi phí quay video (tổng)</span></div>
@@ -1259,6 +1265,7 @@
           </div>
           <div class="card">
             <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+            <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm theo tên khách, SĐT hoặc số HĐ..." oninput="renderInvoicesPage()" style="max-width:360px; margin-bottom:12px;">
             <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
           </div>
         </div>
@@ -1282,6 +1289,7 @@
             <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="invOverviewFrom" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="invOverviewTo" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo Sale</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
+            <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="renderInvoicesOverviewPage()"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Số hoá đơn</div><div class="stat-value" id="invOverviewStatCount">0</div></div>
@@ -2660,6 +2668,7 @@ function newInvoiceDraft(){
     invoiceNumber: '—',
     invoiceDate: todayStr(),
     customerName: '',
+    customerPhone: '',
     saleId: u.id,
     saleName: lastSaleName || u.name,
     teamId: lastTeamId !== null ? lastTeamId : (u.branchId || ''),
@@ -2676,6 +2685,9 @@ function invoiceDraftChanged(){
   if(!currentInvoiceDraft) return false;
   const el = document.getElementById('invEditCustomerName');
   if(el) currentInvoiceDraft.customerName = el.value;
+  const ph = document.getElementById('invEditCustomerPhone');
+  if(ph) currentInvoiceDraft.customerPhone = ph.value;
+  if(currentInvoiceDraft.customerPhone===undefined) currentInvoiceDraft.customerPhone = '';
   return JSON.stringify(currentInvoiceDraft) !== invoiceDraftSnapshot;
 }
 function startNewInvoiceDraft(){
@@ -2815,6 +2827,8 @@ function saveInvoiceDraft(afterSave){
   const d = currentInvoiceDraft;
   const customerNameEl = document.getElementById('invEditCustomerName');
   if(customerNameEl) d.customerName = customerNameEl.value.trim();
+  const customerPhoneEl = document.getElementById('invEditCustomerPhone');
+  if(customerPhoneEl) d.customerPhone = customerPhoneEl.value.trim();
   const err = validateInvoiceDraft(d);
   if(err){ showToast(err); return; }
   const done = (typeof afterSave==='function') ? afterSave : null;
@@ -2852,6 +2866,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
     invoiceNumber,
     invoiceDate: d.invoiceDate,
     customerName: d.customerName,
+    customerPhone: (d.customerPhone||'').trim(),
     saleId: d.saleId,
     saleName: d.saleName,
     teamId: d.teamId,
@@ -2894,18 +2909,23 @@ function renderInvoicesPage(){
   }
   document.getElementById('invoicesListWrap').style.display = 'block';
   document.getElementById('invoiceEditorWrap').style.display = 'none';
-  const mine = state.invoices.filter(inv=>inv.saleId===u.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  document.getElementById('myInvoicesCount').textContent = mine.length ? `(${mine.length})` : '';
+  const mineAll = state.invoices.filter(inv=>inv.saleId===u.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const searchEl = document.getElementById('myInvoicesSearch');
+  const q = searchEl ? searchEl.value : '';
+  const mine = mineAll.filter(inv=>invoiceMatchesSearch(inv, q));
+  document.getElementById('myInvoicesCount').textContent = mineAll.length ? (q.trim() ? `(tìm thấy ${mine.length}/${mineAll.length})` : `(${mineAll.length})`) : '';
   const table = document.getElementById('myInvoicesTable');
   if(mine.length===0){
-    table.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào — bấm "+ Tạo hoá đơn mới" ở trên.</td></tr>';
+    table.innerHTML = mineAll.length
+      ? '<tr><td class="empty-note">Không tìm thấy hoá đơn nào khớp.</td></tr>'
+      : '<tr><td class="empty-note">Chưa có hoá đơn nào — bấm "+ Tạo hoá đơn mới" ở trên.</td></tr>';
     return;
   }
   table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th class="num">SL</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
     mine.map(inv=>`<tr>
       <td data-label="Số HĐ">${inv.invoiceNumber}</td>
       <td data-label="Ngày">${fmtDate(inv.invoiceDate)}</td>
-      <td data-label="Khách hàng">${inv.customerName}</td>
+      <td data-label="Khách hàng">${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td>
@@ -2916,6 +2936,19 @@ function renderInvoicesPage(){
     </tr>`).join('') + `</tbody>`;
 }
 
+// Tìm hoá đơn theo tên khách / SĐT / số HĐ — không phân biệt hoa thường, có dấu hay không dấu
+function normalizeSearchText(v){
+  return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').trim();
+}
+function invoiceMatchesSearch(inv, q){
+  const nq = normalizeSearchText(q);
+  if(!nq) return true;
+  const digits = nq.replace(/\D/g,'');
+  if(normalizeSearchText(inv.customerName).includes(nq)) return true;
+  if(normalizeSearchText(inv.invoiceNumber).includes(nq)) return true;
+  if(digits.length>=3 && String(inv.customerPhone||'').replace(/\D/g,'').includes(digits)) return true;
+  return false;
+}
 function productOptionsHtmlFor(selectedCode){
   return '<option value="">— Chọn sản phẩm —</option>' +
     state.products.slice().sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}))
@@ -2990,7 +3023,8 @@ function renderInvoiceEditor(){
       <div class="inv-toprow">
         <div><label>Số HĐ</label><div class="inv-static-val">${d.invoiceNumber}</div></div>
         <div><label>Ngày</label><input type="date" class="inv-date-input" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"><span class="print-only inv-static-val">${d.invoiceDate ? fmtDate(d.invoiceDate) : ''}</span></div>
-        <div class="inv-cust" style="flex:1; min-width:160px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
+        <div class="inv-cust" style="flex:1; min-width:160px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value; this.nextElementSibling.textContent=this.value" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"><span class="print-only inv-static-val">${(d.customerName||'').replace(/</g,'&lt;')}</span></div>
+        <div class="inv-phone"><label>SĐT</label><input id="invEditCustomerPhone" type="tel" inputmode="tel" style="width:120px;" oninput="currentInvoiceDraft.customerPhone=this.value; this.nextElementSibling.textContent=this.value" value="${(d.customerPhone||'').replace(/"/g,'&quot;')}" placeholder="SĐT khách"><span class="print-only inv-static-val">${(d.customerPhone||'').replace(/</g,'&lt;')}</span></div>
       </div>
       <div class="table-wrap">
         <table>
@@ -3109,6 +3143,9 @@ function renderInvoicesOverviewPage(){
   }
 
   const invTable = document.getElementById('invOverviewTable');
+  const invSearchEl = document.getElementById('invOverviewSearch');
+  const invQ = invSearchEl ? invSearchEl.value : '';
+  if(invQ.trim()) invoices = invoices.filter(inv=>invoiceMatchesSearch(inv, invQ)); // tìm kiếm chỉ lọc "Danh sách hoá đơn"
   if(invoices.length===0){
     invTable.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào phù hợp.</td></tr>';
     return;
@@ -3117,7 +3154,7 @@ function renderInvoicesOverviewPage(){
     invoices.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
-      <td>${inv.customerName}</td>
+      <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
       <td>${inv.saleName}</td>
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
@@ -3160,6 +3197,7 @@ function viewInvoiceReadonly(invoiceId){
       <div><span>Số HĐ:</span> <b>${esc(inv.invoiceNumber)}</b></div>
       <div><span>Ngày:</span> <b>${inv.invoiceDate ? fmtDate(inv.invoiceDate) : ''}</b></div>
       <div><span>Khách hàng:</span> <b>${esc(inv.customerName)}</b></div>
+      ${inv.customerPhone ? `<div><span>SĐT:</span> <b>${esc(inv.customerPhone)}</b></div>` : ''}
     </div>
     <div style="overflow-x:auto;"><table>
       <thead><tr><th class="iv-stt">STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th><th class="num">Tổng SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
@@ -5769,6 +5807,7 @@ function enterApp(){
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navItem_invoicesOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // Tổng hợp hoá đơn: CHỈ Quản lý chung được xem
   document.getElementById('navSectionLabel_mkt').style.display = (user.role==='team_manager') ? 'none' : 'block';
   document.getElementById('navSectionLabel_system').style.display = isDataManager ? 'none' : 'block';
   // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
@@ -5813,6 +5852,7 @@ function goPage(pageId){
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='videoShootsOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
+  if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 5 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
