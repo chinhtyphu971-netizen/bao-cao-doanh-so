@@ -393,6 +393,8 @@
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
   #invoicePrintArea select.inv-prod-select{min-width:150px;}
   #invoicePrintArea td.inv-group-qty{ font-weight:700; color:#000; }
+  /* Tổng SL / Đơn giá / Thành tiền (ô gộp nhiều dòng) nằm ngang với dòng màu ĐẦU TIÊN, không ở giữa */
+  #invoicePrintArea td[rowspan]{ vertical-align:top; padding-top:6px; }
   /* Khổ hoá đơn gọn như tờ giấy, dồn về bên trái — bảng giãn đủ khổ để cân với phần tổng tiền */
   #invoicePrintArea{ max-width:760px; }
   #invoicePrintArea table{ width:100%; }
@@ -2851,8 +2853,9 @@ function renderInvoiceEditor(){
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="num inv-group-qty">${rowspan>=2 ? totalQty : ''}</td>`;
       }
-      rowsHtml += `<td class="num">${fmtMoney(unitPrice)}</td>`;
+      // Đơn giá: cả mã dùng chung 1 giá (theo tổng SL) → gộp thành 1 ô, không lặp lại từng dòng màu
       if(ci===0){
+        rowsHtml += `<td rowspan="${rowspan}" class="num">${fmtMoney(unitPrice)}</td>`;
         rowsHtml += `<td rowspan="${rowspan}" class="num inv-money">${fmtMoney(groupTotal)}đ</td>`;
       }
       rowsHtml += `<td class="no-print"><button class="row-delete-btn" onclick="removeColorLineFromDraft(${gi},${ci})" title="Xoá dòng này">×</button></td>`;
