@@ -338,6 +338,38 @@
   .detail-row .k{color:var(--ink-soft);}
   .detail-row .k.history-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .detail-row .v{font-weight:600; text-align:right;}
+
+  /* ===== Hoá đơn — luôn nền trắng/chữ đen như hoá đơn in thật, không ăn theo theme tối của app ===== */
+  #invoicePrintArea{
+    background:#fff !important; color:#1a1a1a !important;
+    padding:22px 26px !important; border-radius:10px; font-size:13px;
+  }
+  #invoicePrintArea .inv-header{display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #c0392b; padding-bottom:10px; margin-bottom:14px;}
+  #invoicePrintArea .inv-title{color:#c0392b; font-weight:700; font-size:17px; margin:0 0 6px 0;}
+  #invoicePrintArea .inv-meta-line{font-size:12.5px; color:#222; line-height:1.55;}
+  #invoicePrintArea .inv-meta-line b{color:#000;}
+  #invoicePrintArea .inv-qr{width:78px; height:78px; object-fit:contain;}
+  #invoicePrintArea .inv-toprow{display:flex; gap:24px; margin-bottom:14px; font-size:12.5px; flex-wrap:wrap;}
+  #invoicePrintArea .inv-toprow label{display:block; color:#777; font-size:11.5px; margin-bottom:2px;}
+  #invoicePrintArea .inv-toprow .inv-static-val{font-weight:600; color:#000;}
+  #invoicePrintArea table{width:auto; font-size:12.5px; color:#1a1a1a;}
+  #invoicePrintArea .table-wrap table td:first-child, #invoicePrintArea .table-wrap table th:first-child{
+    background:#fff !important; box-shadow:none !important; position:static !important;
+  }
+  #invoicePrintArea th{color:#555; font-weight:600; font-size:11.5px; border-bottom:1px solid #ddd; padding:6px 8px; text-align:left;}
+  #invoicePrintArea td{border-bottom:1px solid #eee; padding:5px 8px; color:#1a1a1a; vertical-align:middle;}
+  #invoicePrintArea td.num, #invoicePrintArea th.num{text-align:right;}
+  #invoicePrintArea input, #invoicePrintArea select{
+    background:#fff !important; color:#1a1a1a !important; border:1px solid #ccc !important;
+    padding:4px 6px !important; font-size:12.5px !important; min-height:26px !important;
+  }
+  #invoicePrintArea input[type=number]{width:52px !important; border-radius:14px !important; text-align:center;}
+  #invoicePrintArea .inv-money{color:#1c5fa8; font-weight:600;}
+  #invoicePrintArea .inv-footer{display:flex; justify-content:space-between; align-items:flex-end; margin-top:18px; flex-wrap:wrap; gap:14px;}
+  #invoicePrintArea .inv-footer label{display:block; color:#777; font-size:11.5px; margin-bottom:2px;}
+  #invoicePrintArea .inv-footer .inv-static-val{font-weight:600; color:#000; font-size:13px;}
+  #invoicePrintArea .inv-totals{text-align:right; font-size:12.5px; color:#333;}
+  #invoicePrintArea .inv-totals .inv-grand{font-size:17px; font-weight:700; color:#c0392b; margin-top:6px;}
   @media print{
     .sidebar, .hamburger-btn, .sidebar-backdrop, .page-head, .no-print{ display:none !important; }
     .main{ padding:0 !important; max-width:100% !important; }
@@ -2618,26 +2650,26 @@ function renderInvoiceEditor(){
       rowsHtml += '<tr>';
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><select onchange="updateDraftProductGroup(${gi}, this.value)" style="min-width:170px;">${productOptionsHtmlFor(g.productCode)}</select></td>`;
+        rowsHtml += `<td rowspan="${rowspan}"><select onchange="updateDraftProductGroup(${gi}, this.value)" style="min-width:150px;">${productOptionsHtmlFor(g.productCode)}</select></td>`;
       }
       rowsHtml += `<td>`;
       if(colorOptions.length>0){
         rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'color',this.value)"><option value="">—</option>${colorOptions.map(c=>`<option value="${c}" ${line.color===c?'selected':''}>${c}</option>`).join('')}</select>`;
       } else {
-        rowsHtml += `<input type="text" value="${line.color||''}" placeholder="Màu" style="width:80px;" onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">`;
+        rowsHtml += `<input type="text" value="${line.color||''}" placeholder="Màu" style="width:70px;" onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">`;
       }
       rowsHtml += `</td>`;
       rowsHtml += `<td>`;
       if(sizeOptions.length>0){
         rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'size',this.value)"><option value="">—</option>${sizeOptions.map(s=>`<option value="${s.code}" ${line.size===s.code?'selected':''}>${s.code}</option>`).join('')}</select>`;
       } else {
-        rowsHtml += `<input type="text" value="${line.size||''}" placeholder="Size" style="width:60px;" onchange="updateDraftColorLine(${gi},${ci},'size',this.value)">`;
+        rowsHtml += `<input type="text" value="${line.size||''}" placeholder="Size" style="width:50px;" onchange="updateDraftColorLine(${gi},${ci},'size',this.value)">`;
       }
       rowsHtml += `</td>`;
-      rowsHtml += `<td><input type="number" min="1" value="${line.qty||1}" style="width:56px;" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"></td>`;
+      rowsHtml += `<td><input type="number" min="1" value="${line.qty||1}" onchange="updateDraftColorLine(${gi},${ci},'qty',this.value)"></td>`;
       rowsHtml += `<td class="num">${fmtMoney(unitPrice)}</td>`;
       if(ci===0){
-        rowsHtml += `<td rowspan="${rowspan}" class="num" style="font-weight:600;">${fmtMoney(groupTotal)} đ</td>`;
+        rowsHtml += `<td rowspan="${rowspan}" class="num inv-money">${fmtMoney(groupTotal)}đ</td>`;
       }
       rowsHtml += `<td class="no-print"><button class="btn-ghost btn-small" onclick="removeColorLineFromDraft(${gi},${ci})">🗑️</button></td>`;
       rowsHtml += '</tr>';
@@ -2648,38 +2680,39 @@ function renderInvoiceEditor(){
   const teamOptionsHtml = '<option value="">— Chọn team —</option>' + (state.branches||[]).map(b=>`<option value="${b.id}" ${d.teamId===b.id?'selected':''}>${b.name}</option>`).join('');
 
   wrap.innerHTML = `
-    <div class="card" id="invoicePrintArea">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e04b4b; padding-bottom:10px; margin-bottom:14px;">
+    <div id="invoicePrintArea">
+      <div class="inv-header">
         <div>
-          <h2 style="color:#e04b4b; margin:0 0 8px 0;">HÓA ĐƠN BÁN HÀNG · ${settings.shopName||'(Chưa đặt tên cửa hàng — vào Cài đặt điền)'}</h2>
-          <div style="font-size:13px;">ĐC: ${settings.address||'—'}</div>
-          <div style="font-size:13px;"><b>SĐT:</b> ${settings.phone||'—'}</div>
-          <div style="font-size:13px;"><b>STK:</b> ${settings.bankNumber||'—'} - ${settings.bankOwner||'—'} - Ngân hàng ${settings.bankName||'—'}</div>
+          <div class="inv-title">HÓA ĐƠN BÁN HÀNG · ${settings.shopName||'(Chưa đặt tên cửa hàng — vào Cài đặt điền)'}</div>
+          <div class="inv-meta-line">ĐC: ${settings.address||'—'}</div>
+          <div class="inv-meta-line"><b>SĐT:</b> ${settings.phone||'—'}</div>
+          <div class="inv-meta-line"><b>STK:</b> ${settings.bankNumber||'—'} - ${settings.bankOwner||'—'} - Ngân hàng ${settings.bankName||'—'}</div>
         </div>
-        ${qrUrl ? `<img src="${qrUrl}" style="width:90px; height:90px; object-fit:contain;">` : ''}
+        ${qrUrl ? `<img src="${qrUrl}" class="inv-qr">` : ''}
       </div>
-      <div class="toolbar" style="margin-bottom:14px;">
-        <div class="field" style="max-width:140px;"><label>Số HĐ</label><div style="padding:8px 0; font-weight:600;">${d.invoiceNumber}</div></div>
-        <div class="field" style="max-width:170px;"><label>Ngày</label><input type="date" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"></div>
-        <div class="field" style="max-width:260px;"><label>Khách hàng</label><input id="invEditCustomerName" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
+      <div class="inv-toprow">
+        <div><label>Số HĐ</label><div class="inv-static-val">${d.invoiceNumber}</div></div>
+        <div><label>Ngày</label><input type="date" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"></div>
+        <div style="flex:1; min-width:200px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"></div>
       </div>
       <div class="table-wrap">
-        <table class="rtable">
+        <table>
           <thead><tr><th>STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th>SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th class="no-print"></th></tr></thead>
           <tbody>${rowsHtml || '<tr><td colspan="8" class="empty-note">Chưa có sản phẩm nào — bấm "+ Thêm sản phẩm" bên dưới.</td></tr>'}</tbody>
         </table>
       </div>
       <button class="btn-ghost btn-small no-print" style="margin-top:10px;" onclick="addProductGroupToDraft()">+ Thêm sản phẩm</button>
 
-      <div class="toolbar" style="margin-top:20px; align-items:flex-end;">
-        <div class="field" style="max-width:180px;"><label>Nhân viên</label><div style="padding:8px 0; font-weight:600;">${d.saleName}</div></div>
-        <div class="field" style="max-width:180px;"><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
-        <div style="flex:1;"></div>
-        <div style="text-align:right;">
-          <div style="font-size:13px; color:var(--ink-soft);">Tổng số lượng: <b>${totals.totalQty} sản phẩm</b></div>
-          <div style="font-size:13px; color:var(--ink-soft);">Tổng tiền hàng: <b>${fmtMoney(totals.totalAmount)}đ</b></div>
-          <div style="font-size:13px; margin-top:4px;">Cọc: <input type="number" min="0" value="${d.deposit||0}" style="width:110px;" onchange="updateDraftField('deposit', this.value)"></div>
-          <div style="font-size:18px; font-weight:700; color:#e04b4b; margin-top:6px;">TỔNG THANH TOÁN: ${fmtMoney(totals.finalAmount)}đ</div>
+      <div class="inv-footer">
+        <div style="display:flex; gap:24px;">
+          <div><label>Nhân viên</label><div class="inv-static-val">${d.saleName}</div></div>
+          <div><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
+        </div>
+        <div class="inv-totals">
+          <div>Tổng số lượng: <b>${totals.totalQty} sản phẩm</b></div>
+          <div>Tổng tiền hàng: <b>${fmtMoney(totals.totalAmount)}đ</b></div>
+          <div style="margin-top:4px;">Cọc: <input type="number" min="0" value="${d.deposit||0}" style="width:100px; border-radius:6px;" onchange="updateDraftField('deposit', this.value)"></div>
+          <div class="inv-grand">TỔNG THANH TOÁN: ${fmtMoney(totals.finalAmount)}đ</div>
         </div>
       </div>
 
