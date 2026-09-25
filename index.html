@@ -3294,7 +3294,7 @@ function renderInvoicesOverviewPage(){
     invTable.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào phù hợp.</td></tr>';
     return;
   }
-  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th class="num">SL</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
+  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
     limitRows('invOverview', invoices).map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
@@ -3303,8 +3303,9 @@ function renderInvoicesOverviewPage(){
       <td>${inv.saleName ? inv.saleName : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
+      <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
-    </tr>`).join('') + moreRowsHtml('invOverview', invoices.length, 8) + `</tbody>`;
+    </tr>`).join('') + moreRowsHtml('invOverview', invoices.length, 9) + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
 function viewInvoiceReadonly(invoiceId){
@@ -3382,11 +3383,11 @@ function exportInvoicesByProduct(){
 function exportInvoicesOverview(){
   const rows = lastFilteredInvoices.map(inv=>({
     soHd: inv.invoiceNumber, ngay: fmtDate(inv.invoiceDate), khachHang: inv.customerName,
-    taiKhoan: inv.saleId ? userName(inv.saleId) : '', sale: inv.saleName||'', team: inv.teamName||'', soLuong: inv.totalQty, tongThanhToan: inv.finalAmount,
+    taiKhoan: inv.saleId ? userName(inv.saleId) : '', sale: inv.saleName||'', team: inv.teamName||'', soLuong: inv.totalQty, coc: Number(inv.deposit)||0, tongThanhToan: inv.finalAmount,
   }));
   exportRowsToExcel(rows, [
     {key:'soHd', header:'Số HĐ'}, {key:'ngay', header:'Ngày'}, {key:'khachHang', header:'Khách hàng'},
-    {key:'taiKhoan', header:'Tài khoản'}, {key:'sale', header:'Nhân viên ghi'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
+    {key:'taiKhoan', header:'Tài khoản'}, {key:'sale', header:'Nhân viên ghi'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'coc', header:'Cọc'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
   ], `danh-sach-hoa-don-${todayStr()}.xlsx`);
 }
 
