@@ -1856,7 +1856,7 @@ function startFirebaseListeners(){
   fbMktLegacyCounts.on('value', snap=>{ state.mktLegacyCounts = Object.values(snap.val()||{}); onDataChanged(); });
   fbProducts.on('value', snap=>{ state.products = Object.values(snap.val()||{}); onDataChanged(); });
   fbProductSheetUrl.on('value', snap=>{ state.productSheetUrl = snap.val() || ''; onDataChanged(); });
-  fbInvoices.on('value', snap=>{ state.invoices = Object.values(snap.val()||{}); onDataChanged(); });
+  // invoices: KHÔNG tải chung cho mọi người nữa — xem setupInvoiceListener() (gọi khi đăng nhập)
   fbInvoiceSettings.on('value', snap=>{ state.invoiceSettings = snap.val() || {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); });
   fbCallAttemptOptions.once('value').then(snap=>{
     if(!snap.exists()){
@@ -2821,8 +2821,17 @@ function maxExistingInvoiceNumber(){
 // Cấp số HĐ mới qua bộ đếm chung trên Firebase (transaction) — mọi Sale dùng chung 1 dãy số,
 // ai lưu trước nhận số trước, 2 người lưu cùng lúc cũng không bị trùng, xoá hoá đơn không làm lùi số.
 function reserveInvoiceNumber(cb){
-  const seed = maxExistingInvoiceNumber();
-  if(!fbInvoiceCounter){ cb(null, formatInvoiceNumber(seed+1)); return; }
+  if(!fbInvoiceCounter){ cb(null, formatInvoiceNumber(maxExistingInvoiceNumber()+1)); return; }
+  // Bộ đếm đã có trên server → dùng luôn (chỉ tốn vài byte). Chưa có (lần đầu) → đọc số HĐ lớn nhất 1 lần để làm mốc.
+  fbInvoiceCounter.once('value').then(cs=>{
+    if(cs.val()!=null){ runInvoiceCounterTransaction(maxExistingInvoiceNumber(), cb); return; }
+    fbInvoices.once('value').then(all=>{
+      const nums = Object.values(all.val()||{}).map(inv=>parseInt(String(inv.invoiceNumber||'').replace(/\D/g,''),10)||0);
+      runInvoiceCounterTransaction(Math.max(0, maxExistingInvoiceNumber(), ...nums), cb);
+    }).catch(err=>cb(err));
+  }).catch(err=>cb(err));
+}
+function runInvoiceCounterTransaction(seed, cb){
   fbInvoiceCounter.transaction(current=>{
     const base = Math.max(Number(current)||0, seed);
     return base + 1;
@@ -2887,26 +2896,29 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   const isNew = !d.id;
   const id = d.id || ('inv_' + uid());
   const totals = computeDraftTotals();
-  const productGroupsFinal = d.productGroups.map(g=>{
+  // Lưu gọn: bỏ dòng chưa chọn sản phẩm, bỏ các trường rỗng (Firebase tính dung lượng theo từng byte)
+  const productGroupsFinal = d.productGroups.filter(g=>g.productCode).map(g=>{
     const {product, unitPrice} = computeGroupTotals(g);
-    return {
+    const out = {
       productCode: g.productCode,
       productName: product ? product.name : '(đã xoá khỏi danh mục)',
-      design: g.design || '',
       unitPrice,
-      colorLines: g.colorLines.map(l=>({color:l.color||'', size:l.size||'', qty:Number(l.qty)||0})),
+      colorLines: g.colorLines.map(l=>{
+        const line = {color:l.color||'', qty:Number(l.qty)||0};
+        if(l.size) line.size = l.size;
+        return line;
+      }),
     };
+    if(g.design) out.design = g.design;
+    return out;
   });
   const finalInvoice = {
     id,
     invoiceNumber,
     invoiceDate: d.invoiceDate,
     customerName: d.customerName,
-    customerPhone: (d.customerPhone||'').trim(),
     saleId: d.saleId,
     saleName: d.saleName,
-    teamId: d.teamId,
-    teamName: d.teamId ? branchName(d.teamId) : '',
     productGroups: productGroupsFinal,
     totalQty: totals.totalQty,
     totalAmount: totals.totalAmount,
@@ -2915,6 +2927,9 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
     createdAt: d.createdAt || Date.now(),
     updatedAt: Date.now(),
   };
+  const phone = (d.customerPhone||'').trim();
+  if(phone) finalInvoice.customerPhone = phone;
+  if(d.teamId){ finalInvoice.teamId = d.teamId; finalInvoice.teamName = branchName(d.teamId); }
   state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
   fbInvoices.child(id).set(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
@@ -5793,6 +5808,7 @@ function goBackFromBranch(){
 }
 function logout(){
   state.session=null; persistSession();
+  setupInvoiceListener(null); // ngừng tải hoá đơn khi đăng xuất
   resetLeadNotifyState();
   resetChatNotifyState();
   document.getElementById('appScreen').style.display='none';
@@ -5811,9 +5827,30 @@ function branchName(id){ const b=state.branches.find(b=>b.id===id); return b?b.n
 function mktBranchName(id){ const b=state.mktBranches.find(b=>b.id===id); return b?b.name:'—'; }
 function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'(đã xoá)'; }
 
+/* ---- Tải hoá đơn theo vai trò để tiết kiệm băng thông Firebase ----
+   - Quản lý chung: tải toàn bộ (cần cho trang Tổng hợp hoá đơn)
+   - Sale / Quản lý team / Quản lý Data: CHỈ tải hoá đơn do chính mình lên (lọc ngay trên server)
+   - MKT / Quản lý MKT: không tải hoá đơn
+   Cần khai báo chỉ mục "saleId" trong Firebase Rules để server lọc được (xem hướng dẫn),
+   nếu chưa khai báo thì vẫn chạy đúng nhưng Firebase sẽ tải cả node về máy rồi mới lọc. */
+let invoiceListenerKey = null, invoiceListenerRef = null;
+function setupInvoiceListener(user){
+  const mode = !user ? 'none'
+    : user.role==='general_manager' ? 'all'
+    : (user.role==='mkt' || user.role==='mkt_manager') ? 'none' : 'mine';
+  const key = mode==='mine' ? ('mine:' + user.id) : mode;
+  if(key===invoiceListenerKey) return;          // enterApp có thể gọi nhiều lần — không gắn lặp
+  if(invoiceListenerRef){ invoiceListenerRef.off(); invoiceListenerRef = null; }
+  invoiceListenerKey = key;
+  state.invoices = [];
+  if(mode==='none' || !fbInvoices) return;
+  invoiceListenerRef = (mode==='all') ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id);
+  invoiceListenerRef.on('value', snap=>{ state.invoices = Object.values(snap.val()||{}); onDataChanged(); });
+}
 function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
+  setupInvoiceListener(user);
   checkNewLeadNotifications();
   setupChatNotifyListener();
   initTrungThu();
