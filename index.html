@@ -2929,6 +2929,15 @@ function deleteInvoice(invoiceId){
     renderInvoicesPage();
   });
 }
+// Bấm "In / Lưu PDF" khi đang soạn: tự lưu trước (hoá đơn mới sẽ được cấp Số HĐ ngay), hiện số lên
+// hoá đơn rồi mới mở hộp thoại in — bản in/PDF luôn có Số HĐ và khớp với dữ liệu đã lưu.
+function saveAndPrintInvoice(){
+  const d = currentInvoiceDraft;
+  if(!d) return;
+  const doPrint = ()=>setTimeout(()=>window.print(), 300); // chờ hoá đơn vẽ lại xong (có Số HĐ) rồi mới in
+  if(d.id && !invoiceDraftChanged()){ doPrint(); return; } // đã lưu, không sửa gì thêm → in luôn
+  saveInvoiceDraft(doPrint); // thiếu thông tin thì saveInvoiceDraft tự báo lỗi và không in
+}
 function printInvoice(invoiceId){
   editInvoiceDraft(invoiceId);
   setTimeout(()=>window.print(), 200);
@@ -3050,7 +3059,7 @@ function renderInvoiceEditor(){
   wrap.innerHTML = `
     <div class="no-print" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
-      <button class="btn-ghost" onclick="window.print()">🖨️ In / Lưu PDF</button>
+      <button class="btn-ghost" onclick="saveAndPrintInvoice()">🖨️ In / Lưu PDF</button>
       <button class="btn-ghost" onclick="startNewInvoiceDraftFromEditor()">🧾 Hoá đơn mới</button>
       <button class="btn-ghost" onclick="refreshInvoiceEditor()">🔄 Làm mới</button>
       <button class="btn-ghost" onclick="cancelInvoiceDraft()">↩️ Quay lại danh sách</button>
