@@ -2730,8 +2730,8 @@ function editInvoiceDraft(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
   currentInvoiceDraft = JSON.parse(JSON.stringify(inv)); // sửa bản sao, không đụng bản gốc tới khi Lưu
-  markInvoiceDraftClean();
   renderInvoicesPage();
+  markInvoiceDraftClean(); // chụp trạng thái SAU khi vẽ (vẽ có thể điền màu mặc định) để không bị tính là "đã sửa"
 }
 function cancelInvoiceDraft(){
   autoSaveInvoiceThen(()=>{ currentInvoiceDraft = null; renderInvoicesPage(); });
@@ -3016,7 +3016,14 @@ function renderInvoiceEditor(){
       }
       rowsHtml += `<td>`;
       if(colorOptions.length>0){
-        rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'color',this.value)"><option value="">—</option>${colorOptions.map(c=>`<option value="${c}" ${line.color===c?'selected':''}>${c}</option>`).join('')}</select>`;
+        // Màu mặc định là "trắng" (nếu mã có màu trắng, không thì lấy màu đầu tiên); bỏ lựa chọn "—"
+        if(!line.color || !colorOptions.includes(line.color)){
+          if(!line.color){
+            line.color = colorOptions.find(c=>/^tr[aắ]ng$/i.test(c.trim())) || colorOptions.find(c=>/tr[aắ]ng/i.test(c)) || colorOptions[0];
+          }
+        }
+        const colorList = colorOptions.includes(line.color) ? colorOptions : [line.color].concat(colorOptions);
+        rowsHtml += `<select onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">${colorList.map(c=>`<option value="${c}" ${line.color===c?'selected':''}>${c}</option>`).join('')}</select>`;
       } else {
         rowsHtml += `<input type="text" value="${line.color||''}" placeholder="Màu" style="width:70px;" onchange="updateDraftColorLine(${gi},${ci},'color',this.value)">`;
       }
