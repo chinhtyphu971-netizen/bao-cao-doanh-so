@@ -2807,15 +2807,19 @@ function newInvoiceDraft(){
 // Ảnh chụp trạng thái hoá đơn lúc vừa mở/vừa lưu — để biết có thay đổi chưa lưu hay không
 // (không có thay đổi thì bấm "Hoá đơn mới"/"Quay lại" đi luôn, khỏi hỏi xác nhận)
 let invoiceDraftSnapshot = '';
-function markInvoiceDraftClean(){ invoiceDraftSnapshot = JSON.stringify(currentInvoiceDraft); if(typeof updateInvoiceWatermark==='function') updateInvoiceWatermark(); }
+// So sánh "nội dung thật": bỏ qua các ô trống/không có (VD SĐT để trống lúc lưu bị lược bỏ, lúc soạn lại là '')
+// để vừa lưu xong không bị báo nhầm là "chưa lưu thay đổi".
+function draftFingerprint(d){
+  return JSON.stringify(d, (k, v)=> (v===''||v===undefined||v===null) ? undefined : (typeof v==='string' ? v.trim() : v));
+}
+function markInvoiceDraftClean(){ invoiceDraftSnapshot = draftFingerprint(currentInvoiceDraft); if(typeof updateInvoiceWatermark==='function') updateInvoiceWatermark(); }
 function invoiceDraftChanged(){
   if(!currentInvoiceDraft) return false;
   const el = document.getElementById('invEditCustomerName');
   if(el) currentInvoiceDraft.customerName = el.value;
   const ph = document.getElementById('invEditCustomerPhone');
   if(ph) currentInvoiceDraft.customerPhone = ph.value;
-  if(currentInvoiceDraft.customerPhone===undefined) currentInvoiceDraft.customerPhone = '';
-  return JSON.stringify(currentInvoiceDraft) !== invoiceDraftSnapshot;
+  return draftFingerprint(currentInvoiceDraft) !== invoiceDraftSnapshot;
 }
 function startNewInvoiceDraft(){
   currentInvoiceDraft = newInvoiceDraft();
@@ -3062,8 +3066,8 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
   // Ở lại ngay trên hoá đơn vừa lưu (đã có Số HĐ) để chụp gửi khách / sửa tiếp — không đóng về danh sách
   currentInvoiceDraft = JSON.parse(JSON.stringify(finalInvoice));
-  markInvoiceDraftClean();
   renderInvoicesPage();
+  markInvoiceDraftClean(); // chụp trạng thái SAU khi vẽ (vẽ có thể điền mặc định) → dấu "CHƯA LƯU" biến mất ngay
 }
 function deleteInvoice(invoiceId){
   askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.', ()=>{
