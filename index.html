@@ -397,7 +397,10 @@
   #invoicePrintArea .inv-totals .inv-grand{display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:17px; font-weight:700; color:#c0392b; margin-top:8px; padding-top:8px; border-top:1px solid #eee;}
   #invoicePrintArea select.inv-prod-select{min-width:120px; max-width:220px;}
   /* Ô chọn Mẫu in (mã in theo hình như A55) — nằm dưới ô Màu */
-  #invoicePrintArea select.inv-design-select{ display:block; margin-top:3px; min-width:0; max-width:220px; color:#8e44ad !important; font-style:italic; }
+  #invoicePrintArea select.inv-design-select{ display:block; margin-top:3px; min-width:0; max-width:220px; color:#4a148c !important; font-weight:700 !important; font-style:italic; }
+  #invoicePrintArea select.inv-design-select.inv-design-empty{ font-weight:400 !important; }
+  /* Tên mẫu in cạnh mã (ô sản phẩm trên điện thoại + bản in): nghiêng, đậm, tím đậm để nhận biết là mẫu in */
+  #invoicePrintArea .inv-design-label{ font-style:italic; font-weight:700; color:#4a148c; }
   #invoicePrintArea select.inv-design-select.inv-design-empty{ color:#999 !important; }
   #invoicePrintArea td.inv-group-qty{ font-weight:800; color:#000; font-size:13.5px !important; }
   /* Tổng SL / Đơn giá / Thành tiền (ô gộp nhiều dòng) nằm ngang với dòng màu ĐẦU TIÊN, không ở giữa */
@@ -546,7 +549,7 @@
   .inv-view th{ font-size:11.5px; color:#555; border-bottom:1.5px solid #000; }
   .inv-view td.iv-prod{ white-space:normal; font-weight:600; min-width:140px; }
   .inv-view .num{ text-align:right; }
-  .inv-view .iv-design{ font-style:italic; color:#8e44ad; font-size:11.5px; white-space:normal; }
+  .inv-view .iv-design{ font-style:italic; font-weight:700; color:#4a148c; }
   .inv-view .iv-gqty{ font-weight:800; font-size:13.5px; }
   .inv-view .iv-money{ color:#1c5fa8; font-weight:700; }
   .inv-view .iv-foot{ display:flex; justify-content:space-between; gap:20px; margin-top:14px; flex-wrap:wrap; }
@@ -3007,7 +3010,7 @@ function renderInvoiceEditor(){
       rowsHtml += g.productCode ? '<tr>' : '<tr class="inv-row-empty">';
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (product.code + ' - ' + (g.design || product.name || '')) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
+        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${product.code} - <i class="inv-design-label">${g.design}</i>` : (product.code + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
           (designOptions.length>0 || g.design) ? `<select class="inv-design-select ${g.design?'':'inv-design-empty'}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">— Chọn mẫu in —</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select>` : ''
         }</td>`;
       }
@@ -3216,7 +3219,7 @@ function viewInvoiceReadonly(invoiceId){
     const rs = lines.length;
     lines.forEach((l,i)=>{
       rows += '<tr>';
-      if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${esc(g.productCode)} - ${esc(g.design || g.productName || '')}</td>`;
+      if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${esc(g.productCode)} - ${g.design ? `<i class="iv-design">${esc(g.design)}</i>` : esc(g.productName||'')}</td>`;
       rows += `<td>${esc(l.color)||'—'}</td><td>${esc(l.size)}</td><td class="num">${Number(l.qty)||0}</td>`;
       if(i===0) rows += `<td rowspan="${rs}" class="num iv-gqty">${gQty}</td><td rowspan="${rs}" class="num">${fmtMoney(unit)}</td><td rowspan="${rs}" class="num iv-money">${fmtMoney(unit*gQty)}đ</td>`;
       rows += '</tr>';
