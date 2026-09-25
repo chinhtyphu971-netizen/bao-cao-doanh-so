@@ -490,6 +490,9 @@
   }
   @media print{
     .sidebar, .hamburger-btn, .sidebar-backdrop, .page-head, .no-print{ display:none !important; }
+    /* Trang trí Trung thu (đèn lồng, bánh, lân, hoa văn, banner) không bao giờ in ra hoá đơn/PDF */
+    #trungThuLionLayer, #trungThuPatternLayer, #trungThuFloatLayer, .trungthu-banner, .trungthu-gentle-icon{ display:none !important; }
+    body{ background:#fff !important; }
     .main{ padding:0 !important; max-width:100% !important; }
     .card{ border:none !important; box-shadow:none !important; padding:0 !important; }
     #invoicePrintArea{ max-width:none !important; }
