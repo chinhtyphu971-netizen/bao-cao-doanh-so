@@ -402,6 +402,9 @@
   /* Tên mẫu in cạnh mã (ô sản phẩm trên điện thoại + bản in): nghiêng, đậm, tím đậm để nhận biết là mẫu in */
   #invoicePrintArea .inv-design-label{ font-style:italic; font-weight:700; color:#4a148c; }
   #invoicePrintArea select.inv-design-select.inv-design-empty{ color:#999 !important; }
+  /* Đường kẻ phân cách giữa các mã: đậm hơn đường kẻ giữa các dòng màu một chút */
+  #invoicePrintArea tr.inv-group-start > td, .inv-view tr.iv-group-start > td{ border-top:2px solid #b3b3b3 !important; }
+  #invoicePrintArea tbody tr.inv-group-start:first-child > td, .inv-view tbody tr.iv-group-start:first-child > td{ border-top:none !important; }
   #invoicePrintArea td.inv-group-qty{ font-weight:800; color:#000; font-size:13.5px !important; }
   /* Tổng SL / Đơn giá / Thành tiền (ô gộp nhiều dòng) nằm ngang với dòng màu ĐẦU TIÊN, không ở giữa */
   #invoicePrintArea td[rowspan]{ vertical-align:top; padding-top:6px; }
@@ -500,7 +503,7 @@
     #invoicePrintArea .inv-title{ font-size:20px; }
     #invoicePrintArea table{ width:100% !important; font-size:12.5px; }
     #invoicePrintArea th{ font-size:11.5px; color:#000; border-bottom:1.5px solid #000; padding:5px 6px; white-space:nowrap; }
-    #invoicePrintArea td{ padding:4px 6px !important; border-bottom:1px solid #ccc; color:#000; }
+    #invoicePrintArea td{ padding:4px 6px !important; border-bottom:1px solid #e2e2e2; color:#000; }
     #invoicePrintArea tr{ page-break-inside:avoid; }
     /* Sản phẩm: in đủ "Mã - Tên", cho xuống dòng nếu dài */
     #invoicePrintArea .inv-prod-select{ display:none !important; }
@@ -3031,7 +3034,7 @@ function renderInvoiceEditor(){
     const designOptions = product ? parseDesignOptions(product.designs) : [];
     const rowspan = g.colorLines.length;
     g.colorLines.forEach((line, ci)=>{
-      rowsHtml += g.productCode ? '<tr>' : '<tr class="inv-row-empty">';
+      rowsHtml += `<tr class="${g.productCode ? '' : 'inv-row-empty'} ${ci===0 ? 'inv-group-start' : ''}">`;
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
         rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${product.code} - <i class="inv-design-label">${g.design}</i>` : (product.code + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
@@ -3255,7 +3258,7 @@ function viewInvoiceReadonly(invoiceId){
     const unit = Number(g.unitPrice)||0;
     const rs = lines.length;
     lines.forEach((l,i)=>{
-      rows += '<tr>';
+      rows += i===0 ? '<tr class="iv-group-start">' : '<tr>';
       if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${esc(g.productCode)} - ${g.design ? `<i class="iv-design">${esc(g.design)}</i>` : esc(g.productName||'')}</td>`;
       rows += `<td>${esc(l.color)||'—'}</td><td>${esc(l.size)}</td><td class="num">${Number(l.qty)||0}</td>`;
       if(i===0) rows += `<td rowspan="${rs}" class="num iv-gqty">${gQty}</td><td rowspan="${rs}" class="num">${fmtMoney(unit)}</td><td rowspan="${rs}" class="num iv-money">${fmtMoney(unit*gQty)}đ</td>`;
