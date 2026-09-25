@@ -553,6 +553,9 @@
 
   /* ===== Xem hoá đơn (chỉ xem) cho Quản lý ===== */
   .inv-overview-row{ cursor:pointer; }
+  .pager-bar{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:12px; font-size:13px; color:var(--ink-soft); flex-wrap:wrap; }
+  .pager-bar b{ color:var(--ink); }
+  .pager-bar button[disabled]{ opacity:.35; cursor:default; }
   .inv-overview-row:hover td{ background:var(--accent-soft) !important; }
   .modal.inv-view-modal{ max-width:760px; max-height:92vh; overflow-y:auto; padding:14px; background:#fff; }
   .inv-view-actions{ display:flex; justify-content:flex-end; gap:8px; margin-bottom:6px; }
@@ -1293,8 +1296,15 @@
           </div>
           <div class="card">
             <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
-            <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm theo tên khách, SĐT hoặc số HĐ..." oninput="clearTimeout(window.__myInvSearchT); window.__myInvSearchT=setTimeout(renderInvoicesPage, 250)" style="max-width:360px; margin-bottom:12px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+              <button class="btn-ghost btn-small" onclick="shiftMyInvoicesDate(-1)" title="Ngày trước">‹</button>
+              <input id="myInvoicesDate" type="date" onchange="pagerPages.myInvoices=1; renderInvoicesPage()" style="max-width:160px;">
+              <button class="btn-ghost btn-small" onclick="shiftMyInvoicesDate(1)" title="Ngày sau">›</button>
+              <button class="btn-ghost btn-small" onclick="document.getElementById('myInvoicesDate').value=todayStr(); pagerPages.myInvoices=1; renderInvoicesPage()">Hôm nay</button>
+              <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm tên khách, SĐT, số HĐ (mọi ngày)..." oninput="clearTimeout(window.__myInvSearchT); window.__myInvSearchT=setTimeout(()=>{pagerPages.myInvoices=1; renderInvoicesPage();}, 250)" style="max-width:320px; flex:1;">
+            </div>
             <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
+            <div id="myInvoicesPager"></div>
           </div>
         </div>
 
@@ -1338,6 +1348,7 @@
           <h2 style="margin-top:0;">Danh sách hoá đơn <span style="font-size:13px; font-weight:400; color:var(--ink-soft);">— bấm vào 1 dòng để xem hoá đơn</span></h2>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportInvoicesOverview()">⬇️ Xuất Excel</button>
           <div class="table-wrap"><table id="invOverviewTable" class="rtable"></table></div>
+          <div id="invOverviewPager"></div>
         </div>
       </div>
 
@@ -2056,6 +2067,30 @@ function moreRowsHtml(key, total, colspan){
     <span style="color:var(--ink-soft); font-size:12.5px; margin-right:8px;">Đang hiện ${lim}/${total} dòng</span>
     <button class="btn-ghost btn-small" onclick="showMoreRows('${key}')">Xem thêm ${Math.min(ROW_LIMIT_STEP, total-lim)} dòng</button>
   </td></tr>`;
+}
+/* ---- Phân trang dạng "‹ Trước | Trang x/y | Sau ›" ---- */
+let pagerPages = {};
+function pageSlice(key, rows, perPage){
+  const pages = Math.max(1, Math.ceil(rows.length / perPage));
+  let p = pagerPages[key] || 1;
+  if(p > pages) p = pages;
+  pagerPages[key] = p;
+  return rows.slice((p-1)*perPage, p*perPage);
+}
+function pagerHtml(key, total, perPage, rerenderFnName){
+  const pages = Math.ceil(total / perPage);
+  if(pages <= 1) return '';
+  const p = pagerPages[key] || 1;
+  const from = (p-1)*perPage + 1, to = Math.min(total, p*perPage);
+  return `<div class="pager-bar">
+    <button class="btn-ghost btn-small" ${p<=1?'disabled':''} onclick="gotoPagerPage('${key}', ${p-1}, '${rerenderFnName}')">‹ Trước</button>
+    <span>Trang <b>${p}</b>/${pages} · dòng ${from}–${to}/${total}</span>
+    <button class="btn-ghost btn-small" ${p>=pages?'disabled':''} onclick="gotoPagerPage('${key}', ${p+1}, '${rerenderFnName}')">Sau ›</button>
+  </div>`;
+}
+function gotoPagerPage(key, p, fnName){
+  pagerPages[key] = Math.max(1, p);
+  if(typeof window[fnName]==='function') window[fnName]();
 }
 function showMoreRows(key){
   rowLimits[key] = (rowLimits[key] || ROW_LIMIT_STEP) + ROW_LIMIT_STEP;
@@ -3013,6 +3048,14 @@ function printInvoice(invoiceId){
   setTimeout(()=>window.print(), 200);
 }
 
+function shiftMyInvoicesDate(delta){
+  const el = document.getElementById('myInvoicesDate');
+  const d = new Date((el.value || todayStr()) + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  el.value = toLocalDateStr(d);
+  pagerPages.myInvoices = 1;
+  renderInvoicesPage();
+}
 function renderInvoicesPage(){
   const u = currentUser();
   if(currentInvoiceDraft){
@@ -3026,17 +3069,29 @@ function renderInvoicesPage(){
   const mineAll = state.invoices.filter(inv=>inv.saleId===u.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const searchEl = document.getElementById('myInvoicesSearch');
   const q = searchEl ? searchEl.value : '';
-  const mine = mineAll.filter(inv=>invoiceMatchesSearch(inv, q));
-  document.getElementById('myInvoicesCount').textContent = mineAll.length ? (q.trim() ? `(tìm thấy ${mine.length}/${mineAll.length})` : `(${mineAll.length})`) : '';
+  // Hiện theo NGÀY (mặc định hôm nay). Đang gõ tìm kiếm thì tìm trên mọi ngày.
+  const dateEl = document.getElementById('myInvoicesDate');
+  if(dateEl && !dateEl.value) dateEl.value = todayStr();
+  const day = dateEl ? dateEl.value : '';
+  const mine = q.trim()
+    ? mineAll.filter(inv=>invoiceMatchesSearch(inv, q))
+    : mineAll.filter(inv=>!day || inv.invoiceDate===day);
+  document.getElementById('myInvoicesCount').textContent = q.trim()
+    ? `(tìm thấy ${mine.length} trên mọi ngày)`
+    : `(${mine.length} hoá đơn ngày ${day ? fmtDate(day) : ''})`;
   const table = document.getElementById('myInvoicesTable');
+  const pagerEl = document.getElementById('myInvoicesPager');
   if(mine.length===0){
-    table.innerHTML = mineAll.length
+    table.innerHTML = q.trim()
       ? '<tr><td class="empty-note">Không tìm thấy hoá đơn nào khớp.</td></tr>'
-      : '<tr><td class="empty-note">Chưa có hoá đơn nào — bấm "+ Tạo hoá đơn mới" ở trên.</td></tr>';
+      : '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>';
+    if(pagerEl) pagerEl.innerHTML = '';
     return;
   }
+  const pageRows = pageSlice('myInvoices', mine, 20); // 20 hoá đơn / trang
+  if(pagerEl) pagerEl.innerHTML = pagerHtml('myInvoices', mine.length, 20, 'renderInvoicesPage');
   table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th class="num">SL</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
-    mine.map(inv=>`<tr>
+    pageRows.map(inv=>`<tr>
       <td data-label="Số HĐ">${inv.invoiceNumber}</td>
       <td data-label="Ngày">${fmtDate(inv.invoiceDate)}</td>
       <td data-label="Khách hàng">${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
@@ -3210,12 +3265,17 @@ function toggleInvByProductSection(){
   if(invByProductOpen) renderInvoicesOverviewPage();
 }
 let invOverviewRenderMemo = null;
+let lastInvOverviewFilterKey = null;
 function renderInvoicesOverviewPage(){
   // Trang này chỉ phụ thuộc hoá đơn + bộ lọc: nếu chỉ có data khách/báo cáo thay đổi (rất thường xuyên)
   // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
+  // Đổi bộ lọc (ngày / tài khoản / tìm kiếm) → quay về trang 1
+  const filterKey = [invOverviewDateFrom, invOverviewDateTo,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value].join('|');
+  if(filterKey !== lastInvOverviewFilterKey){ pagerPages.invOverview = 1; lastInvOverviewFilterKey = filterKey; }
   const memoKey = [invOverviewDateFrom, invOverviewDateTo,
     (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value,
-    rowLimits.invOverview||0, invByProductOpen ? 1 : 0].join('|');
+    pagerPages.invOverview||1, invByProductOpen ? 1 : 0].join('|');
   if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
   invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
   document.getElementById('invOverviewFrom').value = invOverviewDateFrom || '';
@@ -3290,12 +3350,16 @@ function renderInvoicesOverviewPage(){
   const invSearchEl = document.getElementById('invOverviewSearch');
   const invQ = invSearchEl ? invSearchEl.value : '';
   if(invQ.trim()) invoices = invoices.filter(inv=>invoiceMatchesSearch(inv, invQ)); // tìm kiếm chỉ lọc "Danh sách hoá đơn"
+  const invPagerEl = document.getElementById('invOverviewPager');
   if(invoices.length===0){
     invTable.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào phù hợp.</td></tr>';
+    if(invPagerEl) invPagerEl.innerHTML = '';
     return;
   }
+  const invPageRows = pageSlice('invOverview', invoices, 50); // 50 hoá đơn / trang
+  if(invPagerEl) invPagerEl.innerHTML = pagerHtml('invOverview', invoices.length, 50, 'renderInvoicesOverviewPage');
   invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
-    limitRows('invOverview', invoices).map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
+    invPageRows.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
       <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
@@ -3305,7 +3369,7 @@ function renderInvoicesOverviewPage(){
       <td class="num">${inv.totalQty}</td>
       <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
-    </tr>`).join('') + moreRowsHtml('invOverview', invoices.length, 9) + `</tbody>`;
+    </tr>`).join('') + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
 function viewInvoiceReadonly(invoiceId){
@@ -6064,7 +6128,7 @@ function toggleNavPersonalGroup(){
   label.textContent = isOpen ? '🗂️ Data của tôi ▸' : '🗂️ Data của tôi ▾';
 }
 function goPage(pageId){
-  if(!isAutoRefreshing && pageId!==currentPageId) rowLimits = {}; // sang trang khác → bảng dài lại về 100 dòng đầu
+  if(!isAutoRefreshing && pageId!==currentPageId){ rowLimits = {}; pagerPages = {}; } // sang trang khác → bảng dài/phân trang về đầu
   // Đang soạn hoá đơn mà chuyển sang trang khác → tự lưu trước (hoặc hỏi nếu hoá đơn còn thiếu thông tin)
   if(currentPageId==='invoices' && pageId!=='invoices' && currentInvoiceDraft && invoiceDraftChanged()){
     autoSaveInvoiceThen(()=>goPage(pageId));
