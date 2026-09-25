@@ -1757,7 +1757,7 @@ let state = {
 function persistSession(){ LocalDB.write('session', state.session); }
 
 let fbBranches, fbUsers, fbReports, fbTrash, fbSystem, fbLeads, fbCheckins, fbDailyRotation, fbManagerConfirms, fbDistributionLock, fbEnforceUnprocessedLock, fbMktBranches, fbMktSources, fbTeamsTrash, fbSelfLeads, fbChats, fbChatReads, fbChatNotify, fbCompanyRules, fbVideoShoots, fbActors, fbMktLegacyCounts, fbCallAttemptOptions, fbProducts, fbProductSheetUrl, fbInvoices, fbInvoiceSettings, fbInvoiceCounter;
-const loaded = {branches:false, users:false, reports:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
+const loaded = {branches:false, users:false, trash:false, leads:false, checkins:false, dailyRotation:false, managerConfirms:false, mktBranches:false};
 let appReady = false;
 
 function isFirebaseConfigured(){
@@ -1849,15 +1849,10 @@ function startFirebaseListeners(){
   fbMktBranches.on('value', snap=>{ state.mktBranches = Object.values(snap.val()||{}); markLoaded('mktBranches'); onDataChanged(); });
   fbMktSources.on('value', snap=>{ state.mktSources = Object.values(snap.val()||{}); onDataChanged(); });
   fbTeamsTrash.on('value', snap=>{ state.teamsTrash = Object.values(snap.val()||{}); onDataChanged(); });
-  fbSelfLeads.on('value', snap=>{ state.selfLeads = Object.values(snap.val()||{}); onDataChanged(); });
   fbCompanyRules.on('value', snap=>{ state.companyRules = snap.val() || {content:'', updatedAt:0, updatedByName:''}; onDataChanged(); });
-  fbVideoShoots.on('value', snap=>{ state.videoShoots = Object.values(snap.val()||{}); onDataChanged(); });
-  fbActors.on('value', snap=>{ state.actors = Object.values(snap.val()||{}); onDataChanged(); });
-  fbMktLegacyCounts.on('value', snap=>{ state.mktLegacyCounts = Object.values(snap.val()||{}); onDataChanged(); });
-  fbProducts.on('value', snap=>{ state.products = Object.values(snap.val()||{}); onDataChanged(); });
-  fbProductSheetUrl.on('value', snap=>{ state.productSheetUrl = snap.val() || ''; onDataChanged(); });
-  // invoices: KHÔNG tải chung cho mọi người nữa — xem setupInvoiceListener() (gọi khi đăng nhập)
-  fbInvoiceSettings.on('value', snap=>{ state.invoiceSettings = snap.val() || {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); });
+  // selfLeads / videoShoots / actors / mktLegacyCounts / products / productSheetUrl / invoiceSettings /
+  // invoices / reports: KHÔNG tải chung cho mọi người — chỉ tải khi đăng nhập, theo đúng vai trò cần dùng
+  // (xem setupRoleScopedListeners). MKT không tải sản phẩm/hoá đơn/báo cáo Sale, Sale không tải dữ liệu quay video...
   fbCallAttemptOptions.once('value').then(snap=>{
     if(!snap.exists()){
       const defaults = ['Gọi lần 1', 'Gọi lần 2', 'Gọi lần 3', 'Không có nhu cầu'];
@@ -1876,35 +1871,24 @@ function startFirebaseListeners(){
   subscribeTodayScopedData();
   setInterval(subscribeTodayScopedData, 60*1000);
 
-  // "reports" là kho lớn nhất và tăng dần mỗi ngày — thay vì tải lại TOÀN BỘ mỗi khi có 1
-  // người thêm/sửa 1 báo cáo (rất tốn dung lượng Firebase khi dữ liệu nhiều lên theo thời gian),
-  // ở đây chỉ tải đủ 1 lần lúc mở app, sau đó chỉ nhận đúng PHẦN THAY ĐỔI (child_added/
-  // child_changed/child_removed) — mỗi lần chỉ tải đúng 1 báo cáo bị thêm/sửa/xoá.
-  const reportsMap = {};
-  fbReports.once('value').then(snap=>{
-    Object.assign(reportsMap, snap.val()||{});
-    state.reports = Object.values(reportsMap);
-    markLoaded('reports');
-    onDataChanged();
-    fbReports.on('child_added', s=>{ reportsMap[s.key]=s.val(); state.reports=Object.values(reportsMap); onDataChanged(); });
-    fbReports.on('child_changed', s=>{ reportsMap[s.key]=s.val(); state.reports=Object.values(reportsMap); onDataChanged(); });
-    fbReports.on('child_removed', s=>{ delete reportsMap[s.key]; state.reports=Object.values(reportsMap); onDataChanged(); });
-  }).catch(err=>{
-    console.error('Lỗi tải dữ liệu báo cáo:', err);
-    markLoaded('reports'); // vẫn cho app chạy tiếp dù lỗi, tránh kẹt màn hình loading mãi
-  });
+  // "reports": tải theo vai trò sau khi đăng nhập — xem setupRoleScopedListeners()
 
   // "leads" (kho data từ MKT) cũng sẽ tăng dần theo thời gian — dùng đúng cơ chế tối ưu như reports
+  // TRƯỚC ĐÂY: once('value') tải hết, rồi gắn child_added → Firebase TẢI LẠI TOÀN BỘ lần nữa (mỗi lần
+  // mở app tốn gấp đôi). NAY: gắn child_* trước (chỉ tải 1 lần), rồi once('value') chỉ để biết đã tải
+  // xong — lần đọc này Firebase lấy từ bộ nhớ đệm của chính listener, không tốn thêm băng thông.
   const leadsMap = {};
-  fbLeads.once('value').then(snap=>{
-    Object.assign(leadsMap, snap.val()||{});
+  let leadsReady = false;
+  const leadsSync = ()=>{ if(!leadsReady) return; state.leads=Object.values(leadsMap); onDataChanged(); };
+  fbLeads.on('child_added', s=>{ leadsMap[s.key]=s.val(); if(leadsReady){ leadsSync(); tryAutoDistribute(); } });
+  fbLeads.on('child_changed', s=>{ leadsMap[s.key]=s.val(); leadsSync(); });
+  fbLeads.on('child_removed', s=>{ delete leadsMap[s.key]; leadsSync(); });
+  fbLeads.once('value').then(()=>{
+    leadsReady = true;
     state.leads = Object.values(leadsMap);
     markLoaded('leads');
     onDataChanged();
     tryAutoDistribute();
-    fbLeads.on('child_added', s=>{ leadsMap[s.key]=s.val(); state.leads=Object.values(leadsMap); onDataChanged(); tryAutoDistribute(); });
-    fbLeads.on('child_changed', s=>{ leadsMap[s.key]=s.val(); state.leads=Object.values(leadsMap); onDataChanged(); });
-    fbLeads.on('child_removed', s=>{ delete leadsMap[s.key]; state.leads=Object.values(leadsMap); onDataChanged(); });
   }).catch(err=>{
     console.error('Lỗi tải kho data:', err);
     markLoaded('leads');
@@ -3344,6 +3328,7 @@ function setupChatNotifyListener(){
     if(!chatNotifyInitialized){ chatNotifyInitialized = true; return; } // bỏ qua giá trị cũ lúc mới mở app
     const data = snap.val();
     if(!data || data.senderId===me.id) return; // an toàn: khỏi tự báo cho chính mình
+    if(data.convId){ delete chatDotCache[data.convId]; if(typeof refreshUnreadChatDots==='function') refreshUnreadChatDots(); }
     playTingSound();
     showToast(`💬 ${data.senderName}: ${String(data.text||'').slice(0,60)}`);
   });
@@ -5384,14 +5369,21 @@ function sendChatMessage(){
 // Sau khi vẽ xong 1 bảng có nút Chat, hàm này: (1) đánh dấu chấm đỏ cho các cuộc trò chuyện
 // đang có tin nhắn CHƯA ĐỌC, và (2) đẩy chính DÒNG đó lên ĐẦU bảng (kể cả data của ngày trước
 // đó), để luôn thấy ngay không cần cuộn xuống — dù tin nhắn đó là của Sale hay MKT gửi.
+let chatDotCache = {};
+function resetChatDotCache(){ chatDotCache = {}; }
 function refreshUnreadChatDots(){
   const me = currentUser();
   if(!me) return;
   const buttons = document.querySelectorAll('.chat-btn[data-conv]');
   if(buttons.length===0) return;
   const convIds = Array.from(new Set(Array.from(buttons).map(b=>b.dataset.conv)));
-  Promise.all(convIds.map(convId=>
-    Promise.all([
+  // Mỗi lần trang vẽ lại (rất thường xuyên) KHÔNG đọc lại Firebase cho từng cuộc chat nữa — dùng kết quả
+  // đã nhớ; chỉ đọc lại cuộc chat vừa có tin mới (qua chatNotify), vừa đóng khung chat, hoặc đã quá 10 phút.
+  const now = Date.now();
+  Promise.all(convIds.map(convId=>{
+    const c = chatDotCache[convId];
+    if(c && now - c.at < 10*60*1000) return Promise.resolve({convId, isUnread:c.isUnread, lastSentAt:c.lastSentAt});
+    return Promise.all([
       fbChats.child(convId).limitToLast(1).once('value'),
       fbChatReads.child(me.id).child(convId).once('value')
     ]).then(([msgsSnap, readSnap])=>{
@@ -5399,9 +5391,11 @@ function refreshUnreadChatDots(){
       const last = msgs[0];
       const lastReadAt = readSnap.val() || 0;
       const isUnread = !!(last && last.senderId!==me.id && last.sentAt > lastReadAt);
-      return {convId, isUnread, lastSentAt: last ? (last.sentAt||0) : 0};
-    }).catch(()=>({convId, isUnread:false, lastSentAt:0}))
-  )).then(results=>{
+      const res = {convId, isUnread, lastSentAt: last ? (last.sentAt||0) : 0};
+      chatDotCache[convId] = {isUnread:res.isUnread, lastSentAt:res.lastSentAt, at:Date.now()};
+      return res;
+    }).catch(()=>({convId, isUnread:false, lastSentAt:0}));
+  })).then(results=>{
     // Cập nhật chấm đỏ trên từng nút Chat như cũ.
     results.forEach(({convId, isUnread})=>{
       document.querySelectorAll(`.chat-btn[data-conv="${convId}"]`).forEach(btn=>{
@@ -5437,6 +5431,7 @@ function refreshUnreadChatDots(){
 function closeChatModal(){
   document.getElementById('chatModal').classList.remove('show');
   if(currentChatRef){ currentChatRef.off(); currentChatRef = null; }
+  if(currentChatConversationId) delete chatDotCache[currentChatConversationId]; // vừa đọc xong → kiểm tra lại đúng cuộc này
   currentChatConversationId = null;
   currentChatOtherUserId = null;
   if(typeof refreshUnreadChatDots === 'function') refreshUnreadChatDots();
@@ -5808,7 +5803,8 @@ function goBackFromBranch(){
 }
 function logout(){
   state.session=null; persistSession();
-  setupInvoiceListener(null); // ngừng tải hoá đơn khi đăng xuất
+  setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
+  resetChatDotCache();
   resetLeadNotifyState();
   resetChatNotifyState();
   document.getElementById('appScreen').style.display='none';
@@ -5827,30 +5823,72 @@ function branchName(id){ const b=state.branches.find(b=>b.id===id); return b?b.n
 function mktBranchName(id){ const b=state.mktBranches.find(b=>b.id===id); return b?b.name:'—'; }
 function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'(đã xoá)'; }
 
-/* ---- Tải hoá đơn theo vai trò để tiết kiệm băng thông Firebase ----
-   - Quản lý chung: tải toàn bộ (cần cho trang Tổng hợp hoá đơn)
-   - Sale / Quản lý team / Quản lý Data: CHỈ tải hoá đơn do chính mình lên (lọc ngay trên server)
-   - MKT / Quản lý MKT: không tải hoá đơn
-   Cần khai báo chỉ mục "saleId" trong Firebase Rules để server lọc được (xem hướng dẫn),
-   nếu chưa khai báo thì vẫn chạy đúng nhưng Firebase sẽ tải cả node về máy rồi mới lọc. */
-let invoiceListenerKey = null, invoiceListenerRef = null;
-function setupInvoiceListener(user){
-  const mode = !user ? 'none'
-    : user.role==='general_manager' ? 'all'
-    : (user.role==='mkt' || user.role==='mkt_manager') ? 'none' : 'mine';
-  const key = mode==='mine' ? ('mine:' + user.id) : mode;
-  if(key===invoiceListenerKey) return;          // enterApp có thể gọi nhiều lần — không gắn lặp
-  if(invoiceListenerRef){ invoiceListenerRef.off(); invoiceListenerRef = null; }
-  invoiceListenerKey = key;
-  state.invoices = [];
-  if(mode==='none' || !fbInvoices) return;
-  invoiceListenerRef = (mode==='all') ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id);
-  invoiceListenerRef.on('value', snap=>{ state.invoices = Object.values(snap.val()||{}); onDataChanged(); });
+/* ================= TẢI DỮ LIỆU THEO VAI TRÒ (tiết kiệm băng thông Firebase) =================
+   Mỗi người chỉ tải đúng phần mình dùng:
+   - reports (báo cáo Sale): Sale → chỉ báo cáo của mình; Quản lý Sale/Data/chung → tất cả; MKT → không tải
+   - invoices: Quản lý chung → tất cả; Sale/Quản lý team/Quản lý Data → chỉ hoá đơn mình lên; MKT → không
+   - products / productSheetUrl / invoiceSettings / selfLeads: mọi người TRỪ MKT
+   - videoShoots / actors / mktLegacyCounts: chỉ MKT, Quản lý MKT, Quản lý Data, Quản lý chung
+   Lọc "chỉ của mình" dùng chỉ mục trong Firebase Rules (".indexOn": userId / saleId) để server lọc sẵn. */
+const scopedSubs = {};
+function attachScoped(name, key, query, apply, childMode, onFirstLoad){
+  const cur = scopedSubs[name];
+  if(cur && cur.key===key) return;               // đã gắn đúng rồi (enterApp có thể gọi nhiều lần)
+  if(cur && cur.query) cur.query.off();
+  scopedSubs[name] = {key, query};
+  if(!query){ apply([]); return; }
+  if(!childMode){
+    query.on('value', snap=>apply(Object.values(snap.val()||{}), snap.val()));
+    return;
+  }
+  const map = {}; let ready = false;
+  const sync = ()=>{ if(ready) apply(Object.values(map)); };
+  query.on('child_added',   s=>{ map[s.key]=s.val(); sync(); });
+  query.on('child_changed', s=>{ map[s.key]=s.val(); sync(); });
+  query.on('child_removed', s=>{ delete map[s.key]; sync(); });
+  query.once('value').then(()=>{ ready = true; apply(Object.values(map)); if(onFirstLoad) onFirstLoad(); });
+}
+function setupRoleScopedListeners(user){
+  const r = user ? user.role : null;
+  const isMkt = r==='mkt' || r==='mkt_manager';
+  const isSaleMgr = r==='team_manager' || r==='data_manager' || r==='general_manager';
+  const needVideo = r==='mkt' || r==='mkt_manager' || r==='data_manager' || r==='general_manager';
+  const setAndRender = (field)=>(arr)=>{ state[field] = arr; onDataChanged(); };
+
+  // Báo cáo Sale
+  const repKey = !user || isMkt ? 'none' : (isSaleMgr ? 'all' : 'mine:'+user.id);
+  attachScoped('reports', repKey,
+    repKey==='none' ? null : (repKey==='all' ? fbReports : fbReports.orderByChild('userId').equalTo(user.id)),
+    setAndRender('reports'), true,
+    ()=>{ // lần tải đầu xong: trang Nộp báo cáo không tự vẽ lại → vẽ lại 1 lần cho đúng trạng thái đã nộp
+      if(currentPageId==='staffReport' && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) goPage('staffReport');
+    });
+
+  // Hoá đơn
+  const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
+  attachScoped('invoices', invKey,
+    invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
+    setAndRender('invoices'), false);
+
+  // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
+  const saleSide = user && !isMkt ? 'on' : 'none';
+  attachScoped('products', saleSide, saleSide==='on' ? fbProducts : null, setAndRender('products'), false);
+  attachScoped('productSheetUrl', saleSide, saleSide==='on' ? fbProductSheetUrl : null,
+    (arr, raw)=>{ state.productSheetUrl = (typeof raw==='string') ? raw : ''; onDataChanged(); }, false);
+  attachScoped('invoiceSettings', saleSide, saleSide==='on' ? fbInvoiceSettings : null,
+    (arr, raw)=>{ state.invoiceSettings = (raw && typeof raw==='object') ? raw : {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); }, false);
+  attachScoped('selfLeads', saleSide, saleSide==='on' ? fbSelfLeads : null, setAndRender('selfLeads'), false);
+
+  // Quay video / diễn viên / số liệu MKT cũ — chỉ phía MKT + Quản lý Data + Quản lý chung
+  const vKey = needVideo ? 'on' : 'none';
+  attachScoped('videoShoots', vKey, needVideo ? fbVideoShoots : null, setAndRender('videoShoots'), false);
+  attachScoped('actors', vKey, needVideo ? fbActors : null, setAndRender('actors'), false);
+  attachScoped('mktLegacyCounts', vKey, needVideo ? fbMktLegacyCounts : null, setAndRender('mktLegacyCounts'), false);
 }
 function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
-  setupInvoiceListener(user);
+  setupRoleScopedListeners(user);
   checkNewLeadNotifications();
   setupChatNotifyListener();
   initTrungThu();
