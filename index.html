@@ -532,9 +532,9 @@
   #invoicePrintArea .print-only{ display:none; }
 
   /* ===== Chữ trên hoá đơn: chỉ phần chữ đen/xám nhạt được làm đen đậm hơn — chữ có màu (đỏ/xanh/tím) giữ nguyên ===== */
-  #invoicePrintArea, #invoicePrintArea td, #invoicePrintArea .inv-meta-line, #invoicePrintArea .inv-static-val,
-  #invoicePrintArea .inv-totals, #invoicePrintArea .inv-totals-row,
-  .inv-view, .inv-view td, .inv-view .iv-head, .inv-view .iv-totals{ color:#000 !important; }
+  #invoicePrintArea, #invoicePrintArea td:not(.inv-money), #invoicePrintArea .inv-meta-line, #invoicePrintArea .inv-static-val,
+  #invoicePrintArea .inv-totals-row,
+  .inv-view, .inv-view td:not(.iv-money), .inv-view .iv-head, .inv-view .iv-totals > div:not(.iv-grand){ color:#000 !important; }
   #invoicePrintArea td, .inv-view td{ font-weight:500; }
   #invoicePrintArea .inv-meta-line, .inv-view .iv-head{ font-weight:500; }
   #invoicePrintArea th, .inv-view th{ color:#000 !important; font-weight:700 !important; }
