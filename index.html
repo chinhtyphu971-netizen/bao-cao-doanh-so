@@ -416,6 +416,17 @@
   #invoicePrintArea td[rowspan]{ vertical-align:top; padding-top:6px; }
   /* Khổ hoá đơn gọn như tờ giấy, dồn về bên trái — bảng giãn đủ khổ để cân với phần tổng tiền */
   #invoicePrintArea{ max-width:760px; }
+  /* Dấu chìm khi hoá đơn chưa lưu (2 con dấu chéo, không chặn thao tác bấm/gõ) */
+  #invoicePrintArea.inv-unsaved::before, #invoicePrintArea.inv-unsaved::after{
+    content: attr(data-wm);
+    position:absolute; left:50%; z-index:20; pointer-events:none;
+    transform: translate(-50%,-50%) rotate(-22deg);
+    font-size: clamp(16px, 4.6vw, 38px); font-weight:900; letter-spacing:1px; white-space:nowrap;
+    color: rgba(192,57,43,.26); border:5px solid rgba(192,57,43,.26); border-radius:12px; padding:4px 18px;
+  }
+  #invoicePrintArea.inv-unsaved{ overflow:hidden; }
+  #invoicePrintArea.inv-unsaved::before{ top:30%; }
+  #invoicePrintArea.inv-unsaved::after{ top:72%; }
   #invoicePrintArea table{ width:100%; }
   #invoicePrintArea .inv-title{ font-size:20px; padding-right:125px; }
   /* Mũi tên nhỏ ▲▼ tăng/giảm số lượng */
@@ -2796,7 +2807,7 @@ function newInvoiceDraft(){
 // Ảnh chụp trạng thái hoá đơn lúc vừa mở/vừa lưu — để biết có thay đổi chưa lưu hay không
 // (không có thay đổi thì bấm "Hoá đơn mới"/"Quay lại" đi luôn, khỏi hỏi xác nhận)
 let invoiceDraftSnapshot = '';
-function markInvoiceDraftClean(){ invoiceDraftSnapshot = JSON.stringify(currentInvoiceDraft); }
+function markInvoiceDraftClean(){ invoiceDraftSnapshot = JSON.stringify(currentInvoiceDraft); if(typeof updateInvoiceWatermark==='function') updateInvoiceWatermark(); }
 function invoiceDraftChanged(){
   if(!currentInvoiceDraft) return false;
   const el = document.getElementById('invEditCustomerName');
@@ -3231,8 +3242,8 @@ function renderInvoiceEditor(){
       <div class="inv-toprow">
         <div><label>Số HĐ</label><div class="inv-static-val">${d.invoiceNumber}</div></div>
         <div><label>Ngày</label><input type="date" class="inv-date-input" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"><span class="print-only inv-static-val">${d.invoiceDate ? fmtDate(d.invoiceDate) : ''}</span></div>
-        <div class="inv-cust" style="flex:1; min-width:160px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value; this.nextElementSibling.textContent=this.value" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"><span class="print-only inv-static-val">${(d.customerName||'').replace(/</g,'&lt;')}</span></div>
-        <div class="inv-phone"><label>SĐT</label><input id="invEditCustomerPhone" type="tel" inputmode="tel" style="width:120px;" oninput="currentInvoiceDraft.customerPhone=this.value; this.nextElementSibling.textContent=this.value" value="${(d.customerPhone||'').replace(/"/g,'&quot;')}" placeholder="SĐT khách"><span class="print-only inv-static-val">${(d.customerPhone||'').replace(/</g,'&lt;')}</span></div>
+        <div class="inv-cust" style="flex:1; min-width:160px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value; this.nextElementSibling.textContent=this.value; updateInvoiceWatermark()" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"><span class="print-only inv-static-val">${(d.customerName||'').replace(/</g,'&lt;')}</span></div>
+        <div class="inv-phone"><label>SĐT</label><input id="invEditCustomerPhone" type="tel" inputmode="tel" style="width:120px;" oninput="currentInvoiceDraft.customerPhone=this.value; this.nextElementSibling.textContent=this.value; updateInvoiceWatermark()" value="${(d.customerPhone||'').replace(/"/g,'&quot;')}" placeholder="SĐT khách"><span class="print-only inv-static-val">${(d.customerPhone||'').replace(/</g,'&lt;')}</span></div>
       </div>
       <div class="table-wrap">
         <table>
@@ -3256,6 +3267,17 @@ function renderInvoiceEditor(){
       </div>
     </div>
   `;
+  updateInvoiceWatermark();
+}
+// Dấu chìm "CHƯA LƯU": hoá đơn mới chưa có Số HĐ, hoặc hoá đơn đã lưu nhưng đang sửa dở chưa lưu lại
+// → ảnh chụp màn hình lúc này dính dấu, không gửi khách được. Bấm Lưu / In (tự lưu) là dấu biến mất.
+function updateInvoiceWatermark(){
+  const area = document.getElementById('invoicePrintArea');
+  if(!area || !currentInvoiceDraft) return;
+  const unsavedNew = !currentInvoiceDraft.id;
+  const dirty = !unsavedNew && invoiceDraftChanged();
+  area.classList.toggle('inv-unsaved', unsavedNew || dirty);
+  area.dataset.wm = unsavedNew ? 'CHƯA LƯU – CHƯA CÓ SỐ HĐ' : 'CHƯA LƯU THAY ĐỔI';
 }
 
 /* =========================== MANAGER: Tổng hợp hoá đơn =========================== */
