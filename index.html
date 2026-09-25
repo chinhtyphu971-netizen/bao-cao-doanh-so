@@ -1966,7 +1966,11 @@ function onDataChanged(){
     // Sale chủ động cập nhật (VD: khi Quản lý vừa thêm sản phẩm mới) mà không mất phần đang soạn.
     if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices'){
       clearTimeout(dataChangedRenderTimer);
+      // Chống lag: gộp các thay đổi liên tiếp, vẽ lại tối đa ~1 lần mỗi 1,5 giây (trước là mỗi 0,3 giây)
+      const wait = Math.max(300, 1500 - (Date.now() - lastAutoRenderAt));
       dataChangedRenderTimer = setTimeout(()=>{
+        // Tab đang ẩn (chuyển sang tab/ứng dụng khác) → không vẽ lại, đợi quay lại mới vẽ 1 lần
+        if(document.hidden){ pendingRenderWhenVisible = true; return; }
         // Nếu đang gõ dở/đang chọn 1 ô nào đó trên trang (Tên khách, Tình trạng, Nguồn, Số tiền
         // chốt...), HOÃN việc vẽ lại tới khi họ rời khỏi ô đó — tránh vừa gõ được nửa chừng thì
         // bị "làm mới lại từ đầu" chỉ vì 1 người khác ở đâu đó vừa thao tác 1 data không liên quan.
@@ -1975,13 +1979,22 @@ function onDataChanged(){
           return;
         }
         refreshCurrentPagePreservingScroll();
-      }, 300);
+      }, wait);
     }
   } else if(!state.session){
     if(loginStep===1) renderRoleChips();
     if(loginStep===2) renderBranchChips();
   }
 }
+let pendingRenderWhenVisible = false;
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && pendingRenderWhenVisible){
+    pendingRenderWhenVisible = false;
+    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices' && !isUserActivelyEditing()){
+      refreshCurrentPagePreservingScroll();
+    }
+  }
+});
 function isUserActivelyEditing(){
   const el = document.activeElement;
   if(!el) return false;
@@ -2003,10 +2016,35 @@ function scheduleRefreshAfterBlur(){
 }
 // Vẽ lại trang hiện tại nhưng GIỮ NGUYÊN vị trí đang cuộn — trước đây mỗi lần có ai thao tác
 // data khác, trang tự vẽ lại từ đầu làm màn hình nhảy lên đầu trang, mất luôn vị trí đang xem.
+let isAutoRefreshing = false;
+let lastAutoRenderAt = 0;
 function refreshCurrentPagePreservingScroll(){
   const scrollY = window.scrollY;
-  goPage(currentPageId);
+  isAutoRefreshing = true;
+  try{ goPage(currentPageId); } finally { isAutoRefreshing = false; }
+  lastAutoRenderAt = Date.now();
   window.scrollTo(0, scrollY);
+}
+/* ---- Bảng dài (data của Sale/MKT, data chốt...) chỉ vẽ 100 dòng đầu, có nút "Xem thêm" ----
+   Vẽ hàng nghìn dòng (mỗi dòng có ô nhập + 2 ô chọn) mỗi lần dữ liệu thay đổi là nguyên nhân chính
+   gây lag/đứng máy. Tìm kiếm & bộ lọc vẫn áp trên TOÀN BỘ dữ liệu, chỉ giới hạn số dòng hiển thị. */
+const ROW_LIMIT_STEP = 100;
+let rowLimits = {};
+function limitRows(key, rows){
+  const lim = rowLimits[key] || ROW_LIMIT_STEP;
+  return rows.length > lim ? rows.slice(0, lim) : rows;
+}
+function moreRowsHtml(key, total, colspan){
+  const lim = rowLimits[key] || ROW_LIMIT_STEP;
+  if(total <= lim) return '';
+  return `<tr class="more-rows-row"><td colspan="${colspan}" style="text-align:center; padding:10px;">
+    <span style="color:var(--ink-soft); font-size:12.5px; margin-right:8px;">Đang hiện ${lim}/${total} dòng</span>
+    <button class="btn-ghost btn-small" onclick="showMoreRows('${key}')">Xem thêm ${Math.min(ROW_LIMIT_STEP, total-lim)} dòng</button>
+  </td></tr>`;
+}
+function showMoreRows(key){
+  rowLimits[key] = (rowLimits[key] || ROW_LIMIT_STEP) + ROW_LIMIT_STEP;
+  refreshCurrentPagePreservingScroll();
 }
 
 let notifiedLeadIds = new Set();
@@ -3393,7 +3431,11 @@ function checkNewLeadNotifications(){
 }
 function playTingSound(){
   try{
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Dùng lại 1 AudioContext duy nhất — trước đây mỗi tiếng "ting" tạo 1 cái mới và không đóng,
+    // trình duyệt giữ lại dần dần → tốn bộ nhớ, máy chậm/đứng sau một thời gian mở app.
+    if(!window.__tingCtx) window.__tingCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = window.__tingCtx;
+    if(ctx.state==='suspended' && ctx.resume) ctx.resume();
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -4093,7 +4135,7 @@ function renderMktMyLeadsList(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>SĐT</th><th>Nguồn</th><th>Người nhận</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th></th></tr></thead><tbody>` +
-    leads.map(l=>{
+    limitRows('mktMyLeads', leads).map(l=>{
       const assignee = state.users.find(x=>x.id===l.assignedTo);
       const statusHtml = l.status
         ? `<span class="badge" style="${leadStatusStyle(l.status)}">${l.status}</span>`
@@ -4109,7 +4151,7 @@ function renderMktMyLeadsList(){
         <td data-label="Gọi điện">${l.callAttempt || 'Chưa gọi'}</td>
         <td>${chatBtn}</td>
       </tr>`;
-    }).join('') + `</tbody>`;
+    }).join('') + moreRowsHtml('mktMyLeads', leads.length, 9) + `</tbody>`;
   refreshUnreadChatDots();
 }
 function renderMktInputPage(){
@@ -4240,7 +4282,7 @@ function renderMyLeads(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
-    allMyLeads.map(l=>{
+    limitRows('myLeads', allMyLeads).map(l=>{
       const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
       const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
       return `<tr>
@@ -4264,7 +4306,7 @@ function renderMyLeads(){
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
       <td>${chatBtn}</td>
     </tr>`;
-    }).join('') + `</tbody>`;
+    }).join('') + moreRowsHtml('myLeads', allMyLeads.length, 10) + `</tbody>`;
   renderSelfLeadsTable();
   refreshUnreadChatDots();
 }
@@ -4367,7 +4409,7 @@ function renderMyClosedLeads(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
-    closedLeads.map(l=>{
+    limitRows('myClosed', closedLeads).map(l=>{
       const deleteBtn = l.manualEntry
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
@@ -4398,7 +4440,7 @@ function renderMyClosedLeads(){
       <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
-    }).join('') + `</tbody>`;
+    }).join('') + moreRowsHtml('myClosed', closedLeads.length, 7) + `</tbody>`;
 }
 // Tìm xem SĐT vừa gõ có TRÙNG với 1 data KHÁC đang nằm sẵn trong chính danh sách của người này
 // không (bất kể trạng thái gì — Đã liên hệ, Đang tư vấn...), để gợi ý GỘP thẳng vào data cũ thay
@@ -4704,7 +4746,7 @@ function renderPersonLeadsPage(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
-    leads.map(l=>`<tr>
+    limitRows('personLeads', leads).map(l=>`<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
@@ -4718,7 +4760,7 @@ function renderPersonLeadsPage(){
       <td data-label="Gọi điện">${callAttemptFieldHtml(l, 'renderPersonLeadsPage()')}</td>
       <td data-label="Ngày chốt">${leadClosedDateFieldHtml(l)}</td>
       <td data-label="Số tiền chốt">${leadClosedAmountFieldHtml(l)}</td>
-    </tr>`).join('') + `</tbody>`;
+    </tr>`).join('') + moreRowsHtml('personLeads', leads.length, 9) + `</tbody>`;
 }
 function toggleMgrSelfLeadsSection(){
   const section = document.getElementById('mgrSelfLeadsSection');
@@ -4982,7 +5024,7 @@ function renderMgrClosedLeads(){
       return;
     }
     table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Người chốt</th><th>Chi nhánh</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th></tr></thead><tbody>` +
-      leads.map(l=>{
+      limitRows('mgrClosed', leads).map(l=>{
         const assignee = state.users.find(u=>u.id===l.assignedTo);
         const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
         return `<tr>
@@ -4994,7 +5036,7 @@ function renderMgrClosedLeads(){
         <td data-label="Tên khách">${l.customerName||'—'}</td>
         <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
       </tr>`;
-      }).join('') + `</tbody>`;
+      }).join('') + moreRowsHtml('mgrClosed', leads.length, 8) + `</tbody>`;
     return;
   }
 
@@ -5994,6 +6036,7 @@ function toggleNavPersonalGroup(){
   label.textContent = isOpen ? '🗂️ Data của tôi ▸' : '🗂️ Data của tôi ▾';
 }
 function goPage(pageId){
+  if(!isAutoRefreshing && pageId!==currentPageId) rowLimits = {}; // sang trang khác → bảng dài lại về 100 dòng đầu
   // Đang soạn hoá đơn mà chuyển sang trang khác → tự lưu trước (hoặc hỏi nếu hoá đơn còn thiếu thông tin)
   if(currentPageId==='invoices' && pageId!=='invoices' && currentInvoiceDraft && invoiceDraftChanged()){
     autoSaveInvoiceThen(()=>goPage(pageId));
@@ -6346,13 +6389,13 @@ function renderMktPersonDetail(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhập</th><th>SĐT</th><th>Nguồn</th><th>Tên khách</th><th>Trạng thái</th></tr></thead><tbody>` +
-    mine.map(l=>`<tr>
+    limitRows('mktPerson', mine).map(l=>`<tr>
       <td data-label="Ngày nhập">${fmtDateTimeShort(l.importedAt)}</td>
       <td data-label="SĐT">${leadPhone(l)}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Trạng thái">${l.assignedTo?`Đã chia cho ${l.assignedToName||'—'}`:'Đang chờ chia'}</td>
-    </tr>`).join('') + `</tbody>`;
+    </tr>`).join('') + moreRowsHtml('mktPerson', mine.length, 6) + `</tbody>`;
 }
 /* =========================== MKT: Doanh thu theo Nguồn mình phụ trách =========================== */
 let mktRevenueDateFrom = null, mktRevenueDateTo = null;
@@ -6513,14 +6556,14 @@ function renderMktRevenuePage(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Sale chốt</th><th>Số tiền chốt</th></tr></thead><tbody>` +
-    filteredLeads.map(l=>`<tr>
+    limitRows('mktRevenue', filteredLeads).map(l=>`<tr>
       <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
       <td data-label="SĐT">${leadPhone(l)}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Sale chốt">${l.assignedToName||'—'}</td>
       <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
-    </tr>`).join('') + `</tbody>`;
+    </tr>`).join('') + moreRowsHtml('mktRevenue', filteredLeads.length, 7) + `</tbody>`;
 }
 // Chỉ Quản lý chung (general_manager) được viết/sửa — mọi vai trò khác chỉ xem. Nếu sau này
 // muốn thêm vai trò khác cũng được sửa, chỉ cần thêm điều kiện vào hàm canEditCompanyRules().
