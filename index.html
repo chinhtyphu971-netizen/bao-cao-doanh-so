@@ -531,6 +531,20 @@
   }
   #invoicePrintArea .print-only{ display:none; }
 
+  /* ===== Chữ trên hoá đơn: chỉ phần chữ đen/xám nhạt được làm đen đậm hơn — chữ có màu (đỏ/xanh/tím) giữ nguyên ===== */
+  #invoicePrintArea, #invoicePrintArea td, #invoicePrintArea .inv-meta-line, #invoicePrintArea .inv-static-val,
+  #invoicePrintArea .inv-totals, #invoicePrintArea .inv-totals-row,
+  .inv-view, .inv-view td, .inv-view .iv-head, .inv-view .iv-totals{ color:#000 !important; }
+  #invoicePrintArea td, .inv-view td{ font-weight:500; }
+  #invoicePrintArea .inv-meta-line, .inv-view .iv-head{ font-weight:500; }
+  #invoicePrintArea th, .inv-view th{ color:#000 !important; font-weight:700 !important; }
+  #invoicePrintArea .inv-toprow label, #invoicePrintArea .inv-footer label,
+  .inv-view .iv-top span, .inv-view .iv-foot span{ color:#222 !important; font-weight:600; }
+  #invoicePrintArea td input, #invoicePrintArea td select:not(.inv-design-select),
+  #invoicePrintArea .inv-toprow input, #invoicePrintArea .inv-footer input, #invoicePrintArea .inv-footer select{ color:#000 !important; font-weight:500; }
+  #invoicePrintArea ::placeholder{ color:#888; font-weight:400; }
+  #invoicePrintArea select.inv-design-select.inv-design-empty{ color:#777 !important; }
+
   /* ===== Xem hoá đơn (chỉ xem) cho Quản lý ===== */
   .inv-overview-row{ cursor:pointer; }
   .inv-overview-row:hover td{ background:var(--accent-soft) !important; }
@@ -3260,8 +3274,8 @@ function viewInvoiceReadonly(invoiceId){
     </table></div>
     <div class="iv-foot">
       <div>
-        <div><span style="color:#777;">Nhân viên:</span> <b>${esc(inv.saleName)}</b></div>
-        ${inv.teamName ? `<div><span style="color:#777;">Team:</span> <b>${esc(inv.teamName)}</b></div>` : ''}
+        <div><span>Nhân viên:</span> <b>${esc(inv.saleName)}</b></div>
+        ${inv.teamName ? `<div><span>Team:</span> <b>${esc(inv.teamName)}</b></div>` : ''}
       </div>
       <div class="iv-totals">
         <div><span>Tổng số lượng:</span><span>${inv.totalQty||0} sản phẩm</span></div>
