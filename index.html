@@ -1293,7 +1293,7 @@
           </div>
           <div class="card">
             <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
-            <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm theo tên khách, SĐT hoặc số HĐ..." oninput="renderInvoicesPage()" style="max-width:360px; margin-bottom:12px;">
+            <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm theo tên khách, SĐT hoặc số HĐ..." oninput="clearTimeout(window.__myInvSearchT); window.__myInvSearchT=setTimeout(renderInvoicesPage, 250)" style="max-width:360px; margin-bottom:12px;">
             <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
           </div>
         </div>
@@ -1317,7 +1317,7 @@
             <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="invOverviewFrom" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="invOverviewTo" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo tài khoản</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
-            <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="renderInvoicesOverviewPage()"></div>
+            <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="clearTimeout(window.__invSearchT); window.__invSearchT=setTimeout(renderInvoicesOverviewPage, 250)"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Số hoá đơn</div><div class="stat-value" id="invOverviewStatCount">0</div></div>
@@ -1755,6 +1755,18 @@ const LocalDB = {
   }
 };
 
+// Tăng tốc sắp xếp tiếng Việt toàn app: localeCompare(x,'vi') mỗi lần gọi lại tạo bộ so sánh mới (rất chậm
+// khi sắp xếp vài trăm/ nghìn dòng). Dùng lại 1 Intl.Collator đã tạo sẵn cho mỗi kiểu — kết quả y hệt.
+(function(){
+  const orig = String.prototype.localeCompare;
+  const cache = {};
+  String.prototype.localeCompare = function(that, locales, options){
+    if(locales===undefined && options===undefined) return orig.call(this, that);
+    const k = String(locales) + '|' + (options ? JSON.stringify(options) : '');
+    const c = cache[k] || (cache[k] = new Intl.Collator(locales, options));
+    return c.compare(String(this), String(that));
+  };
+})();
 let state = {
   branches: [], users: [], reports: [], trash: [],
   leads: [], checkins: {}, dailyRotation: null, managerConfirms: {},
@@ -3188,14 +3200,24 @@ function applyInvOverviewCustomRange(){
 let lastFilteredInvoices = [];
 let lastFilteredInvoicesByProduct = [];
 // Bảng "Tổng hợp theo sản phẩm/màu" mặc định thu gọn — bấm vào tiêu đề mới mở ra
+let invByProductOpen = false;
 function toggleInvByProductSection(){
   const body = document.getElementById('invByProductBody');
   const icon = document.getElementById('invByProductToggleIcon');
-  const open = body.style.display === 'none';
-  body.style.display = open ? 'block' : 'none';
-  icon.textContent = open ? '▾ thu gọn' : '▸ bấm để xem';
+  invByProductOpen = body.style.display === 'none';
+  body.style.display = invByProductOpen ? 'block' : 'none';
+  icon.textContent = invByProductOpen ? '▾ thu gọn' : '▸ bấm để xem';
+  if(invByProductOpen) renderInvoicesOverviewPage();
 }
+let invOverviewRenderMemo = null;
 function renderInvoicesOverviewPage(){
+  // Trang này chỉ phụ thuộc hoá đơn + bộ lọc: nếu chỉ có data khách/báo cáo thay đổi (rất thường xuyên)
+  // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
+  const memoKey = [invOverviewDateFrom, invOverviewDateTo,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value,
+    rowLimits.invOverview||0, invByProductOpen ? 1 : 0].join('|');
+  if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
+  invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
   document.getElementById('invOverviewFrom').value = invOverviewDateFrom || '';
   document.getElementById('invOverviewTo').value = invOverviewDateTo || '';
 
@@ -3247,7 +3269,9 @@ function renderInvoicesOverviewPage(){
   const byProductRows = Object.values(byProduct).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi') || a.color.localeCompare(b.color,'vi'));
   lastFilteredInvoicesByProduct = byProductRows;
   const byProductTable = document.getElementById('invByProductTable');
-  if(byProductRows.length===0){
+  if(!invByProductOpen){
+    byProductTable.innerHTML = ''; // đang thu gọn → khỏi vẽ bảng (mở ra mới vẽ)
+  } else if(byProductRows.length===0){
     byProductTable.innerHTML = '<tr><td class="empty-note">Chưa có dữ liệu phù hợp.</td></tr>';
   } else {
     const totalQtyAll = byProductRows.reduce((s,r)=>s+r.qty,0);
@@ -3271,7 +3295,7 @@ function renderInvoicesOverviewPage(){
     return;
   }
   invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th class="num">SL</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
-    invoices.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
+    limitRows('invOverview', invoices).map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
       <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
@@ -3280,7 +3304,7 @@ function renderInvoicesOverviewPage(){
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
       <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
-    </tr>`).join('') + `</tbody>`;
+    </tr>`).join('') + moreRowsHtml('invOverview', invoices.length, 8) + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
 function viewInvoiceReadonly(invoiceId){
