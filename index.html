@@ -1310,7 +1310,7 @@
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="invOverviewFrom" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="invOverviewTo" onchange="applyInvOverviewCustomRange()"></div>
-            <div class="field" style="max-width:200px;"><label>Lọc theo Sale</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
+            <div class="field" style="max-width:200px;"><label>Lọc theo tài khoản</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
             <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="renderInvoicesOverviewPage()"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
@@ -3003,6 +3003,8 @@ function invoiceMatchesSearch(inv, q){
   if(!nq) return true;
   const digits = nq.replace(/\D/g,'');
   if(normalizeSearchText(inv.customerName).includes(nq)) return true;
+  if(inv.saleName && normalizeSearchText(inv.saleName).includes(nq)) return true;
+  if(inv.saleId && typeof userName==='function' && normalizeSearchText(userName(inv.saleId)).includes(nq)) return true;
   if(normalizeSearchText(inv.invoiceNumber).includes(nq)) return true;
   if(digits.length>=3 && String(inv.customerPhone||'').replace(/\D/g,'').includes(digits)) return true;
   return false;
@@ -3154,10 +3156,15 @@ function renderInvoicesOverviewPage(){
   document.getElementById('invOverviewTo').value = invOverviewDateTo || '';
 
   const saleSel = document.getElementById('invOverviewSaleFilter');
-  const saleNames = Array.from(new Set(state.invoices.map(i=>i.saleName))).sort((a,b)=>a.localeCompare(b,'vi'));
-  if(saleSel.dataset.filled !== saleNames.join('|')){
-    saleSel.innerHTML = '<option value="">— Tất cả Sale —</option>' + saleNames.map(n=>`<option value="${n}">${n}</option>`).join('');
-    saleSel.dataset.filled = saleNames.join('|');
+  // Lọc theo TÀI KHOẢN đã lên hoá đơn (saleId) — vẫn đúng kể cả khi Sale không ghi tên "Nhân viên"
+  const accIds = Array.from(new Set(state.invoices.map(i=>i.saleId).filter(Boolean)))
+    .sort((a,b)=>userName(a).localeCompare(userName(b),'vi'));
+  const accKey = accIds.map(id=>id+':'+userName(id)).join('|');
+  if(saleSel.dataset.filled !== accKey){
+    const keep = saleSel.value;
+    saleSel.innerHTML = '<option value="">— Tất cả tài khoản —</option>' + accIds.map(id=>`<option value="${id}">${userName(id)}</option>`).join('');
+    saleSel.value = accIds.includes(keep) ? keep : '';
+    saleSel.dataset.filled = accKey;
   }
 
   let invoices = state.invoices.slice();
@@ -3170,7 +3177,7 @@ function renderInvoicesOverviewPage(){
     });
   }
   const saleFilter = saleSel.value;
-  if(saleFilter) invoices = invoices.filter(inv=>inv.saleName===saleFilter);
+  if(saleFilter) invoices = invoices.filter(inv=>inv.saleId===saleFilter);
   invoices.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   lastFilteredInvoices = invoices;
 
@@ -3219,12 +3226,13 @@ function renderInvoicesOverviewPage(){
     invTable.innerHTML = '<tr><td class="empty-note">Chưa có hoá đơn nào phù hợp.</td></tr>';
     return;
   }
-  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Sale</th><th>Team</th><th class="num">SL</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
+  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th class="num">SL</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
     invoices.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
       <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone}</div>` : ''}</td>
-      <td>${inv.saleName}</td>
+      <td style="font-weight:600;">${inv.saleId ? userName(inv.saleId) : '—'}</td>
+      <td>${inv.saleName ? inv.saleName : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
       <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
@@ -3274,7 +3282,8 @@ function viewInvoiceReadonly(invoiceId){
     </table></div>
     <div class="iv-foot">
       <div>
-        <div><span>Nhân viên:</span> <b>${esc(inv.saleName)}</b></div>
+        <div><span>Nhân viên:</span> <b>${esc(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</b></div>
+        ${inv.saleId ? `<div class="no-print" style="font-size:11px;"><span>Tài khoản lên đơn:</span> <b>${esc(userName(inv.saleId))}</b></div>` : ''}
         ${inv.teamName ? `<div><span>Team:</span> <b>${esc(inv.teamName)}</b></div>` : ''}
       </div>
       <div class="iv-totals">
@@ -3305,11 +3314,11 @@ function exportInvoicesByProduct(){
 function exportInvoicesOverview(){
   const rows = lastFilteredInvoices.map(inv=>({
     soHd: inv.invoiceNumber, ngay: fmtDate(inv.invoiceDate), khachHang: inv.customerName,
-    sale: inv.saleName, team: inv.teamName||'', soLuong: inv.totalQty, tongThanhToan: inv.finalAmount,
+    taiKhoan: inv.saleId ? userName(inv.saleId) : '', sale: inv.saleName||'', team: inv.teamName||'', soLuong: inv.totalQty, tongThanhToan: inv.finalAmount,
   }));
   exportRowsToExcel(rows, [
     {key:'soHd', header:'Số HĐ'}, {key:'ngay', header:'Ngày'}, {key:'khachHang', header:'Khách hàng'},
-    {key:'sale', header:'Sale'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
+    {key:'taiKhoan', header:'Tài khoản'}, {key:'sale', header:'Nhân viên ghi'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
   ], `danh-sach-hoa-don-${todayStr()}.xlsx`);
 }
 
