@@ -405,6 +405,12 @@
   /* Đường kẻ phân cách giữa các mã: đậm hơn đường kẻ giữa các dòng màu một chút */
   #invoicePrintArea tr.inv-group-start > td, .inv-view tr.iv-group-start > td{ border-top:2px solid #b3b3b3 !important; }
   #invoicePrintArea tbody tr.inv-group-start:first-child > td, .inv-view tbody tr.iv-group-start:first-child > td{ border-top:none !important; }
+  /* Ô Đơn giá: trông như chữ thường, bấm vào mới hiện khung để sửa */
+  #invoicePrintArea input.inv-price-input{ width:72px !important; text-align:right !important; border:1px solid transparent !important; background:transparent !important; box-shadow:none !important; padding:1px 4px !important; cursor:pointer; }
+  #invoicePrintArea input.inv-price-input:hover{ border-color:#ccc !important; }
+  #invoicePrintArea input.inv-price-input:focus{ border-color:#1c5fa8 !important; background:#fff !important; cursor:text; }
+  #invoicePrintArea input.inv-price-input.inv-price-custom{ color:#c0392b !important; font-weight:700; }
+  #invoicePrintArea input.inv-price-input + .print-only{ display:none; }
   #invoicePrintArea td.inv-group-qty{ font-weight:800; color:#000; font-size:13.5px !important; }
   /* Tổng SL / Đơn giá / Thành tiền (ô gộp nhiều dòng) nằm ngang với dòng màu ĐẦU TIÊN, không ở giữa */
   #invoicePrintArea td[rowspan]{ vertical-align:top; padding-top:6px; }
@@ -480,6 +486,7 @@
     #invoicePrintArea input[type=number]{ width:28px !important; }
     #invoicePrintArea .qty-arrows button{ width:12px; height:12px !important; line-height:12px; font-size:8px; }
     #invoicePrintArea input[type=text]{ width:54px !important; }
+    #invoicePrintArea input.inv-price-input{ width:44px !important; font-size:10.5px !important; padding:1px 0 !important; }
     #invoicePrintArea .row-delete-btn{ width:16px; font-size:16px; }
     #invoicePrintArea .inv-footer{ flex-direction:column; align-items:stretch; }
     #invoicePrintArea .inv-staff-row{ gap:10px !important; flex-wrap:wrap; }
@@ -527,7 +534,7 @@
     #invoicePrintArea .inv-phone:has(input:placeholder-shown){ display:none !important; }
     #invoicePrintArea .inv-toprow .inv-phone input{ font-weight:600; padding-left:0 !important; }
     /* Cọc: in số đã định dạng thay cho ô nhập */
-    #invoicePrintArea input.inv-deposit-input, #invoicePrintArea input.inv-date-input{ display:none !important; }
+    #invoicePrintArea input.inv-deposit-input, #invoicePrintArea input.inv-date-input, #invoicePrintArea input.inv-price-input{ display:none !important; }
     #invoicePrintArea .inv-toprow .inv-cust input{ font-weight:600; padding-left:0 !important; }
     #invoicePrintArea .inv-toprow .inv-cust{ flex:0 1 auto !important; min-width:0 !important; }
     #invoicePrintArea .inv-toprow .inv-cust input, #invoicePrintArea .inv-toprow .inv-phone input{ display:none !important; }
@@ -2852,7 +2859,7 @@ function updateDraftField(field, value){
 }
 function updateDraftProductGroup(gi, value){
   const g = currentInvoiceDraft.productGroups[gi];
-  if(g.productCode !== value) g.design = ''; // đổi sang mã khác → bỏ mẫu in cũ
+  if(g.productCode !== value){ g.design = ''; delete g.priceText; } // đổi sang mã khác → bỏ mẫu in & giá tự sửa cũ
   g.productCode = value;
   renderInvoiceEditor();
 }
@@ -2885,9 +2892,28 @@ function computeGroupTotals(group){
     tierQty = groups.filter(g=>g.productCode===group.productCode)
       .reduce((s,g)=>s+g.colorLines.reduce((a,l)=>a+(Number(l.qty)||0),0),0);
   }
-  const unitPrice = priceForQty(product, tierQty);
+  // Sale tự sửa đơn giá (bấm vào ô Đơn giá) → dùng giá đã sửa thay cho giá sỉ tự tính
+  const hasOverride = group.priceText!==undefined && String(group.priceText).trim()!=='';
+  const unitPrice = hasOverride ? parsePriceText(group.priceText) : priceForQty(product, tierQty);
   const groupTotal = unitPrice * totalQty;
-  return {product, totalQty, unitPrice, groupTotal};
+  return {product, totalQty, unitPrice, groupTotal, priceText: hasOverride ? String(group.priceText).trim() : ''};
+}
+// Đọc số tiền từ chữ Sale gõ: "22000", "22.000", "22k", "22,5k", "giá 20k" … ; không có số (VD "tặng") → 0
+function parsePriceText(t){
+  const s = String(t||'').toLowerCase().replace(/\s/g,'');
+  const m = s.match(/\d[\d.,]*/);
+  if(!m) return 0;
+  let numStr = m[0].replace(/[.,](?=\d{3}(?!\d))/g,'').replace(',','.');
+  let n = parseFloat(numStr) || 0;
+  const suffix = s.slice(m.index + m[0].length).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(/^k|^nghin|^ngan/.test(suffix)) n *= 1000;
+  return Math.round(n);
+}
+// Sale sửa ô Đơn giá: để trống = quay về giá sỉ tự tính
+function updateDraftGroupPrice(gi, value){
+  const g = currentInvoiceDraft.productGroups[gi];
+  if(String(value).trim()==='') delete g.priceText; else g.priceText = String(value).trim();
+  renderInvoiceEditor();
 }
 function computeDraftTotals(){
   let totalQty = 0, totalAmount = 0;
@@ -2987,7 +3013,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   const totals = computeDraftTotals();
   // Lưu gọn: bỏ dòng chưa chọn sản phẩm, bỏ các trường rỗng (Firebase tính dung lượng theo từng byte)
   const productGroupsFinal = d.productGroups.filter(g=>g.productCode).map(g=>{
-    const {product, unitPrice} = computeGroupTotals(g);
+    const {product, unitPrice, priceText} = computeGroupTotals(g);
     const out = {
       productCode: g.productCode,
       productName: product ? product.name : '(đã xoá khỏi danh mục)',
@@ -2999,6 +3025,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
       }),
     };
     if(g.design) out.design = g.design;
+    if(priceText) out.priceText = priceText; // đơn giá Sale tự sửa (giữ nguyên chữ đã gõ)
     return out;
   });
   const finalInvoice = {
@@ -3137,7 +3164,7 @@ function renderInvoiceEditor(){
   const FIXED_SIZE_OPTIONS = ['S','M','L','XL','Đủ size'];
   let rowsHtml = '';
   (d.productGroups||[]).forEach((g, gi)=>{
-    const {product, unitPrice, groupTotal, totalQty} = computeGroupTotals(g);
+    const {product, unitPrice, groupTotal, totalQty, priceText} = computeGroupTotals(g);
     const colorOptions = product ? parseColorOptions(product.colors) : [];
     const designOptions = product ? parseDesignOptions(product.designs) : [];
     const rowspan = g.colorLines.length;
@@ -3172,7 +3199,7 @@ function renderInvoiceEditor(){
       }
       // Đơn giá: cả mã dùng chung 1 giá (theo tổng SL) → gộp thành 1 ô, không lặp lại từng dòng màu
       if(ci===0){
-        rowsHtml += `<td rowspan="${rowspan}" class="num">${fmtMoney(unitPrice)}</td>`;
+        rowsHtml += `<td rowspan="${rowspan}" class="num"><input type="text" class="inv-price-input ${priceText?'inv-price-custom':''}" value="${(priceText || fmtMoney(unitPrice)).replace(/"/g,'&quot;')}" title="Bấm để sửa đơn giá (gõ số hoặc chữ, VD 20k). Xoá trống = về giá sỉ tự tính" onfocus="this.select()" onchange="updateDraftGroupPrice(${gi}, this.value)"><span class="print-only">${(priceText || fmtMoney(unitPrice)).replace(/</g,'&lt;')}</span></td>`;
         rowsHtml += `<td rowspan="${rowspan}" class="num inv-money">${fmtMoney(groupTotal)}đ</td>`;
       }
       rowsHtml += `<td class="no-print"><button class="row-delete-btn" onclick="removeColorLineFromDraft(${gi},${ci})" title="Xoá dòng này">×</button></td>`;
@@ -3391,7 +3418,7 @@ function viewInvoiceReadonly(invoiceId){
       rows += i===0 ? '<tr class="iv-group-start">' : '<tr>';
       if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${esc(g.productCode)} - ${g.design ? `<i class="iv-design">${esc(g.design)}</i>` : esc(g.productName||'')}</td>`;
       rows += `<td>${esc(l.color)||'—'}</td><td>${esc(l.size)}</td><td class="num">${Number(l.qty)||0}</td>`;
-      if(i===0) rows += `<td rowspan="${rs}" class="num iv-gqty">${gQty}</td><td rowspan="${rs}" class="num">${fmtMoney(unit)}</td><td rowspan="${rs}" class="num iv-money">${fmtMoney(unit*gQty)}đ</td>`;
+      if(i===0) rows += `<td rowspan="${rs}" class="num iv-gqty">${gQty}</td><td rowspan="${rs}" class="num">${g.priceText ? esc(g.priceText) : fmtMoney(unit)}</td><td rowspan="${rs}" class="num iv-money">${fmtMoney(unit*gQty)}đ</td>`;
       rows += '</tr>';
     });
   });
