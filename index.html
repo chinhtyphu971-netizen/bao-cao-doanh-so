@@ -5983,6 +5983,11 @@ function toggleCheckinByManager(userId){
   renderMgrLeads();
 }
 function toggleManagerConfirm(userId){
+  const curUser = currentUser();
+  if(!curUser || curUser.role !== 'general_manager'){
+    showToast('Trưởng team chỉ được điểm danh hộ, chỉ Quản lý chung mới có quyền xác nhận để nhận data.');
+    return;
+  }
   const today=todayStr();
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
@@ -6159,6 +6164,11 @@ function renderPersonLeadsPage(){
 }
 
 function applyBulkConfirm(confirmValue){
+  const curUser = currentUser();
+  if(!curUser || curUser.role !== 'general_manager'){
+    showToast('Trưởng team chỉ được điểm danh hộ, chỉ Quản lý chung mới có quyền xác nhận để nhận data.');
+    return;
+  }
   const today = todayStr();
   const checkboxes = Array.from(document.querySelectorAll('.bulkConfirmUserCheckbox:checked'));
   if(checkboxes.length===0){ showToast('Chưa chọn người nào'); return; }
@@ -6280,8 +6290,10 @@ function renderMgrLeads(){
     distTable.innerHTML = '<tr><td class="empty-note">Chưa có ai trong đội.</td></tr>';
     return;
   }
+  const curUser = currentUser();
+  const canConfirm = curUser && (curUser.role === 'general_manager');
   distTable.innerHTML = `<thead><tr>
-    <th style="width:28px; text-align:center;"><input type="checkbox" id="bulkConfirmSelectAll" onchange="toggleBulkConfirmSelectAll(this)" title="Chọn tất cả để xác nhận nhanh" style="width:14px; height:14px; margin:0; cursor:pointer;"></th>
+    <th style="width:28px; text-align:center;">${canConfirm ? '<input type="checkbox" id="bulkConfirmSelectAll" onchange="toggleBulkConfirmSelectAll(this)" title="Chọn tất cả để xác nhận nhanh" style="width:14px; height:14px; margin:0; cursor:pointer;">' : ''}</th>
     <th>Người nhận</th>
     <th>Chi nhánh</th>
     <th style="text-align:center;">Điểm danh</th>
@@ -6295,9 +6307,13 @@ function renderMgrLeads(){
       const checkinBadge = isStaffCheckedIn
         ? `<span class="badge badge-ok" style="cursor:pointer;" onclick="toggleCheckinByManager('${u.id}')" title="Bấm để bỏ điểm danh hộ">✓ Đi làm</span>`
         : `<span class="badge badge-warn" style="cursor:pointer;" onclick="toggleCheckinByManager('${u.id}')" title="Bấm để điểm danh hộ">+ Chưa điểm danh</span>`;
-      const confirmBadge = isConfirmed
-        ? `<span class="badge badge-ok" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')" title="Bấm để huỷ xác nhận">✓ Đã xác nhận</span>`
-        : `<span class="badge badge-warn" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')" title="Bấm để xác nhận">+ Chưa xác nhận</span>`;
+      const confirmBadge = canConfirm
+        ? (isConfirmed
+            ? `<span class="badge badge-ok" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')" title="Bấm để huỷ xác nhận">✓ Đã xác nhận</span>`
+            : `<span class="badge badge-warn" style="cursor:pointer;" onclick="toggleManagerConfirm('${u.id}')" title="Bấm để xác nhận">+ Chưa xác nhận</span>`)
+        : (isConfirmed
+            ? `<span class="badge badge-ok" style="cursor:default;" title="Đã được Quản lý chung xác nhận">✓ Đã xác nhận</span>`
+            : `<span class="badge badge-warn" style="opacity:0.85; cursor:not-allowed;" title="Chờ Quản lý chung duyệt xác nhận">+ Chưa xác nhận</span>`);
 
       const countToday = dailyReceivedCount(u.id, today);
       const isMaxed = countToday >= DAILY_LEAD_CAP;
@@ -6316,7 +6332,7 @@ function renderMgrLeads(){
       }
 
       return `<tr>
-        <td style="text-align:center;"><input type="checkbox" class="bulkConfirmUserCheckbox" value="${u.id}" onchange="onBulkConfirmChange()" style="width:14px; height:14px; margin:0; cursor:pointer;"></td>
+        <td style="text-align:center;">${canConfirm ? `<input type="checkbox" class="bulkConfirmUserCheckbox" value="${u.id}" onchange="onBulkConfirmChange()" style="width:14px; height:14px; margin:0; cursor:pointer;">` : '—'}</td>
         <td data-label="Người nhận">${u.name}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
         <td data-label="Điểm danh" style="text-align:center;">${checkinBadge}</td>
