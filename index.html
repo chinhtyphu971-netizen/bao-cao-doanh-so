@@ -746,6 +746,7 @@
         <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">📄 Danh sách báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" id="navItem_mgrSelfLeadsList" data-page="mgrSelfLeadsList" onclick="goPage('mgrSelfLeadsList')"><span class="label">🔎 Data tự tìm</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
@@ -1244,7 +1245,6 @@
       <div id="page-mgrLeadsList" class="page" style="display:none;">
         <div class="page-head">
           <div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div>
-          <button class="btn-ghost btn-small" onclick="toggleMgrSelfLeadsSection()" id="mgrSelfLeadsSectionToggleBtn">📋 Xem Data tự tìm (tổng hợp)</button>
         </div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:14px;">
@@ -1271,8 +1271,13 @@
           <div id="mgrLeadsListPagination" style="display:flex; align-items:center; justify-content:center; gap:14px; margin-top:14px;"></div>
         </div>
 
-        <div class="card" id="mgrSelfLeadsSection" style="margin-top:20px; display:none;">
-          <h2 style="margin-top:0;">Data tự tìm <span style="font-weight:400; font-size:13px; color:var(--ink-soft);">(tổng hợp của tất cả mọi người)</span></h2>
+      </div>
+
+
+      <!-- ---------- MANAGER: Data tự tìm (tổng hợp) ---------- -->
+      <div id="page-mgrSelfLeadsList" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Data tự tìm</h1><p>Tổng hợp data tự tìm của tất cả mọi người</p></div></div>
+        <div class="card" id="mgrSelfLeadsSection">
           <p style="color:var(--ink-soft); font-size:13px; margin-top:-6px;">Chỉ xem — đây là data mỗi Sale tự ghi lại khi họ tự tìm được, không phải data hệ thống tự động chia ở bảng trên.</p>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:200px;"><label>Lọc theo ngày</label><input type="date" id="mgrSelfLeadsDateFilter" onchange="renderMgrSelfLeadsList()"></div>
@@ -5285,12 +5290,7 @@ function renderPersonLeadsPage(){
     </tr>`).join('') + moreRowsHtml('personLeads', leads.length, 9) + `</tbody>`;
 }
 function toggleMgrSelfLeadsSection(){
-  const section = document.getElementById('mgrSelfLeadsSection');
-  const btn = document.getElementById('mgrSelfLeadsSectionToggleBtn');
-  const isOpen = section.style.display !== 'none';
-  section.style.display = isOpen ? 'none' : 'block';
-  btn.textContent = isOpen ? '📋 Xem Data tự tìm (tổng hợp)' : '📋 Ẩn Data tự tìm (tổng hợp)';
-  if(!isOpen) renderMgrSelfLeadsList(); // mo ra moi render, tranh render thua khi con dang an
+  goPage('mgrSelfLeadsList'); // Data tự tìm giờ là 1 mục riêng trên menu
 }
 function toggleMgrLeadsListStatsByDay(){
   const body = document.getElementById('mgrLeadsListStatsByDay');
@@ -5445,8 +5445,7 @@ function renderMgrLeadsList(){
       <td>${chatBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
-  const selfLeadsSection = document.getElementById('mgrSelfLeadsSection');
-  if(selfLeadsSection && selfLeadsSection.style.display !== 'none') renderMgrSelfLeadsList();
+  // Data tự tìm đã tách thành trang riêng (mgrSelfLeadsList) — vẽ khi mở trang đó
 }
 // ===== Data chốt tổng (Quản lý) — tự động gom TẤT CẢ lead có status "Đã chốt", không cần
 // copy tay gì cả, chỉ là 1 view lọc lại trên cùng 1 nguồn dữ liệu /leads =====
@@ -6527,6 +6526,7 @@ function enterApp(){
   // "Danh sách data" (bảng tổng gộp mọi người) chỉ dành cho Quản lý chung / Quản lý Data — Quản lý
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navItem_mgrSelfLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   if(user.role==='team_manager') document.getElementById('navItem_mgrTrash').style.display = 'none'; // Trưởng team không dùng Thùng rác — chỉ Quản lý chung
@@ -6574,6 +6574,7 @@ function goPage(pageId){
   }
   const u = currentUser();
   if(pageId==='mgrLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
+  if(pageId==='mgrSelfLeadsList' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mktOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='videoShootsOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
@@ -6592,6 +6593,7 @@ function goPage(pageId){
   if(pageId==='mgrReports') renderMgrReportsPage();
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
+  if(pageId==='mgrSelfLeadsList') renderMgrSelfLeadsList();
   if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
   if(pageId==='invoices') renderInvoicesPage();
   if(pageId==='invoicesOverview') renderInvoicesOverviewPage();
