@@ -442,7 +442,8 @@
   #invoicePrintArea .inv-add-product-btn.inv-always-show{ opacity:1; }
   #invoicePrintArea .inv-prod-code{display:none;}
   @media screen and (hover:none){
-    #invoicePrintArea .row-delete-btn{ opacity:.55; }
+    #invoicePrintArea .row-delete-btn{ opacity:0; }
+    #invoicePrintArea tr:active .row-delete-btn, #invoicePrintArea tr:focus-within .row-delete-btn{ opacity:1; visibility:visible; }
     #invoicePrintArea .qty-arrows{ opacity:1; }
     #invoicePrintArea .inv-add-product-btn{ opacity:1; }
     #invoicePrintArea .add-color-link{ opacity:1; }
@@ -623,36 +624,113 @@
     display:block; margin-top:2px; width:100% !important; min-width:0 !important; max-width:100% !important;
     height:22px !important; color:#4a148c !important; font-weight:700 !important; font-style:italic; font-size:10.5px !important;
   }
-  #invoicePrintArea td select, #invoicePrintArea td input[type=text]{
-    background:#fff !important; color:#1a1a1a !important; border:1px solid #ccc !important;
-    padding:1px 2px !important; font-size:11px !important; height:22px !important; min-height:22px !important;
-    width:100% !important; min-width:0 !important; max-width:100% !important; box-sizing:border-box !important; border-radius:3px;
+  /* ===== BỎ Ô VIỀN CHO ĐỠ RỐI TRÊN BẢNG HOÁ ĐƠN ===== */
+  #invoicePrintArea table td select,
+  #invoicePrintArea table td input,
+  #invoicePrintArea table input[type=number],
+  #invoicePrintArea table select.inv-prod-select,
+  #invoicePrintArea table select.inv-design-select,
+  #invoicePrintArea table input.inv-price-input{
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    padding: 2px 2px !important;
+    box-sizing: border-box !important;
+  }
+  #invoicePrintArea table td select{
+    cursor: pointer !important;
+  }
+  #invoicePrintArea table td select:hover,
+  #invoicePrintArea table td input:hover{
+    background: rgba(28, 95, 168, 0.05) !important;
+    border-radius: 3px !important;
+  }
+  #invoicePrintArea table td select:focus,
+  #invoicePrintArea table td input:focus{
+    background: #fff !important;
+    border-bottom: 1.5px solid #1c5fa8 !important;
+    border-radius: 0 !important;
+  }
+  #invoicePrintArea select.inv-prod-select{
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important; height: 24px !important;
+    font-size: 11.5px !important; padding: 1px 2px !important; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-weight: 600;
+  }
+  #invoicePrintArea select.inv-design-select{
+    display: block; margin-top: 2px; width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+    height: 22px !important; color: #4a148c !important; font-weight: 700 !important; font-style: italic; font-size: 10.5px !important;
   }
   #invoicePrintArea table input[type=number]{
-    width:100% !important; min-width:0 !important; max-width:34px !important; height:22px !important;
-    border-radius:4px !important; text-align:center !important; font-size:11.5px !important; font-weight:600;
-    padding:1px 0 !important; border:1px solid #ccc !important; margin:0 auto; display:block; box-sizing:border-box !important;
+    width: 100% !important; min-width: 0 !important; max-width: 34px !important; height: 22px !important;
+    text-align: center !important; font-size: 12px !important; font-weight: 700 !important; color: #1a1a1a !important;
+    padding: 1px 0 !important; margin: 0 auto; display: block; box-sizing: border-box !important;
+    -moz-appearance: textfield !important;
   }
-  #invoicePrintArea .qty-arrows{ display:none !important; }
+  #invoicePrintArea .qty-arrows{ display: none !important; }
   #invoicePrintArea td.inv-group-qty{
-    font-weight:800; color:#000; font-size:11.5px !important; text-align:center !important;
+    font-weight: 800; color: #000; font-size: 11.5px !important; text-align: center !important;
   }
   #invoicePrintArea input.inv-price-input{
-    width:100% !important; min-width:0 !important; max-width:100% !important; height:22px !important;
-    text-align:right !important; border:1px solid transparent !important; background:transparent !important;
-    box-shadow:none !important; padding:1px 2px !important; cursor:pointer; font-size:11px !important; box-sizing:border-box !important;
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important; height: 22px !important;
+    text-align: right !important; cursor: pointer; font-size: 11px !important; box-sizing: border-box !important; font-weight: 600;
   }
-  #invoicePrintArea input.inv-price-input:hover{ border-color:#ccc !important; }
-  #invoicePrintArea input.inv-price-input:focus{ border-color:#1c5fa8 !important; background:#fff !important; cursor:text; }
-  #invoicePrintArea input.inv-price-input.inv-price-custom{ color:#c0392b !important; font-weight:700; }
+  #invoicePrintArea input.inv-price-input.inv-price-custom{ color: #c0392b !important; font-weight: 700; }
+
+  /* Bỏ viền thô cho các trường nhập thông tin khách và nhân viên trên hoá đơn */
+  #invoicePrintArea .inv-toprow input{
+    border: none !important;
+    border-bottom: 1px dashed #ccc !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 2px 4px !important;
+  }
+  #invoicePrintArea .inv-toprow input:focus{
+    border-bottom: 1.5px solid #1c5fa8 !important;
+    background: #fff !important;
+    outline: none !important;
+  }
+  #invoicePrintArea .inv-footer select,
+  #invoicePrintArea .inv-footer input.inv-staff-input{
+    border: none !important;
+    border-bottom: 1px dashed #ccc !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  #invoicePrintArea .inv-footer select:focus,
+  #invoicePrintArea .inv-footer input.inv-staff-input:focus{
+    border-bottom: 1.5px solid #1c5fa8 !important;
+    outline: none !important;
+  }
   #invoicePrintArea .inv-money{
     color:#1c5fa8; font-weight:700; font-size:11px !important; white-space:nowrap !important; text-align:right !important; padding:2px 2px !important;
   }
   #invoicePrintArea .row-delete-btn{
-    opacity:0.6; background:none; border:none; color:#c0392b; font-size:16px; line-height:1; cursor:pointer;
-    width:16px; height:16px; padding:0; margin:0 auto; display:block;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    background: none;
+    border: none;
+    color: #c0392b;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    margin: 0 auto;
+    display: block;
   }
-  #invoicePrintArea tr:hover .row-delete-btn{ opacity:1; }
+  #invoicePrintArea tr:hover .row-delete-btn,
+  #invoicePrintArea tr:focus-within .row-delete-btn{
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
 
   /* Bảng xem chi tiết .inv-view cũng không cuộn ngang */
   .inv-view table{ width:100% !important; table-layout:fixed !important; border-collapse:collapse; font-size:11.5px; }
