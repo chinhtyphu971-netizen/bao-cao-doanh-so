@@ -744,14 +744,14 @@
         <div class="nav-item" data-page="companyRules" onclick="goPage('companyRules')"><span class="label">📜 Nội quy & Văn hoá công ty</span></div>
       </div>
       <div id="navMkt" style="display:none;">
-        <div class="nav-item active" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
+        <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
         <div class="nav-item" data-page="videoShoots" onclick="goPage('videoShoots')"><span class="label">📝 Note diễn viên</span></div>
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
       </div>
       <div id="navMktManager" style="display:none;">
-        <div class="nav-item active" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">📊 Thống kê team MKT</span></div>
+        <div class="nav-item" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">📊 Thống kê team MKT</span></div>
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
@@ -6574,8 +6574,7 @@ function enterApp(){
   // "Tất cả tin nhắn" — chỉ dành riêng cho Quản lý chung, không ai khác được xem.
   document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
-  if(isMkt){ goPage('mktInput'); }
-  else if(isMktManager){ goPage('mktManagerStats'); }
+  if(isMkt || isMktManager){ goPage('mktMyLeadsList'); } // MKT & Quản lý team MKT: mặc định mở "Danh sách data"
   else if(isDataManager){ goPage('mgrLeads'); }
   else if(user.role==='general_manager'){ goPage('mgrDashboard'); }
   else { goPage('myLeads'); }
@@ -6617,8 +6616,8 @@ function goPage(pageId){
   if(pageId==='videoShootsOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
-  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktInput'; } // MKT: 5 trang này + Nội quy
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktManagerStats'; } // Quản lý team MKT: 6 trang này + Nội quy
+  if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
