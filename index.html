@@ -613,6 +613,19 @@
   .inv-view .iv-totals{ min-width:240px; }
   .inv-view .iv-totals div{ display:flex; justify-content:space-between; gap:20px; padding:3px 0; }
   .inv-view .iv-grand{ border-top:1px solid #ddd; margin-top:6px; padding-top:8px !important; color:#c0392b; font-weight:800; font-size:16px; }
+  /* ===== Chữ trên hoá đơn: nét vừa phải, màu đen đậm cho rõ (không in đậm quá) ===== */
+  #invoicePrintArea, .inv-view{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; }
+  #invoicePrintArea td, .inv-view td{ font-weight:400 !important; color:#000 !important; font-size:13px; }
+  #invoicePrintArea td input, #invoicePrintArea td select:not(.inv-design-select){ font-weight:400 !important; }
+  .inv-view td.iv-prod{ font-weight:500 !important; }
+  #invoicePrintArea td.inv-group-qty, .inv-view .iv-gqty{ font-weight:600 !important; font-size:13.5px !important; }
+  #invoicePrintArea td.inv-money, .inv-view td.iv-money{ font-weight:600 !important; color:#1c5fa8 !important; }
+  #invoicePrintArea .inv-design-label, .inv-view .iv-design, #invoicePrintArea select.inv-design-select{ font-weight:600 !important; }
+  #invoicePrintArea th, .inv-view th{ font-weight:600 !important; }
+  #invoicePrintArea .inv-toprow .inv-static-val, #invoicePrintArea .inv-footer .inv-static-val, .inv-view .iv-top b, .inv-view .iv-foot b{ font-weight:600 !important; }
+  .inv-view .iv-top span, .inv-view .iv-foot span{ font-weight:400 !important; }
+  .inv-view .iv-title{ font-weight:700 !important; }
+  .inv-view .iv-grand, #invoicePrintArea .inv-totals .inv-grand{ font-weight:700 !important; }
   @media screen and (max-width:720px){
     .inv-view{ padding:6px 4px; font-size:11.5px; }
     .inv-view .iv-title{ font-size:16px; padding-right:0; }
