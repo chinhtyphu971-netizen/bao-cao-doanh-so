@@ -2010,6 +2010,7 @@ function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
     checkNewLeadNotifications();
+    try{ syncPendingInvoiceLeadStatuses(); }catch(e){ console.error(e); }
     // "staffReport", "mktInput" và "invoices" bị loại trừ khỏi việc tự vẽ lại: đây là các trang
     // có form đang gõ/chỉnh dở (nộp báo cáo / nhập data MKT / đang soạn 1 hoá đơn) — nếu cứ có
     // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
@@ -3131,6 +3132,9 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
+  const syncedCount = syncLeadsForInvoice(finalInvoice);
+  finalInvoice.leadStatusSynced = true;
+  if(syncedCount) setTimeout(()=>showToast(`Đã chuyển ${syncedCount} data trùng SĐT sang "${INVOICED_STATUS}".`), 1800);
   if(depositLink){
     finalInvoice.depositLink = depositLink;
     const linkedLead = state.leads.find(l=>l.id===depositLink.leadId);
@@ -3148,6 +3152,38 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   renderInvoicesPage();
   markInvoiceDraftClean(); // chụp trạng thái SAU khi vẽ (vẽ có thể điền mặc định) → dấu "CHƯA LƯU" biến mất ngay
 }
+// ===== ĐÃ LÊN HĐ: SĐT trên hoá đơn trùng data của chính Sale lên hoá đơn → tự chuyển Tình trạng =====
+// Không hạ cấp data đã "Đã chốt". Mỗi hoá đơn chỉ đồng bộ 1 lần (cờ leadStatusSynced) — sau đó Sale
+// tự đổi lại Tình trạng khác thì hệ thống KHÔNG ép về "Đã lên HĐ" nữa. Sửa & lưu lại hoá đơn thì đồng bộ lại.
+const INVOICED_STATUS = 'Đã lên HĐ';
+function syncLeadsForInvoice(inv){
+  const norm = normalizePhone(inv && inv.customerPhone);
+  if(!norm || !inv.saleId) return 0;
+  let n = 0;
+  state.leads.forEach(l=>{
+    if(l.assignedTo!==inv.saleId) return;
+    if(l.status==='Đã chốt' || l.status===INVOICED_STATUS) return;
+    if(normalizePhone(leadPhone(l))!==norm) return;
+    const updates = {status: INVOICED_STATUS};
+    if(!l.customerName && inv.customerName) updates.customerName = inv.customerName;
+    Object.assign(l, updates);
+    fbUpdateLead(l.id, updates);
+    n++;
+  });
+  return n;
+}
+const invoiceLeadSyncDone = new Set(); // chống ghi lặp trong lúc chờ Firebase trả cờ về
+function syncPendingInvoiceLeadStatuses(){
+  if(!loaded.leads || !state.leads.length || !state.invoices || !state.invoices.length) return;
+  state.invoices.forEach(inv=>{
+    if(!inv || inv.leadStatusSynced || invoiceLeadSyncDone.has(inv.id)) return;
+    invoiceLeadSyncDone.add(inv.id);
+    syncLeadsForInvoice(inv);
+    inv.leadStatusSynced = true;
+    fbInvoices.child(inv.id).update({leadStatusSynced: true}).catch(()=>{});
+  });
+}
+
 // ===== KHÁCH ĐÃ CỌC → đưa vào "Data đã chốt" của Sale lên hoá đơn =====
 // - Nếu SĐT khách đang nằm trong data của Sale (chưa chốt) → chuyển đúng data đó sang "Đã chốt"
 //   (tránh 1 khách thành 2 dòng). Lưu lại trạng thái cũ để bấm huỷ thì trả về như trước.
@@ -4033,7 +4069,7 @@ function checkinToday(){
 // Danh sách "Tình trạng" giờ lấy động từ Firebase (Quản lý tự thêm/sửa/xoá ở Cài đặt) — hàm này
 // trả về mảng tên, luôn dùng thay cho việc gõ cứng danh sách như trước.
 // Danh sách "Tình trạng" CỐ ĐỊNH — không cho chỉnh sửa nữa (đã chốt bộ tên cuối cùng, dùng luôn).
-const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã chốt','Không có nhu cầu','nhắn tin chưa gọi','k liên lạc được','k tìm thấy tk'];
+const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã lên HĐ','Đã chốt','Không có nhu cầu','nhắn tin chưa gọi','k liên lạc được','k tìm thấy tk'];
 function getLeadStatusNames(){ return LEAD_STATUS_OPTIONS; }
 function statusFilterOptionsHtml(){
   return `<option value="">— Tất cả —</option><option value="__unprocessed__">Chưa xử lý</option>` +
@@ -4046,6 +4082,7 @@ function ensureStatusFilterPopulated(selectId){
 const LEAD_STATUS_COLORS = {
   'Đã liên hệ':          {bg:'#1F2547', color:'#93A4F0'},
   'Đang tư vấn':         {bg:'#3A2E12', color:'#E0AB53'},
+  'Đã lên HĐ':           {bg:'#2B1B3F', color:'#C792EA'},
   'Đã chốt':             {bg:'#123320', color:'#57C76A'},
   'k liên lạc được':     {bg:'#2A1F3D', color:'#B083E0'},
   'Không có nhu cầu':    {bg:'#3A1519', color:'#EA6B6B'},
