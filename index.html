@@ -320,6 +320,17 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Bảng data bên MKT — gọn, dồn sang trái, chữ dài thì cắt "…" (rê chuột xem đủ) */
+  @media (min-width:761px){
+    #mktMyLeadsTable{ width:auto !important; }
+    #mktMyLeadsTable th, #mktMyLeadsTable td{ padding:6px 8px !important; white-space:nowrap; font-size:13px; }
+    #mktMyLeadsTable .mk-src, #mktMyLeadsTable .mk-who, #mktMyLeadsTable .mk-name{ display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+    #mktMyLeadsTable .mk-src{ max-width:120px; }
+    #mktMyLeadsTable .mk-who{ max-width:100px; }
+    #mktMyLeadsTable .mk-name{ max-width:140px; }
+    #mktMyLeadsTable .badge{ padding:2px 8px; font-size:12px; }
+    #mktMyLeadsTable .chat-btn{ min-height:28px !important; padding:0 8px !important; }
+  }
   .self-link-cell{ display:inline-block; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
   .self-link-cell a{ color:var(--accent); text-decoration:none; }
   .self-link-cell a:hover{ text-decoration:underline; }
@@ -4679,9 +4690,9 @@ function renderMktMyLeadsList(){
       return `<tr>
         <td data-label="Ngày nhận">${fmtDateTimeShort(l.importedAt||l.assignedAt)}</td>
         <td data-label="SĐT">${leadPhone(l)}</td>
-        <td data-label="Nguồn">${leadSource(l)}</td>
-        <td data-label="Người nhận">${l.assignedToName || 'Chưa chia'}</td>
-        <td data-label="Tên khách">${l.customerName || '—'}</td>
+        <td data-label="Nguồn"><span class="mk-src" title="${escHtml(leadSource(l))}">${escHtml(leadSource(l))}</span></td>
+        <td data-label="Người nhận"><span class="mk-who" title="${escHtml(l.assignedToName || 'Chưa chia')}">${escHtml(l.assignedToName || 'Chưa chia')}</span></td>
+        <td data-label="Tên khách"><span class="mk-name" title="${escHtml(l.customerName || '—')}">${escHtml(l.customerName || '—')}</span></td>
         <td data-label="Tình trạng">${statusHtml}</td>
         <td data-label="Gọi điện">${l.callAttempt || 'Chưa gọi'}</td>
         <td>${chatBtn}</td>
