@@ -3128,6 +3128,18 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   const phone = cleanPhone(d.customerPhone);
   if(phone) finalInvoice.customerPhone = phone;
   if(d.teamId){ finalInvoice.teamId = d.teamId; finalInvoice.teamName = branchName(d.teamId); }
+  // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
+  const prevInv = state.invoices.find(x=>x.id===id);
+  const depositLink = prevInv && prevInv.depositLink;
+  if(depositLink){
+    finalInvoice.depositLink = depositLink;
+    const linkedLead = state.leads.find(l=>l.id===depositLink.leadId);
+    if(linkedLead){
+      const patch = {closedAmount: totals.totalAmount, customerName: d.customerName};
+      Object.assign(linkedLead, patch);
+      fbUpdateLead(linkedLead.id, patch);
+    }
+  }
   state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
   fbInvoices.child(id).set(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
@@ -3136,8 +3148,91 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   renderInvoicesPage();
   markInvoiceDraftClean(); // chụp trạng thái SAU khi vẽ (vẽ có thể điền mặc định) → dấu "CHƯA LƯU" biến mất ngay
 }
+// ===== KHÁCH ĐÃ CỌC → đưa vào "Data đã chốt" của Sale lên hoá đơn =====
+// - Nếu SĐT khách đang nằm trong data của Sale (chưa chốt) → chuyển đúng data đó sang "Đã chốt"
+//   (tránh 1 khách thành 2 dòng). Lưu lại trạng thái cũ để bấm huỷ thì trả về như trước.
+// - Nếu chưa có (hoặc khách đã từng chốt trước đây = mua lần nữa) → thêm 1 dòng mới vào Data đã chốt.
+// Ngày chốt = ngày bấm (ngày khách cọc), Số tiền chốt = Tổng tiền hàng của hoá đơn.
+function markInvoiceDeposited(invoiceId){
+  const inv = state.invoices.find(x=>x.id===invoiceId);
+  if(!inv) return;
+  if(inv.depositLink){ showToast('Hoá đơn này đã được đưa vào Data đã chốt rồi.'); return; }
+  const phone = cleanPhone(inv.customerPhone);
+  if(!phone){ showToast('Hoá đơn chưa có SĐT khách — bấm ✏️ Sửa để bổ sung SĐT trước.'); return; }
+  const ownerId = inv.saleId || currentUser().id;
+  const owner = state.users.find(x=>x.id===ownerId) || currentUser();
+  const norm = normalizePhone(phone);
+  const existing = state.leads.find(l=>l.assignedTo===ownerId && l.status!=='Đã chốt' && normalizePhone(leadPhone(l))===norm);
+  const amount = Number(inv.totalAmount)||0;
+  const msg = existing
+    ? `Khách "${inv.customerName}" đang có trong data của bạn (${existing.status||'chưa cập nhật'}). Data đó sẽ được chuyển sang "Đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`
+    : `Thêm khách "${inv.customerName}" vào "Data đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`;
+  askConfirm('Khách đã cọc?', msg, ()=>{
+    const today = todayStr();
+    let link;
+    if(existing){
+      link = {leadId: existing.id, created: false, markedAt: Date.now(),
+        prev: {status: existing.status||'', closedDate: existing.closedDate||'', closedAmount: (existing.closedAmount===undefined ? null : existing.closedAmount)}};
+      const updates = {status:'Đã chốt', closedDate: today, closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
+      if(!existing.customerName) updates.customerName = inv.customerName;
+      Object.assign(existing, updates);
+      fbUpdateLead(existing.id, updates);
+    } else {
+      const lead = {
+        id: 'manualclosed_' + uid(),
+        phone: phone,
+        source: '',
+        status: 'Đã chốt',
+        closedDate: today,
+        closedAmount: amount,
+        customerName: inv.customerName || '',
+        assignedTo: owner.id,
+        assignedToName: owner.name,
+        assignedAt: Date.now(),
+        createdBy: currentUser().id,
+        createdByName: currentUser().name,
+        createdAt: Date.now(),
+        manualEntry: true,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+      };
+      state.leads.push(lead);
+      fbSetLead(lead);
+      link = {leadId: lead.id, created: true, markedAt: Date.now()};
+    }
+    inv.depositLink = link;
+    fbInvoices.child(inv.id).update({depositLink: link});
+    showToast('Đã đưa khách vào "Data đã chốt" ✅');
+    renderInvoicesPage();
+  });
+}
+function unmarkInvoiceDeposited(invoiceId){
+  const inv = state.invoices.find(x=>x.id===invoiceId);
+  if(!inv || !inv.depositLink) return;
+  askConfirm('Huỷ "Khách đã cọc"?', 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
+    const link = inv.depositLink;
+    const lead = state.leads.find(l=>l.id===link.leadId);
+    if(lead){
+      if(link.created){
+        state.leads = state.leads.filter(l=>l.id!==lead.id);
+        fbDeleteLead(lead.id);
+      } else {
+        const p = link.prev || {};
+        const updates = {status: p.status||'', closedDate: p.closedDate||null, closedAmount: (p.closedAmount===undefined ? null : p.closedAmount), invoiceId: null, invoiceNumber: null};
+        Object.assign(lead, updates);
+        fbUpdateLead(lead.id, updates);
+      }
+    }
+    delete inv.depositLink;
+    fbInvoices.child(inv.id).child('depositLink').remove();
+    showToast('Đã huỷ đánh dấu khách đã cọc.');
+    renderInvoicesPage();
+  });
+}
 function deleteInvoice(invoiceId){
-  askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.', ()=>{
+  const invToDelete = state.invoices.find(x=>x.id===invoiceId);
+  const linkedNote = (invToDelete && invToDelete.depositLink) ? ' Lưu ý: khách của hoá đơn này đã được đưa vào "Data đã chốt" — dòng đó vẫn giữ nguyên, muốn gỡ thì bấm "✅ Đã cọc" để huỷ trước khi xoá.' : '';
+  askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.' + linkedNote, ()=>{
     state.invoices = state.invoices.filter(x=>x.id!==invoiceId);
     fbInvoices.child(invoiceId).remove();
     renderInvoicesPage();
@@ -3207,6 +3302,9 @@ function renderInvoicesPage(){
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td>
+        ${inv.depositLink
+          ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">✅ Đã cọc</button>`
+          : `<button class="btn-primary btn-small" title="Khách đã cọc → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">💰 Khách đã cọc</button>`}
         <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
         <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
         <button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>
@@ -3488,7 +3586,7 @@ function renderInvoicesOverviewPage(){
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
       <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
-      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
+      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? '<div style="font-size:11px; font-weight:600;">✅ Đã cọc</div>' : ''}</td>
     </tr>`).join('') + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
@@ -4649,7 +4747,7 @@ function renderMyClosedLeads(){
       <td data-label="SĐT">${l.manualEntry
         ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:3px 5px; font-size:12px; width:98px; ${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
         : `${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:100px; min-height:30px; padding:3px 5px; font-size:12px;" onchange="updateLeadField('${l.id}','customerName',this.value)"></td>
+      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:100px; min-height:30px; padding:3px 5px; font-size:12px;" onchange="updateLeadField('${l.id}','customerName',this.value)">${l.invoiceNumber ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:2px;">🧾 ${l.invoiceNumber}</div>` : ''}</td>
       <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
