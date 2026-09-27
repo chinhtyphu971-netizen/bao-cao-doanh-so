@@ -3181,7 +3181,7 @@ function markInvoiceDeposited(invoiceId){
       const lead = {
         id: 'manualclosed_' + uid(),
         phone: phone,
-        source: '',
+        source: isReturningCustomerFor(owner.id, phone, null) ? returningSourceName() : '',
         status: 'Đã chốt',
         closedDate: today,
         closedAmount: amount,
@@ -4624,8 +4624,20 @@ function renderMyLeads(){
 const SELF_LEAD_SOURCE_OPTIONS = ['Facebook','TikTok','Zalo','Khác'];
 // Danh sách Nguồn để chọn khi tự nhập tay — lấy đúng theo danh sách Nguồn MKT đang quản lý
 // trong Cài đặt (nguồn chuẩn hoá của cả hệ thống), không tự bịa thêm.
-function mktSourceOptionsHtml(selectedValue){
-  const names = Array.from(new Set(state.mktSources.map(s=>s.name).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+// Nguồn "Khách cũ" — tự chọn sẵn khi khách mua từ lần thứ 2 trở đi (trong Data đã chốt của chính Sale).
+// Nếu Quản lý đã tạo sẵn Nguồn tên tương tự (không phân biệt hoa thường) thì dùng đúng tên đó.
+function returningSourceName(){
+  const found = (state.mktSources||[]).find(s=>s && s.name && s.name.trim().toLowerCase()==='khách cũ');
+  return found ? found.name : 'Khách cũ';
+}
+// Khách đã từng được Sale này chốt trước đó chưa (so theo SĐT, bỏ qua chính dòng đang xét)
+function isReturningCustomerFor(userId, phone, excludeLeadId){
+  const norm = normalizePhone(phone);
+  if(!norm) return false;
+  return state.leads.some(l=>l.id!==excludeLeadId && l.assignedTo===userId && l.status==='Đã chốt' && normalizePhone(leadPhone(l))===norm);
+}
+function mktSourceOptionsHtml(selectedValue, extraNames){
+  const names = Array.from(new Set(state.mktSources.map(s=>s.name).filter(Boolean).concat(extraNames||[]))).sort((a,b)=>a.localeCompare(b,'vi'));
   return '<option value="">— Chọn Nguồn —</option>' +
     names.map(n=>`<option value="${n}" ${selectedValue===n?'selected':''}>${n}</option>`).join('');
 }
@@ -4648,7 +4660,7 @@ function leadSourceEditableHtml(l){
   const onchangeCall = isManagerRole
     ? `updateLeadSourceByManager('${l.id}', this.value)`
     : `updateLeadField('${l.id}','source',this.value)`;
-  return `<select style="min-height:30px; padding:3px 5px; font-size:12px; width:100px;" onchange="${onchangeCall}">${mktSourceOptionsHtml(current==='—'?'':current)}</select>`;
+  return `<select style="min-height:30px; padding:3px 5px; font-size:12px; width:100px;" onchange="${onchangeCall}">${mktSourceOptionsHtml(current==='—'?'':current, [returningSourceName()])}</select>`;
 }
 // Quản lý sửa Nguồn -> khoá luôn, nhân viên không tự sửa lại được nữa (xem hàm trên).
 function updateLeadSourceByManager(leadId, value){
@@ -4783,6 +4795,9 @@ function onManualClosedPhoneChange(leadId, value){
   const ownDup = findOwnDuplicateLead(value, leadId);
   if(ownDup && ownDup.status==='Đã chốt'){
     const lead = state.leads.find(l=>l.id===leadId);
+    if(lead && !lead.source && !lead.sourceLockedByManager && isReturningCustomerFor(lead.assignedTo, value, leadId)){
+      updateLeadField(leadId, 'source', returningSourceName());
+    }
     const num = lead ? purchaseNumberForLead(lead, lead.assignedTo) : 2;
     showToast(`⚠️ SĐT này đã từng được bạn chốt trước đó — đây là lần mua thứ ${num} của khách, dòng sẽ được tô đỏ để lưu ý.`);
   } else if(ownDup){
