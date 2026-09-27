@@ -320,6 +320,16 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Cài đặt: các mục dạng nút bấm, 4 nút/hàng (máy nhỏ 3 → 2) */
+  .settings-tool-grid{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; }
+  @media (max-width:1100px){ .settings-tool-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  @media (max-width:640px){ .settings-tool-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  .settings-tool-btn{ display:flex; align-items:center; gap:10px; text-align:left; padding:14px 14px; min-height:64px; border-radius:12px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; font-size:14px; font-weight:600; transition:border-color .15s, background .15s, transform .1s; }
+  .settings-tool-btn:hover{ border-color:var(--accent); transform:translateY(-1px); }
+  .settings-tool-btn .ico{ font-size:22px; line-height:1; }
+  .settings-tool-btn .cnt{ display:block; font-size:12px; font-weight:400; color:var(--ink-soft); margin-top:2px; }
+  .settings-tool-btn.active{ border-color:var(--accent); background:var(--accent-soft); box-shadow:0 0 0 1px var(--accent) inset; }
+  .card.settings-tool-closed{ display:none !important; }
   /* Bảng data bên MKT — gọn, dồn sang trái, chữ dài thì cắt "…" (rê chuột xem đủ) */
   @media (min-width:761px){
     #mktMyLeadsTable{ width:auto !important; }
@@ -1538,6 +1548,11 @@
           </div>
           <div class="login-error" id="newAccError"></div>
           <button class="btn-primary" style="margin-top:6px;" onclick="createAccountByManager()">Tạo tài khoản</button>
+        </div>
+
+        <div class="card" id="settingsToolGridCard" style="display:none;">
+          <h2 style="margin-top:0;">Danh mục cài đặt</h2>
+          <div class="settings-tool-grid" id="settingsToolGrid"></div>
         </div>
 
         <div class="card" id="settingsMktSourceCard" style="display:none;">
@@ -8341,6 +8356,54 @@ function toggleSettingsTeamsTrash(){
   renderMgrSettings();
 }
 
+// ===== CÀI ĐẶT DẠNG NÚT BẤM =====
+// Mỗi mục (Nguồn MKT, Kho diễn viên...) là 1 nút; bấm nút → mở đúng mục đó ngay bên dưới, các mục khác tự đóng.
+// Bấm lại nút đang mở (hoặc chữ "Ẩn ..." trong mục) → đóng. Nút chỉ hiện với mục mà tài khoản có quyền dùng.
+const SETTINGS_TOOLS = [
+  {key:'mktSource',   card:'settingsMktSourceCard',   icon:'📣', label:'Nguồn MKT',            count:()=>state.mktSources.length,
+   get:()=>settingsMktSourceOpen,   set:v=>{ settingsMktSourceOpen=v; }},
+  {key:'actors',      card:'settingsActorsCard',      icon:'🎬', label:'Kho diễn viên',        count:()=>state.actors.length,
+   get:()=>settingsActorsOpen,      set:v=>{ settingsActorsOpen=v; }},
+  {key:'callAttempt', card:'settingsCallAttemptCard', icon:'📞', label:'Danh sách Gọi điện',   count:()=>state.callAttemptOptions.length,
+   get:()=>settingsCallAttemptOpen, set:v=>{ settingsCallAttemptOpen=v; }},
+  {key:'products',    card:'settingsProductsCard',    icon:'👕', label:'Danh mục sản phẩm',    count:()=>state.products.length,
+   get:()=>settingsProductsOpen,    set:v=>{ settingsProductsOpen=v; }},
+  {key:'invoiceInfo', card:'settingsInvoiceInfoCard', icon:'🧾', label:'Thông tin in hoá đơn', count:null,
+   get:()=>settingsInvoiceInfoOpen, set:v=>{ settingsInvoiceInfoOpen=v; }},
+];
+function openSettingsTool(key){
+  const t = SETTINGS_TOOLS.find(x=>x.key===key);
+  if(!t) return;
+  const willOpen = !t.get();
+  SETTINGS_TOOLS.forEach(x=>x.set(false));
+  t.set(willOpen);
+  renderMgrSettings();
+  if(willOpen){
+    const card = document.getElementById(t.card);
+    if(card) setTimeout(()=>card.scrollIntoView({behavior:'smooth', block:'start'}), 30);
+  }
+}
+function renderSettingsToolGrid(){
+  const grid = document.getElementById('settingsToolGrid');
+  const gridCard = document.getElementById('settingsToolGridCard');
+  if(!grid || !gridCard) return;
+  const allowed = SETTINGS_TOOLS.filter(t=>{
+    const card = document.getElementById(t.card);
+    return card && card.style.display !== 'none';
+  });
+  // Mở mục khác bằng chữ "▸" cũ vẫn giữ quy tắc chỉ 1 mục mở
+  const openOnes = allowed.filter(t=>t.get());
+  if(openOnes.length > 1){ openOnes.slice(0,-1).forEach(t=>t.set(false)); }
+  SETTINGS_TOOLS.forEach(t=>{
+    const card = document.getElementById(t.card);
+    if(card) card.classList.toggle('settings-tool-closed', !t.get());
+  });
+  gridCard.style.display = allowed.length ? '' : 'none';
+  grid.innerHTML = allowed.map(t=>{
+    let n = null; try{ n = t.count ? t.count() : null; }catch(e){}
+    return `<button class="settings-tool-btn${t.get()?' active':''}" onclick="openSettingsTool('${t.key}')"><span class="ico">${t.icon}</span><span>${t.label}${n!==null?`<span class="cnt">${n} mục</span>`:'<span class="cnt">Cửa hàng, STK, QR</span>'}</span></button>`;
+  }).join('');
+}
 function renderMgrSettings(){
   const scope=scopeBranchId();
   document.getElementById('settingsAddBranchForm').style.display = scope ? 'none' : 'flex';
@@ -8578,6 +8641,7 @@ function renderMgrSettings(){
   }
 
   if(!scope) renderPermissionsTable();
+  renderSettingsToolGrid();
 }
 let editingUserId = null;
 function openEditUserModal(userId){
