@@ -2821,6 +2821,25 @@ function invoiceDraftChanged(){
   if(el) currentInvoiceDraft.customerName = el.value;
   return draftFingerprint(currentInvoiceDraft) !== invoiceDraftSnapshot;
 }
+// Bấm 🧾 cạnh SĐT ở "Data của tôi" → mở ngay hoá đơn mới, điền sẵn SĐT, tên khách và Nguồn kênh
+function openInvoiceFromLead(leadId){
+  const lead = state.leads.find(l=>l.id===leadId);
+  if(!lead) return;
+  const go = ()=>{
+    const d = newInvoiceDraft();
+    const ph = leadPhone(lead);
+    d.customerPhone = (ph && ph!=='—') ? cleanPhone(ph) : '';
+    d.customerName = lead.customerName || '';
+    const src = leadSource(lead);
+    if(src && src!=='—') d.leadSource = src;
+    d.leadId = lead.id;
+    currentInvoiceDraft = d;
+    goPage('invoices');
+    markInvoiceDraftClean();
+    if(!d.customerName) setTimeout(()=>{ const el = document.getElementById('invEditCustomerName'); if(el) el.focus(); }, 50);
+  };
+  if(currentInvoiceDraft && invoiceDraftChanged()) autoSaveInvoiceThen(go); else go();
+}
 function startNewInvoiceDraft(){
   currentInvoiceDraft = newInvoiceDraft();
   markInvoiceDraftClean();
@@ -3124,6 +3143,8 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   const phone = cleanPhone(d.customerPhone);
   if(phone) finalInvoice.customerPhone = phone;
   if(d.teamId){ finalInvoice.teamId = d.teamId; finalInvoice.teamName = branchName(d.teamId); }
+  if(d.leadSource) finalInvoice.leadSource = d.leadSource; // Nguồn kênh (khi lên HĐ từ Data của tôi)
+  if(d.leadId) finalInvoice.leadId = d.leadId;
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
@@ -3483,6 +3504,7 @@ function renderInvoiceEditor(){
         <div class="inv-staff-row" style="display:flex; gap:24px;">
           <div><label>Nhân viên</label><input class="inv-staff-input" value="${(d.saleName||'').replace(/"/g,'&quot;')}" placeholder="Tên nhân viên" style="width:150px;" onchange="updateDraftField('saleName', this.value)"></div>
           <div class="${d.teamId?'':'inv-team-empty'}"><label>Team</label><select onchange="updateDraftField('teamId', this.value)">${teamOptionsHtml}</select></div>
+          ${d.leadSource ? `<div><label>Nguồn kênh</label><div class="inv-static-val">${escHtml(d.leadSource)}</div></div>` : ''}
         </div>
         <div class="inv-totals">
           <div class="inv-totals-row"><span>Tổng số lượng:</span><span>${totals.totalQty} sản phẩm</span></div>
@@ -3693,6 +3715,7 @@ function viewInvoiceReadonly(invoiceId){
         <div><span>Nhân viên:</span> <b>${esc(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</b></div>
         ${inv.saleId ? `<div class="no-print" style="font-size:11px;"><span>Tài khoản lên đơn:</span> <b>${esc(userName(inv.saleId))}</b></div>` : ''}
         ${inv.teamName ? `<div><span>Team:</span> <b>${esc(inv.teamName)}</b></div>` : ''}
+        ${inv.leadSource ? `<div><span>Nguồn kênh:</span> <b>${esc(inv.leadSource)}</b></div>` : ''}
       </div>
       <div class="iv-totals">
         <div><span>Tổng số lượng:</span><span>${inv.totalQty||0} sản phẩm</span></div>
@@ -4657,7 +4680,7 @@ function renderMyLeads(){
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
-      <td data-label="SĐT">${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+      <td data-label="SĐT"><span class="copy-icon inv-from-lead-icon" title="Lên hoá đơn cho khách này" onclick="openInvoiceFromLead('${l.id}')">🧾</span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
