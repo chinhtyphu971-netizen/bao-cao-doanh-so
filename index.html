@@ -5647,10 +5647,18 @@ function renderMyLeads(){
 
   const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && isLeadUnprocessed(l)).length;
   const bannerEl = document.getElementById('myUnprocessedBanner');
-  if(unprocessedCount>0){
+  if(unprocessedCount >= 5 && state.enforceUnprocessedLock){
     bannerEl.style.display = 'flex';
     bannerEl.className = 'unprocessed-banner';
-    bannerEl.innerHTML = `<span>⚠️ <b>${unprocessedCount}</b> data chưa cập nhật. Cập nhật trước vòng sau, nếu không sẽ mất quyền nhận data.</span>`;
+    bannerEl.style.borderColor = 'var(--danger)';
+    bannerEl.style.background = '#421618';
+    bannerEl.innerHTML = `<span>🔒 <b>Bị tạm khoá:</b> Bạn đang có <b>${unprocessedCount}</b> data chưa xử lý (từ 5 data trở lên). Vui lòng cập nhật Tình trạng để được mở khoá nhận data mới.</span>`;
+  } else if(unprocessedCount>0){
+    bannerEl.style.display = 'flex';
+    bannerEl.className = 'unprocessed-banner';
+    bannerEl.style.borderColor = 'var(--warn)';
+    bannerEl.style.background = '#3A2E14';
+    bannerEl.innerHTML = `<span>⚠️ Bạn có <b>${unprocessedCount}</b> data chưa cập nhật Tình trạng (tồn đọng từ 5 data trở lên sẽ bị tạm khoá nhận data mới).</span>`;
   } else {
     bannerEl.style.display = 'flex';
     bannerEl.className = 'unprocessed-banner ok';
@@ -6227,9 +6235,9 @@ function renderMgrLeads(){
     document.getElementById('enforceLockToggleWrap').innerHTML = `
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="enforceLockToggle" ${state.enforceUnprocessedLock?'checked':''} onchange="toggleEnforceUnprocessedLock(this.checked)" style="width:16px; height:16px;">
-        <span style="font-weight:600; font-size:13.5px;">Bật quy tắc: còn data chưa xử lý thì tạm khoá, không chia data mới</span>
+        <span style="font-weight:600; font-size:13.5px;">Bật quy tắc: còn từ 5 data chưa xử lý thì tạm khoá, không chia data mới</span>
       </label>
-      <p style="color:var(--ink-soft); font-size:12.5px; margin:4px 0 0 24px;">Khi bật, bất kỳ ai còn từ 1 data chưa cập nhật Tình trạng sẽ tạm thời bị loại khỏi vòng xoay nhận data, cho tới khi họ cập nhật xong.</p>
+      <p style="color:var(--ink-soft); font-size:12.5px; margin:4px 0 0 24px;">Khi bật, bất kỳ ai còn từ 5 data chưa xử lý (chưa cập nhật Tình trạng hoặc thiếu Tên khách) sẽ tạm thời bị khoá không nhận thêm data mới, cho tới khi họ xử lý xong.</p>
     `;
   }
 
@@ -6319,21 +6327,23 @@ function renderMgrLeads(){
       const isMaxed = countToday >= DAILY_LEAD_CAP;
       const countBadge = `<span class="badge ${isMaxed?'badge-warn':'badge-ok'}">${countToday}/${DAILY_LEAD_CAP}</span>`;
 
+      const backlog = countUnprocessedBacklog(u.id);
+      const isLocked = state.enforceUnprocessedLock && (backlog >= 5);
+
       let statusMsg = '';
-      if(!isConfirmed){
+      if(isLocked){
+        statusMsg = `<span class="badge" style="background:#5c1d1d; color:#ff9999; font-weight:700; border:1px solid #e5484d; padding:3px 8px;">🔒 Bị khoá (${backlog} data chưa xử lý)</span>`;
+      } else if(!isConfirmed){
         statusMsg = isStaffCheckedIn ? '<span style="color:var(--warn);">Chờ QL xác nhận</span>' : '<span style="color:var(--ink-soft);">Chưa điểm danh</span>';
       } else if(isMaxed){
         statusMsg = '<span style="color:var(--warn);">Đã đủ 50 data hôm nay</span>';
-      } else if(state.enforceUnprocessedLock && hasUnprocessedBacklog(u.id)){
-        const backlog = countUnprocessedBacklog(u.id);
-        statusMsg = `<span style="color:var(--danger);">Bị khoá (${backlog} data chưa xử lý)</span>`;
       } else {
         statusMsg = '<span style="color:var(--success);">Sẵn sàng nhận data</span>';
       }
 
-      return `<tr>
+      return `<tr ${isLocked ? 'style="background:rgba(229,72,77,0.08);"' : ''}>
         <td style="text-align:center;">${canConfirm ? `<input type="checkbox" class="bulkConfirmUserCheckbox" value="${u.id}" onchange="onBulkConfirmChange()" style="width:14px; height:14px; margin:0; cursor:pointer;">` : '—'}</td>
-        <td data-label="Người nhận">${u.name}</td>
+        <td data-label="Người nhận">${u.name} ${isLocked ? `<span title="Bị khoá do tồn đọng ${backlog} data chưa xử lý" style="color:var(--danger); font-size:13px; margin-left:4px; font-weight:700;">🔒</span>` : ''}</td>
         <td data-label="Chi nhánh">${u.branchId ? branchName(u.branchId) : 'Toàn công ty'}</td>
         <td data-label="Điểm danh" style="text-align:center;">${checkinBadge}</td>
         <td data-label="QL xác nhận" style="text-align:center;">${confirmBadge}</td>
