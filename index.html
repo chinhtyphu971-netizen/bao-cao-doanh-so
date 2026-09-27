@@ -1875,8 +1875,9 @@ function askConfirm(title, text, onOk){
   document.getElementById('confirmText').textContent=text;
   confirmCallback=onOk;
   document.getElementById('confirmOkBtn').onclick=()=>{
+    const cb = confirmCallback;
     closeConfirm();
-    if(confirmCallback) confirmCallback();
+    if(cb) cb();
   };
   document.getElementById('confirmModal').classList.add('show');
 }
@@ -2911,7 +2912,19 @@ function startFirebaseListeners(){
   fbSystem.on('value', snap=>{
     const v = snap.val() || 0;
     if(!systemLoaded){ systemLoaded = true; lastReloadAt = v; return; }
-    if(v > lastReloadAt){ lastReloadAt = v; location.reload(); }
+    if(v > lastReloadAt){
+      lastReloadAt = v;
+      showToast('Hệ thống đang tải lại bản mới...');
+      setTimeout(()=>{
+        if(window.caches){
+          caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))).finally(()=>{
+            window.location.reload();
+          });
+        } else {
+          window.location.reload();
+        }
+      }, 400);
+    }
   });
 
   fbEnforceUnprocessedLock.on('value', snap=>{
@@ -2921,8 +2934,13 @@ function startFirebaseListeners(){
 }
 function broadcastRefresh(){
   askConfirm('Làm mới cho tất cả', 'Mọi người đang mở app (kể cả ai đã thêm icon ra màn hình chính) sẽ tự động tải lại trang trong vài giây. Tiếp tục?', ()=>{
-    fbSystem.set(Date.now());
-    showToast('Đã gửi lệnh làm mới cho tất cả');
+    const now = Date.now();
+    fbSystem.set(now).then(()=>{
+      showToast('Đã gửi lệnh làm mới cho tất cả!');
+    }).catch(err=>{
+      console.error(err);
+      showToast('Lỗi khi gửi lệnh làm mới: ' + (err.message||err));
+    });
   });
 }
 function markLoaded(key){
@@ -3697,17 +3715,24 @@ function onInvoicePhoneFocus(el){
   el.value = (currentInvoiceDraft && currentInvoiceDraft.customerPhone) || '';
 }
 function onInvoicePhoneInput(el){
-  if(currentInvoiceDraft) currentInvoiceDraft.customerPhone = el.value;
+  let clean = el.value.trim().replace(/[\s\.\-_\(\)]/g, '');
+  if(clean.startsWith('+84')) clean = '0' + clean.slice(3);
+  else if(clean.startsWith('84') && clean.length === 11) clean = '0' + clean.slice(2);
+  if(currentInvoiceDraft) currentInvoiceDraft.customerPhone = clean || el.value;
   const printSpan = el.nextElementSibling;
-  if(printSpan) printSpan.textContent = maskPhone(el.value);
+  if(printSpan) printSpan.textContent = maskPhone(clean || el.value);
   updateInvoiceWatermark();
 }
 function onInvoicePhoneBlur(el){
-  const clean = el.value.trim();
-  if(currentInvoiceDraft) currentInvoiceDraft.customerPhone = clean;
-  el.value = maskPhone(clean);
+  let clean = el.value.trim().replace(/[\s\.\-_\(\)]/g, '');
+  if(clean.startsWith('+84')) clean = '0' + clean.slice(3);
+  else if(clean.startsWith('84') && clean.length === 11) clean = '0' + clean.slice(2);
+  if(clean && !clean.includes('x')){
+    if(currentInvoiceDraft) currentInvoiceDraft.customerPhone = clean;
+  }
+  el.value = maskPhone((currentInvoiceDraft && currentInvoiceDraft.customerPhone) || clean);
   const printSpan = el.nextElementSibling;
-  if(printSpan) printSpan.textContent = maskPhone(clean);
+  if(printSpan) printSpan.textContent = maskPhone((currentInvoiceDraft && currentInvoiceDraft.customerPhone) || clean);
   updateInvoiceWatermark();
 }
 
@@ -3879,7 +3904,17 @@ function runInvoiceCounterTransaction(seed, cb){
   });
 }
 function validateInvoiceDraft(d){
-  if(!d.customerName) return 'Vui lòng nhập tên khách hàng.';
+  if(!d.customerName || !d.customerName.trim()) return 'Vui lòng nhập tên khách hàng.';
+  let phoneClean = String(d.customerPhone || '').trim().replace(/[\s\.\-_\(\)]/g, '');
+  if(phoneClean.startsWith('+84')) phoneClean = '0' + phoneClean.slice(3);
+  else if(phoneClean.startsWith('84') && phoneClean.length === 11) phoneClean = '0' + phoneClean.slice(2);
+  if(!phoneClean){
+    return 'Vui lòng nhập số điện thoại khách hàng.';
+  }
+  if(!/^0\d{9}$/.test(phoneClean)){
+    return 'Số điện thoại khách hàng phải đúng định dạng 10 số (bắt đầu bằng số 0, VD: 0981234567).';
+  }
+  d.customerPhone = phoneClean;
   if(!d.productGroups || d.productGroups.length===0) return 'Vui lòng thêm ít nhất 1 sản phẩm.';
   for(const g of d.productGroups){
     if(!g.productCode) return 'Vui lòng chọn đầy đủ Sản phẩm cho từng dòng.';
@@ -3905,11 +3940,25 @@ function saveInvoiceDraft(afterSave){
   const customerNameEl = document.getElementById('invEditCustomerName');
   if(customerNameEl) d.customerName = customerNameEl.value.trim();
   const customerPhoneEl = document.getElementById('invEditCustomerPhone');
-  if(customerPhoneEl && document.activeElement === customerPhoneEl){
-    d.customerPhone = customerPhoneEl.value.trim();
+  if(customerPhoneEl){
+    let rawVal = customerPhoneEl.value.trim();
+    if(document.activeElement === customerPhoneEl || (rawVal && !rawVal.includes('x'))){
+      d.customerPhone = rawVal;
+    }
   }
   const err = validateInvoiceDraft(d);
-  if(err){ showToast(err); return; }
+  if(err){
+    showToast(err);
+    if(err.includes('số điện thoại')){
+      const phEl = document.getElementById('invEditCustomerPhone');
+      if(phEl){
+        phEl.focus();
+        phEl.style.outline = '2px solid var(--danger)';
+        setTimeout(()=>{ if(phEl) phEl.style.outline = ''; }, 3000);
+      }
+    }
+    return;
+  }
   const done = (typeof afterSave==='function') ? afterSave : null;
   const isNew = !d.id;
   if(isNew){
