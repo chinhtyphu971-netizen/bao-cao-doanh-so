@@ -1944,6 +1944,7 @@ function startFirebaseListeners(){
   fbChats = db.ref('chats');
   fbChatReads = db.ref('chatReads');
   fbChatNotify = db.ref('chatNotify');
+  fbChatUnread = db.ref('chatUnread'); // chatUnread/{người nhận}/{mã cuộc chat} = lúc gửi — danh sách tin chưa xem
   fbUsers = db.ref('users');
   fbReports = db.ref('reports');
   fbTrash = db.ref('trash');
@@ -4681,7 +4682,7 @@ function renderMktMyLeadsList(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>SĐT</th><th>Nguồn</th><th>Người nhận</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th></th></tr></thead><tbody>` +
-    limitRows('mktMyLeads', leads).map(l=>{
+    limitRows('mktMyLeads', pinUnreadChatsFirst(leads)).map(l=>{
       const assignee = state.users.find(x=>x.id===l.assignedTo);
       const statusHtml = l.status
         ? `<span class="badge" style="${leadStatusStyle(l.status)}">${l.status}</span>`
@@ -4828,7 +4829,7 @@ function renderMyLeads(){
     return;
   }
   table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th><th>Gọi điện</th><th>Ngày chốt</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
-    limitRows('myLeads', allMyLeads).map(l=>{
+    limitRows('myLeads', pinUnreadChatsFirst(allMyLeads)).map(l=>{
       const mktSender = l.createdBy ? state.users.find(x=>x.id===l.createdBy) : null;
       const chatBtn = mktSender ? `<button class="btn-ghost btn-small chat-btn" data-conv="${l.id}" onclick="openChatForLead('${l.id}')">💬 Chat</button>` : '';
       return `<tr>
@@ -5966,6 +5967,8 @@ function openChatModal(conversationId, title, readOnly, otherUserId){
     renderChatMessages(msgs);
     // Đánh dấu đã đọc theo đúng người đang xem (không ảnh hưởng trạng thái đọc của người kia)
     if(me) fbChatReads.child(me.id).child(conversationId).set(Date.now());
+    if(me && !readOnly && fbChatUnread && chatUnreadMap[conversationId]){ fbChatUnread.child(me.id).child(conversationId).remove().catch(()=>{}); }
+    if(!readOnly){ delete chatDotCache[conversationId]; }
   });
 }
 function renderChatMessages(msgs){
@@ -5998,6 +6001,7 @@ function sendChatMessage(){
   // cả khi đang KHÔNG mở khung chat này, mà không cần tải toàn bộ lịch sử chat để so sánh.
   if(currentChatOtherUserId){
     fbChatNotify.child(currentChatOtherUserId).set({senderId:me.id, senderName:me.name, text, sentAt:msg.sentAt, convId:currentChatConversationId});
+    if(fbChatUnread) fbChatUnread.child(currentChatOtherUserId).child(currentChatConversationId).set(msg.sentAt).catch(()=>{});
   }
   input.value = '';
 }
@@ -6007,6 +6011,44 @@ function sendChatMessage(){
 // đang có tin nhắn CHƯA ĐỌC, và (2) đẩy chính DÒNG đó lên ĐẦU bảng (kể cả data của ngày trước
 // đó), để luôn thấy ngay không cần cuộn xuống — dù tin nhắn đó là của Sale hay MKT gửi.
 let chatDotCache = {};
+// ===== GHI NHỚ TIN NHẮN CHƯA XEM (lưu trên Firebase) =====
+// Mỗi khi gửi tin → ghi vào chatUnread của NGƯỜI NHẬN; người nhận mở khung chat → xoá. Nhờ vậy data có
+// tin chưa xem (Sale ↔ MKT) LUÔN được đẩy lên đầu danh sách — kể cả data nằm ở trang sau / chưa hiện,
+// kể cả khi tắt app mở lại, không phụ thuộc bảng đang vẽ bao nhiêu dòng.
+let fbChatUnread = null, chatUnreadRef = null, chatUnreadUserId = null;
+let chatUnreadMap = {}; // {convId: sentAt}
+function setupChatUnreadListener(){
+  const me = currentUser();
+  if(!me || !fbChatUnread) return;
+  if(chatUnreadUserId === me.id) return;
+  if(chatUnreadRef) chatUnreadRef.off();
+  chatUnreadUserId = me.id;
+  chatUnreadRef = fbChatUnread.child(me.id);
+  chatUnreadRef.on('value', snap=>{
+    chatUnreadMap = snap.val() || {};
+    // Đang mở đúng khung chat đó → coi như đã xem luôn
+    const modalOpen = document.getElementById('chatModal') && document.getElementById('chatModal').classList.contains('show');
+    if(modalOpen && !currentChatReadOnly && currentChatConversationId && chatUnreadMap[currentChatConversationId]){
+      chatUnreadRef.child(currentChatConversationId).remove().catch(()=>{});
+      delete chatUnreadMap[currentChatConversationId];
+    }
+    Object.keys(chatUnreadMap).forEach(cid=>{ delete chatDotCache[cid]; });
+    onDataChanged();
+  });
+}
+function resetChatUnreadListener(){
+  if(chatUnreadRef) chatUnreadRef.off();
+  chatUnreadRef = null; chatUnreadUserId = null; chatUnreadMap = {};
+}
+// Đưa data có tin chưa xem lên đầu (tin mới nhất trước), các dòng còn lại giữ nguyên thứ tự
+function pinUnreadChatsFirst(rows){
+  const hasUnread = rows.some(r=>chatUnreadMap[r.id] || (chatDotCache[r.id] && chatDotCache[r.id].isUnread));
+  if(!hasUnread) return rows;
+  const ts = r => Number(chatUnreadMap[r.id]) || ((chatDotCache[r.id] && chatDotCache[r.id].isUnread) ? (chatDotCache[r.id].lastSentAt||1) : 0);
+  const unread = rows.filter(r=>ts(r)>0).sort((a,b)=>ts(b)-ts(a));
+  const rest = rows.filter(r=>!(ts(r)>0));
+  return unread.concat(rest);
+}
 function resetChatDotCache(){ chatDotCache = {}; }
 function refreshUnreadChatDots(){
   const me = currentUser();
@@ -6034,6 +6076,7 @@ function refreshUnreadChatDots(){
     }).catch(()=>({convId, isUnread:false, lastSentAt:0}));
   })).then(results=>{
     // Cập nhật chấm đỏ trên từng nút Chat như cũ.
+    results.forEach(r=>{ if(chatUnreadMap[r.convId]){ r.isUnread = true; r.lastSentAt = Math.max(r.lastSentAt||0, Number(chatUnreadMap[r.convId])||0); } });
     results.forEach(({convId, isUnread})=>{
       document.querySelectorAll(`.chat-btn[data-conv="${convId}"]`).forEach(btn=>{
         const dotHtml = '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--danger); margin-left:5px;"></span>';
@@ -6445,6 +6488,7 @@ function logout(){
   resetChatDotCache();
   resetLeadNotifyState();
   resetChatNotifyState();
+  resetChatUnreadListener();
   document.getElementById('appScreen').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   loginStep=1; loginBranchId=null; loginRole=null; pendingName=null; pendingPin=null;
@@ -6529,6 +6573,7 @@ function enterApp(){
   setupRoleScopedListeners(user);
   checkNewLeadNotifications();
   setupChatNotifyListener();
+  setupChatUnreadListener();
   initTrungThu();
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').style.display='block';
