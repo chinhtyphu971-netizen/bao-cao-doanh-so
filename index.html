@@ -628,7 +628,7 @@
     padding:1px 2px !important; font-size:11px !important; height:22px !important; min-height:22px !important;
     width:100% !important; min-width:0 !important; max-width:100% !important; box-sizing:border-box !important; border-radius:3px;
   }
-  #invoicePrintArea input[type=number]{
+  #invoicePrintArea table input[type=number]{
     width:100% !important; min-width:0 !important; max-width:34px !important; height:22px !important;
     border-radius:4px !important; text-align:center !important; font-size:11.5px !important; font-weight:600;
     padding:1px 0 !important; border:1px solid #ccc !important; margin:0 auto; display:block; box-sizing:border-box !important;
@@ -674,6 +674,70 @@
     #invoicePrintArea .inv-title{ font-size:16px; margin-bottom:6px; padding-right:0; }
     #invoicePrintArea .inv-header{ padding-right:76px; min-height:72px; }
     #invoicePrintArea .inv-qr{ width:68px; height:68px; top:0; right:0; }
+  }
+
+
+  /* ===== Định dạng và mở rộng ô Cọc trong hoá đơn ===== */
+  #invoicePrintArea .inv-totals-row:has(.inv-deposit-wrap),
+  #invoicePrintArea .inv-totals-row:has(.inv-deposit-input){
+    align-items: center;
+    padding: 3px 0;
+  }
+  #invoicePrintArea .inv-deposit-wrap{
+    display: inline-flex !important;
+    align-items: center !important;
+    position: relative !important;
+    width: 140px !important;
+    max-width: 160px !important;
+    background: #fff !important;
+    border: 1.5px solid #1c5fa8 !important;
+    border-radius: 6px !important;
+    padding: 2px 8px !important;
+    box-sizing: border-box !important;
+    transition: all 0.18s ease;
+    box-shadow: 0 1px 3px rgba(28,95,168,0.08);
+  }
+  #invoicePrintArea .inv-deposit-wrap:hover{
+    border-color: #0f4580 !important;
+  }
+  #invoicePrintArea .inv-deposit-wrap:focus-within{
+    border-color: #c0392b !important;
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.15) !important;
+  }
+  #invoicePrintArea input.inv-deposit-input{
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    border: none !important;
+    outline: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    text-align: right !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #1c5fa8 !important;
+    box-sizing: border-box !important;
+  }
+  #invoicePrintArea .inv-deposit-wrap:focus-within input.inv-deposit-input{
+    color: #c0392b !important;
+  }
+  #invoicePrintArea .inv-deposit-suffix{
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #1c5fa8 !important;
+    margin-left: 3px !important;
+    user-select: none !important;
+  }
+  #invoicePrintArea .inv-deposit-wrap:focus-within .inv-deposit-suffix{
+    color: #c0392b !important;
+  }
+  @media print{
+    #invoicePrintArea .inv-deposit-wrap{
+      display: none !important;
+    }
   }
 
 </style>
@@ -3910,6 +3974,27 @@ function removeColorLineFromDraft(gi, ci){
   if(group.colorLines.length===0) currentInvoiceDraft.productGroups.splice(gi,1);
   renderInvoiceEditor();
 }
+function handleDepositInput(el){
+  if(!currentInvoiceDraft) return;
+  const raw = el.value.replace(/\D/g, '');
+  const num = raw ? parseInt(raw, 10) : 0;
+  currentInvoiceDraft.deposit = num;
+  el.value = raw ? Number(raw).toLocaleString('vi-VN') : '';
+  const totals = computeDraftTotals();
+  const grandEl = document.getElementById('invGrandTotalVal');
+  if(grandEl) grandEl.textContent = fmtMoney(totals.finalAmount) + 'đ';
+  const printDepositEl = document.getElementById('invDepositPrintVal');
+  if(printDepositEl) printDepositEl.textContent = fmtMoney(num) + 'đ';
+  updateInvoiceWatermark();
+}
+function handleDepositBlur(el){
+  if(!currentInvoiceDraft) return;
+  const raw = el.value.replace(/\D/g, '');
+  const num = raw ? parseInt(raw, 10) : 0;
+  currentInvoiceDraft.deposit = num;
+  el.value = fmtMoney(num);
+  renderInvoiceEditor();
+}
 function updateDraftField(field, value){
   currentInvoiceDraft[field] = value;
   if(field==='saleName') localStorage.setItem('inv_lastSaleName', value);
@@ -4320,8 +4405,18 @@ function renderInvoiceEditor(){
         <div class="inv-totals">
           <div class="inv-totals-row"><span>Tổng số lượng:</span><span>${totals.totalQty} sản phẩm</span></div>
           <div class="inv-totals-row"><span>Tổng tiền hàng:</span><span>${fmtMoney(totals.totalAmount)}đ</span></div>
-          <div class="inv-totals-row"><span>Cọc:</span><input type="number" min="0" value="${d.deposit||0}" class="inv-deposit-input" style="width:250px; border-radius:6px; text-align:right;" onchange="updateDraftField('deposit', this.value)"><span class="print-only">${fmtMoney(Number(d.deposit)||0)}đ</span></div>
-          <div class="inv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(totals.finalAmount)}đ</span></div>
+          <div class="inv-totals-row">
+            <span>Cọc:</span>
+            <div class="inv-deposit-wrap no-print">
+              <input type="text" inputmode="numeric" id="invDepositInput" class="inv-deposit-input" value="${fmtMoney(Number(d.deposit)||0)}" placeholder="0" oninput="handleDepositInput(this)" onblur="handleDepositBlur(this)" onfocus="this.select()">
+              <span class="inv-deposit-suffix">đ</span>
+            </div>
+            <span class="print-only" id="invDepositPrintVal">${fmtMoney(Number(d.deposit)||0)}đ</span>
+          </div>
+          <div class="inv-grand">
+            <span>TỔNG THANH TOÁN:</span>
+            <span id="invGrandTotalVal">${fmtMoney(totals.finalAmount)}đ</span>
+          </div>
         </div>
       </div>
     </div>
