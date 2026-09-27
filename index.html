@@ -2838,7 +2838,8 @@ function openInvoiceFromLead(leadId){
     const d = newInvoiceDraft();
     const ph = leadPhone(lead);
     d.customerPhone = (ph && ph!=='—') ? cleanPhone(ph) : '';
-    d.customerName = lead.customerName || '';
+    d.customerName = lead.customerName || detectLeadName(d.saleId, d.customerPhone) || '';
+    if(d.customerName) d._autoName = d.customerName;
     const src = leadSource(lead);
     const detected = detectInvoiceSource(d.saleId, d.customerPhone, null);
     if(detected===returningSourceName()) d.leadSource = detected;
@@ -3054,8 +3055,10 @@ function invPhoneInput(el){
   const cp = cleanPhone(el.value);
   if(isValidVNPhone(cp)){
     const u = currentUser();
-    d.leadSource = detectInvoiceSource(d.saleId || (u && u.id), cp, d.id) || '';
+    const sid = d.saleId || (u && u.id);
+    d.leadSource = detectInvoiceSource(sid, cp, d.id) || '';
     refreshInvoiceSourceBox();
+    autofillInvoiceCustomerName(detectLeadName(sid, cp));
   }
   const span = el.parentNode.querySelector('.print-only');
   if(span) span.textContent = maskPhone(el.value);
@@ -3072,6 +3075,32 @@ function detectInvoiceSource(saleId, phone, invoiceId){
   const mine = same.filter(l=>l.assignedTo===saleId);
   const pick = (mine.length ? mine : same).map(l=>leadSource(l)).find(x=>x && x!=='—');
   return pick || '';
+}
+// Tên khách theo SĐT: ưu tiên data của chính Sale (mới nhất trước), sau đó tới data chung
+function detectLeadName(saleId, phone){
+  const norm = normalizePhone(phone);
+  if(!norm) return '';
+  const same = state.leads.filter(l=>normalizePhone(leadPhone(l))===norm && l.customerName && String(l.customerName).trim());
+  const byNewest = (a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'') || (b.assignedAt||b.createdAt||0)-(a.assignedAt||a.createdAt||0);
+  const mine = same.filter(l=>l.assignedTo===saleId).sort(byNewest);
+  const pick = mine[0] || same.sort(byNewest)[0];
+  return pick ? String(pick.customerName).trim() : '';
+}
+// Tự điền tên vào ô Khách hàng — CHỈ khi ô đang trống hoặc vẫn là tên hệ thống vừa tự điền
+// (Sale đã tự gõ/sửa tên thì giữ nguyên tên của Sale). Sale vẫn sửa lại tên thoải mái.
+function autofillInvoiceCustomerName(name){
+  const d = currentInvoiceDraft;
+  if(!d || !name) return;
+  const cur = (d.customerName||'').trim();
+  if(cur && cur!==d._autoName) return;
+  d.customerName = name;
+  d._autoName = name;
+  const el = document.getElementById('invEditCustomerName');
+  if(el){
+    el.value = name;
+    if(el.nextElementSibling) el.nextElementSibling.textContent = name;
+  }
+  updateInvoiceWatermark();
 }
 function invSourceBoxHtml(src){
   return src ? `<label>Nguồn kênh</label><div class="inv-static-val">${escHtml(src)}</div>` : '';
