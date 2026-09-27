@@ -746,7 +746,6 @@
         <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">📄 Danh sách báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
-        <div class="nav-item" id="navItem_mgrSelfLeadsList" data-page="mgrSelfLeadsList" onclick="goPage('mgrSelfLeadsList')"><span class="label">🔎 Data tự tìm</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
@@ -1246,6 +1245,10 @@
         <div class="page-head">
           <div><h1>Danh sách data</h1><p>Gộp toàn bộ data của mọi người vào 1 bảng, có thể tìm/lọc và sửa trực tiếp</p></div>
         </div>
+        <div class="chip-row" style="margin-bottom:16px;">
+          <div class="chip selected" onclick="goPage('mgrLeadsList')">📋 Danh sách data</div>
+          <div class="chip" onclick="goPage('mgrSelfLeadsList')">🔎 Data tự tìm</div>
+        </div>
         <div class="card">
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedOnMgrLeadsListFilterChange()"></div>
@@ -1276,7 +1279,11 @@
 
       <!-- ---------- MANAGER: Data tự tìm (tổng hợp) ---------- -->
       <div id="page-mgrSelfLeadsList" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Data tự tìm</h1><p>Tổng hợp data tự tìm của tất cả mọi người</p></div></div>
+        <div class="page-head"><div><h1>Danh sách data</h1><p>Data tự tìm — tổng hợp của tất cả mọi người</p></div></div>
+        <div class="chip-row" style="margin-bottom:16px;">
+          <div class="chip" onclick="goPage('mgrLeadsList')">📋 Danh sách data</div>
+          <div class="chip selected" onclick="goPage('mgrSelfLeadsList')">🔎 Data tự tìm</div>
+        </div>
         <div class="card" id="mgrSelfLeadsSection">
           <p style="color:var(--ink-soft); font-size:13px; margin-top:-6px;">Chỉ xem — đây là data mỗi Sale tự ghi lại khi họ tự tìm được, không phải data hệ thống tự động chia ở bảng trên.</p>
           <div class="toolbar" style="margin-bottom:14px;">
@@ -6526,7 +6533,6 @@ function enterApp(){
   // "Danh sách data" (bảng tổng gộp mọi người) chỉ dành cho Quản lý chung / Quản lý Data — Quản lý
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
-  document.getElementById('navItem_mgrSelfLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   if(user.role==='team_manager') document.getElementById('navItem_mgrTrash').style.display = 'none'; // Trưởng team không dùng Thùng rác — chỉ Quản lý chung
@@ -6585,7 +6591,7 @@ function goPage(pageId){
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
   document.getElementById('page-'+pageId).style.display='block';
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId || (pageId==='mgrSelfLeadsList' && n.dataset.page==='mgrLeadsList')));
   if(pageId==='staffReport') renderStaffReport();
   if(pageId==='staffHistory') renderStaffHistory();
   if(pageId==='myLeads') renderMyLeads();
