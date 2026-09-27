@@ -3314,7 +3314,7 @@ function renderInvoiceEditor(){
         <div><label>Số HĐ</label><div class="inv-static-val">${d.invoiceNumber}</div></div>
         <div><label>Ngày</label><input type="date" class="inv-date-input" value="${d.invoiceDate}" onchange="updateDraftField('invoiceDate', this.value)"><span class="print-only inv-static-val">${d.invoiceDate ? fmtDate(d.invoiceDate) : ''}</span></div>
         <div class="inv-cust" style="flex:1; min-width:160px;"><label>Khách hàng</label><input id="invEditCustomerName" style="width:100%;" oninput="currentInvoiceDraft.customerName=this.value; this.nextElementSibling.textContent=this.value; updateInvoiceWatermark()" value="${(d.customerName||'').replace(/"/g,'&quot;')}" placeholder="Tên khách hàng"><span class="print-only inv-static-val">${(d.customerName||'').replace(/</g,'&lt;')}</span></div>
-        <div class="inv-phone"><label>SĐT</label><input id="invEditCustomerPhone" type="tel" inputmode="tel" autocomplete="off" style="width:120px;" onfocus="invPhoneFocus(this)" oninput="invPhoneInput(this)" onblur="invPhoneBlur(this)" value="${escHtml(maskPhone(d.customerPhone))}" placeholder="SĐT khách"><span class="print-only inv-static-val">${escHtml(maskPhone(d.customerPhone))}</span>${(canSeeFullPhone() && d.customerPhone) ? `<button class="phone-copy-btn" title="Copy SĐT đầy đủ" onclick="copyPhone('${escHtml(cleanPhone(d.customerPhone))}', event)">📋 Copy</button>` : ''}</div>
+        <div class="inv-phone"><label>SĐT</label><input id="invEditCustomerPhone" type="tel" inputmode="tel" autocomplete="off" style="width:120px;" onfocus="invPhoneFocus(this)" oninput="invPhoneInput(this)" onblur="invPhoneBlur(this)" value="${escHtml(maskPhone(d.customerPhone))}" placeholder="SĐT khách"><span class="print-only inv-static-val">${escHtml(maskPhone(d.customerPhone))}</span></div>
       </div>
       <div class="table-wrap">
         <table>
@@ -3527,9 +3527,7 @@ function viewInvoiceReadonly(invoiceId){
       <div><span>Số HĐ:</span> <b>${esc(inv.invoiceNumber)}</b></div>
       <div><span>Ngày:</span> <b>${inv.invoiceDate ? fmtDate(inv.invoiceDate) : ''}</b></div>
       <div><span>Khách hàng:</span> <b>${esc(inv.customerName)}</b></div>
-      ${inv.customerPhone ? `<div><span>SĐT:</span> ${canSeeFullPhone()
-        ? `<b class="no-print">${esc(cleanPhone(inv.customerPhone))}</b><button class="phone-copy-btn no-print" title="Copy SĐT" onclick="copyPhone('${esc(cleanPhone(inv.customerPhone))}', event)">📋 Copy</button><b class="iv-print-mask">${esc(maskPhone(inv.customerPhone))}</b>`
-        : `<b>${esc(maskPhone(inv.customerPhone))}</b>`}</div>` : ''}
+      ${inv.customerPhone ? `<div><span>SĐT:</span> <b>${esc(maskPhone(inv.customerPhone))}</b></div>` : ''}
     </div>
     <div style="overflow-x:auto;"><table>
       <thead><tr><th class="iv-stt">STT</th><th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th><th class="num">Tổng SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
