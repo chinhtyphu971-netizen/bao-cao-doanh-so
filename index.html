@@ -320,6 +320,9 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  .self-link-cell{ display:inline-block; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+  .self-link-cell a{ color:var(--accent); text-decoration:none; }
+  .self-link-cell a:hover{ text-decoration:underline; }
   .copy-icon:hover{opacity:1; background:var(--accent-soft);}
   .pin-mask{
     display:inline-block; min-width:44px; font-variant-numeric:tabular-nums; letter-spacing:2px;
@@ -5605,6 +5608,11 @@ function renderMgrClosedLeads(){
 }
 // Tổng hợp "Data tự tìm" của TẤT CẢ Sale vào 1 bảng cho Quản lý xem (chỉ xem, không sửa) —
 // tách biệt hoàn toàn với bảng data hệ thống tự chia ở trên, đúng như cấu trúc /selfLeads.
+// Link FB dài → hiện gọn: bỏ https://www. và cắt bớt đuôi (?mibextid=...), bấm vẫn mở link đầy đủ
+function shortFbLink(url){
+  let t = String(url||'').replace(/^https?:\/\/(www\.|m\.)?/i,'').replace(/[?&]mibextid=[^&]*/i,'').replace(/\/$/,'');
+  return t;
+}
 function renderMgrSelfLeadsList(){
   const personSel = document.getElementById('mgrSelfLeadsPersonFilter');
   if(!personSel) return;
@@ -5682,7 +5690,7 @@ function renderMgrSelfLeadsList(){
       return `<tr>
       <td data-label="Ngày">${fmtDateTimeShort(l.createdAt)}</td>
       <td data-label="Sale">${owner ? owner.name : '—'}</td>
-      <td data-label="SĐT / Link FB">${l.phone||'—'} ${l.phone?`<span class="copy-icon" onclick="copyText('${String(l.phone).replace(/'/g,"\\'")}','Đã copy')">📋</span>`:''}</td>
+      <td data-label="SĐT / Link FB"><span class="self-link-cell" title="${escHtml(l.phone||'')}">${/^https?:\/\//i.test(String(l.phone||'')) ? `<a href="${escHtml(l.phone)}" target="_blank" rel="noopener">${escHtml(shortFbLink(l.phone))}</a>` : escHtml(l.phone||'—')}</span> ${l.phone?`<span class="copy-icon" onclick="copyText('${String(l.phone).replace(/'/g,"\\'")}','Đã copy')">📋</span>`:''}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Nguồn">${l.source||'—'}</td>
       <td data-label="Trạng thái">${l.status||'—'}</td>
