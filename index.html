@@ -233,9 +233,9 @@
     margin: 4px 0 18px;
     padding: 10px 12px;
     border-radius: var(--radius-m);
-    background: linear-gradient(135deg, #4a2b0f, #6b3d12);
-    border: 1px solid #d98a3d;
-    color: #ffd8a0;
+    background: linear-gradient(135deg, #4a1530, #6e1f47);
+    border: 1px solid #e0679a;
+    color: #ffd3e6;
     font-size: 12.5px;
     font-weight: 600;
     line-height: 1.4;
@@ -243,8 +243,8 @@
     animation: trungthuGlow 3s ease-in-out infinite;
   }
   @keyframes trungthuGlow{
-    0%, 100% { box-shadow: 0 0 4px rgba(217,138,61,0.25); }
-    50% { box-shadow: 0 0 14px rgba(217,138,61,0.55); }
+    0%, 100% { box-shadow: 0 0 4px rgba(224,103,154,0.25); }
+    50% { box-shadow: 0 0 14px rgba(224,103,154,0.55); }
   }
   #trungThuLionLayer{
     position: fixed; inset: -120px; pointer-events: none; z-index: -2;
@@ -273,7 +273,7 @@
     position: absolute;
     font-size: 42px;
     opacity: 0.5;
-    filter: drop-shadow(0 0 6px rgba(255,200,120,0.35));
+    filter: drop-shadow(0 0 6px rgba(255,160,200,0.35));
     animation: trungthuGentleFloat ease-in-out infinite alternate;
   }
   @keyframes trungthuGentleFloat{
@@ -6183,83 +6183,60 @@ function showToast(msg){
   showToast._t=setTimeout(()=>t.classList.remove('show'),2200);
 }
 
-/* =========================== TRANG TRÍ TRUNG THU (chỉ trang trí, không ảnh hưởng dữ liệu) =========================== */
+/* =========================== TRANG TRÍ THEO MÙA — hiện tại: 20/10 Phụ nữ Việt Nam (chỉ trang trí, không ảnh hưởng dữ liệu) =========================== */
+// Chủ đề hiện tại: 20/10 — NGÀY PHỤ NỮ VIỆT NAM (thay cho Trung Thu đã qua).
+// Giữ nguyên tên biến/hàm TRUNGTHU_* để khỏi sửa các chỗ gọi; chỉ đổi nội dung trang trí.
 const TRUNGTHU_SLOGANS = [
-  '🏮 Trung Thu đoàn viên — Đơn hàng viên mãn!',
-  '🌕 Trăng tròn tháng Tám — Doanh số tròn đầy!',
-  '🐰 Chị Hằng chú Cuội cũng phải nể phong độ chốt đơn hôm nay!',
-  '🥮 Ngọt như bánh Trung Thu, chốt đơn cũng phải ngọt tay!',
-  '✨ Rước đèn đón Trung Thu, rước thêm data mới về!',
-  '🏮 Đèn lồng thắp sáng phố — Nhiệt huyết thắp sáng team!',
-  '🌟 Trung Thu vui vẻ — Target về đích sớm!',
-  '🐇 Cố lên nào, mùa trăng này mình cùng nhau bứt phá!',
-  '🥮 Một miếng bánh dẻo, một đơn hàng ngọt ngào!',
-  '🎑 Mâm cỗ đầy ắp — Doanh số cũng đầy ắp nhé cả nhà!',
-  '🌙 Trăng rằm sáng tỏ — Tinh thần cả team cũng sáng như vậy!',
-  '🧧 Múa lân rộn ràng — Chốt đơn cũng rộn ràng không kém!',
-  '🥁 Trống lân vang khắp phố — Khí thế cả nhà vang khắp team!',
-  '🏮 Đèn ông sao lấp lánh — Kết quả tháng này cũng lấp lánh nhé!',
-  '🍡 Bánh dẻo bánh nướng đủ vị — Sale mình cũng đủ chiêu chốt đơn!',
-  '🌕 Một năm chỉ có một rằm tháng Tám — Cố gắng để nhớ mãi mùa này thật rực rỡ!',
-  '🎊 Trung Thu không chỉ trẻ con vui — Sale vui vì đơn về đều tay!',
-  '🐲 Rồng lân bay lượn — Doanh số cũng bay lượn lên top nào!',
-  '🍵 Trà ngon bánh ngọt, chuyện trò rôm rả — Công việc cũng suôn sẻ như vậy nhé!',
-  '🌌 Đêm trăng đẹp nhất năm — Ngày làm việc đẹp nhất tháng, quyết tâm lên nào!',
-  '🧨 Pháo hoa Trung Thu rực rỡ — Kết quả cuối tháng cũng rực rỡ không kém!',
-  '🎐 Gió mùa thu mát dịu — Tinh thần làm việc cũng nhẹ nhàng mà hiệu quả!',
-  '🥮 Cắn miếng bánh Trung Thu, cắn luôn target tháng này!',
-  '🏮 Thắp đèn lồng, thắp luôn quyết tâm chốt đơn hôm nay!',
-  '🌕 Trăng tròn thì đẹp, đơn hàng tròn số thì càng đẹp hơn!',
-  '🐰 Thỏ ngọc giã bánh không nghỉ — Sale mình chốt đơn cũng không nghỉ tay!',
-  '🎆 Trung Thu về, niềm vui về, doanh số cũng về theo nhé cả nhà!',
-  '🥭 Mùa thu là mùa gặt hái — Anh chị em mình cùng nhau gặt hái thành quả!',
-  '🎇 Đèn lồng treo cao, tinh thần lên cao, đơn hàng cũng lên cao!',
-  '🍂 Lá thu rơi nhẹ nhàng, nhưng quyết tâm chốt đơn thì không hề nhẹ!',
-  '🌰 Mùa Trung Thu, mùa của sum vầy và cũng là mùa của những đơn hàng rộn ràng!',
-  '🧧 Chúc cả nhà một mùa Trung Thu ấm áp và một tháng làm việc bùng nổ!',
-  '🥮 Bánh Trung Thu tròn vị, công việc tròn vai, đơn hàng tròn số!',
-  '🌟 Sao sáng dẫn đường chú Cuội về, quyết tâm dẫn đường Sale mình về đích!',
+  '🌸 Chào tháng 10 — tháng của phái đẹp, tháng của những đơn hàng xinh!',
+  '💐 20/10 sắp đến — mỗi đơn chốt là một bó hoa tặng chính mình!',
+  '🌷 Khách xinh, áo xinh, doanh số cũng phải thật xinh!',
+  '👗 Mùa 20/10 — chị em săn đồ đẹp, Sale mình săn đơn đẹp!',
+  '💝 Tư vấn bằng cả trái tim — khách vui, đơn về, mình vui!',
+  '🌹 Tặng khách một lời khen, nhận lại một đơn hàng!',
+  '✨ Phụ nữ là để yêu thương — và để chốt đơn thật duyên!',
+  '🌸 Tháng 10 rực rỡ như hoa — target cũng nở rộ nhé cả nhà!',
+  '💐 Chúc các chị em luôn xinh đẹp, hạnh phúc và đơn hàng đầy tay!',
+  '🎀 Gói đơn thật xinh, gửi khách thật nhanh, nhận feedback thật đẹp!',
+  '🌷 Mỗi lời cảm ơn gửi khách là một bông hoa nhỏ — gửi thật nhiều nhé!',
+  '👚 Mùa lễ chị em sắm đồ — data về đều tay, chốt đơn liền tay!',
+  '💖 Yêu nghề, yêu khách, yêu cả team — tháng 10 bùng nổ thôi!',
+  '🌺 Hoa nở tháng 10, đơn nở theo từng giờ!',
+  '🎁 20/10 — món quà đẹp nhất là khách hàng hài lòng quay lại!',
 ];
-const TRUNGTHU_ICONS = ['🏮','🌕','🐰','🥮','✨','🎑','⭐','🌟','🧧'];
+const TRUNGTHU_ICONS = ['🌸','💐','🌷','🌹','💝','🎀','✨','👗','💖'];
 const TRUNGTHU_BG_PATTERNS = [
-  // Trăng + sao lấp lánh
-  "<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><circle cx='45' cy='45' r='28' fill='rgba(255,216,160,0.09)'/><circle cx='170' cy='190' r='3' fill='rgba(255,216,160,0.10)'/><circle cx='210' cy='110' r='2.2' fill='rgba(255,216,160,0.10)'/><circle cx='120' cy='210' r='2.6' fill='rgba(255,216,160,0.10)'/><circle cx='70' cy='170' r='1.8' fill='rgba(255,216,160,0.08)'/></svg>",
-  // Đèn lồng lơ lửng
-  "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><g fill='none' stroke='rgba(255,216,160,0.10)' stroke-width='2.2'><rect x='92' y='60' width='34' height='44' rx='16'/><line x1='109' y1='48' x2='109' y2='60'/><line x1='109' y1='104' x2='109' y2='122'/><circle cx='109' cy='40' r='4' fill='rgba(255,216,160,0.10)' stroke='none'/></g></svg>",
-  // Trăng + đèn lồng kết hợp
-  "<svg xmlns='http://www.w3.org/2000/svg' width='280' height='280'><circle cx='200' cy='55' r='24' fill='rgba(255,216,160,0.08)'/><g fill='none' stroke='rgba(255,216,160,0.10)' stroke-width='2'><rect x='50' y='175' width='30' height='38' rx='14'/><line x1='65' y1='164' x2='65' y2='175'/><line x1='65' y1='213' x2='65' y2='228'/><circle cx='65' cy='156' r='3.6' fill='rgba(255,216,160,0.10)' stroke='none'/></g></svg>",
+  // Hoa 5 cánh nhỏ rải rác
+  "<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><g fill='rgba(255,170,205,0.09)'><circle cx='50' cy='38' r='9'/><circle cx='64' cy='48' r='9'/><circle cx='59' cy='64' r='9'/><circle cx='41' cy='64' r='9'/><circle cx='36' cy='48' r='9'/></g><circle cx='50' cy='52' r='6' fill='rgba(255,220,150,0.10)'/><g fill='rgba(255,170,205,0.07)'><circle cx='180' cy='160' r='7'/><circle cx='191' cy='168' r='7'/><circle cx='187' cy='181' r='7'/><circle cx='173' cy='181' r='7'/><circle cx='169' cy='168' r='7'/></g><circle cx='180' cy='172' r='4' fill='rgba(255,220,150,0.09)'/><circle cx='200' cy='60' r='3' fill='rgba(255,200,225,0.10)'/><circle cx='90' cy='190' r='2.5' fill='rgba(255,200,225,0.10)'/></svg>",
+  // Trái tim + cánh hoa
+  "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><path d='M60 70 C60 55 80 50 88 64 C96 50 116 55 116 70 C116 88 88 104 88 104 C88 104 60 88 60 70 Z' fill='rgba(255,150,190,0.08)'/><ellipse cx='170' cy='160' rx='14' ry='7' transform='rotate(-35 170 160)' fill='rgba(255,180,210,0.09)'/><ellipse cx='40' cy='170' rx='10' ry='5' transform='rotate(25 40 170)' fill='rgba(255,180,210,0.08)'/><circle cx='180' cy='50' r='3' fill='rgba(255,210,230,0.10)'/></svg>",
+  // Nhánh hoa + nơ
+  "<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><path d='M40 220 Q90 150 150 120' stroke='rgba(160,210,170,0.08)' stroke-width='3' fill='none'/><g fill='rgba(255,165,200,0.09)'><circle cx='150' cy='112' r='10'/><circle cx='162' cy='122' r='10'/><circle cx='156' cy='136' r='10'/><circle cx='142' cy='134' r='10'/><circle cx='138' cy='120' r='10'/></g><circle cx='150' cy='125' r='6' fill='rgba(255,220,150,0.10)'/><path d='M190 200 l-16 -10 v20 z M190 200 l16 -10 v20 z' fill='rgba(255,150,190,0.08)'/><circle cx='190' cy='200' r='4' fill='rgba(255,150,190,0.10)'/></svg>",
 ];
-// Đầu lân múa — đặt làm hình lớn 1 góc màn hình, không lặp lại như hoa văn nhỏ ở trên.
+// Bó hoa lớn — đặt làm hình nền lớn giữa màn hình, trôi chậm (thay cho đầu lân Trung Thu)
 const TRUNGTHU_LION_SVG =
   "<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 300 300'>" +
-  // Bờm/tai xù bao quanh (các cụm tròn xếp lớp phía sau mặt)
-  "<g fill='rgba(214,60,40,0.14)'>" +
-  "<circle cx='55' cy='95' r='30'/><circle cx='45' cy='150' r='27'/><circle cx='55' cy='205' r='26'/>" +
-  "<circle cx='245' cy='95' r='30'/><circle cx='255' cy='150' r='27'/><circle cx='245' cy='205' r='26'/>" +
-  "<circle cx='95' cy='45' r='26'/><circle cx='150' cy='35' r='27'/><circle cx='205' cy='45' r='26'/>" +
+  // Cành lá
+  "<g stroke='rgba(120,190,140,0.16)' stroke-width='5' fill='none' stroke-linecap='round'>" +
+  "<path d='M150 270 Q148 200 150 150'/><path d='M150 270 Q120 200 95 140'/><path d='M150 270 Q180 200 205 140'/>" +
   "</g>" +
-  // Mat tron mau vang lam nen mat
-  "<circle cx='150' cy='150' r='105' fill='rgba(255,200,70,0.17)'/>" +
-  // Ma hong dang yeu
-  "<circle cx='85' cy='178' r='20' fill='rgba(230,80,60,0.14)'/>" +
-  "<circle cx='215' cy='178' r='20' fill='rgba(230,80,60,0.14)'/>" +
-  // Long may cong
-  "<path d='M92 108 Q118 86 146 106' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
-  "<path d='M154 106 Q182 86 208 108' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
-  // Mat to tron kieu hoat hinh (trang - den - cham sang)
-  "<circle cx='114' cy='142' r='24' fill='rgba(255,255,255,0.22)'/>" +
-  "<circle cx='186' cy='142' r='24' fill='rgba(255,255,255,0.22)'/>" +
-  "<circle cx='118' cy='146' r='11' fill='rgba(25,18,14,0.24)'/>" +
-  "<circle cx='190' cy='146' r='11' fill='rgba(25,18,14,0.24)'/>" +
-  "<circle cx='122' cy='141' r='3.5' fill='rgba(255,255,255,0.35)'/>" +
-  "<circle cx='194' cy='141' r='3.5' fill='rgba(255,255,255,0.35)'/>" +
-  // Mui nho hinh trai tim don gian
-  "<ellipse cx='150' cy='182' rx='15' ry='11' fill='rgba(220,60,45,0.20)'/>" +
-  // Mieng cuoi dang yeu
-  "<path d='M112 208 Q150 240 188 208' stroke='rgba(30,20,15,0.20)' stroke-width='7' fill='none' stroke-linecap='round'/>" +
-  // Sung nho + qua cau tren dinh dau
-  "<circle cx='150' cy='28' r='13' fill='rgba(220,60,45,0.16)'/>" +
-  "<circle cx='150' cy='28' r='5' fill='rgba(255,220,120,0.20)'/>" +
+  "<g fill='rgba(120,190,140,0.13)'>" +
+  "<ellipse cx='122' cy='205' rx='18' ry='8' transform='rotate(-40 122 205)'/><ellipse cx='178' cy='205' rx='18' ry='8' transform='rotate(40 178 205)'/>" +
+  "</g>" +
+  // Hoa giữa (to)
+  "<g fill='rgba(240,110,160,0.17)'>" +
+  "<circle cx='150' cy='98' r='26'/><circle cx='180' cy='120' r='26'/><circle cx='168' cy='155' r='26'/><circle cx='132' cy='155' r='26'/><circle cx='120' cy='120' r='26'/>" +
+  "</g><circle cx='150' cy='128' r='18' fill='rgba(255,215,130,0.20)'/>" +
+  // Hoa trái
+  "<g fill='rgba(255,160,195,0.15)'>" +
+  "<circle cx='88' cy='112' r='15'/><circle cx='104' cy='124' r='15'/><circle cx='98' cy='143' r='15'/><circle cx='78' cy='143' r='15'/><circle cx='72' cy='124' r='15'/>" +
+  "</g><circle cx='88' cy='130' r='9' fill='rgba(255,225,150,0.18)'/>" +
+  // Hoa phải
+  "<g fill='rgba(255,160,195,0.15)'>" +
+  "<circle cx='212' cy='112' r='15'/><circle cx='228' cy='124' r='15'/><circle cx='222' cy='143' r='15'/><circle cx='202' cy='143' r='15'/><circle cx='196' cy='124' r='15'/>" +
+  "</g><circle cx='212' cy='130' r='9' fill='rgba(255,225,150,0.18)'/>" +
+  // Nơ buộc bó hoa
+  "<path d='M150 232 L118 214 L118 250 Z M150 232 L182 214 L182 250 Z' fill='rgba(230,90,140,0.16)'/>" +
+  "<circle cx='150' cy='232' r='8' fill='rgba(230,90,140,0.20)'/>" +
   "</svg>";
 function refreshTrungThuSlogan(){
   const bannerEl = document.getElementById('trungThuBanner');
@@ -6274,8 +6251,8 @@ function initTrungThu(){
     const svg = TRUNGTHU_BG_PATTERNS[Math.floor(Math.random()*TRUNGTHU_BG_PATTERNS.length)];
     // Quầng sáng vàng-đỏ: đứng yên trên body
     document.body.style.backgroundImage =
-      'radial-gradient(circle at top left, rgba(214,66,32,0.30) 0%, rgba(214,66,32,0) 42%),' +
-      'radial-gradient(circle at bottom right, rgba(230,160,30,0.26) 0%, rgba(230,160,30,0) 48%)';
+      'radial-gradient(circle at top left, rgba(214,70,130,0.28) 0%, rgba(214,70,130,0) 42%),' +
+      'radial-gradient(circle at bottom right, rgba(170,90,210,0.22) 0%, rgba(170,90,210,0) 48%)';
     document.body.style.backgroundRepeat = 'no-repeat, no-repeat';
     document.body.style.backgroundAttachment = 'fixed, fixed';
     // Con lân: 1 hình lớn phủ gần hết màn hình, tự trôi/phóng to thu nhỏ chậm rãi qua CSS animation
@@ -6292,10 +6269,10 @@ function initTrungThu(){
   // Vài cái bánh Trung Thu (+ vài biểu tượng khác) đặt cố định vài vị trí, chỉ lơ lửng nhẹ tại chỗ
   // (không bay lên biến mất như trước) — thuần trang trí nền, rất nhẹ nhàng.
   const GENTLE_SPOTS = [
-    {left:'6%',  top:'12%', icon:'🥮', size:56, delay:0},
-    {left:'90%', top:'20%', icon:'🥮', size:46, delay:1.2},
-    {left:'14%', top:'70%', icon:'🏮', size:50, delay:0.6},
-    {left:'88%', top:'75%', icon:'🥮', size:60, delay:1.8},
+    {left:'6%',  top:'12%', icon:'🌸', size:52, delay:0},
+    {left:'90%', top:'20%', icon:'💐', size:50, delay:1.2},
+    {left:'14%', top:'70%', icon:'🌷', size:48, delay:0.6},
+    {left:'88%', top:'75%', icon:'🌹', size:54, delay:1.8},
     {left:'50%', top:'8%',  icon:'✨', size:34, delay:0.3},
   ];
   GENTLE_SPOTS.forEach(spot=>{
