@@ -2842,7 +2842,7 @@ function openInvoiceFromLead(leadId){
     if(d.customerName) d._autoName = d.customerName;
     const src = leadSource(lead);
     const detected = detectInvoiceSource(d.saleId, d.customerPhone, null);
-    if(detected===returningSourceName()) d.leadSource = detected;
+    if(detected===returningSourceName()){ d.leadSource = detected; d.deposit = 0; d._autoDepositZero = true; }
     else if(src && src!=='—') d.leadSource = src;
     d.leadId = lead.id;
     currentInvoiceDraft = d;
@@ -2898,6 +2898,7 @@ function removeColorLineFromDraft(gi, ci){
 }
 function updateDraftField(field, value){
   currentInvoiceDraft[field] = value;
+  if(field==='deposit'){ currentInvoiceDraft._depositTouched = true; currentInvoiceDraft._autoDepositZero = false; }
   // Nhớ lại tên nhân viên/Team cho hoá đơn tiếp theo trên chính máy này.
   if(field==='saleName') localStorage.setItem('inv_lastSaleName', value);
   if(field==='teamId') localStorage.setItem('inv_lastTeamId', value);
@@ -3058,6 +3059,7 @@ function invPhoneInput(el){
     const sid = d.saleId || (u && u.id);
     d.leadSource = detectInvoiceSource(sid, cp, d.id) || '';
     refreshInvoiceSourceBox();
+    applyOldCustomerDeposit();
     autofillInvoiceCustomerName(detectLeadName(sid, cp));
   }
   const span = el.parentNode.querySelector('.print-only');
@@ -3101,6 +3103,29 @@ function autofillInvoiceCustomerName(name){
     if(el.nextElementSibling) el.nextElementSibling.textContent = name;
   }
   updateInvoiceWatermark();
+}
+// Khách cũ không cần cọc
+const DEFAULT_INVOICE_DEPOSIT = 100000;
+function isOldCustomerInvoice(inv){ return !!(inv && inv.leadSource && inv.leadSource===returningSourceName()); }
+// Cập nhật ô Cọc + Tổng thanh toán ngay trên màn hình (không vẽ lại cả hoá đơn → không mất con trỏ ở ô SĐT)
+function refreshInvoiceDepositDom(){
+  const d = currentInvoiceDraft; if(!d) return;
+  const dep = document.querySelector('#invoicePrintArea .inv-deposit-input');
+  if(dep){
+    dep.value = Number(d.deposit)||0;
+    if(dep.nextElementSibling) dep.nextElementSibling.textContent = fmtMoney(Number(d.deposit)||0) + 'đ';
+  }
+  const grand = document.querySelector('#invoicePrintArea .inv-grand span:last-child');
+  if(grand) grand.textContent = fmtMoney(computeDraftTotals().finalAmount) + 'đ';
+}
+// Hoá đơn khách cũ → Cọc tự về 0; đổi sang khách khác → trả lại cọc mặc định (chỉ khi Sale chưa tự sửa ô Cọc)
+function applyOldCustomerDeposit(){
+  const d = currentInvoiceDraft; if(!d || d._depositTouched) return;
+  if(isOldCustomerInvoice(d)){
+    if(Number(d.deposit)!==0){ d.deposit = 0; d._autoDepositZero = true; refreshInvoiceDepositDom(); }
+  } else if(d._autoDepositZero){
+    d.deposit = DEFAULT_INVOICE_DEPOSIT; d._autoDepositZero = false; refreshInvoiceDepositDom();
+  }
 }
 function invSourceBoxHtml(src){
   return src ? `<label>Nguồn kênh</label><div class="inv-static-val">${escHtml(src)}</div>` : '';
@@ -3283,7 +3308,8 @@ function markInvoiceDeposited(invoiceId){
   const msg = existing
     ? `Khách "${inv.customerName}" đang có trong data của bạn (${existing.status||'chưa cập nhật'}). Data đó sẽ được chuyển sang "Đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`
     : `Thêm khách "${inv.customerName}" vào "Data đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`;
-  askConfirm('Khách đã cọc?', msg, ()=>{
+  const oldCust = isOldCustomerInvoice(inv);
+  askConfirm(oldCust ? 'Chốt đơn khách cũ?' : 'Khách đã cọc?', (oldCust ? 'Khách cũ — không cần cọc. ' : '') + msg, ()=>{
     const today = todayStr();
     let link;
     if(existing){
@@ -3325,7 +3351,7 @@ function markInvoiceDeposited(invoiceId){
 function unmarkInvoiceDeposited(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv || !inv.depositLink) return;
-  askConfirm('Huỷ "Khách đã cọc"?', 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
+  askConfirm(isOldCustomerInvoice(inv) ? 'Huỷ "Đã chốt"?' : 'Huỷ "Khách đã cọc"?', 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
     const link = inv.depositLink;
     const lead = state.leads.find(l=>l.id===link.leadId);
     if(lead){
@@ -3451,7 +3477,7 @@ function renderInvoicesPage(){
   const dayHeader = (k)=>{
     const st = dayStats[k] || {count:0, qty:0, amount:0, deposited:0};
     const label = k ? (k===todayStr() ? `Hôm nay · ${fmtDate(k)}` : fmtDate(k)) : 'Không rõ ngày';
-    return `<tr class="inv-day-row"><td colspan="6">📅 <b>${label}</b><span>${st.count} hoá đơn · ${st.qty} SP · ${st.deposited} đã cọc · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
+    return `<tr class="inv-day-row"><td colspan="6">📅 <b>${label}</b><span>${st.count} hoá đơn · ${st.qty} SP · ${st.deposited} đã chốt · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
   };
   table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th class="num">SL</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
     pageRows.map(inv=>{
@@ -3466,8 +3492,10 @@ function renderInvoicesPage(){
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td>
         ${inv.depositLink
-          ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">✅ Đã cọc</button>`
-          : `<button class="btn-primary btn-small" title="Khách đã cọc → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">💰 Khách đã cọc</button>`}
+          ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">${isOldCustomerInvoice(inv) ? '✅ Đã chốt' : '✅ Đã cọc'}</button>`
+          : (isOldCustomerInvoice(inv)
+            ? `<button class="btn-primary btn-small" style="background:#7C4DCC;" title="Khách cũ — không cần cọc, bấm để đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">🤝 Chốt đơn</button>`
+            : `<button class="btn-primary btn-small" title="Khách đã cọc → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">💰 Khách đã cọc</button>`)}
         <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
         <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
         ${canDeleteInvoice() ? `<button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>` : ''}
@@ -3751,7 +3779,7 @@ function renderInvoicesOverviewPage(){
       <td>${inv.teamName||'—'}</td>
       <td class="num">${inv.totalQty}</td>
       <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
-      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? '<div style="font-size:11px; font-weight:600;">✅ Đã cọc</div>' : ''}</td>
+      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? `<div style="font-size:11px; font-weight:600;">${isOldCustomerInvoice(inv) ? '✅ Đã chốt (khách cũ)' : '✅ Đã cọc'}</div>` : ''}</td>
     </tr>`).join('') + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
