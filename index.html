@@ -2904,8 +2904,10 @@ function openInvoiceFromLead(leadId){
     if(d.customerName) d._autoName = d.customerName;
     const src = leadSource(lead);
     const detected = detectInvoiceSource(d.saleId, d.customerPhone, null);
-    if(detected===returningSourceName()){ d.leadSource = detected; d.deposit = 0; d._autoDepositZero = true; }
+    d.ownOldCustomer = isOwnReturningCustomer(d.saleId, d.customerPhone, null);
+    if(detected===returningSourceName()) d.leadSource = detected;
     else if(src && src!=='—') d.leadSource = src;
+    if(d.ownOldCustomer){ d.deposit = 0; d._autoDepositZero = true; }
     d.leadId = lead.id;
     currentInvoiceDraft = d;
     goPage('invoices');
@@ -3120,6 +3122,7 @@ function invPhoneInput(el){
     const u = currentUser();
     const sid = d.saleId || (u && u.id);
     d.leadSource = detectInvoiceSource(sid, cp, d.id) || '';
+    d.ownOldCustomer = isOwnReturningCustomer(sid, cp, d.id);
     refreshInvoiceSourceBox();
     applyOldCustomerDeposit();
     autofillInvoiceCustomerName(detectLeadName(sid, cp));
@@ -3131,24 +3134,37 @@ function invPhoneInput(el){
 // Nguồn kênh tự hiện dưới hoá đơn khi nhập SĐT: SĐT đã từng được Sale này chốt → "Khách cũ";
 // không thì lấy Nguồn của data trùng SĐT (ưu tiên data của chính Sale, sau đó tới data chung).
 // Bỏ qua data đã chốt NHỜ chính hoá đơn này (nút Khách đã cọc) để không tự biến chính nó thành khách cũ.
+// Nguồn kênh trên hoá đơn:
+//  1) SĐT đã từng được chốt ở BẤT KỲ Sale nào → "Khách cũ"
+//  2) Không thì CHỈ lấy Nguồn từ data của chính Sale lên hoá đơn (data được chia, rồi tới Data tự tìm)
+//  3) Không có → để trống (không mượn Nguồn từ data của Sale khác, tránh ghi sai nguồn/lộ data)
 function detectInvoiceSource(saleId, phone, invoiceId){
   const norm = normalizePhone(phone);
   if(!norm) return '';
-  const same = state.leads.filter(l=>normalizePhone(leadPhone(l))===norm && !(invoiceId && l.invoiceId===invoiceId));
-  if(same.some(l=>l.assignedTo===saleId && l.status==='Đã chốt')) return returningSourceName();
-  const mine = same.filter(l=>l.assignedTo===saleId);
-  const pick = (mine.length ? mine : same).map(l=>leadSource(l)).find(x=>x && x!=='—');
+  if(isReturningCustomerFor(null, phone, null, invoiceId)) return returningSourceName();
+  const mine = state.leads.filter(l=>l.assignedTo===saleId && normalizePhone(leadPhone(l))===norm);
+  let pick = mine.map(l=>leadSource(l)).find(x=>x && x!=='—');
+  if(!pick){
+    const selfMine = (state.selfLeads||[]).filter(l=>l.userId===saleId && normalizePhone(l.phone)===norm);
+    pick = selfMine.map(l=>l.source).find(x=>x && x!=='—');
+  }
   return pick || '';
 }
-// Tên khách theo SĐT: ưu tiên data của chính Sale (mới nhất trước), sau đó tới data chung
+// Được bỏ cọc khi khách cũ là khách đã chốt của CHÍNH Sale này (Sale khác vẫn hiện "Khách cũ" nhưng giữ cọc mặc định)
+function isOwnReturningCustomer(saleId, phone, invoiceId){
+  return isReturningCustomerFor(saleId, phone, null, invoiceId);
+}
+// Tên khách theo SĐT: chỉ lấy từ data của chính Sale (mới nhất trước), rồi tới Data tự tìm của Sale
 function detectLeadName(saleId, phone){
   const norm = normalizePhone(phone);
   if(!norm) return '';
   const same = state.leads.filter(l=>normalizePhone(leadPhone(l))===norm && l.customerName && String(l.customerName).trim());
   const byNewest = (a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'') || (b.assignedAt||b.createdAt||0)-(a.assignedAt||a.createdAt||0);
   const mine = same.filter(l=>l.assignedTo===saleId).sort(byNewest);
-  const pick = mine[0] || same.sort(byNewest)[0];
-  return pick ? String(pick.customerName).trim() : '';
+  if(mine[0]) return String(mine[0].customerName).trim();
+  const selfMine = (state.selfLeads||[]).filter(l=>l.userId===saleId && l.customerName && String(l.customerName).trim() && normalizePhone(l.phone)===norm)
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  return selfMine[0] ? String(selfMine[0].customerName).trim() : '';
 }
 // Tự điền tên vào ô Khách hàng — CHỈ khi ô đang trống hoặc vẫn là tên hệ thống vừa tự điền
 // (Sale đã tự gõ/sửa tên thì giữ nguyên tên của Sale). Sale vẫn sửa lại tên thoải mái.
@@ -3168,7 +3184,13 @@ function autofillInvoiceCustomerName(name){
 }
 // Khách cũ không cần cọc
 const DEFAULT_INVOICE_DEPOSIT = 100000;
-function isOldCustomerInvoice(inv){ return !!(inv && inv.leadSource && inv.leadSource===returningSourceName()); }
+// Hoá đơn được MIỄN CỌC: khách cũ của chính Sale lên hoá đơn (cờ ownOldCustomer).
+// Hoá đơn cũ lưu trước khi có cờ này: trước đây "Khách cũ" vốn chỉ tính theo từng Sale nên vẫn coi là miễn cọc.
+function isOldCustomerInvoice(inv){
+  if(!inv) return false;
+  if(inv.ownOldCustomer !== undefined) return !!inv.ownOldCustomer;
+  return !!(inv.leadSource && inv.leadSource===returningSourceName());
+}
 // Cập nhật ô Cọc + Tổng thanh toán ngay trên màn hình (không vẽ lại cả hoá đơn → không mất con trỏ ở ô SĐT)
 function refreshInvoiceDepositDom(){
   const d = currentInvoiceDraft; if(!d) return;
@@ -3296,6 +3318,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   if(d.teamId){ finalInvoice.teamId = d.teamId; finalInvoice.teamName = branchName(d.teamId); }
   if(d.leadSource) finalInvoice.leadSource = d.leadSource; // rỗng thì không lưu (hoá đơn không hiện dòng Nguồn) // Nguồn kênh (khi lên HĐ từ Data của tôi)
   if(d.leadId) finalInvoice.leadId = d.leadId;
+  finalInvoice.ownOldCustomer = !!isOldCustomerInvoice(d); // miễn cọc (khách cũ của chính Sale này)
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
@@ -3385,7 +3408,7 @@ function markInvoiceDeposited(invoiceId){
       const lead = {
         id: 'manualclosed_' + uid(),
         phone: phone,
-        source: isReturningCustomerFor(owner.id, phone, null) ? returningSourceName() : '',
+        source: isReturningCustomerFor(null, phone, null, inv.id) ? returningSourceName() : ((inv.leadSource && inv.leadSource!==returningSourceName()) ? inv.leadSource : ''),
         status: 'Đã chốt',
         closedDate: today,
         closedAmount: amount,
@@ -4889,10 +4912,16 @@ function returningSourceName(){
   return found ? found.name : 'Khách cũ';
 }
 // Khách đã từng được Sale này chốt trước đó chưa (so theo SĐT, bỏ qua chính dòng đang xét)
-function isReturningCustomerFor(userId, phone, excludeLeadId){
+// "Khách cũ" = SĐT đã từng được CHỐT. userId = null → xét toàn hệ thống (mọi Sale);
+// có userId → chỉ xét data của Sale đó. excludeInvoiceId: bỏ qua dòng chốt sinh ra từ chính hoá đơn đó.
+function isReturningCustomerFor(userId, phone, excludeLeadId, excludeInvoiceId){
   const norm = normalizePhone(phone);
   if(!norm) return false;
-  return state.leads.some(l=>l.id!==excludeLeadId && l.assignedTo===userId && l.status==='Đã chốt' && normalizePhone(leadPhone(l))===norm);
+  return state.leads.some(l=>l.id!==excludeLeadId
+    && (userId==null || l.assignedTo===userId)
+    && l.status==='Đã chốt'
+    && !(excludeInvoiceId && l.invoiceId===excludeInvoiceId)
+    && normalizePhone(leadPhone(l))===norm);
 }
 function mktSourceOptionsHtml(selectedValue, extraNames){
   const names = Array.from(new Set(state.mktSources.map(s=>s.name).filter(Boolean).concat(extraNames||[]))).sort((a,b)=>a.localeCompare(b,'vi'));
@@ -5050,6 +5079,12 @@ function purchaseNumberForLead(lead, userId){
 }
 function onManualClosedPhoneChange(leadId, value){
   updateLeadField(leadId, 'phone', value);
+  {
+    const lead0 = state.leads.find(l=>l.id===leadId);
+    if(lead0 && !lead0.source && !lead0.sourceLockedByManager && isReturningCustomerFor(null, value, leadId)){
+      updateLeadField(leadId, 'source', returningSourceName());
+    }
+  }
   const ownDup = findOwnDuplicateLead(value, leadId);
   if(ownDup && ownDup.status==='Đã chốt'){
     const lead = state.leads.find(l=>l.id===leadId);
