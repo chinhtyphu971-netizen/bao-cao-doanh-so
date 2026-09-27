@@ -6195,10 +6195,12 @@ function onBulkConfirmChange(){
   }
 }
 function updateBulkConfirmBar(){
+  const curUser = currentUser();
+  const canConfirm = curUser && (curUser.role === 'general_manager');
   const checked = document.querySelectorAll('.bulkConfirmUserCheckbox:checked');
   const bar = document.getElementById('bulkConfirmBar');
   const countEl = document.getElementById('bulkConfirmCount');
-  if(checked.length>0){
+  if(canConfirm && checked.length>0){
     bar.style.display = 'flex';
     countEl.textContent = checked.length;
   } else {
