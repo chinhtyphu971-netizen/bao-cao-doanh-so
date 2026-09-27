@@ -7,7 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Báo cáo doanh số hằng ngày</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -901,11 +900,6 @@
           <h2 id="mgrTotalsTitle">Tổng cộng</h2>
           <p id="mgrTotalsSub" style="margin-top:-2px;">Cộng dồn toàn bộ báo cáo từ trước đến nay</p>
           <div class="grid-3" id="mgrTotalsGrid" style="margin-top:14px;"></div>
-        </div>
-
-        <div class="card">
-          <h2>Doanh số theo thời gian</h2>
-          <canvas id="revenueChart" height="90"></canvas>
         </div>
 
         <div class="card" id="mgrBranchSummaryCard" style="display:none;">
@@ -7510,6 +7504,7 @@ function renderMgrDashboard(){
 let revenueChartInstance=null;
 function drawChart(labels, data){
   const canvas=document.getElementById('revenueChart');
+  if(!canvas) return; // mục "Doanh số theo thời gian" đã bỏ khỏi trang
   const wrap=canvas.parentElement;
   const existingMsg=document.getElementById('chartFallbackMsg');
   if(typeof Chart === 'undefined'){
