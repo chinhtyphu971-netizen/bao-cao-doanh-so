@@ -3229,7 +3229,33 @@ function unmarkInvoiceDeposited(invoiceId){
     renderInvoicesPage();
   });
 }
+// ===== HOÁ ĐƠN TỰ XOÁ SAU 30 NGÀY (tính từ lúc tạo) =====
+// Chạy mỗi lần danh sách hoá đơn tải về: hoá đơn quá hạn bị gỡ khỏi màn hình ngay và xoá trên Firebase.
+// Data đã chốt đã được đưa sang từ hoá đơn (nút "Khách đã cọc") vẫn giữ nguyên, không bị xoá theo.
+const INVOICE_KEEP_DAYS = 30;
+function invoiceCreatedMs(inv){
+  if(inv.createdAt) return Number(inv.createdAt);
+  const t = inv.invoiceDate ? Date.parse(inv.invoiceDate + 'T00:00:00') : NaN;
+  return isNaN(t) ? Date.now() : t;
+}
+function invoiceDaysLeft(inv){
+  const expireAt = invoiceCreatedMs(inv) + INVOICE_KEEP_DAYS*86400000;
+  return Math.max(0, Math.ceil((expireAt - Date.now())/86400000));
+}
+function purgeExpiredInvoices(list){
+  const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000;
+  const keep = [];
+  (list||[]).forEach(inv=>{
+    if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
+      fbInvoices.child(inv.id).remove().catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại
+    } else keep.push(inv);
+  });
+  return keep;
+}
+// Sale KHÔNG được xoá hoá đơn đã tạo — chỉ Quản lý chung xoá được (hoá đơn cũng tự xoá sau 30 ngày)
+function canDeleteInvoice(){ const u = currentUser(); return !!(u && u.role==='general_manager'); }
 function deleteInvoice(invoiceId){
+  if(!canDeleteInvoice()){ showToast('Bạn không có quyền xoá hoá đơn. Hoá đơn sẽ tự xoá sau ' + INVOICE_KEEP_DAYS + ' ngày.'); return; }
   const invToDelete = state.invoices.find(x=>x.id===invoiceId);
   const linkedNote = (invToDelete && invToDelete.depositLink) ? ' Lưu ý: khách của hoá đơn này đã được đưa vào "Data đã chốt" — dòng đó vẫn giữ nguyên, muốn gỡ thì bấm "✅ Đã cọc" để huỷ trước khi xoá.' : '';
   askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.' + linkedNote, ()=>{
@@ -3297,7 +3323,7 @@ function renderInvoicesPage(){
   table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th class="num">SL</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
     pageRows.map(inv=>`<tr>
       <td data-label="Số HĐ">${inv.invoiceNumber}</td>
-      <td data-label="Ngày">${fmtDate(inv.invoiceDate)}</td>
+      <td data-label="Ngày">${fmtDate(inv.invoiceDate)}<div style="font-size:11px; color:${invoiceDaysLeft(inv)<=3?'var(--warn)':'var(--ink-soft)'};" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div></td>
       <td data-label="Khách hàng">${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone)}</td>
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
@@ -3307,7 +3333,7 @@ function renderInvoicesPage(){
           : `<button class="btn-primary btn-small" title="Khách đã cọc → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">💰 Khách đã cọc</button>`}
         <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
         <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
-        <button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>
+        ${canDeleteInvoice() ? `<button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>` : ''}
       </td>
     </tr>`).join('') + `</tbody>`;
 }
@@ -6272,7 +6298,7 @@ function setupRoleScopedListeners(user){
   const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
-    setAndRender('invoices'), false);
+    (arr)=>{ state.invoices = purgeExpiredInvoices(arr); onDataChanged(); }, false);
 
   // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
   const saleSide = user && !isMkt ? 'on' : 'none';
