@@ -1282,7 +1282,7 @@
         <div id="invoicesListWrap">
           <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <button class="btn-primary" onclick="startNewInvoiceDraft()">+ Tạo hoá đơn mới</button>
-            <button class="btn-ghost btn-small" onclick="openInvoiceSettingsModal()">⚙️ Cài đặt thông tin in trên hoá đơn</button>
+            <button class="btn-ghost btn-small" id="btnPageInvoiceSettings" style="display:none;" onclick="openInvoiceSettingsModal()">⚙️ Cài đặt thông tin in trên hoá đơn</button>
           </div>
           <div class="card">
             <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
@@ -1934,6 +1934,13 @@ function toggleNavPersonalGroup(){
   document.getElementById('navPersonalToggleLabel').textContent = navPersonalGroupOpen ? '🗂️ Data của tôi ▾' : '🗂️ Data của tôi ▸';
 }
 function goPage(pageId){
+  const uNav = currentUser();
+  if(pageId==='mgrLeadsList' && uNav && (uNav.role==='team_manager' || uNav.role==='staff')){
+    pageId = (uNav.role==='team_manager') ? 'mgrDashboard' : 'staffReport';
+  }
+  if(pageId==='invoicesOverview' && uNav && uNav.role!=='general_manager'){
+    pageId = (uNav.role==='team_manager' || uNav.role==='data_manager') ? 'mgrDashboard' : 'staffReport';
+  }
   if(currentPageId==='invoices' && pageId!=='invoices' && typeof autoSaveInvoiceThen==='function' && typeof invoiceDraftChanged==='function' && invoiceDraftChanged()){
     autoSaveInvoiceThen(()=>goPage(pageId));
     return;
@@ -2125,7 +2132,7 @@ function setupRoleScopedListeners(user){
     });
 
   // Hoá đơn
-  const invKey = !user || isMkt ? 'none' : (isSaleMgr ? 'all' : 'mine:'+user.id);
+  const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
     (arr)=>{
@@ -2206,12 +2213,14 @@ function enterApp(){
   const closedNav = document.getElementById('page-mgrClosedLeads');
   const dashNav = document.getElementById('navItem_mgrDashboard');
   if(dashNav) dashNav.style.display = isDataMgr ? 'none' : 'flex';
+  const leadsListNav = document.getElementById('navItem_mgrLeadsList');
+  if(leadsListNav) leadsListNav.style.display = isTeamMgr ? 'none' : 'flex';
   const mgrInvoicesNav = document.getElementById('navItem_mgrInvoices');
   if(mgrInvoicesNav) mgrInvoicesNav.style.display = isDataMgr ? 'none' : 'flex';
   const invOverviewNav = document.getElementById('navItem_invoicesOverview');
-  if(invOverviewNav) invOverviewNav.style.display = isDataMgr ? 'none' : 'flex';
+  if(invOverviewNav) invOverviewNav.style.display = isGeneralMgr ? 'flex' : 'none';
   const invSettingsNav = document.getElementById('navItem_invoiceSettings');
-  if(invSettingsNav) invSettingsNav.style.display = isDataMgr ? 'none' : 'flex';
+  if(invSettingsNav) invSettingsNav.style.display = isGeneralMgr ? 'flex' : 'none';
 
   const mktSec = document.getElementById('navSectionLabel_mkt');
   const mktOver = document.getElementById('navItem_mktOverview');
@@ -3992,6 +4001,8 @@ function shiftMyInvoicesDate(delta){
 }
 function renderInvoicesPage(){
   const u = currentUser();
+  const btnSet = document.getElementById('btnPageInvoiceSettings');
+  if(btnSet) btnSet.style.display = (u && u.role === 'general_manager') ? 'inline-block' : 'none';
   if(currentInvoiceDraft){
     document.getElementById('invoicesListWrap').style.display = 'none';
     document.getElementById('invoiceEditorWrap').style.display = 'block';
@@ -6292,6 +6303,11 @@ function goMgrLeadsListPage(p){
   renderMgrLeadsList();
 }
 function renderMgrLeadsList(){
+  const u = currentUser();
+  if(!u || u.role==='team_manager' || u.role==='staff'){
+    goPage(u && u.role==='team_manager' ? 'mgrDashboard' : 'staffReport');
+    return;
+  }
   const scope = scopeBranchId();
   ensureStatusFilterPopulated('mgrLeadsListStatusFilter');
 
@@ -8023,6 +8039,11 @@ function settingsAddBranch(){
 initFirebase();
 
 function openInvoiceSettingsModal(){
+  const u = currentUser();
+  if(!u || u.role !== 'general_manager'){
+    showToast('Chỉ Quản lý chung mới có quyền chỉnh sửa thông tin in trên hoá đơn.');
+    return;
+  }
   const s = state.invoiceSettings || {};
   document.getElementById('modalInvSettingShopName').value = s.shopName || '';
   document.getElementById('modalInvSettingAddress').value = s.address || '';
