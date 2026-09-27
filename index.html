@@ -4027,7 +4027,7 @@ function renderInvoicesPage(){
     pageRows.map(inv=>`<tr>
       <td data-label="Số HĐ">${inv.invoiceNumber}</td>
       <td data-label="Ngày">${fmtDate(inv.invoiceDate)}</td>
-      <td data-label="Khách hàng">${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${maskPhone(inv.customerPhone)}</div>` : ''}</td>
+      <td data-label="Khách hàng">${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone} <span class="copy-icon" onclick="copyText('${inv.customerPhone}','Đã copy SĐT')">📋</span></div>` : ''}</td>
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td>
@@ -4294,7 +4294,7 @@ function renderInvoicesOverviewPage(){
     invPageRows.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
       <td>${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
-      <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${maskPhone(inv.customerPhone)}</div>` : ''}</td>
+      <td>${inv.customerName}${inv.customerPhone ? `<div style="font-size:11px; color:var(--ink-soft);">${inv.customerPhone} <span class="copy-icon" onclick="event.stopPropagation(); copyText('${inv.customerPhone}','Đã copy SĐT')">📋</span></div>` : ''}</td>
       <td style="font-weight:600;">${inv.saleId ? userName(inv.saleId) : '—'}</td>
       <td>${inv.saleName ? inv.saleName : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td>${inv.teamName||'—'}</td>
