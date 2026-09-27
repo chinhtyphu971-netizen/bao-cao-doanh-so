@@ -2998,9 +2998,9 @@ function copyPhoneFallback(text, ok){
   document.body.removeChild(ta);
 }
 // Ô SĐT dưới tên khách trong các bảng danh sách hoá đơn
-function invoicePhoneCellHtml(phone){
+function invoicePhoneCellHtml(phone, showFull){
   if(!phone) return '';
-  if(canSeeFullPhone()){
+  if(showFull || canSeeFullPhone()){
     return `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;"><span class="phone-full">${escHtml(cleanPhone(phone))}</span><button class="phone-copy-btn" title="Copy SĐT" onclick="copyPhone('${escHtml(cleanPhone(phone))}', event)">📋</button></div>`;
   }
   return `<div style="font-size:11px; color:var(--ink-soft);">${escHtml(maskPhone(phone))}</div>`;
@@ -3010,7 +3010,8 @@ function invoicePhoneCellHtml(phone){
 // bấm vào ô sẽ để trống, gõ số mới để đổi, bỏ trống thì giữ nguyên số cũ.
 function invPhoneRevealable(){
   const d = currentInvoiceDraft;
-  return canSeeFullPhone() || !d.id || d._phoneEdited;
+  const u = currentUser();
+  return canSeeFullPhone() || !d.id || d._phoneEdited || (u && d.saleId===u.id); // Sale lên HĐ xem lại được số của chính mình
 }
 function invPhoneFocus(el){
   const d = currentInvoiceDraft; if(!d) return;
@@ -3354,7 +3355,7 @@ function renderInvoicesPage(){
     pageRows.map(inv=>`<tr>
       <td data-label="Số HĐ">${inv.invoiceNumber}</td>
       <td data-label="Ngày">${fmtDate(inv.invoiceDate)}<div style="font-size:11px; color:${invoiceDaysLeft(inv)<=3?'var(--warn)':'var(--ink-soft)'};" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div></td>
-      <td data-label="Khách hàng">${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone)}</td>
+      <td data-label="Khách hàng">${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone, inv.saleId===u.id)}</td>
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td>
