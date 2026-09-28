@@ -3627,20 +3627,17 @@ function renderInvoicesPage(){
   const dayHeader = (k)=>{
     const st = dayStats[k] || {count:0, qty:0, amount:0, deposited:0, depositSum:0};
     const label = k ? (k===todayStr() ? `Hôm nay · ${fmtDate(k)}` : fmtDate(k)) : 'Không rõ ngày';
-    return `<tr class="inv-day-row"><td colspan="8">📅 <b>${label}</b><span>${st.count} hoá đơn · ${st.qty} SP · ${st.deposited} đã chốt · Cọc <b style="color:var(--warn);">${fmtMoney(st.depositSum)} đ</b> · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
+    return `<tr class="inv-day-row"><td colspan="4">📅 <b>${label}</b><span>${st.count} hoá đơn · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
   };
-  table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Nguồn</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
+  // Gọn: chỉ Số HĐ · Khách · Tổng tiền · nút. Chi tiết (nguồn, cọc, số lượng...) xem trong hoá đơn / Data đã chốt.
+  table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Khách hàng</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
     pageRows.map(inv=>{
       const k = inv.invoiceDate || '';
       const head = (k!==lastDay) ? dayHeader(k) : '';
       lastDay = k;
       return head + `<tr>
-      <td data-label="Số HĐ">${inv.invoiceNumber}</td>
-      <td data-label="Ngày">${fmtDate(inv.invoiceDate)}<div style="font-size:11px; color:${invoiceDaysLeft(inv)<=3?'var(--warn)':'var(--ink-soft)'};" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div></td>
+      <td data-label="Số HĐ" style="font-weight:600;">${inv.invoiceNumber}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
       <td data-label="Khách hàng">${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone, inv.saleId===u.id)}</td>
-      <td data-label="Nguồn">${invoiceSourceCellHtml(inv)}</td>
-      <td class="num" data-label="SL">${inv.totalQty}</td>
-      <td class="num" data-label="Cọc" style="font-weight:600; color:var(--warn);">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft); font-weight:400;">0 đ</span>'}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
       <td class="inv-actions">
         ${inv.depositLink
