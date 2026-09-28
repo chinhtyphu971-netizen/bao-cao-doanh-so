@@ -598,6 +598,14 @@
   /* SĐT khách: nút copy (chỉ Quản lý chung thấy) + bản in của khung xem hoá đơn luôn che số */
   .phone-copy-btn{ min-height:0 !important; height:22px; padding:0 4px !important; font-size:11.5px !important; font-weight:600; border-radius:5px !important; border:1px solid #1c5fa8 !important; background:transparent; color:#1c5fa8; margin-left:6px; vertical-align:middle; line-height:20px; }
   .phone-copy-btn:hover{ background:#1c5fa8; color:#fff; }
+  #myClosedLeadsTable tr.inv-day-row td{ background:var(--brand-soft); color:var(--ink); padding:8px 10px; font-size:13.5px; border-top:2px solid var(--line); }
+  #myClosedLeadsTable tr.inv-day-row td span{ margin-left:12px; font-size:12.5px; color:var(--ink-soft); }
+  @media (max-width:760px){
+    #myClosedLeadsTable tr.inv-day-row{ display:block; }
+    #myClosedLeadsTable tr.inv-day-row td{ display:block; width:100%; }
+    #myClosedLeadsTable tr.inv-day-row td::before{ content:none !important; }
+    #myClosedLeadsTable tr.inv-day-row td span{ display:block; margin:2px 0 0 0; }
+  }
   #myInvoicesTable tr.inv-day-row td{ background:var(--brand-soft); color:var(--ink); padding:8px 10px; font-size:13.5px; border-top:2px solid var(--line); }
   #myInvoicesTable tr.inv-day-row td span{ margin-left:12px; font-size:12.5px; color:var(--ink-soft); }
   @media (max-width:760px){
@@ -918,8 +926,17 @@
             <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
               <button class="btn-primary btn-small" onclick="addManualClosedLead()">+ Thêm dòng</button>
             </div>
-            <div class="field" style="max-width:280px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="myClosedLeadsSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMyClosedLeads()"></div>
+            <div class="toolbar" style="align-items:flex-end; gap:10px; margin-bottom:10px;">
+              <div class="chip-row" style="margin:0;">
+                <div class="chip selected" id="myClosedView_thismonth" onclick="setMyClosedView('thismonth')">Tháng này</div>
+                <div class="chip" id="myClosedView_lastmonth" onclick="setMyClosedView('lastmonth')">Tháng trước</div>
+                <div class="chip" id="myClosedView_all" onclick="setMyClosedView('all')">Tất cả (50 dòng/trang)</div>
+              </div>
+              <div class="field" style="max-width:170px; margin:0;"><label>Chọn tháng</label><input type="month" id="myClosedMonth" onchange="setMyClosedView('custom')"></div>
+            </div>
+            <div class="field" style="max-width:280px;"><label>Tìm theo SĐT hoặc tên khách (mọi tháng)</label><input id="myClosedLeadsSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMyClosedLeads()"></div>
             <div class="table-wrap"><table id="myClosedLeadsTable" class="rtable"></table></div>
+            <div id="myClosedLeadsPager"></div>
           </div>
         </div>
       </div>
@@ -5013,6 +5030,9 @@ function addManualClosedLead(){
   };
   state.leads.push(lead);
   fbSetLead(lead);
+  // Dòng mới có Ngày chốt = hôm nay → đang xem tháng khác thì tự chuyển về tháng này, trang 1 để thấy ngay
+  if(myClosedMonthView && !todayStr().startsWith(myClosedMonthView)){ setMyClosedView('thismonth'); return; }
+  pagerPages.myClosed = 1;
   renderMyClosedLeads();
 }
 function deleteManualClosedLead(id){
@@ -5022,12 +5042,43 @@ function deleteManualClosedLead(id){
     renderMyClosedLeads();
   });
 }
+// Data đã chốt: xem theo THÁNG (mặc định tháng này) hoặc Tất cả; luôn 50 dòng/trang và kê theo từng ngày
+let myClosedMonthView = null;   // 'YYYY-MM' hoặc '' (= tất cả)
+let myClosedLastQuery = '';
+const MY_CLOSED_PER_PAGE = 50;
+function monthKeyOffset(offset){
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()+offset);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function setMyClosedView(mode){
+  const monthEl = document.getElementById('myClosedMonth');
+  if(mode==='thismonth') myClosedMonthView = monthKeyOffset(0);
+  else if(mode==='lastmonth') myClosedMonthView = monthKeyOffset(-1);
+  else if(mode==='all') myClosedMonthView = '';
+  else myClosedMonthView = (monthEl && monthEl.value) || '';
+  if(monthEl) monthEl.value = myClosedMonthView || '';
+  const selected = myClosedMonthView==='' ? 'all'
+    : (myClosedMonthView===monthKeyOffset(0) ? 'thismonth' : (myClosedMonthView===monthKeyOffset(-1) ? 'lastmonth' : ''));
+  ['thismonth','lastmonth','all'].forEach(k=>{ const el=document.getElementById('myClosedView_'+k); if(el) el.classList.toggle('selected', k===selected); });
+  pagerPages.myClosed = 1;
+  renderMyClosedLeads();
+}
 function renderMyClosedLeads(){
   const u = currentUser();
-  let closedLeads = state.leads.filter(l=>l.assignedTo===u.id && l.status==='Đã chốt')
-    .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  if(myClosedMonthView===null){
+    myClosedMonthView = monthKeyOffset(0);
+    const mEl = document.getElementById('myClosedMonth'); if(mEl) mEl.value = myClosedMonthView;
+  }
+  const allClosed = state.leads.filter(l=>l.assignedTo===u.id && l.status==='Đã chốt')
+    .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'') || (b.assignedAt||b.createdAt||0)-(a.assignedAt||a.createdAt||0));
+  let closedLeads = allClosed;
 
   const rawQuery = document.getElementById('myClosedLeadsSearch').value.trim();
+  if(rawQuery!==myClosedLastQuery){ myClosedLastQuery = rawQuery; pagerPages.myClosed = 1; }
+  // Đang tìm → tìm trên MỌI tháng; không tìm → lọc theo tháng đang chọn
+  if(!rawQuery && myClosedMonthView){
+    closedLeads = closedLeads.filter(l=>(l.closedDate||'').startsWith(myClosedMonthView));
+  }
   if(rawQuery){
     const digitsQuery = rawQuery.replace(/\D/g,'').replace(/^0+/,'');
     const textQuery = rawQuery.toLowerCase();
@@ -5039,23 +5090,60 @@ function renderMyClosedLeads(){
     });
   }
 
-  document.getElementById('myClosedLeadsCount').textContent = closedLeads.length ? `(${closedLeads.length})` : '';
+  document.getElementById('myClosedLeadsCount').textContent = allClosed.length ? `(${allClosed.length})` : '';
 
   const totalAmount = closedLeads.reduce((sum,l)=>sum + (Number(l.closedAmount)||0), 0);
-  document.getElementById('myClosedLeadsSummary').textContent = closedLeads.length===0
-    ? (rawQuery ? 'Không có data nào khớp với tìm kiếm.' : 'Chưa có data nào được chốt.')
-    : `${closedLeads.length} data đã chốt · Tổng tiền: ${fmtMoney(totalAmount)} đ`;
+  const periodLabel = rawQuery ? 'Kết quả tìm' : (myClosedMonthView ? `Tháng ${myClosedMonthView.slice(5)}/${myClosedMonthView.slice(0,4)}` : 'Tất cả');
+  document.getElementById('myClosedLeadsSummary').innerHTML = closedLeads.length===0
+    ? (rawQuery ? 'Không có data nào khớp với tìm kiếm.' : (myClosedMonthView ? `${periodLabel}: chưa có data nào được chốt.` : 'Chưa có data nào được chốt.'))
+    : `<b>${periodLabel}</b>: ${closedLeads.length} data đã chốt · Tổng tiền: <b style="color:var(--success);">${fmtMoney(totalAmount)} đ</b>`;
   lastFilteredMyClosedLeads = closedLeads; // lưu lại cho nút Xuất Excel
 
   const table = document.getElementById('myClosedLeadsTable');
+  const pagerEl = document.getElementById('myClosedLeadsPager');
+  if(pagerEl) pagerEl.innerHTML = closedLeads.length ? pagerHtml('myClosed', closedLeads.length, MY_CLOSED_PER_PAGE, 'renderMyClosedLeads') : '';
   if(closedLeads.length===0){
     table.innerHTML = rawQuery
       ? '<tr><td class="empty-note">Không có data nào khớp với tìm kiếm.</td></tr>'
-      : '<tr><td class="empty-note">Chưa có data nào được chốt — khi bạn chọn Tình trạng "Đã chốt" ở tab "Data được chia", hoặc bấm "+ Thêm dòng" bên dưới, data sẽ hiện ở đây.</td></tr>';
+      : (myClosedMonthView ? '<tr><td class="empty-note">Tháng này chưa có data nào được chốt — chọn "Tất cả" hoặc tháng khác để xem.</td></tr>' : '<tr><td class="empty-note">Chưa có data nào được chốt — khi bạn chọn Tình trạng "Đã chốt" ở tab "Data được chia", hoặc bấm "+ Thêm dòng" bên dưới, data sẽ hiện ở đây.</td></tr>');
     return;
   }
+  // Thống kê theo từng ngày (tính trên cả tháng/cả danh sách, không chỉ trang đang xem)
+  // Khách quay lại (tính riêng cho Sale này):
+  //  - SĐT đã từng được CHÍNH Sale này chốt trước đó (theo thứ tự Ngày chốt), hoặc
+  //  - dòng có Nguồn "Khách cũ" do Sale chọn
+  const repeatIds = new Set();
+  {
+    const seenPhones = new Set();
+    allClosed.slice().sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||'') || (a.assignedAt||a.createdAt||0)-(b.assignedAt||b.createdAt||0))
+      .forEach(l=>{
+        const k = normalizePhone(leadPhone(l));
+        if(!k) return;
+        if(seenPhones.has(k)) repeatIds.add(l.id); else seenPhones.add(k);
+      });
+  }
+  const isReturningRow = l => repeatIds.has(l.id) || leadSource(l)===returningSourceName();
+  const closedDayStats = {};
+  let returningTotal = 0;
+  closedLeads.forEach(l=>{
+    const k = l.closedDate || '';
+    const st = closedDayStats[k] || (closedDayStats[k] = {count:0, amount:0, returning:0});
+    st.count++; st.amount += Number(l.closedAmount)||0;
+    if(isReturningRow(l)){ st.returning++; returningTotal++; }
+  });
+  const sumEl = document.getElementById('myClosedLeadsSummary');
+  if(sumEl) sumEl.innerHTML += ` · <span style="color:#C9A0FF;">${returningTotal} khách quay lại</span>`;
+  let closedLastDay = null;
   table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
-    limitRows('myClosed', closedLeads).map(l=>{
+    pageSlice('myClosed', closedLeads, MY_CLOSED_PER_PAGE).map(l=>{
+      const dayKey = l.closedDate || '';
+      let dayHead = '';
+      if(dayKey!==closedLastDay){
+        closedLastDay = dayKey;
+        const st = closedDayStats[dayKey] || {count:0, amount:0, returning:0};
+        const label = dayKey ? (dayKey===todayStr() ? `Hôm nay · ${fmtDate(dayKey)}` : fmtDate(dayKey)) : 'Chưa có ngày chốt';
+        dayHead = `<tr class="inv-day-row"><td colspan="6">📅 <b>${label}</b><span>${st.count} đơn · <span style="color:#C9A0FF;">${st.returning} khách quay lại</span> · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
+      }
       const deleteBtn = l.manualEntry
         ? `<button class="btn-ghost btn-small" onclick="deleteManualClosedLead('${l.id}')">🗑️</button>`
         : '';
@@ -5076,7 +5164,7 @@ function renderMyClosedLeads(){
             <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
         }
       }
-      return `<tr${rowStyle}>
+      return dayHead + `<tr${rowStyle}>
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
@@ -5086,7 +5174,7 @@ function renderMyClosedLeads(){
       <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
-    }).join('') + moreRowsHtml('myClosed', closedLeads.length, 7) + `</tbody>`;
+    }).join('') + `</tbody>`;
 }
 // Tìm xem SĐT vừa gõ có TRÙNG với 1 data KHÁC đang nằm sẵn trong chính danh sách của người này
 // không (bất kể trạng thái gì — Đã liên hệ, Đang tư vấn...), để gợi ý GỘP thẳng vào data cũ thay
