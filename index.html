@@ -606,6 +606,28 @@
   /* SĐT khách: nút copy (chỉ Quản lý chung thấy) + bản in của khung xem hoá đơn luôn che số */
   .phone-copy-btn{ min-height:0 !important; height:22px; padding:0 4px !important; font-size:11.5px !important; font-weight:600; border-radius:5px !important; border:1px solid #1c5fa8 !important; background:transparent; color:#1c5fa8; margin-left:6px; vertical-align:middle; line-height:20px; }
   .phone-copy-btn:hover{ background:#1c5fa8; color:#fff; }
+  /* Data đã chốt (từng Sale): cột cố định độ rộng, mọi ô nhập cùng chiều cao → thẳng hàng, đều nhau */
+  @media (min-width:761px){
+    #myClosedLeadsTable{ table-layout:fixed; width:100%; max-width:980px; }
+    #myClosedLeadsTable col.mc-c-date{ width:130px; }
+    #myClosedLeadsTable col.mc-c-src{ width:160px; }
+    #myClosedLeadsTable col.mc-c-phone{ width:190px; }
+    #myClosedLeadsTable col.mc-c-name{ width:250px; }
+    #myClosedLeadsTable col.mc-c-amt{ width:140px; }
+    #myClosedLeadsTable col.mc-c-act{ width:64px; }
+    #myClosedLeadsTable th{ padding:6px 8px !important; }
+    #myClosedLeadsTable td{ padding:5px 8px !important; vertical-align:middle; overflow:hidden; }
+    #myClosedLeadsTable tr.inv-day-row td{ padding:7px 10px !important; }
+    #myClosedLeadsTable td input, #myClosedLeadsTable td select{ width:100% !important; box-sizing:border-box; height:32px; min-height:32px !important; padding:3px 8px !important; font-size:12.5px !important; margin:0; }
+    #myClosedLeadsTable .mc-plain{ display:inline-block; padding-left:9px; font-size:12.5px; line-height:32px; }
+    #myClosedLeadsTable td > span:not(.copy-icon):not(.mc-plain){ display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; padding-left:9px; font-size:12.5px; }
+    #myClosedLeadsTable td > div > span[title]{ max-width:120px !important; padding-left:9px; }
+    #myClosedLeadsTable .mc-name-wrap{ display:flex; align-items:center; gap:6px; }
+    #myClosedLeadsTable .mc-name-wrap input{ flex:1 1 auto; min-width:0; }
+    #myClosedLeadsTable .mc-inv{ flex:0 0 auto; font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+    #myClosedLeadsTable td button.btn-small{ height:32px; min-height:32px !important; padding:0 8px !important; }
+    #myClosedLeadsTable td > div:not(.mc-name-wrap){ white-space:normal; line-height:1.3; }
+  }
   /* Máy tính: hoá đơn mỗi cái 1 hàng thấp, không xuống dòng */
   @media (min-width:761px){
     #myInvoicesTable td{ padding:5px 8px !important; white-space:nowrap; vertical-align:middle; font-size:13px; }
@@ -5173,7 +5195,7 @@ function renderMyClosedLeads(){
   const sumEl = document.getElementById('myClosedLeadsSummary');
   if(sumEl) sumEl.innerHTML += ` · <span style="color:#C9A0FF;">${returningTotal} khách quay lại</span>`;
   let closedLastDay = null;
-  table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<colgroup><col class="mc-c-date"><col class="mc-c-src"><col class="mc-c-phone"><col class="mc-c-name"><col class="mc-c-amt"><col class="mc-c-act"></colgroup><thead><tr><th>Ngày chốt</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th><th></th></tr></thead><tbody>` +
     pageSlice('myClosed', closedLeads, MY_CLOSED_PER_PAGE).map(l=>{
       const dayKey = l.closedDate || '';
       let dayHead = '';
@@ -5207,10 +5229,10 @@ function renderMyClosedLeads(){
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
-        ? `<input type="text" value="${l.phone||''}" placeholder="SĐT" style="min-height:30px; padding:3px 5px; font-size:12px; width:98px; ${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
-        : `${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
-      <td data-label="Tên khách"><input type="text" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:100px; min-height:30px; padding:3px 5px; font-size:12px;" onchange="updateLeadField('${l.id}','customerName',this.value)">${l.invoiceNumber ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:2px;">🧾 ${l.invoiceNumber}</div>` : ''}</td>
-      <td data-label="Số tiền chốt"><input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:4px 6px; font-size:12.5px; width:110px; font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
+        ? `<input type="text" class="mc-in" value="${l.phone||''}" placeholder="SĐT" style="${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
+        : `<span class="mc-plain">${leadPhone(l)}</span> <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
+      <td data-label="Tên khách"><div class="mc-name-wrap"><input type="text" class="mc-in" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)">${l.invoiceNumber ? `<span class="mc-inv" title="Hoá đơn ${l.invoiceNumber}">🧾 ${l.invoiceNumber}</span>` : ''}</div></td>
+      <td data-label="Số tiền chốt"><input type="number" class="mc-in" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
       <td>${deleteBtn}</td>
     </tr>`;
     }).join('') + `</tbody>`;
