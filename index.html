@@ -320,6 +320,9 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Nút lên hoá đơn trước SĐT (Data của tôi) — đỏ nổi bật, khác hẳn nút copy */
+  .inv-from-lead-btn{ display:inline-block; cursor:pointer; margin-right:6px; padding:1px 6px; border-radius:5px; background:#E0342F; color:#fff; font-size:10.5px; font-weight:700; letter-spacing:0.02em; line-height:17px; vertical-align:middle; box-shadow:0 1px 0 rgba(0,0,0,0.25); transition:background .15s, transform .1s; }
+  .inv-from-lead-btn:hover{ background:#FF4A44; transform:translateY(-1px); }
   .inv-src-tag{ display:inline-block; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; padding:2px 8px; border-radius:999px; font-size:12px; background:rgba(79,140,255,0.14); color:#8DB4FF; }
   .inv-src-tag.old{ background:rgba(168,85,247,0.18); color:#C9A0FF; font-weight:600; }
   /* Data chốt tổng: SĐT chốt lần 2 trở đi → tô màu cả dòng (không ghi chú) */
@@ -4895,7 +4898,7 @@ function renderMyLeads(){
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
-      <td data-label="SĐT"><span class="copy-icon inv-from-lead-icon" title="Lên hoá đơn cho khách này" onclick="openInvoiceFromLead('${l.id}')">🧾</span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+      <td data-label="SĐT"><span class="inv-from-lead-btn" title="Lên hoá đơn cho khách này" onclick="openInvoiceFromLead('${l.id}')">+HĐ</span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
