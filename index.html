@@ -1305,6 +1305,18 @@
           <div class="chip" onclick="goPage('mgrSelfLeadsList')">🔎 Data tự tìm</div>
         </div>
         <div class="card">
+          <div class="chip-row" style="margin-bottom:12px;">
+            <div class="chip" id="mgrLeadsListPreset_today" onclick="applyMgrLeadsListDatePreset('today')">Hôm nay</div>
+            <div class="chip" id="mgrLeadsListPreset_yesterday" onclick="applyMgrLeadsListDatePreset('yesterday')">Hôm qua</div>
+            <div class="chip" id="mgrLeadsListPreset_week" onclick="applyMgrLeadsListDatePreset('week')">Tuần qua</div>
+            <div class="chip" id="mgrLeadsListPreset_thismonth" onclick="applyMgrLeadsListDatePreset('thismonth')">Tháng này</div>
+            <div class="chip" id="mgrLeadsListPreset_lastmonth" onclick="applyMgrLeadsListDatePreset('lastmonth')">Tháng trước</div>
+            <div class="chip selected" id="mgrLeadsListPreset_all" onclick="applyMgrLeadsListDatePreset('all')">Toàn thời gian</div>
+          </div>
+          <div class="toolbar" style="margin-bottom:10px;">
+            <div class="field" style="max-width:170px;"><label>Từ ngày (ngày nhận)</label><input type="date" id="mgrLeadsListFrom" onchange="applyMgrLeadsListCustomRange()"></div>
+            <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mgrLeadsListTo" onchange="applyMgrLeadsListCustomRange()"></div>
+          </div>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedOnMgrLeadsListFilterChange()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
@@ -5425,6 +5437,23 @@ function goMgrLeadsListPage(p){
   mgrLeadsListPage = p;
   renderMgrLeadsList();
 }
+// Lọc Danh sách data theo thời gian (theo Ngày nhận) — mặc định Toàn thời gian
+let mgrLeadsListDateFrom = null, mgrLeadsListDateTo = null;
+const MGR_LEADS_PRESETS = ['today','yesterday','week','thismonth','lastmonth','all'];
+function applyMgrLeadsListDatePreset(preset){
+  const [from, to] = (preset==='thismonth'||preset==='lastmonth') ? calendarMonthRangeFor(preset) : dateRangeFor(preset);
+  mgrLeadsListDateFrom = from || null; mgrLeadsListDateTo = to || null;
+  document.getElementById('mgrLeadsListFrom').value = from || '';
+  document.getElementById('mgrLeadsListTo').value = to || '';
+  MGR_LEADS_PRESETS.forEach(p=>document.getElementById('mgrLeadsListPreset_'+p).classList.toggle('selected', p===preset));
+  onMgrLeadsListFilterChange();
+}
+function applyMgrLeadsListCustomRange(){
+  mgrLeadsListDateFrom = document.getElementById('mgrLeadsListFrom').value || null;
+  mgrLeadsListDateTo = document.getElementById('mgrLeadsListTo').value || null;
+  MGR_LEADS_PRESETS.forEach(p=>document.getElementById('mgrLeadsListPreset_'+p).classList.toggle('selected', p==='all' && !mgrLeadsListDateFrom && !mgrLeadsListDateTo));
+  onMgrLeadsListFilterChange();
+}
 function renderMgrLeadsList(){
   const scope = scopeBranchId();
   ensureStatusFilterPopulated('mgrLeadsListStatusFilter');
@@ -5453,6 +5482,15 @@ function renderMgrLeadsList(){
     }
     return true;
   }).sort((a,b)=>(b.assignedAt||b.importedAt||0)-(a.assignedAt||a.importedAt||0));
+
+  if(mgrLeadsListDateFrom || mgrLeadsListDateTo){
+    leads = leads.filter(l=>{
+      const dateStr = toLocalDateStr(new Date(l.assignedAt||l.importedAt||0));
+      if(mgrLeadsListDateFrom && dateStr < mgrLeadsListDateFrom) return false;
+      if(mgrLeadsListDateTo && dateStr > mgrLeadsListDateTo) return false;
+      return true;
+    });
+  }
 
   // Danh sách Nguồn để lọc — lấy động theo đúng những Nguồn đang thực sự có trong phạm vi đang xem,
   // giữ nguyên lựa chọn hiện tại nếu Nguồn đó vẫn còn tồn tại sau khi có data mới.
