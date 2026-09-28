@@ -601,18 +601,28 @@
   #myClosedLeadsTable tr.inv-day-row td{ background:var(--brand-soft); color:var(--ink); padding:8px 10px; font-size:13.5px; border-top:2px solid var(--line); }
   #myClosedLeadsTable tr.inv-day-row td span{ margin-left:12px; font-size:12.5px; color:var(--ink-soft); }
   @media (max-width:760px){
-    #myClosedLeadsTable tr.inv-day-row{ display:block; }
-    #myClosedLeadsTable tr.inv-day-row td{ display:block; width:100%; }
-    #myClosedLeadsTable tr.inv-day-row td::before{ content:none !important; }
     #myClosedLeadsTable tr.inv-day-row td span{ display:block; margin:2px 0 0 0; }
   }
   #myInvoicesTable tr.inv-day-row td{ background:var(--brand-soft); color:var(--ink); padding:8px 10px; font-size:13.5px; border-top:2px solid var(--line); }
   #myInvoicesTable tr.inv-day-row td span{ margin-left:12px; font-size:12.5px; color:var(--ink-soft); }
+  /* ĐIỆN THOẠI: danh sách hoá đơn hiện dạng THẺ — nút Sửa / In / Khách đã cọc luôn nằm ngay dưới mỗi thẻ
+     (trước đây nằm ở cột cuối, bị khuất bên phải màn hình → Sale tưởng không có nút Sửa) */
   @media (max-width:760px){
-    #myInvoicesTable tr.inv-day-row{ display:block; }
-    #myInvoicesTable tr.inv-day-row td{ display:block; width:100%; }
-    #myInvoicesTable tr.inv-day-row td::before{ content:none !important; }
+    #myInvoicesTable, #myInvoicesTable tbody{ display:block; width:100%; }
+    #myInvoicesTable thead{ display:none; }
+    #myInvoicesTable tr{ display:block; border:1px solid var(--line); border-radius:12px; margin:0 0 10px; padding:8px 12px; background:var(--panel); }
+    #myInvoicesTable td{ display:block; position:relative; padding:4px 0 4px 110px !important; min-height:24px; border:none !important; text-align:right; white-space:normal; }
+    #myInvoicesTable td::before{ content:attr(data-label); position:absolute; left:0; top:5px; color:var(--ink-soft); font-size:12px; font-weight:400; text-align:left; }
+    #myInvoicesTable td > div{ text-align:right; }
+    #myInvoicesTable td.inv-actions{ display:flex; flex-wrap:wrap; justify-content:flex-start; gap:8px; margin-top:6px; padding:10px 0 2px 0 !important; border-top:1px dashed var(--line) !important; }
+    #myInvoicesTable td.inv-actions::before{ content:none; }
+    #myInvoicesTable td.inv-actions button{ flex:1 1 auto; min-height:38px; }
+    #myInvoicesTable tr.inv-day-row{ border:none; background:transparent; padding:0; margin:14px 0 6px; }
+    #myInvoicesTable tr.inv-day-row td{ display:block; text-align:left; border-radius:10px; padding:8px 10px !important; white-space:normal; }
+    #myInvoicesTable tr.inv-day-row td::before{ content:none; }
     #myInvoicesTable tr.inv-day-row td span{ display:block; margin:2px 0 0 0; }
+    #myInvoicesTable td.empty-note{ display:block; text-align:left; padding:8px 0 !important; }
+    #myInvoicesTable td.empty-note::before{ content:none; }
   }
   .phone-full{ font-weight:600; letter-spacing:0.01em; }
   .iv-print-mask{ display:none; }
@@ -3624,7 +3634,7 @@ function renderInvoicesPage(){
       <td class="num" data-label="SL">${inv.totalQty}</td>
       <td class="num" data-label="Cọc" style="font-weight:600; color:var(--warn);">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft); font-weight:400;">0 đ</span>'}</td>
       <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
-      <td>
+      <td class="inv-actions">
         ${inv.depositLink
           ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">${isOldCustomerInvoice(inv) ? '✅ Đã chốt' : '✅ Đã cọc'}</button>`
           : (isOldCustomerInvoice(inv)
