@@ -4922,6 +4922,9 @@ function renderMyLeads(){
     }).join('') + moreRowsHtml('myLeads', allMyLeads.length, 10) + `</tbody>`;
   renderSelfLeadsTable();
   refreshUnreadChatDots();
+  // Luôn vẽ lại tab "Data đã chốt" (và số đếm trên tab) — trước đây tab này chỉ vẽ khi bấm vào tab,
+  // nên hoá đơn vừa bấm "Khách đã cọc"/"Chốt đơn" không hiện ra tới khi tải lại trang.
+  renderMyClosedLeads();
 }
 const SELF_LEAD_SOURCE_OPTIONS = ['Facebook','TikTok','Zalo','Khác'];
 // Danh sách Nguồn để chọn khi tự nhập tay — lấy đúng theo danh sách Nguồn MKT đang quản lý
