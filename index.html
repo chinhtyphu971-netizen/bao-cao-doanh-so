@@ -320,6 +320,9 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Nút xác nhận cọc: viền cam, nền trong — nhìn là "đang chờ", không bị hiểu nhầm là khách ĐÃ cọc */
+  .inv-await-deposit{ color:#F0A63A !important; border:1px dashed #F0A63A !important; background:transparent !important; font-weight:600; }
+  .inv-await-deposit:hover{ background:rgba(240,166,58,0.14) !important; border-style:solid !important; }
   /* Nút lên hoá đơn trước SĐT (Data của tôi) — đỏ nổi bật, khác hẳn nút copy */
   .inv-from-lead-btn{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin-right:6px; cursor:pointer; border-radius:6px; color:#E53935; background:rgba(229,57,53,0.14); border:1px solid rgba(229,57,53,0.45); vertical-align:middle; transition:background .15s, transform .1s, color .15s; }
   .inv-from-lead-btn:hover{ background:#E53935; color:#fff; transform:translateY(-1px); }
@@ -3451,7 +3454,7 @@ function markInvoiceDeposited(invoiceId){
     ? `Khách "${inv.customerName}" đang có trong data của bạn (${existing.status||'chưa cập nhật'}). Data đó sẽ được chuyển sang "Đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`
     : `Thêm khách "${inv.customerName}" vào "Data đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`;
   const oldCust = isOldCustomerInvoice(inv);
-  askConfirm(oldCust ? 'Chốt đơn khách cũ?' : 'Khách đã cọc?', (oldCust ? 'Khách cũ — không cần cọc. ' : '') + msg, ()=>{
+  askConfirm(oldCust ? 'Chốt đơn khách cũ?' : 'Xác nhận khách đã chuyển cọc?', (oldCust ? 'Khách cũ — không cần cọc. ' : '') + msg, ()=>{
     const today = todayStr();
     let link;
     if(existing){
@@ -3639,7 +3642,7 @@ function renderInvoicesPage(){
           ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">${isOldCustomerInvoice(inv) ? '✅ Đã chốt' : '✅ Đã cọc'}</button>`
           : (isOldCustomerInvoice(inv)
             ? `<button class="btn-primary btn-small" style="background:#7C4DCC;" title="Khách cũ — không cần cọc, bấm để đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">🤝 Chốt đơn</button>`
-            : `<button class="btn-primary btn-small" title="Khách đã cọc → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">💰 Khách đã cọc</button>`)}
+            : `<button class="btn-ghost btn-small inv-await-deposit" title="Khi khách chuyển cọc, bấm để xác nhận → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">⏳ Chờ cọc · Xác nhận</button>`)}
         <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
         <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
         ${canDeleteInvoice() ? `<button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>` : ''}
