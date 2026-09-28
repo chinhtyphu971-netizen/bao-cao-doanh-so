@@ -326,6 +326,11 @@
   /* Nút lên hoá đơn trước SĐT (Data của tôi) — đỏ nổi bật, khác hẳn nút copy */
   .inv-from-lead-btn{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin-right:6px; cursor:pointer; border-radius:6px; color:#E53935; background:rgba(229,57,53,0.14); border:1px solid rgba(229,57,53,0.45); vertical-align:middle; transition:background .15s, transform .1s, color .15s; }
   .inv-from-lead-btn:hover{ background:#E53935; color:#fff; transform:translateY(-1px); }
+  /* Đã lên hoá đơn → xanh lá */
+  .inv-from-lead-btn.done{ color:#2EAD5B; background:rgba(46,173,91,0.14); border-color:rgba(46,173,91,0.5); }
+  .inv-from-lead-btn.done:hover{ background:#2EAD5B; color:#fff; }
+  .inv-from-lead-btn.done:hover svg path:nth-of-type(2){ stroke:#2EAD5B; }
+  .inv-from-lead-btn.done:hover svg circle{ fill:#2EAD5B; }
   .inv-from-lead-btn:hover svg path:nth-of-type(2){ stroke:#E53935; }
   .inv-from-lead-btn:hover svg circle{ fill:#E53935; }
   .inv-from-lead-btn:hover svg path:nth-of-type(3){ stroke:#fff; }
@@ -4878,6 +4883,12 @@ function switchMyLeadsTab(tab){
   if(tab==='closed') renderMyClosedLeads();
 }
 function renderMyLeads(){
+  // SĐT nào đã có hoá đơn (của chính Sale này) → nút hoá đơn trước SĐT đổi sang màu xanh lá
+  const invByPhone = {};
+  { const me = currentUser();
+    (state.invoices||[]).filter(inv=>me && inv.saleId===me.id && inv.customerPhone)
+      .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0))
+      .forEach(inv=>{ const k = normalizePhone(inv.customerPhone); if(k) invByPhone[k] = inv.invoiceNumber || 'HĐ'; }); }
   const user=currentUser();
   const today=todayStr();
 
@@ -4943,7 +4954,7 @@ function renderMyLeads(){
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
-      <td data-label="SĐT"><span class="inv-from-lead-btn" title="Lên hoá đơn cho khách này" onclick="openInvoiceFromLead('${l.id}')"><svg viewBox='0 0 24 24' width='16' height='16' aria-hidden='true'><path d='M5 2.5h14a1 1 0 0 1 1 1V21l-2.5-1.6L15 21l-3-1.6L9 21l-2.5-1.6L4 21V3.5a1 1 0 0 1 1-1z' fill='currentColor'/><path d='M7.5 7h9M7.5 10.5h9M7.5 14h5.5' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/><circle cx='17.2' cy='15.4' r='3.6' fill='#fff'/><path d='M17.2 13.6v3.6M15.4 15.4h3.6' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/></svg></span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+      <td data-label="SĐT"><span class="inv-from-lead-btn${invByPhone[normalizePhone(leadPhone(l))] ? ' done' : ''}" title="${invByPhone[normalizePhone(leadPhone(l))] ? 'Đã lên hoá đơn ' + invByPhone[normalizePhone(leadPhone(l))] + ' — bấm để lên thêm hoá đơn mới' : 'Lên hoá đơn cho khách này'}" onclick="openInvoiceFromLead('${l.id}')"><svg viewBox='0 0 24 24' width='16' height='16' aria-hidden='true'><path d='M5 2.5h14a1 1 0 0 1 1 1V21l-2.5-1.6L15 21l-3-1.6L9 21l-2.5-1.6L4 21V3.5a1 1 0 0 1 1-1z' fill='currentColor'/><path d='M7.5 7h9M7.5 10.5h9M7.5 14h5.5' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/><circle cx='17.2' cy='15.4' r='3.6' fill='#fff'/><path d='M17.2 13.6v3.6M15.4 15.4h3.6' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/></svg></span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
