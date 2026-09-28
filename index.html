@@ -320,6 +320,9 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Data chốt tổng: SĐT chốt lần 2 trở đi → tô màu cả dòng (không ghi chú) */
+  #mgrClosedLeadsTable tr.closed-repeat-row td{ background:rgba(168,85,247,0.16) !important; }
+  #mgrClosedLeadsTable tr.closed-repeat-row td:first-child{ box-shadow:inset 3px 0 0 #A855F7; }
   /* Cài đặt: các mục dạng nút bấm, 4 nút/hàng (máy nhỏ 3 → 2) */
   .settings-tool-grid{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; }
   @media (max-width:1100px){ .settings-tool-grid{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
@@ -5560,6 +5563,18 @@ function applyMgrClosedCustomRange(){
   });
   renderMgrClosedLeads();
 }
+// Các dòng "Đã chốt" là lần chốt THỨ 2 TRỞ ĐI của cùng 1 SĐT (xét toàn hệ thống, theo thứ tự Ngày chốt).
+// Lần chốt đầu tiên của số đó KHÔNG bị tô — chỉ tô các lần lặp lại.
+function closedRepeatLeadIds(){
+  const closed = state.leads.filter(l=>l.status==='Đã chốt' && normalizePhone(leadPhone(l)))
+    .sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||'') || (a.assignedAt||a.createdAt||0)-(b.assignedAt||b.createdAt||0));
+  const seen = new Set(), repeat = new Set();
+  closed.forEach(l=>{
+    const k = normalizePhone(leadPhone(l));
+    if(seen.has(k)) repeat.add(l.id); else seen.add(k);
+  });
+  return repeat;
+}
 function renderMgrClosedLeads(){
   const scope = scopeBranchId();
   const canSeePhone = currentUser().role !== 'team_manager';
@@ -5636,11 +5651,12 @@ function renderMgrClosedLeads(){
       table.innerHTML = '<tr><td class="empty-note">Chưa có data nào được chốt trong khoảng đang lọc.</td></tr>';
       return;
     }
+    const repeatIds = closedRepeatLeadIds();
     table.innerHTML = `<thead><tr><th>Ngày chốt</th><th>Người chốt</th><th>Chi nhánh</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Số tiền chốt</th></tr></thead><tbody>` +
       limitRows('mgrClosed', leads).map(l=>{
         const assignee = state.users.find(u=>u.id===l.assignedTo);
         const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
-        return `<tr>
+        return `<tr${repeatIds.has(l.id) ? ' class="closed-repeat-row"' : ''}>
         <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
         <td data-label="Người chốt">${l.assignedToName||'—'}</td>
         <td data-label="Chi nhánh">${branchLabel}</td>
