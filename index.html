@@ -765,6 +765,7 @@
   <div style="max-width:360px;">
     <div style="font-weight:700; font-size:17px; margin-bottom:8px;">Đang tải dữ liệu…</div>
     <div id="loadingText" style="color:var(--ink-soft); font-size:13.5px;">Đang kết nối tới máy chủ dữ liệu.</div>
+    <div id="loadingSlowNote" style="display:none; margin-top:14px; font-size:13px; line-height:1.5; color:var(--ink-soft);"></div>
   </div>
 </div>
 
@@ -9154,6 +9155,24 @@ function settingsAddBranch(){
 }
 
 /* =========================== KHỞI ĐỘNG =========================== */
+// Tải quá lâu (thường do máy chủ Firebase từ chối/chậm kết nối, không phải do app) → báo rõ phần nào
+// chưa tải xong + nút tải lại, thay vì để màn "Đang tải" quay mãi không biết lý do.
+const LOADED_LABELS = {branches:'Chi nhánh', users:'Người dùng', trash:'Thùng rác', leads:'Data', checkins:'Điểm danh hôm nay', dailyRotation:'Vòng chia data', managerConfirms:'Xác nhận quản lý', mktBranches:'Team MKT'};
+const loadStartedAt = Date.now();
+const slowLoadTimer = setInterval(()=>{
+  if(appReady){ clearInterval(slowLoadTimer); return; }
+  const secs = Math.round((Date.now()-loadStartedAt)/1000);
+  if(secs < 15) return;
+  const pending = Object.keys(loaded).filter(k=>!loaded[k]).map(k=>LOADED_LABELS[k]||k);
+  const box = document.getElementById('loadingSlowNote');
+  if(!box) return;
+  box.style.display = 'block';
+  box.innerHTML = `Đã chờ ${secs} giây${pending.length ? ` — còn chờ: <b>${pending.join(', ')}</b>` : ''}.<br>
+    Thường do mạng yếu hoặc máy chủ dữ liệu đang quá tải (quá nhiều thiết bị mở app cùng lúc).<br>
+    <button class="btn-primary btn-small" style="margin-top:10px;" onclick="location.reload()">🔄 Tải lại</button>
+    <div style="font-size:12px; margin-top:8px;">Mẹo: đóng bớt các tab/thiết bị đang mở app không dùng tới rồi tải lại.</div>`;
+  if(secs > 180) clearInterval(slowLoadTimer);
+}, 1000);
 initFirebase();
 </script>
 </body>
