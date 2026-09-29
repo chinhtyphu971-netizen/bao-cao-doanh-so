@@ -3455,6 +3455,10 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
 // Không hạ cấp data đã "Đã chốt". Mỗi hoá đơn chỉ đồng bộ 1 lần (cờ leadStatusSynced) — sau đó Sale
 // tự đổi lại Tình trạng khác thì hệ thống KHÔNG ép về "Đã lên HĐ" nữa. Sửa & lưu lại hoá đơn thì đồng bộ lại.
 const INVOICED_STATUS = 'Đã lên HĐ';
+// 2 trạng thái này Sale KHÔNG tự chọn ở "Data của tôi" — chỉ đổi theo hoá đơn
+// (lưu hoá đơn → Đã lên HĐ; xác nhận cọc / Chốt đơn → Đã chốt; huỷ cọc → trở lại như trước).
+// Quản lý vẫn chọn tay được ở các trang quản lý để sửa sai.
+const INVOICE_DRIVEN_STATUSES = ['Đã lên HĐ','Đã chốt'];
 function syncLeadsForInvoice(inv){
   const norm = normalizePhone(inv && inv.customerPhone);
   if(!norm || !inv.saleId) return 0;
@@ -3497,9 +3501,17 @@ function markInvoiceDeposited(invoiceId){
   const ownerId = inv.saleId || currentUser().id;
   const owner = state.users.find(x=>x.id===ownerId) || currentUser();
   const norm = normalizePhone(phone);
-  const existing = state.leads.find(l=>l.assignedTo===ownerId && l.status!=='Đã chốt' && normalizePhone(leadPhone(l))===norm);
+  // Sale đã tự chọn "Đã chốt" (hoặc tự thêm dòng) cho SĐT này trong 7 ngày gần đây mà CHƯA gắn hoá đơn nào
+  // → đó chính là đơn này: gắn hoá đơn vào dòng đó, KHÔNG tạo thêm dòng chốt mới (tránh doanh thu bị cộng đôi).
+  const d7 = new Date(); d7.setDate(d7.getDate()-7); const since = toLocalDateStr(d7);
+  const recentClosed = state.leads
+    .filter(l=>l.assignedTo===ownerId && l.status==='Đã chốt' && !l.invoiceId && (l.closedDate||'')>=since && normalizePhone(leadPhone(l))===norm)
+    .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''))[0];
+  const existing = recentClosed || state.leads.find(l=>l.assignedTo===ownerId && l.status!=='Đã chốt' && normalizePhone(leadPhone(l))===norm);
   const amount = Number(inv.totalAmount)||0;
-  const msg = existing
+  const msg = recentClosed
+    ? `Khách "${inv.customerName}" đã được bạn ghi "Đã chốt" ngày ${fmtDate(recentClosed.closedDate)}. Hoá đơn sẽ được gắn vào đúng dòng đó (số tiền cập nhật thành ${fmtMoney(amount)} đ) — không tạo thêm dòng mới.`
+    : existing
     ? `Khách "${inv.customerName}" đang có trong data của bạn (${existing.status||'chưa cập nhật'}). Data đó sẽ được chuyển sang "Đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`
     : `Thêm khách "${inv.customerName}" vào "Data đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`;
   const oldCust = isOldCustomerInvoice(inv);
@@ -3509,7 +3521,9 @@ function markInvoiceDeposited(invoiceId){
     if(existing){
       link = {leadId: existing.id, created: false, markedAt: Date.now(),
         prev: {status: existing.status||'', closedDate: existing.closedDate||'', closedAmount: (existing.closedAmount===undefined ? null : existing.closedAmount)}};
-      const updates = {status:'Đã chốt', closedDate: today, closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
+      const updates = recentClosed
+        ? {closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber} // giữ nguyên Ngày chốt Sale đã ghi
+        : {status:'Đã chốt', closedDate: today, closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
       if(!existing.customerName) updates.customerName = inv.customerName;
       Object.assign(existing, updates);
       fbUpdateLead(existing.id, updates);
@@ -5009,9 +5023,9 @@ function renderMyLeads(){
         </div>
       </td>
       <td data-label="Tình trạng">
-        <select style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;'; renderMyLeads();">
+        <select ${l.status==='Đã chốt' ? 'disabled title="Đã chốt theo hoá đơn — muốn đổi thì huỷ xác nhận cọc ở mục Hoá đơn (hoặc nhờ Quản lý)"' : ''} style="${leadStatusStyle(l.status)} width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;${l.status==='Đã chốt'?' cursor:not-allowed; opacity:0.9;':''}" onchange="updateLeadStatus('${l.id}',this.value); this.style.cssText=leadStatusStyle(this.value)+'width:120px; min-width:0; min-height:30px; padding:3px 6px; font-size:12.5px;'; renderMyLeads();">
           <option value="">— Chọn —</option>
-          ${getLeadStatusNames().map(s=>`<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('')}
+          ${getLeadStatusNames().map(s=>`<option value="${s}" ${l.status===s?'selected':''} ${INVOICE_DRIVEN_STATUSES.includes(s)?'disabled':''}>${s}${INVOICE_DRIVEN_STATUSES.includes(s)?' (theo hoá đơn)':''}</option>`).join('')}
         </select>
       </td>
       <td data-label="Gọi điện">${callAttemptFieldHtml(l)}</td>
