@@ -1803,6 +1803,18 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="invChoiceModal">
+  <div class="modal">
+    <h2>⚠️ Khách này đã có hoá đơn</h2>
+    <p id="invChoiceText" style="line-height:1.55;"></p>
+    <div class="actions" style="flex-wrap:wrap; gap:8px;">
+      <button class="btn-ghost" onclick="closeInvChoice()">Huỷ</button>
+      <button class="btn-ghost" id="invChoiceEditBtn">✏️ Sửa hoá đơn cũ</button>
+      <button class="btn-primary" id="invChoiceNewBtn">＋ Lên hoá đơn MỚI</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="pinConfirmModal">
   <div class="modal">
     <h2 id="pinConfirmTitle">Xác nhận xoá</h2>
@@ -2996,9 +3008,35 @@ function invoiceDraftChanged(){
   return draftFingerprint(currentInvoiceDraft) !== invoiceDraftSnapshot;
 }
 // Bấm 🧾 cạnh SĐT ở "Data của tôi" → mở ngay hoá đơn mới, điền sẵn SĐT, tên khách và Nguồn kênh
-function openInvoiceFromLead(leadId){
+function closeInvChoice(){ document.getElementById('invChoiceModal').classList.remove('show'); }
+// Bấm biểu tượng hoá đơn trước SĐT: nếu khách ĐÃ có hoá đơn (của chính Sale) → hỏi rõ muốn SỬA hoá đơn cũ
+// hay LÊN hoá đơn MỚI (các bạn hay tưởng bấm vào là sửa hoá đơn cũ → vô tình lên trùng hoá đơn).
+function openInvoiceFromLead(leadId, skipCheck){
   const lead = state.leads.find(l=>l.id===leadId);
   if(!lead) return;
+  if(!skipCheck){
+    const me = currentUser();
+    const norm = normalizePhone(leadPhone(lead));
+    const existingInv = norm ? (state.invoices||[])
+      .filter(inv=>me && inv.saleId===me.id && normalizePhone(inv.customerPhone)===norm)
+      .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0] : null;
+    if(existingInv){
+      const count = (state.invoices||[]).filter(inv=>me && inv.saleId===me.id && normalizePhone(inv.customerPhone)===norm).length;
+      document.getElementById('invChoiceText').innerHTML =
+        `Khách <b>${escHtml(existingInv.customerName||lead.customerName||'')}</b> đã được lên hoá đơn <b>${escHtml(existingInv.invoiceNumber||'')}</b> ngày ${fmtDate(existingInv.invoiceDate)} (${fmtMoney(existingInv.finalAmount)} đ)${count>1?` — tổng cộng ${count} hoá đơn`:''}.<br><br>`+
+        `• Muốn <b>chỉnh lại</b> hoá đơn đó (thêm/bớt hàng, đổi giá...) → bấm <b>✏️ Sửa hoá đơn cũ</b>.<br>`+
+        `• Khách <b>đặt thêm 1 đơn khác</b> → bấm <b>＋ Lên hoá đơn MỚI</b>.`;
+      document.getElementById('invChoiceEditBtn').innerHTML = `✏️ Sửa ${escHtml(existingInv.invoiceNumber||'hoá đơn cũ')}`;
+      document.getElementById('invChoiceEditBtn').onclick = ()=>{
+        closeInvChoice();
+        const go = ()=>{ goPage('invoices'); editInvoiceDraft(existingInv.id); };
+        if(currentInvoiceDraft && invoiceDraftChanged()) autoSaveInvoiceThen(go); else go();
+      };
+      document.getElementById('invChoiceNewBtn').onclick = ()=>{ closeInvChoice(); openInvoiceFromLead(leadId, true); };
+      document.getElementById('invChoiceModal').classList.add('show');
+      return;
+    }
+  }
   const go = ()=>{
     const d = newInvoiceDraft();
     const ph = leadPhone(lead);
@@ -5016,7 +5054,7 @@ function renderMyLeads(){
       return `<tr>
       <td data-label="Ngày nhận">${fmtDateTimeShort(l.assignedAt)}</td>
       <td data-label="Nguồn"><div style="display:flex; align-items:center; gap:6px;"><span style="width:74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; font-size:11px;" title="${leadSource(l)}">${leadSource(l)}</span><span class="copy-icon" style="flex-shrink:0;" onclick="copyText('${leadSource(l).replace(/'/g,"\\'")}','Đã copy nguồn')">📋</span></div></td>
-      <td data-label="SĐT"><span class="inv-from-lead-btn${invByPhone[normalizePhone(leadPhone(l))] ? ' done' : ''}" title="${invByPhone[normalizePhone(leadPhone(l))] ? 'Đã lên hoá đơn ' + invByPhone[normalizePhone(leadPhone(l))] + ' — bấm để lên thêm hoá đơn mới' : 'Lên hoá đơn cho khách này'}" onclick="openInvoiceFromLead('${l.id}')"><svg viewBox='0 0 24 24' width='16' height='16' aria-hidden='true'><path d='M5 2.5h14a1 1 0 0 1 1 1V21l-2.5-1.6L15 21l-3-1.6L9 21l-2.5-1.6L4 21V3.5a1 1 0 0 1 1-1z' fill='currentColor'/><path d='M7.5 7h9M7.5 10.5h9M7.5 14h5.5' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/><circle cx='17.2' cy='15.4' r='3.6' fill='#fff'/><path d='M17.2 13.6v3.6M15.4 15.4h3.6' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/></svg></span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
+      <td data-label="SĐT"><span class="inv-from-lead-btn${invByPhone[normalizePhone(leadPhone(l))] ? ' done' : ''}" title="${invByPhone[normalizePhone(leadPhone(l))] ? 'Đã lên hoá đơn ' + invByPhone[normalizePhone(leadPhone(l))] + ' — bấm để chọn: sửa hoá đơn này hoặc lên hoá đơn mới' : 'Lên hoá đơn cho khách này'}" onclick="openInvoiceFromLead('${l.id}')"><svg viewBox='0 0 24 24' width='16' height='16' aria-hidden='true'><path d='M5 2.5h14a1 1 0 0 1 1 1V21l-2.5-1.6L15 21l-3-1.6L9 21l-2.5-1.6L4 21V3.5a1 1 0 0 1 1-1z' fill='currentColor'/><path d='M7.5 7h9M7.5 10.5h9M7.5 14h5.5' stroke='#fff' stroke-width='1.7' stroke-linecap='round'/><circle cx='17.2' cy='15.4' r='3.6' fill='#fff'/><path d='M17.2 13.6v3.6M15.4 15.4h3.6' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/></svg></span>${leadPhone(l)} <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span></td>
       <td data-label="Tên khách">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="custName_${l.id}" value="${l.customerName||''}" placeholder="Chưa có tên" style="width:105px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateLeadField('${l.id}','customerName',this.value)">
