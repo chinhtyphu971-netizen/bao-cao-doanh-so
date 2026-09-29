@@ -2118,7 +2118,8 @@ function startFirebaseListeners(){
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
   fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
-  fbTrash.on('value',    snap=>{ state.trash    = Object.values(snap.val()||{}); markLoaded('trash');    onDataChanged(); });
+  // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
+  markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
   // của HÔM NAY nên chỉ cần theo dõi đúng 1 ngày đó, không tải cả lịch sử các ngày cũ (tiết kiệm
   // dung lượng rất nhiều khi dùng lâu dài). Tự chuyển sang theo dõi ngày mới khi qua 0h — nghĩa là
@@ -2128,26 +2129,11 @@ function startFirebaseListeners(){
 
   // "reports": tải theo vai trò sau khi đăng nhập — xem setupRoleScopedListeners()
 
-  // "leads" (kho data từ MKT) cũng sẽ tăng dần theo thời gian — dùng đúng cơ chế tối ưu như reports
-  // TRƯỚC ĐÂY: once('value') tải hết, rồi gắn child_added → Firebase TẢI LẠI TOÀN BỘ lần nữa (mỗi lần
-  // mở app tốn gấp đôi). NAY: gắn child_* trước (chỉ tải 1 lần), rồi once('value') chỉ để biết đã tải
-  // xong — lần đọc này Firebase lấy từ bộ nhớ đệm của chính listener, không tốn thêm băng thông.
-  const leadsMap = {};
-  let leadsReady = false;
-  const leadsSync = ()=>{ if(!leadsReady) return; state.leads=Object.values(leadsMap); onDataChanged(); };
-  fbLeads.on('child_added', s=>{ leadsMap[s.key]=s.val(); if(leadsReady){ leadsSync(); tryAutoDistribute(); } });
-  fbLeads.on('child_changed', s=>{ leadsMap[s.key]=s.val(); leadsSync(); });
-  fbLeads.on('child_removed', s=>{ delete leadsMap[s.key]; leadsSync(); });
-  fbLeads.once('value').then(()=>{
-    leadsReady = true;
-    state.leads = Object.values(leadsMap);
-    markLoaded('leads');
-    onDataChanged();
-    tryAutoDistribute();
-  }).catch(err=>{
-    console.error('Lỗi tải kho data:', err);
-    markLoaded('leads');
-  });
+  // "leads" (kho data) KHÔNG còn tải chung cho mọi người lúc mở app nữa — tải THEO VAI TRÒ sau khi
+  // đăng nhập (xem subscribeLeadsForUser): Sale chỉ tải data của chính mình + các data đã chốt (để nhận
+  // biết khách cũ), Quản lý/MKT mới tải cả kho. Trước đây ai mở app cũng tải toàn bộ vài nghìn data →
+  // mở app chậm và tốn phí tải xuống Firebase.
+  markLoaded('leads');
 
   // "Làm mới cho tất cả": bỏ qua giá trị đọc được lần đầu (đó là lệnh làm mới cũ từ trước,
   // không phải lệnh mới) — chỉ tự tải lại trang khi có lệnh MỚI được phát ra sau khi trang đã mở.
@@ -2899,14 +2885,49 @@ function parsePriceNumber(s){
 }
 // Cấu trúc cột cố định theo đúng bảng Sheet mẫu: A=STT, B=Mã, C=Tên, D=Giá 10SP, E=Giá 100SP,
 // F=Giá 1000SP, G=Ảnh (bỏ qua, không đọc được qua CSV), H=Màu, I=Size, J=Mẫu in (tuỳ chọn — hoặc cột bất kỳ có tiêu đề "Mẫu in").
+// Chuẩn hoá link Sheet → link tải CSV (chấp nhận cả link "Publish to web" dạng trang web và link chỉnh sửa thường)
+function toSheetCsvUrl(url){
+  let u = String(url||'').trim();
+  if(!u) return '';
+  // Link "Publish to web" dạng trang web (pubhtml) → đổi sang CSV
+  if(/\/pubhtml/.test(u)) u = u.replace('/pubhtml', '/pub') + (u.includes('?') ? '&' : '?') + 'output=csv';
+  // Link chỉnh sửa thường .../spreadsheets/d/<ID>/edit#gid=123 → link xuất CSV (Sheet phải để "Bất kỳ ai có link đều xem được")
+  const m = u.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)\/(edit|view)/);
+  if(m){
+    const gid = (u.match(/[#&?]gid=(\d+)/)||[])[1] || '0';
+    u = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
+  }
+  // Chống lấy bản cũ trong bộ nhớ đệm trình duyệt
+  return u + (u.includes('?') ? '&' : '?') + '_t=' + Date.now();
+}
+// Khoá trong Firebase KHÔNG được chứa . # $ [ ] / → mã có các ký tự này (VD "A55.1", "A/12") trước đây làm
+// cả lần cập nhật bị lỗi. Giờ tự thay bằng "_" ở KHOÁ lưu trữ, còn mã hiển thị (code) giữ nguyên.
+function productKeyFor(code){ return String(code).replace(/[.#$\[\]\/]/g, '_'); }
 async function syncProductsFromSheet(){
+  const inputEl = document.getElementById('productSheetUrlInput');
+  // Dán link mới mà quên bấm "Lưu link" → vẫn dùng link đang dán và tự lưu luôn
+  if(inputEl && inputEl.value.trim() && inputEl.value.trim()!==(state.productSheetUrl||'').trim()){
+    state.productSheetUrl = inputEl.value.trim();
+    fbProductSheetUrl.set(state.productSheetUrl);
+  }
   const url = (state.productSheetUrl||'').trim();
   if(!url){ showToast('Chưa có link Google Sheet — điền ở mục bên dưới trước.'); return; }
   showToast('Đang tải dữ liệu từ Sheet...');
+  let text = '';
   try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('fetch failed');
-    const text = await res.text();
+    const res = await fetch(toSheetCsvUrl(url), {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    text = await res.text();
+  } catch(e){
+    console.error('Sheet fetch error:', e);
+    showToast('Không tải được Sheet (' + (e.message||'lỗi mạng') + ') — kiểm tra link đã Publish to web dạng CSV, hoặc Sheet đã chia sẻ "Bất kỳ ai có link".');
+    return;
+  }
+  if(/^\s*</.test(text)){
+    showToast('Link trả về trang web chứ không phải dữ liệu CSV — vào Sheet: Tệp > Chia sẻ > Công bố lên web > chọn định dạng CSV rồi dán lại link.');
+    return;
+  }
+  try{
     const rows = parseCsv(text);
     const products = {};
     // Cột "Mẫu in": tìm theo tiêu đề có chữ "Mẫu in" (đặt ở cột nào cũng được), không có tiêu đề thì mặc định cột J
@@ -2926,20 +2947,30 @@ async function syncProductsFromSheet(){
       const colors = (r[7]||'').trim();
       const sizeInfo = (r[8]||'').trim();
       const designs = (r[designCol]||'').trim(); // danh sách mẫu in, cách nhau bởi dấu phẩy (VD mã A55)
-      products[code] = {code, name, price10, price100, price1000, colors, sizeInfo, designs, updatedAt: Date.now()};
+      products[productKeyFor(code)] = {code, name, price10, price100, price1000, colors, sizeInfo, designs, updatedAt: Date.now()};
     });
     const count = Object.keys(products).length;
     if(count===0){
       showToast('Không đọc được sản phẩm nào — kiểm tra lại link (phải là link Publish to web dạng CSV) và đúng thứ tự cột.');
       return;
     }
-    await fbProducts.set(products);
+    const before = new Set((state.products||[]).map(p=>p.code));
+    const newCodes = Object.values(products).map(p=>p.code).filter(c=>!before.has(c));
+    try{
+      await fbProducts.set(products);
+    } catch(e){
+      console.error('Products save error:', e);
+      showToast('Đọc Sheet được nhưng KHÔNG lưu được lên máy chủ (' + (e.message||'lỗi quyền ghi') + '). Thử lại hoặc báo quản trị.');
+      return;
+    }
     state.products = Object.values(products); // cập nhật ngay tại chỗ, không chờ Firebase đồng bộ vòng lại
-    showToast(`Đã cập nhật ${count} mã sản phẩm từ Sheet.`);
+    showToast(`Đã cập nhật ${count} mã sản phẩm từ Sheet` + (newCodes.length ? ` — mã mới: ${newCodes.slice(0,8).join(', ')}${newCodes.length>8?'…':''}` : ' (không có mã mới)') + '.');
     settingsProductsOpen = true; // tự mở rộng khung để thấy ngay danh sách vừa cập nhật
     renderMgrSettings();
+    if(currentInvoiceDraft && currentPageId==='invoices') renderInvoiceEditor(); // hoá đơn đang mở thấy mã mới ngay
   } catch(e){
-    showToast('Lỗi khi tải Sheet — kiểm tra lại link đã Publish to web (File > Share > Publish to web > CSV) chưa.');
+    console.error('Sheet parse error:', e);
+    showToast('Đọc dữ liệu Sheet bị lỗi — kiểm tra lại đúng thứ tự cột: STT, Mã, Tên, Giá 10, Giá 100, Giá 1000, Ảnh, Màu, Size.');
   }
 }
 function saveProductSheetUrl(){
@@ -3523,7 +3554,7 @@ function syncLeadsForInvoice(inv){
 }
 const invoiceLeadSyncDone = new Set(); // chống ghi lặp trong lúc chờ Firebase trả cờ về
 function syncPendingInvoiceLeadStatuses(){
-  if(!loaded.leads || !state.leads.length || !state.invoices || !state.invoices.length) return;
+  if(!leadsDataReady || !state.leads.length || !state.invoices || !state.invoices.length) return;
   state.invoices.forEach(inv=>{
     if(!inv || inv.leadStatusSynced || invoiceLeadSyncDone.has(inv.id)) return;
     invoiceLeadSyncDone.add(inv.id);
@@ -4180,7 +4211,7 @@ function resetChatNotifyState(){
 }
 function checkNewLeadNotifications(){
   const user = currentUser();
-  if(!user) return;
+  if(!user || !leadsDataReady) return; // chờ kho data tải xong, tránh báo "data mới" nhầm cho data có sẵn
   const myLeadIds = state.leads.filter(l=>l.assignedTo===user.id).map(l=>l.id);
   if(!leadNotifyInitialized){
     // Lần đầu sau khi đăng nhập/mở app: đánh dấu data đã có sẵn là "đã biết", tránh báo động giả lúc mới mở
@@ -4424,7 +4455,7 @@ function runDistributionManual(){
 }
 let autoDistributeTimer = null;
 function tryAutoDistribute(){
-  if(!appReady) return;
+  if(!appReady || !leadsDataReady) return;
   const user=currentUser();
   if(!user || (user.role!=='general_manager' && user.role!=='team_manager' && user.role!=='data_manager')) return;
   // Gộp lại (debounce) — MKT nhập hàng loạt sẽ bắn nhiều sự kiện "có lead mới" liên tiếp; không
@@ -6860,7 +6891,52 @@ function attachScoped(name, key, query, apply, childMode, onFirstLoad){
   query.on('child_removed', s=>{ delete map[s.key]; sync(); });
   query.once('value').then(()=>{ ready = true; apply(Object.values(map)); if(onFirstLoad) onFirstLoad(); });
 }
+// ===== KHO DATA (leads) TẢI THEO VAI TRÒ =====
+//  - Sale (nhân viên): data được chia cho CHÍNH MÌNH + mọi data "Đã chốt" (cần để nhận biết "Khách cũ"
+//    trên toàn hệ thống). Dùng truy vấn Firebase orderByChild → chỉ tải đúng phần cần.
+//    ⚠ Cần khai báo ".indexOn": ["assignedTo","status"] cho nhánh leads trong Firebase Rules, nếu không
+//    Firebase vẫn gửi cả kho về rồi mới lọc (không tiết kiệm được gì).
+//  - Quản lý chung / Quản lý Data / Trưởng team / MKT / Quản lý MKT: tải cả kho như trước.
+let leadsSubKey = null, leadsSubQueries = [], leadsDataReady = false;
+function subscribeLeadsForUser(user){
+  const r = user ? user.role : null;
+  const fullRoles = ['general_manager','data_manager','team_manager','mkt','mkt_manager'];
+  const key = !user ? 'none' : (fullRoles.includes(r) ? 'all' : 'sale:'+user.id);
+  if(key===leadsSubKey) return;
+  leadsSubQueries.forEach(q=>{ try{ q.off(); }catch(e){} });
+  leadsSubQueries = []; leadsSubKey = key; leadsDataReady = false; state.leads = [];
+  if(key==='none'){ onDataChanged(); return; }
+  const queries = key==='all'
+    ? [fbLeads]
+    : [fbLeads.orderByChild('assignedTo').equalTo(user.id), fbLeads.orderByChild('status').equalTo('Đã chốt')];
+  const maps = queries.map(()=>({}));
+  const myKey = key;
+  let ready = false;
+  const sync = ()=>{
+    if(!ready || leadsSubKey!==myKey) return;
+    const merged = {};
+    for(let i=maps.length-1;i>=0;i--) Object.assign(merged, maps[i]); // data của chính mình ưu tiên (bản mới nhất)
+    state.leads = Object.values(merged);
+    onDataChanged();
+  };
+  queries.forEach((q, qi)=>{
+    q.on('child_added',   sn=>{ maps[qi][sn.key]=sn.val(); if(ready){ sync(); tryAutoDistribute(); } });
+    q.on('child_changed', sn=>{ maps[qi][sn.key]=sn.val(); sync(); });
+    q.on('child_removed', sn=>{ delete maps[qi][sn.key]; sync(); });
+    leadsSubQueries.push(q);
+  });
+  Promise.all(queries.map(q=>q.once('value'))).then(()=>{
+    if(leadsSubKey!==myKey) return;
+    ready = true; leadsDataReady = true;
+    sync();
+    tryAutoDistribute();
+  }).catch(err=>{
+    console.error('Lỗi tải kho data:', err);
+    ready = true; leadsDataReady = true; sync();
+  });
+}
 function setupRoleScopedListeners(user){
+  subscribeLeadsForUser(user);
   const r = user ? user.role : null;
   const isMkt = r==='mkt' || r==='mkt_manager';
   const isSaleMgr = r==='team_manager' || r==='data_manager' || r==='general_manager';
@@ -6875,6 +6951,10 @@ function setupRoleScopedListeners(user){
     ()=>{ // lần tải đầu xong: trang Nộp báo cáo không tự vẽ lại → vẽ lại 1 lần cho đúng trạng thái đã nộp
       if(currentPageId==='staffReport' && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) goPage('staffReport');
     });
+
+  // Thùng rác (báo cáo đã xoá): chỉ Quản lý chung / Quản lý Data
+  const trashKey = (r==='general_manager' || r==='data_manager') ? 'on' : 'none';
+  attachScoped('trash', trashKey, trashKey==='on' ? fbTrash : null, setAndRender('trash'), false);
 
   // Hoá đơn
   const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
