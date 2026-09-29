@@ -4258,7 +4258,7 @@ function fbSetReport(r){ fbReports.child(r.id).set(r); }
 function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
-function fbSetLead(l){ fbLeads.child(l.id).set(l); }
+function fbSetLead(l){ const pn = normalizePhone(leadPhone(l)); if(pn && pn!=='—') l.phoneNorm = pn; fbLeads.child(l.id).set(l); }
 function fbDeleteLead(id){ fbLeads.child(id).remove(); }
 function fbSetSelfLead(l){ fbSelfLeads.child(l.id).set(l); }
 function fbDeleteSelfLead(id){ fbSelfLeads.child(id).remove(); }
@@ -4524,7 +4524,7 @@ function leadPhone(lead){
   }
   return lead.phone || '—';
 }
-function fbUpdateLead(id, patch){ fbLeads.child(id).update(patch); }
+function fbUpdateLead(id, patch){ if(patch && Object.prototype.hasOwnProperty.call(patch,'phone')) patch.phoneNorm = normalizePhone(patch.phone) || null; fbLeads.child(id).update(patch); }
 function updateLeadField(leadId, field, value){
   const lead = state.leads.find(l=>l.id===leadId);
   if(!lead) return;
@@ -4622,12 +4622,38 @@ function populateMktSourceList(){
 // được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 3 Nguồn khác nhau.
 // extraSources: các Nguồn đã "tạm ghi nhận" ngay trong cùng 1 lượt xử lý (dùng cho nhập hàng loạt,
 // vì các dòng cùng batch chưa kịp nằm trong state.leads để tự kiểm tra chéo nhau).
+// Kết quả tra SĐT trên toàn kho (dành cho MKT — máy MKT không tải cả kho): digits -> [data...]
+let mktPhoneLookup = null;
+function leadsWithPhone(phoneDigits){
+  const local = state.leads.filter(l=>normalizePhone(leadPhone(l))===phoneDigits);
+  if(!mktPhoneLookup || !mktPhoneLookup[phoneDigits]) return local;
+  const byId = {}; local.concat(mktPhoneLookup[phoneDigits]).forEach(l=>{ byId[l.id]=l; });
+  return Object.values(byId);
+}
+async function prefetchPhonesForMkt(digitsList){
+  mktPhoneLookup = null;
+  if(leadsSubKey==='all') return; // đã có cả kho trên máy
+  const uniq = Array.from(new Set(digitsList.filter(Boolean)));
+  const lookup = {};
+  await Promise.all(uniq.map(async d=>{
+    const found = {};
+    const addSnap = snap=>{ const v = snap.val()||{}; Object.keys(v).forEach(k=>{ found[k] = Object.assign({id:k}, v[k]); }); };
+    try{
+      const [a, b] = await Promise.all([
+        fbLeads.orderByChild('phoneNorm').equalTo(d).once('value'),
+        fbLeads.orderByChild('phone').equalTo('0'+d).once('value'), // data cũ chưa có phoneNorm
+      ]);
+      addSnap(a); addSnap(b);
+    }catch(e){ console.error('tra SĐT:', e); }
+    lookup[d] = Object.values(found);
+  }));
+  mktPhoneLookup = lookup;
+}
 function checkPhoneEntryRule(phoneDigits, source, extraSources){
   // Quy về đúng "nguồn gốc" của cả nhóm trước khi so sánh — 2 kênh khác tên nhưng đã gộp nhóm
   // (cùng 1 người/nguồn thật) sẽ được tính là CÙNG 1 nguồn, không bị đếm nhầm thành 2 nguồn khác nhau.
   const canonSource = resolveMktSourceCanonicalName(source);
-  const existingSources = state.leads
-    .filter(l=>normalizePhone(leadPhone(l))===phoneDigits)
+  const existingSources = leadsWithPhone(phoneDigits)
     .map(l=>resolveMktSourceCanonicalName(leadSource(l)));
   const allSources = existingSources.concat((extraSources||[]).map(resolveMktSourceCanonicalName));
   const norm = s => String(s||'').trim().toLowerCase();
@@ -4669,7 +4695,7 @@ function analyzeMktBulkLines(source){
     return {line, phone, name, digits, status:'valid', text: check.sources.length>0 ? `Hợp lệ — lần ${check.sources.length+1}/3` : 'Hợp lệ'};
   });
 }
-function previewMktBulk(){
+async function previewMktBulk(){
   const sourceEl = document.getElementById('mktBulkSource');
   const errEl = document.getElementById('mktBulkError');
   errEl.textContent = '';
@@ -4680,6 +4706,13 @@ function previewMktBulk(){
   const rawLines = document.getElementById('mktBulkText').value.split('\n').map(s=>s.trim()).filter(Boolean);
   if(rawLines.length===0){ errEl.textContent = 'Chưa dán số điện thoại nào.'; return; }
 
+  // Máy MKT chỉ có data của mình → tra nhanh các SĐT này trên toàn kho trước khi kiểm tra trùng
+  const previewEl = document.getElementById('mktBulkPreview');
+  if(leadsSubKey!=='all'){
+    if(previewEl) previewEl.innerHTML = '<div style="color:var(--ink-soft);">⏳ Đang kiểm tra trùng SĐT trên toàn hệ thống…</div>';
+    const digitsList = rawLines.map(line=>normalizePhone((line.split(/\t|,/)[0]||'').trim()));
+    await prefetchPhonesForMkt(digitsList);
+  }
   const results = analyzeMktBulkLines(source);
   mktBulkPreviewResults = {source, results};
 
@@ -4713,6 +4746,7 @@ function submitMktBulk(){
     const lead = {
       id: 'manual_' + uid(),
       phone: String(r.phone).trim(),
+      phoneNorm: normalizePhone(r.phone),
       source: String(source).trim(),
       importedAt: Date.now(),
       createdBy: u ? u.id : null,
@@ -6900,15 +6934,27 @@ function attachScoped(name, key, query, apply, childMode, onFirstLoad){
 let leadsSubKey = null, leadsSubQueries = [], leadsDataReady = false;
 function subscribeLeadsForUser(user){
   const r = user ? user.role : null;
-  const fullRoles = ['general_manager','data_manager','team_manager','mkt','mkt_manager'];
-  const key = !user ? 'none' : (fullRoles.includes(r) ? 'all' : 'sale:'+user.id);
+  const fullRoles = ['general_manager','data_manager','team_manager'];
+  // MKT: data mình nhập + data đã chốt (tính doanh thu theo Nguồn). Quản lý MKT: data cả team MKT + đã chốt.
+  let mktIds = null;
+  if(r==='mkt') mktIds = [user.id];
+  if(r==='mkt_manager'){
+    mktIds = state.users.filter(x=>x.mktBranchId && x.mktBranchId===user.mktBranchId && (x.role==='mkt'||x.role==='mkt_manager')).map(x=>x.id);
+    if(!mktIds.includes(user.id)) mktIds.push(user.id);
+    mktIds.sort();
+  }
+  const key = !user ? 'none'
+    : (fullRoles.includes(r) ? 'all'
+    : (mktIds ? 'mkt:'+mktIds.join(',') : 'sale:'+user.id));
   if(key===leadsSubKey) return;
   leadsSubQueries.forEach(q=>{ try{ q.off(); }catch(e){} });
   leadsSubQueries = []; leadsSubKey = key; leadsDataReady = false; state.leads = [];
   if(key==='none'){ onDataChanged(); return; }
   const queries = key==='all'
     ? [fbLeads]
-    : [fbLeads.orderByChild('assignedTo').equalTo(user.id), fbLeads.orderByChild('status').equalTo('Đã chốt')];
+    : (mktIds
+      ? mktIds.map(id=>fbLeads.orderByChild('createdBy').equalTo(id)).concat([fbLeads.orderByChild('status').equalTo('Đã chốt')])
+      : [fbLeads.orderByChild('assignedTo').equalTo(user.id), fbLeads.orderByChild('status').equalTo('Đã chốt')]);
   const maps = queries.map(()=>({}));
   const myKey = key;
   let ready = false;
@@ -6930,10 +6976,30 @@ function subscribeLeadsForUser(user){
     ready = true; leadsDataReady = true;
     sync();
     tryAutoDistribute();
+    if(key==='all') backfillLeadPhoneNorm();
   }).catch(err=>{
     console.error('Lỗi tải kho data:', err);
     ready = true; leadsDataReady = true; sync();
   });
+}
+// Mỗi data có thêm trường phoneNorm (SĐT đã chuẩn hoá) để MKT kiểm tra trùng SĐT bằng truy vấn nhỏ,
+// không cần tải cả kho. Máy Quản lý (có cả kho) tự bổ sung phoneNorm cho data cũ — chạy 1 lần/phiên,
+// chỉ ghi những data còn thiếu/sai.
+let phoneNormBackfilled = false;
+function backfillLeadPhoneNorm(){
+  if(phoneNormBackfilled) return;
+  phoneNormBackfilled = true;
+  const updates = {};
+  state.leads.forEach(l=>{
+    const pn = normalizePhone(leadPhone(l));
+    if(pn && l.phoneNorm !== pn){ updates[l.id + '/phoneNorm'] = pn; l.phoneNorm = pn; }
+  });
+  const keys = Object.keys(updates);
+  for(let i=0;i<keys.length;i+=500){
+    const chunk = {}; keys.slice(i,i+500).forEach(k=>chunk[k]=updates[k]);
+    fbLeads.update(chunk).catch(e=>console.error('backfill phoneNorm:', e));
+  }
+  if(keys.length) console.log('Đã bổ sung phoneNorm cho', keys.length, 'data');
 }
 function setupRoleScopedListeners(user){
   subscribeLeadsForUser(user);
