@@ -632,6 +632,11 @@
     /* Ô nhập "ẩn viền": nhìn như chữ thường cho đỡ rối mắt — rê chuột thấy viền mờ, bấm vào để sửa thì hiện viền rõ */
     #myClosedLeadsTable td input, #myClosedLeadsTable td select{ background-color:transparent !important; border-color:transparent; box-shadow:none !important; transition:border-color .12s, background-color .12s; }
     #myClosedLeadsTable td select{ -webkit-appearance:none; -moz-appearance:none; appearance:none; background-image:none !important; cursor:pointer; }
+    /* Danh sách xổ xuống của ô Nguồn: nền tối, chữ sáng rõ (ô trong suốt làm danh sách bị nền trắng + chữ mờ) */
+    #myClosedLeadsTable td select{ color-scheme:dark; }
+    #myClosedLeadsTable td select option{ background:#1B2438; color:#EEF2FA; }
+    #myClosedLeadsTable td select option:checked{ background:#2F6FE0; color:#fff; }
+    #myClosedLeadsTable td select option:disabled{ color:#8B94AC; }
     #myClosedLeadsTable td input[type=date]::-webkit-calendar-picker-indicator{ opacity:0; }
     #myClosedLeadsTable tr:hover td input, #myClosedLeadsTable tr:hover td select{ border-color:rgba(255,255,255,0.12); }
     #myClosedLeadsTable tr:hover td input[type=date]::-webkit-calendar-picker-indicator{ opacity:0.7; }
