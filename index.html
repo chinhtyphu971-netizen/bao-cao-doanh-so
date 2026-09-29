@@ -622,7 +622,9 @@
     #myClosedLeadsTable .mc-plain{ display:inline-block; padding-left:9px; font-size:12.5px; line-height:32px; }
     #myClosedLeadsTable td > span:not(.copy-icon):not(.mc-plain){ display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; padding-left:9px; font-size:12.5px; }
     #myClosedLeadsTable td > div > span[title]{ max-width:120px !important; padding-left:9px; }
-    #myClosedLeadsTable .mc-name-wrap{ display:flex; align-items:center; gap:6px; }
+    #myClosedLeadsTable .mc-name-wrap, #myClosedLeadsTable .mc-phone-wrap{ display:flex; align-items:center; gap:6px; }
+    #myClosedLeadsTable .mc-phone-wrap input{ flex:1 1 auto; min-width:0; }
+    #myClosedLeadsTable .mc-repeat-tag{ flex:0 0 auto; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; color:#ff9e97; background:rgba(229,57,53,0.18); border:1px solid rgba(229,57,53,0.45); cursor:help; }
     #myClosedLeadsTable .mc-name-wrap input{ flex:1 1 auto; min-width:0; }
     #myClosedLeadsTable .mc-inv{ flex:0 0 auto; font-size:11px; color:var(--ink-soft); white-space:nowrap; }
     #myClosedLeadsTable td button.btn-small{ height:32px; min-height:32px !important; padding:0 8px !important; }
@@ -5282,7 +5284,7 @@ function renderMyClosedLeads(){
         if(ownDup.status==='Đã chốt'){
           // Data cũ CŨNG đã chốt rồi -> đây là khách MUA LẦN 2, không được gộp (gộp sẽ mất luôn
           // doanh thu của lần mua trước) — chỉ tô đỏ cảnh báo để Sale biết mà thôi.
-          dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Khách đã mua lần trước — đây là lần mua thứ ${purchaseNumberForLead(l, u.id)}</div>`;
+          dupWarning = `<span class="mc-repeat-tag" title="Khách đã mua lần trước — đây là lần mua thứ ${purchaseNumberForLead(l, u.id)}">Lần ${purchaseNumberForLead(l, u.id)}</span>`;
         } else {
           dupWarning = `<div style="color:#ff8a80; font-size:11px; margin-top:2px;">⚠️ Đã có trong data của bạn (${ownDup.status||'chưa cập nhật'})</div>
             <button class="btn-ghost btn-small" style="margin-top:4px; font-size:11px; padding:0 8px; min-height:24px;" onclick="mergeManualClosedIntoExisting('${l.id}','${ownDup.id}')">🔗 Gộp vào data có sẵn</button>`;
@@ -5292,7 +5294,9 @@ function renderMyClosedLeads(){
       <td data-label="Ngày chốt">${closedDatePickerHtml(l, 'renderMyClosedLeads()')}</td>
       <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
       <td data-label="SĐT">${l.manualEntry
-        ? `<input type="text" class="mc-in" value="${l.phone||''}" placeholder="SĐT" style="${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`
+        ? (ownDup && ownDup.status==='Đã chốt'
+            ? `<div class="mc-phone-wrap"><input type="text" class="mc-in" value="${l.phone||''}" placeholder="SĐT" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}</div>`
+            : `<input type="text" class="mc-in" value="${l.phone||''}" placeholder="SĐT" style="${isDup?'border-color:#e05353;':''}" onchange="onManualClosedPhoneChange('${l.id}', this.value)">${dupWarning}`)
         : `<span class="mc-plain">${leadPhone(l)}</span> <span class="copy-icon" onclick="copyText('${leadPhone(l)}','Đã copy số điện thoại')">📋</span>`}</td>
       <td data-label="Tên khách"><div class="mc-name-wrap"><input type="text" class="mc-in" value="${l.customerName||''}" placeholder="Chưa có tên" onchange="updateLeadField('${l.id}','customerName',this.value)">${l.invoiceNumber ? `<span class="mc-inv" title="Hoá đơn ${l.invoiceNumber}">🧾 ${l.invoiceNumber}</span>` : ''}</div></td>
       <td data-label="Số tiền chốt"><input type="number" class="mc-in" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="font-weight:600;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null); renderMyClosedLeads();"></td>
