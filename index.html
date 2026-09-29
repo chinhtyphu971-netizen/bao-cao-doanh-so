@@ -1277,7 +1277,12 @@
 
       <!-- ---------- MKT: Doanh thu theo Nguồn mình phụ trách ---------- -->
       <div id="page-mktRevenue" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Doanh thu Nguồn của tôi</h1><p>Doanh thu Sale đã chốt được, tính riêng cho từng Nguồn bạn đang phụ trách</p></div></div>
+        <div class="page-head"><div><h1 id="mktRevenueTitle">Doanh thu Nguồn của tôi</h1><p id="mktRevenueSub">Doanh thu Sale đã chốt được, tính riêng cho từng Nguồn bạn đang phụ trách</p></div>
+          <div id="mktRevenueBackBtns" style="display:none; gap:8px;">
+            <button class="btn-ghost btn-small" onclick="goPage('mktOverview')">← Tổng hợp MKT</button>
+            <button class="btn-ghost btn-small" id="mktRevenueDetailBtn">📋 Xem data đã nhập</button>
+          </div>
+        </div>
         <div class="card">
           <div class="chip-row" style="margin-bottom:14px;">
             <div class="chip" id="mktRevenuePreset_today" onclick="applyMktRevenueDatePreset('today')">Hôm nay</div>
@@ -7143,7 +7148,8 @@ function goPage(pageId){
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
   document.getElementById('page-'+pageId).style.display='block';
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId || (pageId==='mgrSelfLeadsList' && n.dataset.page==='mgrLeadsList')));
+  if(pageId!=='mktRevenue') mktRevenueViewUserId = null;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId || (pageId==='mgrSelfLeadsList' && n.dataset.page==='mgrLeadsList') || (pageId==='mktRevenue' && mktRevenueViewUserId && n.dataset.page==='mktOverview')));
   if(pageId==='staffReport') renderStaffReport();
   if(pageId==='staffHistory') renderStaffHistory();
   if(pageId==='myLeads') renderMyLeads();
@@ -7368,7 +7374,7 @@ function renderMktOverviewPage(){
     const memberTableHtml = isOpen ? `
       <div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">
         <table class="rtable"><thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th><th class="num">Số đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỉ lệ chốt</th></tr></thead><tbody>
-        ${memberRows.map(r=>`<tr style="cursor:pointer;" onclick="openMktPersonDetail('${r.id}')" onmouseenter="this.style.background='var(--panel)'" onmouseleave="this.style.background=''">
+        ${memberRows.map(r=>`<tr style="cursor:pointer;" onclick="openMktPersonRevenue('${r.id}')" onmouseenter="this.style.background='var(--panel)'" onmouseleave="this.style.background=''">
           <td data-label="Tên"><span style="color:var(--accent); text-decoration:underline;">${r.name} ›</span></td>
           <td data-label="Vai trò">${roleLabel(r.role)}</td>
           <td class="num" data-label="Tổng đã nhập">${r.total}</td>
@@ -7518,15 +7524,31 @@ function applyMktRevenueCustomRange(){
   });
   renderMktRevenuePage();
 }
+// Quản lý bấm tên 1 người ở "Tổng hợp MKT" → xem trang Doanh thu Nguồn CỦA NGƯỜI ĐÓ (null = của chính mình)
+let mktRevenueViewUserId = null;
+function openMktPersonRevenue(userId){
+  mktRevenueViewUserId = userId;
+  goPage('mktRevenue');
+}
 function renderMktRevenuePage(){
-  const u = currentUser();
+  const me = currentUser();
+  const canViewOthers = me && ['general_manager','data_manager','mkt_manager'].includes(me.role);
+  const viewed = (canViewOthers && mktRevenueViewUserId) ? state.users.find(x=>x.id===mktRevenueViewUserId) : null;
+  const u = viewed || me;
+  document.getElementById('mktRevenueTitle').textContent = viewed ? `Doanh thu Nguồn — ${viewed.name}` : 'Doanh thu Nguồn của tôi';
+  document.getElementById('mktRevenueSub').textContent = viewed
+    ? `Doanh thu Sale đã chốt được từ các Nguồn ${viewed.name} đang phụ trách`
+    : 'Doanh thu Sale đã chốt được, tính riêng cho từng Nguồn bạn đang phụ trách';
+  const backBox = document.getElementById('mktRevenueBackBtns');
+  backBox.style.display = viewed ? 'flex' : 'none';
+  if(viewed) document.getElementById('mktRevenueDetailBtn').onclick = ()=>openMktPersonDetail(viewed.id);
   document.getElementById('mktRevenueFrom').value = mktRevenueDateFrom || '';
   document.getElementById('mktRevenueTo').value = mktRevenueDateTo || '';
 
   const mySources = (u.assignedSources || []);
   const boxesEl = document.getElementById('mktRevenueSourceBoxes');
   if(mySources.length===0){
-    boxesEl.innerHTML = '<div class="empty-note">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán trước khi xem doanh thu.</div>';
+    boxesEl.innerHTML = viewed ? `<div class="empty-note">${escHtml(viewed.name)} chưa được gán Nguồn nào (gán ở Cài đặt → Nguồn MKT).</div>` : '<div class="empty-note">Bạn chưa được gán Nguồn nào — liên hệ Quản lý chung để được gán trước khi xem doanh thu.</div>';
     document.getElementById('mktRevenueSummary').textContent = '';
     document.getElementById('mktRevenueTable').innerHTML = '';
     document.getElementById('mktRevenuePersonalTotal').textContent = 0;
