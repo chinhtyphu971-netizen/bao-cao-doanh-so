@@ -8739,18 +8739,28 @@ function deleteCallAttemptItem(optId){
 }
 function settingsImportExistingMktSources(){
   // Lấy toàn bộ Nguồn đang thực sự xuất hiện trong data (cả từ Sheet lẫn nhập tay), thêm vào danh
-  // sách Nguồn MKT — bỏ qua những Nguồn đã có sẵn trong danh sách rồi, không tạo trùng.
-  const existingNames = new Set(state.mktSources.map(s=>s.name.toLowerCase()));
-  const foundInData = Array.from(new Set(state.leads.map(l=>leadSource(l)).filter(s=>s && s!=='—')));
-  const toAdd = foundInData.filter(name=>!existingNames.has(name.toLowerCase()));
-  if(toAdd.length===0){ showToast('Không có Nguồn mới nào để lấy thêm'); return; }
+  // sách Nguồn MKT — CHỈ THÊM tên còn thiếu vào danh sách; KHÔNG sửa data, KHÔNG đổi người được gán.
+  // So trùng bằng sourceKey (bỏ qua khác kiểu gõ dấu / khoảng trắng / hoa-thường). Trước đây chỉ so
+  // hoa-thường → tên gõ khác kiểu dấu trong data bị thêm thành 1 Nguồn "sinh đôi" nhìn giống hệt.
+  const existingKeys = new Set(state.mktSources.map(s=>sourceKey(s.name)));
+  const byKey = new Map();
+  state.leads.map(l=>leadSource(l)).filter(s=>s && s!=='—').forEach(n=>{
+    const k = sourceKey(n);
+    if(!existingKeys.has(k) && !byKey.has(k)) byKey.set(k, cleanSourceName(n));
+  });
+  const toAdd = Array.from(byKey.values());
+  const variantGroups = findSourceVariantGroups().length;
+  if(toAdd.length===0){
+    showToast('Không có Nguồn mới nào để lấy thêm' + (variantGroups ? ` — có ${variantGroups} Nguồn bị viết nhiều kiểu, xem Cài đặt → Kiểm tra dữ liệu (mục 8)` : ''));
+    return;
+  }
   toAdd.forEach(name=>{
     const s={id:uid(), name};
     state.mktSources.push(s);
     fbSetMktSource(s);
   });
   renderMgrSettings();
-  showToast(`Đã lấy thêm ${toAdd.length} Nguồn từ data hiện có`);
+  showToast(`Đã lấy thêm ${toAdd.length} Nguồn từ data hiện có` + (variantGroups ? ` — lưu ý có ${variantGroups} Nguồn bị viết nhiều kiểu, xem Kiểm tra dữ liệu (mục 8)` : ''));
 }
 
 /* =========================== SỬA TÊN / XOÁ (KÈM PIN) / KHÔI PHỤC TEAM SALE & TEAM MKT =========================== */
