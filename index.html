@@ -9094,25 +9094,12 @@ function renderDataAudit(){
     add('Nguồn đang gán cho nhiều MKT cùng lúc', 'Doanh thu của Nguồn này được tính cho TẤT CẢ các MKT được gán → khi cộng doanh thu các MKT lại sẽ bị trùng.',
       rows6, ['Nguồn','Các MKT','Số đơn','Doanh thu'], 'Chỉ giữ 1 MKT phụ trách mỗi Nguồn (nếu đúng là làm chung thì bỏ qua mục này).');
   }
-  // 7) Báo cáo Sale tự khai lệch với Data đã chốt (30 ngày gần nhất)
+  // 7) Báo cáo Sale tự khai lệch với Data đã chốt — khung riêng có bộ lọc + xem theo ngày từng người
   {
-    const since = (()=>{ const d=new Date(); d.setDate(d.getDate()-30); return toLocalDateStr(d); })();
-    const sys = {};
-    closed.forEach(l=>{ if(!l.closedDate || l.closedDate<since) return; const k = l.assignedTo+'|'+l.closedDate; const v = sys[k]||(sys[k]={n:0,sum:0}); v.n++; v.sum += Number(l.closedAmount)||0; });
-    const rows = [];
-    (state.reports||[]).filter(r=>r.date>=since).forEach(r=>{
-      const v = sys[r.userId+'|'+r.date] || {n:0,sum:0};
-      const rn = Number(r.orderCount)||0, rs = Number(r.revenue)||0;
-      if(rn!==v.n || Math.abs(rs-v.sum)>1000){
-        rows.push([fmtDate(r.date), escHtml(userName(r.userId)), `${rn} đơn · ${money(rs)}`, `${v.n} đơn · ${money(v.sum)}`,
-          `<b style="color:${rs>=v.sum?'var(--warn)':'var(--danger)'};">${rs-v.sum>=0?'+':''}${fmtMoney(rs-v.sum)} đ</b>`]);
-      }
-    });
-    rows.sort((a,b)=>0);
-    add('Báo cáo Sale tự khai lệch với Data đã chốt (30 ngày)', 'Số đơn/doanh thu Sale ghi trong "Nộp báo cáo" khác với số đơn/tiền thực tế trong Data đã chốt cùng ngày. Lệch nhỏ có thể do đơn tự tìm/đơn viết tay chưa nhập vào hệ thống.',
-      rows, ['Ngày','Sale','Báo cáo tự khai','Data đã chốt','Chênh lệch'], 'Nhắc Sale nhập đủ đơn vào Data đã chốt, hoặc sửa lại báo cáo cho đúng.');
+    const mismatchDays = computeReportDiffRows().filter(r=>r.mismatch).length;
+    sections.push({title:'Chênh lệch giữa Báo cáo Sale và Data đã chốt', why:'Số đơn/doanh thu Sale tự ghi trong "Nộp báo cáo" so với số đơn/tiền thực tế trong Data đã chốt cùng ngày. Lệch có thể do đơn tự tìm/đơn viết tay chưa nhập vào hệ thống, hoặc báo cáo ghi sai.',
+      rows: new Array(mismatchDays).fill(0), customHtml: '<div id="reportDiffBox"></div>'});
   }
-
   // 8) Nguồn trùng tên nhưng máy coi là khác (kiểu gõ dấu / khoảng trắng / hoa-thường)
   {
     sourceVariantGroups = findSourceVariantGroups();
@@ -9136,8 +9123,118 @@ function renderDataAudit(){
       <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
         <div style="font-weight:700; font-size:14px;">${sec.rows.length ? '⚠️' : '✅'} ${sec.title} <span style="font-weight:600; color:${sec.rows.length?'var(--warn)':'var(--success)'};">(${sec.rows.length})</span></div>
         <div style="font-size:12.5px; color:var(--ink-soft); margin:4px 0 ${sec.rows.length?8:0}px;">${sec.why}</div>
-        ${sec.rows.length ? table(sec.head, sec.rows) + `<div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> ${sec.fix}</div>` : ''}
+        ${sec.customHtml ? sec.customHtml : (sec.rows.length ? table(sec.head, sec.rows) + `<div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> ${sec.fix}</div>` : '')}
       </div>`).join('');
+  renderReportDiff();
+}
+
+// ===== CHÊNH LỆCH BÁO CÁO ↔ DATA ĐÃ CHỐT: lọc theo ngày/người, bấm từng người → xem từng ngày =====
+let rdFrom = null, rdTo = null, rdUser = '', rdOnlyDiff = true, rdOpenUser = null, rdOpenDay = null;
+function rdDefaultRange(){
+  if(rdFrom===null){ const d=new Date(); d.setDate(d.getDate()-29); rdFrom = toLocalDateStr(d); rdTo = todayStr(); }
+}
+// Mỗi dòng = 1 Sale × 1 ngày có báo cáo hoặc có đơn chốt trong khoảng ngày đang lọc
+function computeReportDiffRows(){
+  rdDefaultRange();
+  const inRange = d => d && (!rdFrom || d>=rdFrom) && (!rdTo || d<=rdTo);
+  const map = {};
+  const get = (uid, date)=>{ const k = uid+'|'+date; return map[k] || (map[k] = {userId:uid, date, report:null, n:0, sum:0, leads:[]}); };
+  state.leads.forEach(l=>{
+    if(l.status!=='Đã chốt' || !l.assignedTo || !inRange(l.closedDate)) return;
+    const r = get(l.assignedTo, l.closedDate); r.n++; r.sum += Number(l.closedAmount)||0; r.leads.push(l);
+  });
+  (state.reports||[]).forEach(rep=>{ if(!inRange(rep.date)) return; get(rep.userId, rep.date).report = rep; });
+  return Object.values(map).map(r=>{
+    r.rn = r.report ? (Number(r.report.orderCount)||0) : 0;
+    r.rs = r.report ? (Number(r.report.revenue)||0) : 0;
+    r.diff = r.rs - r.sum;
+    r.mismatch = !r.report ? r.n>0 : (r.rn!==r.n || Math.abs(r.diff)>1000);
+    return r;
+  });
+}
+function rdSet(field, value){
+  if(field==='from') rdFrom = value || '';
+  if(field==='to') rdTo = value || '';
+  if(field==='user'){ rdUser = value; rdOpenUser = value || null; }
+  if(field==='only') rdOnlyDiff = !!value;
+  if(field==='preset'){
+    const [f,t] = (value==='thismonth'||value==='lastmonth') ? calendarMonthRangeFor(value) : dateRangeFor(value);
+    rdFrom = f || ''; rdTo = t || '';
+  }
+  rdOpenDay = null;
+  renderReportDiff();
+}
+function rdToggleUser(uid){ rdOpenUser = rdOpenUser===uid ? null : uid; rdOpenDay = null; renderReportDiff(); }
+function rdToggleDay(key){ rdOpenDay = rdOpenDay===key ? null : key; renderReportDiff(); }
+function renderReportDiff(){
+  const box = document.getElementById('reportDiffBox');
+  if(!box) return;
+  rdDefaultRange();
+  const money = v => fmtMoney(Number(v)||0) + ' đ';
+  const nameOf = id => { const x = state.users.find(u=>u.id===id); return x ? x.name : (id||'—'); };
+  const diffHtml = v => Math.abs(v)<=1000 ? '<span style="color:var(--success);">khớp</span>'
+    : `<b style="color:${v>0?'var(--warn)':'var(--danger)'};">${v>0?'+':''}${fmtMoney(v)} đ</b>`;
+  let rows = computeReportDiffRows();
+  // Danh sách Sale để chọn (ai có báo cáo hoặc đơn chốt trong khoảng)
+  const people = Array.from(new Set(rows.map(r=>r.userId))).map(id=>({id, name:nameOf(id)})).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  if(rdUser) rows = rows.filter(r=>r.userId===rdUser);
+  // Gộp theo người
+  const byUser = {};
+  rows.forEach(r=>{
+    const g = byUser[r.userId] || (byUser[r.userId] = {userId:r.userId, days:[], rn:0, rs:0, n:0, sum:0, bad:0});
+    g.days.push(r); g.rn+=r.rn; g.rs+=r.rs; g.n+=r.n; g.sum+=r.sum; if(r.mismatch) g.bad++;
+  });
+  let groups = Object.values(byUser);
+  if(rdOnlyDiff) groups = groups.filter(g=>g.bad>0);
+  groups.sort((a,b)=>b.bad-a.bad || Math.abs(b.rs-b.sum)-Math.abs(a.rs-a.sum));
+  const presets = [['today','Hôm nay'],['yesterday','Hôm qua'],['week','7 ngày'],['thismonth','Tháng này'],['lastmonth','Tháng trước']];
+  const totalBad = groups.reduce((t,g)=>t+g.bad,0);
+
+  const filters = `
+    <div class="chip-row" style="margin:6px 0 8px;">${presets.map(([k,v])=>`<div class="chip" onclick="rdSet('preset','${k}')">${v}</div>`).join('')}</div>
+    <div class="toolbar" style="gap:8px; margin-bottom:10px; align-items:flex-end;">
+      <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" value="${rdFrom||''}" onchange="rdSet('from', this.value)"></div>
+      <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${rdTo||''}" onchange="rdSet('to', this.value)"></div>
+      <div class="field" style="max-width:220px; margin:0;"><label>Sale</label><select onchange="rdSet('user', this.value)"><option value="">— Tất cả Sale —</option>${people.map(p=>`<option value="${p.id}" ${rdUser===p.id?'selected':''}>${escHtml(p.name)}</option>`).join('')}</select></div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:8px; cursor:pointer;"><input type="checkbox" ${rdOnlyDiff?'checked':''} onchange="rdSet('only', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện người/ngày bị lệch</label>
+    </div>
+    <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;">${fmtDate(rdFrom)} → ${fmtDate(rdTo)} · ${groups.length} Sale · <b style="color:${totalBad?'var(--warn)':'var(--success)'};">${totalBad} ngày lệch</b> · bấm vào 1 người để xem từng ngày, bấm 1 ngày để xem chi tiết đơn</div>`;
+
+  if(!groups.length){ box.innerHTML = filters + '<div class="empty-note">Không có chênh lệch nào trong khoảng này 🎉</div>'; return; }
+
+  const head = `<thead><tr><th>Sale / Ngày</th><th class="num">Báo cáo tự khai</th><th class="num">Data đã chốt</th><th class="num">Chênh lệch</th><th class="num">Ngày lệch</th></tr></thead>`;
+  const body = groups.map(g=>{
+    const open = rdOpenUser===g.userId;
+    let html = `<tr style="cursor:pointer; ${open?'background:var(--brand-soft);':''}" onclick="rdToggleUser('${g.userId}')">
+      <td><b>${open?'▾':'▸'} ${escHtml(nameOf(g.userId))}</b></td>
+      <td class="num">${g.rn} đơn · ${money(g.rs)}</td><td class="num">${g.n} đơn · ${money(g.sum)}</td>
+      <td class="num">${diffHtml(g.rs-g.sum)}</td><td class="num">${g.bad ? `<b style="color:var(--warn);">${g.bad}</b>` : '0'}</td></tr>`;
+    if(open){
+      const days = g.days.filter(d=>!rdOnlyDiff || d.mismatch).sort((a,b)=>b.date.localeCompare(a.date));
+      html += days.map(d=>{
+        const key = d.userId+'|'+d.date;
+        const dOpen = rdOpenDay===key;
+        let r = `<tr style="cursor:pointer;" onclick="rdToggleDay('${key}')">
+          <td style="padding-left:28px !important;">${dOpen?'▾':'▸'} ${fmtDate(d.date)}</td>
+          <td class="num">${d.report ? `${d.rn} đơn · ${money(d.rs)}` : '<span style="color:var(--danger);">Chưa nộp</span>'}</td>
+          <td class="num">${d.n} đơn · ${money(d.sum)}</td>
+          <td class="num">${diffHtml(d.diff)}</td><td class="num">${d.mismatch?'⚠️':'✓'}</td></tr>`;
+        if(dOpen){
+          const list = d.leads.slice().sort((a,b)=>(Number(b.closedAmount)||0)-(Number(a.closedAmount)||0));
+          r += `<tr><td colspan="5" style="padding:6px 10px 10px 40px !important; background:rgba(255,255,255,0.02);">
+            ${list.length ? `<div style="font-size:12.5px; margin-bottom:4px; color:var(--ink-soft);">Đơn trong Data đã chốt ngày này:</div>
+              <table style="font-size:12.5px; width:auto;"><tbody>${list.map(l=>`<tr><td style="padding:2px 10px 2px 0;">${escHtml(leadPhone(l))}</td><td style="padding:2px 10px;">${escHtml(l.customerName||'')}</td><td style="padding:2px 10px;">${escHtml(leadSource(l))}</td><td style="padding:2px 10px;" class="num"><b>${money(l.closedAmount)}</b></td><td style="padding:2px 10px; color:var(--ink-soft);">${l.invoiceNumber?'🧾 '+escHtml(l.invoiceNumber):''}</td></tr>`).join('')}</tbody></table>`
+              : '<div style="font-size:12.5px; color:var(--ink-soft);">Không có đơn nào trong Data đã chốt ngày này.</div>'}
+            ${d.report && d.report.note ? `<div style="font-size:12.5px; margin-top:6px;">📝 Ghi chú báo cáo: ${escHtml(d.report.note)}</div>` : ''}
+          </td></tr>`;
+        }
+        return r;
+      }).join('');
+    }
+    return html;
+  }).join('');
+  box.innerHTML = filters + `<div class="table-wrap"><table class="rtable" style="font-size:12.5px;">${head}<tbody>${body}</tbody></table></div>
+    <div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> nhắc Sale nhập đủ đơn vào Data đã chốt (đơn tự tìm/viết tay dùng "+ Thêm dòng"), hoặc sửa lại báo cáo cho đúng.</div>`;
 }
 
 function openSettingsTool(key){
