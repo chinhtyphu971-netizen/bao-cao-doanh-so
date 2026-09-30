@@ -7760,7 +7760,7 @@ function goPage(pageId){
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
   document.getElementById('page-'+pageId).style.display='block';
   if(pageId!=='mktRevenue') mktRevenueViewUserId = null;
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId || (pageId==='mgrSelfLeadsList' && n.dataset.page==='mgrLeadsList') || (pageId==='mktRevenue' && mktRevenueViewUserId && n.dataset.page==='mktOverview')));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===pageId || (pageId==='mgrSelfLeadsList' && n.dataset.page==='mgrLeadsList') || (pageId==='mktRevenue' && mktRevenueViewUserId && n.dataset.page===((currentUser()||{}).role==='mkt_manager' ? 'mktReportsAdmin' : 'mktOverview'))));
   if(pageId==='staffReport') renderStaffReport();
   if(pageId==='staffHistory') renderStaffHistory();
   if(pageId==='myLeads') renderMyLeads();
@@ -8153,8 +8153,12 @@ function openMktPersonRevenue(userId){
 }
 function renderMktRevenuePage(){
   const me = currentUser();
+  // Quản lý chung / Quản lý Data: xem doanh thu Nguồn của bất kỳ ai. Quản lý team MKT: chỉ người TRONG TEAM
+  // mình, và khi xem người khác thì SĐT khách bị che (không lộ số điện thoại khách).
   const canViewOthers = me && ['general_manager','data_manager','mkt_manager'].includes(me.role);
-  const viewed = (canViewOthers && mktRevenueViewUserId) ? state.users.find(x=>x.id===mktRevenueViewUserId) : null;
+  let viewed = (canViewOthers && mktRevenueViewUserId) ? state.users.find(x=>x.id===mktRevenueViewUserId) : null;
+  if(viewed && me.role==='mkt_manager' && (!viewed.mktBranchId || viewed.mktBranchId!==me.mktBranchId)) viewed = null;
+  const hidePhones = !!(viewed && me.role==='mkt_manager' && viewed.id!==me.id);
   const u = viewed || me;
   document.getElementById('mktRevenueTitle').textContent = viewed ? `Doanh thu Nguồn — ${viewed.name}` : 'Doanh thu Nguồn của tôi';
   document.getElementById('mktRevenueSub').textContent = viewed
@@ -8162,6 +8166,10 @@ function renderMktRevenuePage(){
     : 'Doanh thu Sale đã chốt được, tính riêng cho từng Nguồn bạn đang phụ trách';
   const backBox = document.getElementById('mktRevenueBackBtns');
   backBox.style.display = viewed ? 'flex' : 'none';
+  // Nút quay lại đúng trang; "Xem data đã nhập" (có SĐT) ẩn với Quản lý team MKT khi xem người khác
+  const backBtn = backBox.querySelector('button');
+  if(backBtn){ backBtn.textContent = me.role==='mkt_manager' ? '← Báo cáo team MKT' : '← Tổng hợp MKT'; backBtn.onclick = ()=>goPage(me.role==='mkt_manager' ? 'mktReportsAdmin' : 'mktOverview'); }
+  document.getElementById('mktRevenueDetailBtn').style.display = hidePhones ? 'none' : '';
   if(viewed) document.getElementById('mktRevenueDetailBtn').onclick = ()=>openMktPersonDetail(viewed.id);
   document.getElementById('mktRevenueFrom').value = mktRevenueDateFrom || '';
   document.getElementById('mktRevenueTo').value = mktRevenueDateTo || '';
@@ -8314,7 +8322,7 @@ function renderMktRevenuePage(){
     limitRows('mktRevenue', filteredLeads).map(l=>`<tr>
       <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
       <td data-label="Nguồn">${leadSource(l)}</td>
-      <td data-label="SĐT">${leadPhone(l)}</td>
+      <td data-label="SĐT">${hidePhones ? maskPhone(leadPhone(l)) : leadPhone(l)}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Sale chốt">${l.assignedToName||'—'}</td>
       <td data-label="Số tiền chốt" style="font-weight:600; color:var(--success);">${l.closedAmount?fmtMoney(l.closedAmount)+' đ':'—'}</td>
