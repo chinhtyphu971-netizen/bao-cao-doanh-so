@@ -923,6 +923,7 @@
             <div class="field"><label>Số lượng đăng bài FB</label><input id="f_fbposts" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Số lời cảm ơn đã gửi</label><input id="f_thanks" type="number" min="0" placeholder="0"></div>
           </div>
+          <div id="reportClosedHint" style="margin:-4px 0 14px;"></div>
           <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Tỷ lệ chốt (đơn chốt / data mới + tự tìm)</div><div class="stat-value" id="previewCloseRate">—</div></div>
             <div class="stat-box"><div class="stat-label">Doanh thu trung bình / đơn</div><div class="stat-value" id="previewAvgOrder">—</div></div>
@@ -7822,7 +7823,48 @@ function avgPerOrder(revenue, orders){
   if(!orders) return '—';
   return fmtMoney(Math.round(revenue/orders))+' đ';
 }
+// So nhẹ Đơn chốt / Doanh thu Sale đang ghi với Data đã chốt cùng ngày — chỉ CẢNH BÁO, vẫn nộp được
+function closedStatsForMyDay(date){
+  const u = currentUser();
+  const list = state.leads.filter(l=>u && l.assignedTo===u.id && l.status==='Đã chốt' && l.closedDate===date);
+  return {n:list.length, sum:list.reduce((t,l)=>t+(Number(l.closedAmount)||0),0)};
+}
+function reportClosedMismatch(){
+  const date = document.getElementById('f_date').value;
+  if(!date) return null;
+  const st = closedStatsForMyDay(date);
+  const orders = Number(document.getElementById('f_orders').value)||0;
+  const revenue = Number(document.getElementById('f_revenue').value)||0;
+  return {date, st, orders, revenue, bad: (orders!==st.n) || Math.abs(revenue-st.sum)>1000};
+}
+function fillReportFromClosed(){
+  const m = reportClosedMismatch(); if(!m) return;
+  document.getElementById('f_orders').value = m.st.n;
+  document.getElementById('f_revenue').value = m.st.sum;
+  updateReportPreview();
+}
+function renderReportClosedHint(){
+  const box = document.getElementById('reportClosedHint');
+  if(!box) return;
+  const m = reportClosedMismatch();
+  if(!m){ box.innerHTML=''; return; }
+  const sysTxt = `<b>${m.st.n} đơn · ${fmtMoney(m.st.sum)} đ</b>`;
+  const typedAny = document.getElementById('f_orders').value!=='' || document.getElementById('f_revenue').value!=='';
+  if(!m.bad){
+    box.innerHTML = `<div style="font-size:12.5px; color:var(--ink-soft);">📋 Data đã chốt ngày ${fmtDate(m.date)} của bạn: ${sysTxt}${typedAny?' · <span style="color:var(--success);">✓ khớp với số bạn ghi</span>':''}</div>`;
+    return;
+  }
+  const parts = [];
+  if(m.orders!==m.st.n) parts.push(`Đơn chốt: bạn ghi <b>${m.orders}</b>, Data đã chốt có <b>${m.st.n}</b>`);
+  if(Math.abs(m.revenue-m.st.sum)>1000) parts.push(`Doanh thu: bạn ghi <b>${fmtMoney(m.revenue)} đ</b>, Data đã chốt có <b>${fmtMoney(m.st.sum)} đ</b>`);
+  box.innerHTML = `<div style="font-size:12.5px; line-height:1.55; padding:8px 12px; border-radius:8px; border:1px dashed #F0A63A; background:rgba(240,166,58,0.08); color:var(--ink);">
+    ⚠️ Số liệu chưa khớp với Data đã chốt ngày ${fmtDate(m.date)} — ${parts.join(' · ')}.<br>
+    <span style="color:var(--ink-soft);">Bạn vẫn nộp được bình thường. Nếu có đơn tự tìm / hoá đơn viết tay chưa nhập, hãy thêm vào tab <b>Data đã chốt</b> (nút "+ Thêm dòng"); đơn mới lên hoá đơn mà chưa cọc thì chưa tính là chốt.</span>
+    ${m.st.n ? ` <span class="history-link" style="margin-left:4px;" onclick="fillReportFromClosed()">Điền theo Data đã chốt</span>` : ''}
+  </div>`;
+}
 function updateReportPreview(){
+  try{ renderReportClosedHint(); }catch(e){}
   const newdata=Number(document.getElementById('f_newdata').value)||0;
   const selffound=Number(document.getElementById('f_selffound').value)||0;
   const orders=Number(document.getElementById('f_orders').value)||0;
@@ -7890,6 +7932,8 @@ function submitReport(){
     loyalCustomerCount: Number(document.getElementById('f_loyal').value)||0,
     note: document.getElementById('f_note').value.trim(),
   };
+  const mm = reportClosedMismatch();
+  const mismatchNote = (mm && mm.bad) ? ' — ⚠️ lưu ý: chưa khớp với Data đã chốt' : '';
   let existing = myReportForDate(user.id, date);
   let confirmText;
   if(existing){
@@ -7915,7 +7959,7 @@ function submitReport(){
   }
   renderStaffReport();
   msgEl.style.color='var(--success)';
-  msgEl.textContent=confirmText;
+  msgEl.textContent=confirmText + mismatchNote;
  }catch(err){
   console.error('Lỗi khi nộp báo cáo:', err);
   const msgEl=document.getElementById('staffReportMsg');
@@ -9131,7 +9175,8 @@ function renderDataAudit(){
 // ===== CHÊNH LỆCH BÁO CÁO ↔ DATA ĐÃ CHỐT: lọc theo ngày/người, bấm từng người → xem từng ngày =====
 let rdFrom = null, rdTo = null, rdUser = '', rdOnlyDiff = true, rdOpenUser = null, rdOpenDay = null;
 function rdDefaultRange(){
-  if(rdFrom===null){ const d=new Date(); d.setDate(d.getDate()-29); rdFrom = toLocalDateStr(d); rdTo = todayStr(); }
+  // Mặc định: HÔM QUA (ngày gần nhất mà Sale đã nộp đủ báo cáo)
+  if(rdFrom===null){ const d=new Date(); d.setDate(d.getDate()-1); rdFrom = toLocalDateStr(d); rdTo = rdFrom; }
 }
 // Mỗi dòng = 1 Sale × 1 ngày có báo cáo hoặc có đơn chốt trong khoảng ngày đang lọc
 function computeReportDiffRows(){
@@ -9197,7 +9242,10 @@ function renderReportDiff(){
   const totalBad = groups.reduce((t,g)=>t+g.bad,0);
 
   const filters = `
-    <div class="chip-row" style="margin:6px 0 8px;">${presets.map(([k,v])=>`<div class="chip" onclick="rdSet('preset','${k}')">${v}</div>`).join('')}</div>
+    <div class="chip-row" style="margin:6px 0 8px;">${presets.map(([k,v])=>{
+      const [pf,pt] = (k==='thismonth'||k==='lastmonth') ? calendarMonthRangeFor(k) : dateRangeFor(k);
+      return `<div class="chip${(pf||'')===(rdFrom||'') && (pt||'')===(rdTo||'') ? ' selected' : ''}" onclick="rdSet('preset','${k}')">${v}</div>`;
+    }).join('')}</div>
     <div class="toolbar" style="gap:8px; margin-bottom:10px; align-items:flex-end;">
       <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" value="${rdFrom||''}" onchange="rdSet('from', this.value)"></div>
       <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${rdTo||''}" onchange="rdSet('to', this.value)"></div>
