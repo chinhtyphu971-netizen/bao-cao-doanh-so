@@ -2112,7 +2112,7 @@ function startFirebaseListeners(){
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
   fbMktBranches.on('value', snap=>{ state.mktBranches = Object.values(snap.val()||{}); markLoaded('mktBranches'); onDataChanged(); });
-  fbMktSources.on('value', snap=>{ state.mktSources = Object.values(snap.val()||{}); onDataChanged(); });
+  fbMktSources.on('value', snap=>{ state.mktSources = Object.values(snap.val()||{}).map(x=>Object.assign(x, {name: cleanSourceName(x.name)})); onDataChanged(); });
   fbTeamsTrash.on('value', snap=>{ state.teamsTrash = Object.values(snap.val()||{}); onDataChanged(); });
   fbCompanyRules.on('value', snap=>{ state.companyRules = snap.val() || {content:'', updatedAt:0, updatedByName:''}; onDataChanged(); });
   // selfLeads / videoShoots / actors / mktLegacyCounts / products / productSheetUrl / invoiceSettings /
@@ -2127,7 +2127,7 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}); markLoaded('users');    onDataChanged(); });
+  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); });
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -4571,11 +4571,20 @@ function leadClosedAmountFieldHtml(l){
   if(l.status !== 'Đã chốt') return '<span style="color:var(--ink-soft);">—</span>';
   return `<input type="number" min="0" step="1000" placeholder="Số tiền (đ)" value="${l.closedAmount!==undefined && l.closedAmount!==null ? l.closedAmount : ''}" style="min-height:30px; padding:3px 5px; font-size:12px; width:92px;" onchange="updateLeadField('${l.id}','closedAmount', this.value?Number(this.value):null)">`;
 }
+// Tên Nguồn luôn được CHUẨN HOÁ khi đọc (bỏ khoảng trắng thừa/ký tự ẩn, thống nhất kiểu gõ dấu) →
+// "XƯỞNG SỈ BÍCH NGỌC " và "XƯỞNG SỈ BÍCH NGỌC" được coi là 1 Nguồn ở MỌI chỗ tính toán/thống kê,
+// không phụ thuộc dữ liệu gốc đã được gộp hay chưa.
+const _srcCleanCache = new Map();
+function _cleanSrcCached(v){
+  let r = _srcCleanCache.get(v);
+  if(r===undefined){ r = cleanSourceName(v); if(_srcCleanCache.size>5000) _srcCleanCache.clear(); _srcCleanCache.set(v, r); }
+  return r;
+}
 function leadSource(lead){
-  if(lead.source) return lead.source;
+  if(lead.source) return _cleanSrcCached(lead.source) || '—';
   if(lead.raw){
     const key = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
-    if(key) return lead.raw[key] || '—';
+    if(key) return _cleanSrcCached(lead.raw[key]||'') || '—';
   }
   return '—';
 }
@@ -7639,7 +7648,30 @@ function renderMktRevenuePage(){
         <div><div style="font-size:11px; color:var(--ink-soft);">Tỉ lệ chốt</div><div style="font-weight:700; font-size:16px;">${rate.toFixed(2)}%</div></div>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + (()=>{
+    // Ô ĐỐI CHIẾU: data người này đã nhập nhưng mang tên Nguồn KHÔNG nằm trong danh sách đang phụ
+    // trách (tên cũ trước khi đổi, viết khác kiểu, Nguồn đã chuyển cho người khác...) → giải thích vì
+    // sao cộng "Tổng data" các ô Nguồn không bằng "Tổng data đã gửi" ở trên.
+    let others = state.leads.filter(l=>l.createdBy===u.id && !mySources.includes(leadSource(l)));
+    if(mktRevenueDateFrom || mktRevenueDateTo){
+      others = others.filter(l=>{
+        const d = toLocalDateStr(new Date(l.importedAt||0));
+        if(mktRevenueDateFrom && d < mktRevenueDateFrom) return false;
+        if(mktRevenueDateTo && d > mktRevenueDateTo) return false;
+        return true;
+      });
+    }
+    if(!others.length) return '';
+    const byName = {};
+    others.forEach(l=>{ const n = leadSource(l); byName[n] = (byName[n]||0)+1; });
+    const list = Object.entries(byName).sort((a,b)=>b[1]-a[1]);
+    return `<div class="stat-box" style="border-style:dashed; opacity:0.95;">
+      <div class="stat-label">⚠️ Data thuộc Nguồn khác (không nằm trong Nguồn đang phụ trách)</div>
+      <div style="font-weight:700; font-size:16px; margin-top:6px;">${others.length} data</div>
+      <div style="font-size:12px; color:var(--ink-soft); margin-top:4px; line-height:1.5;">${list.slice(0,6).map(([n,c])=>`${escHtml(n)}: <b>${c}</b>`).join(' · ')}${list.length>6?` · … ${list.length-6} Nguồn khác`:''}</div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;">Đơn chốt của các data này KHÔNG tính vào doanh thu ở trên. Nếu đây là Nguồn của người này → gán thêm ở Cài đặt → Nguồn MKT (hoặc gộp tên ở Kiểm tra dữ liệu).</div>
+    </div>`;
+  })();
 
   // Đổ danh sách chọn cho 2 bộ lọc Nguồn/Sale (chỉ đổ lại khi cần, tránh mất lựa chọn đang chọn)
   const sourceSel = document.getElementById('mktRevenueSourceFilter');
