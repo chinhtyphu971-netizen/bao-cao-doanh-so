@@ -7860,7 +7860,6 @@ function renderReportClosedHint(){
   box.innerHTML = `<div style="font-size:12.5px; line-height:1.55; padding:8px 12px; border-radius:8px; border:1px dashed #F0A63A; background:rgba(240,166,58,0.08); color:var(--ink);">
     ⚠️ Số liệu chưa khớp với Data đã chốt ngày ${fmtDate(m.date)} — ${parts.join(' · ')}.<br>
     <span style="color:var(--ink-soft);">Bạn vẫn nộp được bình thường. Nếu có đơn tự tìm / hoá đơn viết tay chưa nhập, hãy thêm vào tab <b>Data đã chốt</b> (nút "+ Thêm dòng"); đơn mới lên hoá đơn mà chưa cọc thì chưa tính là chốt.</span>
-    <div style="margin-top:8px;"><button type="button" class="btn-ghost btn-small" onclick="fillReportFromClosed()">↺ Điền theo Data đã chốt (${m.st.n} đơn · ${fmtMoney(m.st.sum)} đ)</button></div>
   </div>`;
 }
 function updateReportPreview(){
