@@ -2815,8 +2815,20 @@ function fbSetMktLegacyCount(entry){ fbMktLegacyCounts.child(entry.id).set(entry
 // người, CỘNG DỒN qua tất cả các Nguồn của người đó — mỗi Nguồn có thể có 1 khoảng ngày/số lượng
 // riêng. Chỉ cộng vào nếu khoảng ngày Quản lý ghi (fromDate-toDate) GIAO với khoảng ngày đang lọc
 // hiện tại (hoặc luôn cộng nếu đang xem "Toàn thời gian" — không lọc ngày gì cả).
+// Số liệu "bổ sung tay" có thể bị lưu 2 lần cho CÙNG 1 Nguồn nhưng tên viết khác (VD "…BÍCH NGỌC" và
+// "…BÍCH NGỌC " thừa khoảng trắng) → trước đây ô tổng cộng CẢ HAI → bị cộng thừa. Giờ mỗi người + mỗi
+// Nguồn (so theo tên đã chuẩn hoá) chỉ lấy ĐÚNG 1 mục — mục được sửa gần nhất.
+function legacyEntriesFor(personId){
+  const byKey = new Map();
+  state.mktLegacyCounts.filter(e=>e.userId===personId).forEach(e=>{
+    const k = sourceKey(e.source);
+    const cur = byKey.get(k);
+    if(!cur || (e.updatedAt||0) > (cur.updatedAt||0)) byKey.set(k, e);
+  });
+  return Array.from(byKey.values());
+}
 function legacyDataCountFor(personId, dateFrom, dateTo){
-  const entries = state.mktLegacyCounts.filter(e=>e.userId===personId);
+  const entries = legacyEntriesFor(personId);
   let sum = 0;
   entries.forEach(entry=>{
     if(!entry.count) return;
@@ -2831,7 +2843,7 @@ function legacyDataCountFor(personId, dateFrom, dateTo){
 }
 // Giống legacyDataCountFor nhưng chỉ tính riêng cho 1 Nguồn cụ thể — dùng cho từng ô Nguồn.
 function legacyDataCountForSource(personId, source, dateFrom, dateTo){
-  const entry = state.mktLegacyCounts.find(e=>e.userId===personId && e.source===source);
+  const entry = legacyEntriesFor(personId).find(e=>sourceKey(e.source)===sourceKey(source));
   if(!entry || !entry.count) return 0;
   if(!dateFrom && !dateTo) return entry.count;
   const from = entry.fromDate || '0000-01-01';
@@ -7255,7 +7267,7 @@ function saveMktLegacyCount(userId, sourceIdx){
   const sourceName = countEl.dataset.source;
   const count = Math.max(0, parseInt(countEl.value, 10) || 0);
   const u = state.users.find(x=>x.id===userId);
-  const existing = state.mktLegacyCounts.find(e=>e.userId===userId && e.source===sourceName);
+  const existing = legacyEntriesFor(userId).find(e=>sourceKey(e.source)===sourceKey(sourceName));
   const entry = {
     id: existing ? existing.id : ('mlc_' + uid()),
     userId,
@@ -7267,7 +7279,10 @@ function saveMktLegacyCount(userId, sourceIdx){
     updatedAt: Date.now(),
     updatedByName: currentUser().name,
   };
-  state.mktLegacyCounts = state.mktLegacyCounts.filter(e=>!(e.userId===userId && e.source===sourceName)).concat([entry]);
+  // Xoá các mục trùng Nguồn (tên viết khác) của người này, chỉ giữ đúng 1 mục vừa lưu
+  state.mktLegacyCounts.filter(e=>e.userId===userId && e.id!==entry.id && sourceKey(e.source)===sourceKey(sourceName))
+    .forEach(e=>fbMktLegacyCounts.child(e.id).remove());
+  state.mktLegacyCounts = state.mktLegacyCounts.filter(e=>!(e.userId===userId && sourceKey(e.source)===sourceKey(sourceName))).concat([entry]);
   fbSetMktLegacyCount(entry);
   showToast(`Đã lưu bổ sung ${count} data cho ${entry.userName} — Nguồn "${sourceName}"`);
   renderMktOverviewPage();
@@ -7302,7 +7317,7 @@ function renderMktOverviewPage(){
           </div>`;
         }
         const sourceRows = sources.map((src,idx)=>{
-          const entry = state.mktLegacyCounts.find(e=>e.userId===m.id && e.source===src);
+          const entry = legacyEntriesFor(m.id).find(e=>sourceKey(e.source)===sourceKey(src));
           return `<div style="display:flex; align-items:flex-end; gap:8px; padding:6px 0; flex-wrap:wrap;">
             <div style="min-width:140px; font-size:13px; color:var(--ink-soft);">↳ ${src}</div>
             <div class="field" style="max-width:110px; margin-bottom:0;"><label style="font-size:11px;">Số lượng</label><input type="number" min="0" id="mktLegacyCount_${m.id}_${idx}" data-source="${src.replace(/"/g,'&quot;')}" value="${entry?entry.count:''}" placeholder="0" style="min-height:32px; padding:4px 6px;"></div>
@@ -7661,13 +7676,17 @@ function renderMktRevenuePage(){
         return true;
       });
     }
-    if(!others.length) return '';
+    const myKeys = new Set(mySources.map(sourceKey));
+    const legacyOthers = legacyEntriesFor(u.id).filter(e=>!myKeys.has(sourceKey(e.source)) && legacyDataCountForSource(u.id, e.source, mktRevenueDateFrom, mktRevenueDateTo)>0);
+    if(!others.length && !legacyOthers.length) return '';
     const byName = {};
     others.forEach(l=>{ const n = leadSource(l); byName[n] = (byName[n]||0)+1; });
+    legacyOthers.forEach(e=>{ const n = cleanSourceName(e.source)+' (bổ sung tay)'; byName[n] = (byName[n]||0) + (Number(e.count)||0); });
+    const othersTotal = Object.values(byName).reduce((t,c)=>t+c,0);
     const list = Object.entries(byName).sort((a,b)=>b[1]-a[1]);
     return `<div class="stat-box" style="border-style:dashed; opacity:0.95;">
       <div class="stat-label">⚠️ Data thuộc Nguồn khác (không nằm trong Nguồn đang phụ trách)</div>
-      <div style="font-weight:700; font-size:16px; margin-top:6px;">${others.length} data</div>
+      <div style="font-weight:700; font-size:16px; margin-top:6px;">${othersTotal} data</div>
       <div style="font-size:12px; color:var(--ink-soft); margin-top:4px; line-height:1.5;">${list.slice(0,6).map(([n,c])=>`${escHtml(n)}: <b>${c}</b>`).join(' · ')}${list.length>6?` · … ${list.length-6} Nguồn khác`:''}</div>
       <div style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;">Đơn chốt của các data này KHÔNG tính vào doanh thu ở trên. Nếu đây là Nguồn của người này → gán thêm ở Cài đặt → Nguồn MKT (hoặc gộp tên ở Kiểm tra dữ liệu).</div>
     </div>`;
