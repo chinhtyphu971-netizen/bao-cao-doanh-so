@@ -877,6 +877,7 @@
         <div class="nav-section-label">Quản lý Sale</div>
         <div class="nav-item" id="navItem_mgrDashboard" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">📈 Tổng quan</span></div>
         <div class="nav-item" id="navItem_mgrReports" data-page="mgrReports" onclick="goPage('mgrReports')"><span class="label">📄 Danh sách báo cáo</span></div>
+        <div class="nav-item" id="navItem_reportDiff" data-page="reportDiff" onclick="goPage('reportDiff')"><span class="label">⚖️ Đối chiếu báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
@@ -1070,6 +1071,11 @@
       </div>
 
       <!-- ---------- MANAGER: danh sách báo cáo ---------- -->
+      <div id="page-reportDiff" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Đối chiếu báo cáo</h1><p>So số đơn/doanh thu Sale tự ghi trong "Nộp báo cáo" với số đơn/tiền thực tế trong Data đã chốt — bấm 1 người để xem từng ngày, bấm 1 ngày để xem từng đơn</p></div></div>
+        <div class="card"><div id="reportDiffBox"></div></div>
+      </div>
+
       <div id="page-mgrReports" class="page" style="display:none;">
         <div class="page-head"><div><h1>Danh sách báo cáo</h1><p>Lọc và xem chi tiết từng báo cáo</p></div></div>
         <div class="chip-row" style="margin-bottom:12px;">
@@ -7126,7 +7132,7 @@ function enterApp(){
   document.getElementById('navManager').style.display = (isManagerRole && !isMkt && !isMktManager) ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
-  ['navItem_mgrDashboard','navItem_mgrReports','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
+  ['navItem_mgrDashboard','navItem_mgrReports','navItem_reportDiff','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
     document.getElementById(id).style.display = isDataManager ? 'none' : 'flex';
   });
   // "Danh sách data" (bảng tổng gộp mọi người) chỉ dành cho Quản lý chung / Quản lý Data — Quản lý
@@ -7198,6 +7204,7 @@ function goPage(pageId){
   if(pageId==='mgrReports') renderMgrReportsPage();
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
+  if(pageId==='reportDiff') renderReportDiff();
   if(pageId==='mgrSelfLeadsList') renderMgrSelfLeadsList();
   if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
   if(pageId==='invoices') renderInvoicesPage();
@@ -9094,12 +9101,6 @@ function renderDataAudit(){
     add('Nguồn đang gán cho nhiều MKT cùng lúc', 'Doanh thu của Nguồn này được tính cho TẤT CẢ các MKT được gán → khi cộng doanh thu các MKT lại sẽ bị trùng.',
       rows6, ['Nguồn','Các MKT','Số đơn','Doanh thu'], 'Chỉ giữ 1 MKT phụ trách mỗi Nguồn (nếu đúng là làm chung thì bỏ qua mục này).');
   }
-  // 7) Báo cáo Sale tự khai lệch với Data đã chốt — khung riêng có bộ lọc + xem theo ngày từng người
-  {
-    const mismatchDays = computeReportDiffRows().filter(r=>r.mismatch).length;
-    sections.push({title:'Chênh lệch giữa Báo cáo Sale và Data đã chốt', why:'Số đơn/doanh thu Sale tự ghi trong "Nộp báo cáo" so với số đơn/tiền thực tế trong Data đã chốt cùng ngày. Lệch có thể do đơn tự tìm/đơn viết tay chưa nhập vào hệ thống, hoặc báo cáo ghi sai.',
-      rows: new Array(mismatchDays).fill(0), customHtml: '<div id="reportDiffBox"></div>'});
-  }
   // 8) Nguồn trùng tên nhưng máy coi là khác (kiểu gõ dấu / khoảng trắng / hoa-thường)
   {
     sourceVariantGroups = findSourceVariantGroups();
@@ -9124,8 +9125,7 @@ function renderDataAudit(){
         <div style="font-weight:700; font-size:14px;">${sec.rows.length ? '⚠️' : '✅'} ${sec.title} <span style="font-weight:600; color:${sec.rows.length?'var(--warn)':'var(--success)'};">(${sec.rows.length})</span></div>
         <div style="font-size:12.5px; color:var(--ink-soft); margin:4px 0 ${sec.rows.length?8:0}px;">${sec.why}</div>
         ${sec.customHtml ? sec.customHtml : (sec.rows.length ? table(sec.head, sec.rows) + `<div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> ${sec.fix}</div>` : '')}
-      </div>`).join('');
-  renderReportDiff();
+      </div>`).join('') + `<div style="font-size:12.5px; color:var(--ink-soft);">⚖️ Chênh lệch giữa Báo cáo Sale và Data đã chốt: xem ở mục <span class="history-link" onclick="goPage('reportDiff')">Đối chiếu báo cáo</span> trên menu.</div>`;
 }
 
 // ===== CHÊNH LỆCH BÁO CÁO ↔ DATA ĐÃ CHỐT: lọc theo ngày/người, bấm từng người → xem từng ngày =====
@@ -9175,6 +9175,12 @@ function renderReportDiff(){
   const diffHtml = v => Math.abs(v)<=1000 ? '<span style="color:var(--success);">khớp</span>'
     : `<b style="color:${v>0?'var(--warn)':'var(--danger)'};">${v>0?'+':''}${fmtMoney(v)} đ</b>`;
   let rows = computeReportDiffRows();
+  // Trưởng team chỉ thấy người trong team mình
+  const meRd = currentUser();
+  if(meRd && meRd.role==='team_manager'){
+    const team = new Set(state.users.filter(x=>x.branchId && x.branchId===meRd.branchId).map(x=>x.id).concat([meRd.id]));
+    rows = rows.filter(r=>team.has(r.userId));
+  }
   // Danh sách Sale để chọn (ai có báo cáo hoặc đơn chốt trong khoảng)
   const people = Array.from(new Set(rows.map(r=>r.userId))).map(id=>({id, name:nameOf(id)})).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
   if(rdUser) rows = rows.filter(r=>r.userId===rdUser);
