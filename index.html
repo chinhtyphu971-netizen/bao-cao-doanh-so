@@ -9235,10 +9235,13 @@ function renderReportDiff(){
     g.days.push(r); g.rn+=r.rn; g.rs+=r.rs; g.n+=r.n; g.sum+=r.sum; if(r.mismatch) g.bad++;
   });
   let groups = Object.values(byUser);
+  const allGroups = groups; // tổng cộng luôn tính cho MỌI người trong khoảng ngày (kể cả người khớp)
   if(rdOnlyDiff) groups = groups.filter(g=>g.bad>0);
   groups.sort((a,b)=>b.bad-a.bad || Math.abs(b.rs-b.sum)-Math.abs(a.rs-a.sum));
   const presets = [['today','Hôm nay'],['yesterday','Hôm qua'],['week','7 ngày'],['thismonth','Tháng này'],['lastmonth','Tháng trước']];
   const totalBad = groups.reduce((t,g)=>t+g.bad,0);
+  // Tổng cộng các người đang hiện
+  const tot = allGroups.reduce((t,g)=>({rn:t.rn+g.rn, rs:t.rs+g.rs, n:t.n+g.n, sum:t.sum+g.sum}), {rn:0, rs:0, n:0, sum:0});
 
   const filters = `
     <div class="chip-row" style="margin:6px 0 8px;">${presets.map(([k,v])=>{
@@ -9250,6 +9253,12 @@ function renderReportDiff(){
       <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${rdTo||''}" onchange="rdSet('to', this.value)"></div>
       <div class="field" style="max-width:220px; margin:0;"><label>Sale</label><select onchange="rdSet('user', this.value)"><option value="">— Tất cả Sale —</option>${people.map(p=>`<option value="${p.id}" ${rdUser===p.id?'selected':''}>${escHtml(p.name)}</option>`).join('')}</select></div>
       <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:8px; cursor:pointer;"><input type="checkbox" ${rdOnlyDiff?'checked':''} onchange="rdSet('only', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện người/ngày bị lệch</label>
+    </div>
+    <div class="grid-3" style="margin-bottom:10px; grid-template-columns:repeat(auto-fit, minmax(180px,1fr));">
+      <div class="stat-box"><div class="stat-label">Tổng data đã chốt</div><div class="stat-value">${tot.n} đơn</div></div>
+      <div class="stat-box"><div class="stat-label">Tổng tiền chốt</div><div class="stat-value" style="color:var(--success);">${fmtMoney(tot.sum)} đ</div></div>
+      <div class="stat-box"><div class="stat-label">Báo cáo tự khai</div><div class="stat-value" style="font-size:18px;">${tot.rn} đơn · ${fmtMoney(tot.rs)} đ</div></div>
+      <div class="stat-box"><div class="stat-label">Chênh lệch (báo cáo − data)</div><div class="stat-value" style="font-size:18px;">${Math.abs(tot.rs-tot.sum)<=1000 ? '<span style="color:var(--success);">khớp</span>' : `<span style="color:${tot.rs-tot.sum>0?'var(--warn)':'var(--danger)'};">${tot.rs-tot.sum>0?'+':''}${fmtMoney(tot.rs-tot.sum)} đ</span>`}</div></div>
     </div>
     <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;">${fmtDate(rdFrom)} → ${fmtDate(rdTo)} · ${groups.length} Sale · <b style="color:${totalBad?'var(--warn)':'var(--success)'};">${totalBad} ngày lệch</b> · bấm vào 1 người để xem từng ngày, bấm 1 ngày để xem chi tiết đơn</div>`;
 
@@ -9286,7 +9295,8 @@ function renderReportDiff(){
     }
     return html;
   }).join('');
-  box.innerHTML = filters + `<div class="table-wrap"><table class="rtable" style="font-size:12.5px;">${head}<tbody>${body}</tbody></table></div>
+  const totalRow = `<tr class="total-row"><td><b>TỔNG CỘNG</b>${rdOnlyDiff && allGroups.length>groups.length ? ` <span style="font-weight:400; font-size:11px;">(tất cả ${allGroups.length} Sale)</span>` : ''}</td><td class="num"><b>${tot.rn} đơn · ${money(tot.rs)}</b></td><td class="num"><b>${tot.n} đơn · ${money(tot.sum)}</b></td><td class="num">${diffHtml(tot.rs-tot.sum)}</td><td class="num"><b>${totalBad}</b></td></tr>`;
+  box.innerHTML = filters + `<div class="table-wrap"><table class="rtable" style="font-size:12.5px;">${head}<tbody>${body}${totalRow}</tbody></table></div>
     <div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> nhắc Sale nhập đủ đơn vào Data đã chốt (đơn tự tìm/viết tay dùng "+ Thêm dòng"), hoặc sửa lại báo cáo cho đúng.</div>`;
 }
 
