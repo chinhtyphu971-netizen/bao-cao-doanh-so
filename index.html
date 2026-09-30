@@ -5182,8 +5182,23 @@ function isReturningCustomerFor(userId, phone, excludeLeadId, excludeInvoiceId){
     && !(excludeInvoiceId && l.invoiceId===excludeInvoiceId)
     && normalizePhone(leadPhone(l))===norm);
 }
+// ===== TÊN NGUỒN "GIỐNG HỆT NHAU" NHƯNG MÁY COI LÀ KHÁC =====
+// Nguyên nhân hay gặp: gõ tiếng Việt bằng 2 kiểu bảng mã khác nhau (Unikey "Unicode dựng sẵn" vs
+// "Unicode tổ hợp" — chữ "Ỏ" có thể là 1 ký tự hoặc "O" + dấu móc + dấu hỏi ghép lại), thừa khoảng
+// trắng/ký tự ẩn khi copy, hoặc khác hoa/thường. Nhìn bằng mắt giống hệt nhưng so chuỗi thì khác →
+// thành 2 Nguồn, doanh thu bị chia đôi. sourceKey() quy về 1 dạng chuẩn để so sánh.
+function cleanSourceName(name){
+  return String(name||'').normalize('NFC').replace(/[\u200B-\u200D\uFEFF\u00A0]/g,' ').replace(/\s+/g,' ').trim();
+}
+function sourceKey(name){ return cleanSourceName(name).toLocaleLowerCase('vi'); }
 function mktSourceOptionsHtml(selectedValue, extraNames){
-  const names = Array.from(new Set(state.mktSources.map(s=>s.name).filter(Boolean).concat(extraNames||[]))).sort((a,b)=>a.localeCompare(b,'vi'));
+  // Gộp các tên trùng theo sourceKey → danh sách chọn không còn hiện 2 dòng giống hệt nhau
+  const seen = new Map();
+  state.mktSources.map(s=>s.name).filter(Boolean).concat(extraNames||[]).forEach(n=>{
+    const k = sourceKey(n);
+    if(!seen.has(k) || (n===selectedValue)) seen.set(k, n);
+  });
+  const names = Array.from(seen.values()).sort((a,b)=>a.localeCompare(b,'vi'));
   return '<option value="">— Chọn Nguồn —</option>' +
     names.map(n=>`<option value="${n}" ${selectedValue===n?'selected':''}>${n}</option>`).join('');
 }
@@ -8554,9 +8569,9 @@ function settingsAddMktBranch(){
 }
 function settingsAddMktSource(){
   const input=document.getElementById('settingsNewMktSource');
-  const name=input.value.trim();
+  const name=cleanSourceName(input.value);
   if(!name) return;
-  const exists = state.mktSources.some(s=>s.name.toLowerCase()===name.toLowerCase());
+  const exists = state.mktSources.some(s=>sourceKey(s.name)===sourceKey(name));
   if(exists){ showToast('Nguồn này đã có trong danh sách rồi'); return; }
   const s={id:uid(), name};
   state.mktSources.push(s);
@@ -8593,9 +8608,9 @@ function renameMktSourceItem(sourceId){
   if(!s) return;
   const newName = prompt('Đổi tên Nguồn:', s.name);
   if(newName===null) return; // bấm Huỷ
-  const trimmed = newName.trim();
+  const trimmed = cleanSourceName(newName);
   if(!trimmed || trimmed===s.name) return;
-  const dup = state.mktSources.some(x=>x.id!==sourceId && x.name.toLowerCase()===trimmed.toLowerCase());
+  const dup = state.mktSources.some(x=>x.id!==sourceId && sourceKey(x.name)===sourceKey(trimmed));
   if(dup){ showToast('Đã có Nguồn khác trùng tên này rồi'); return; }
 
   const oldName = s.name;
@@ -8610,8 +8625,11 @@ function renameMktSourceItem(sourceId){
       fbUpdateUser(u.id, {assignedSources:u.assignedSources});
     }
   });
+  // Đổi luôn tên Nguồn trên các DATA đang mang tên cũ — trước đây không đổi, data cũ vẫn giữ tên cũ
+  // nên doanh thu các đơn đó bị "rơi" khỏi MKT đang phụ trách Nguồn.
+  const changed = rewriteLeadSources([oldName], trimmed);
   renderMgrSettings();
-  showToast('Đã đổi tên Nguồn');
+  showToast('Đã đổi tên Nguồn' + (changed ? ` (cập nhật ${changed} data)` : ''));
 }
 function deleteMktSourceItem(sourceId){
   const s = state.mktSources.find(x=>x.id===sourceId);
@@ -8862,6 +8880,81 @@ const SETTINGS_TOOLS = [
    get:()=>settingsDataAuditOpen,   set:v=>{ settingsDataAuditOpen=v; }},
 ];
 let settingsDataAuditOpen = false;
+// Đổi Nguồn trên mọi data đang mang 1 trong các tên cũ → tên mới (ghi gộp theo lô 500)
+function rewriteLeadSources(oldNames, newName){
+  const olds = new Set(oldNames);
+  const updates = {};
+  state.leads.forEach(l=>{
+    if(l.source && olds.has(l.source) && l.source!==newName){ updates[l.id + '/source'] = newName; l.source = newName; }
+  });
+  const keys = Object.keys(updates);
+  for(let i=0;i<keys.length;i+=500){
+    const chunk = {}; keys.slice(i,i+500).forEach(k=>chunk[k]=updates[k]);
+    fbLeads.update(chunk).catch(e=>console.error('rewrite source:', e));
+  }
+  return keys.length;
+}
+// Các nhóm tên Nguồn "trùng mà khác chuỗi" (dùng cho Kiểm tra dữ liệu)
+let sourceVariantGroups = [];
+function findSourceVariantGroups(){
+  const groups = {};
+  const addName = (n, kind)=>{
+    if(!n || n==='—') return;
+    const k = sourceKey(n);
+    const g = groups[k] || (groups[k] = {});
+    const v = g[n] || (g[n] = {name:n, leads:0, closed:0, revenue:0, inList:false, users:0});
+    if(kind==='list') v.inList = true;
+  };
+  state.mktSources.forEach(s=>addName(s.name,'list'));
+  state.leads.forEach(l=>{
+    const n = leadSource(l); if(!n || n==='—') return;
+    addName(n,'lead');
+    const v = groups[sourceKey(n)][n]; v.leads++;
+    if(l.status==='Đã chốt'){ v.closed++; v.revenue += Number(l.closedAmount)||0; }
+  });
+  state.users.forEach(u=>(u.assignedSources||[]).forEach(n=>{ addName(n,'user'); groups[sourceKey(n)][n].users++; }));
+  return Object.values(groups).map(g=>Object.values(g)).filter(vs=>vs.length>1).map(vs=>{
+    // Tên giữ lại: ưu tiên tên đã chuẩn hoá + có trong danh sách Nguồn + nhiều data nhất
+    const canon = vs.slice().sort((a,b)=>
+      ((b.name===cleanSourceName(b.name))-(a.name===cleanSourceName(a.name))) || (b.inList-a.inList) || (b.leads-a.leads))[0].name;
+    return {canon: cleanSourceName(canon), variants: vs};
+  });
+}
+function describeSourceDiff(name){
+  const tags = [];
+  if(name!==name.normalize('NFC')) tags.push('gõ dấu kiểu tổ hợp');
+  if(name!==name.trim() || /\s{2,}/.test(name)) tags.push('thừa khoảng trắng');
+  if(/[\u200B-\u200D\uFEFF\u00A0]/.test(name)) tags.push('có ký tự ẩn');
+  return tags.join(', ');
+}
+function mergeSourceVariants(idx){
+  const g = sourceVariantGroups[idx];
+  if(!g) return;
+  const olds = g.variants.map(v=>v.name).filter(n=>n!==g.canon);
+  askConfirm('Gộp Nguồn trùng tên?', `Tất cả data, người được gán và danh sách Nguồn đang dùng ${olds.length} tên viết khác sẽ được đổi về đúng 1 tên "${g.canon}". Doanh thu các tên này sẽ cộng chung vào 1 Nguồn.`, ()=>{
+    const changed = rewriteLeadSources(olds, g.canon);
+    // Người được gán: thay tên cũ → tên chuẩn, bỏ trùng
+    state.users.forEach(u=>{
+      if(!(u.assignedSources||[]).some(n=>olds.includes(n))) return;
+      const next = Array.from(new Set(u.assignedSources.map(n=>olds.includes(n)?g.canon:n)));
+      u.assignedSources = next; fbUpdateUser(u.id, {assignedSources: next});
+    });
+    // Danh sách Nguồn: giữ 1 mục, xoá mục thừa, nhóm gộp (aliasOf) trỏ về mục giữ lại
+    const entries = state.mktSources.filter(x=>sourceKey(x.name)===sourceKey(g.canon));
+    let keep = entries.find(x=>x.name===g.canon) || entries[0];
+    if(keep){
+      if(keep.name!==g.canon){ keep.name = g.canon; fbSetMktSource(keep); }
+      entries.filter(x=>x.id!==keep.id).forEach(x=>{
+        state.mktSources.filter(y=>y.aliasOf===x.id).forEach(y=>{ y.aliasOf = keep.id; fbSetMktSource(y); });
+        if(!keep.aliasOf && x.aliasOf && x.aliasOf!==keep.id){ keep.aliasOf = x.aliasOf; fbSetMktSource(keep); }
+        fbMktSources.child(x.id).remove();
+      });
+      state.mktSources = state.mktSources.filter(x=>x.id===keep.id || sourceKey(x.name)!==sourceKey(g.canon));
+    }
+    showToast(`Đã gộp về "${g.canon}" — cập nhật ${changed} data.`);
+    renderDataAudit();
+  });
+}
 // ===== 🩺 KIỂM TRA DỮ LIỆU (chỉ Quản lý chung, chỉ ĐỌC — không tự sửa gì) =====
 // Rà các chỗ dễ làm số liệu doanh thu / đơn chốt bị sai để Quản lý xử lý tay.
 function renderDataAudit(){
@@ -8955,6 +9048,17 @@ function renderDataAudit(){
       rows, ['Ngày','Sale','Báo cáo tự khai','Data đã chốt','Chênh lệch'], 'Nhắc Sale nhập đủ đơn vào Data đã chốt, hoặc sửa lại báo cáo cho đúng.');
   }
 
+  // 8) Nguồn trùng tên nhưng máy coi là khác (kiểu gõ dấu / khoảng trắng / hoa-thường)
+  {
+    sourceVariantGroups = findSourceVariantGroups();
+    const rows = sourceVariantGroups.map((g, idx)=>[
+      g.variants.map(v=>`<div>"${escHtml(v.name)}" <span style="color:var(--ink-soft);">— ${v.leads} data, ${v.closed} đơn chốt${v.users?`, ${v.users} MKT được gán`:''}${v.inList?'':', không có trong danh sách Nguồn'}${describeSourceDiff(v.name)?` · <i>${describeSourceDiff(v.name)}</i>`:(v.name.toLocaleLowerCase('vi')!==v.name && g.variants.some(o=>o!==v && o.name.toLocaleLowerCase('vi')===v.name.toLocaleLowerCase('vi'))?' · <i>khác hoa/thường</i>':'')}</span></div>`).join(''),
+      money(g.variants.reduce((t,v)=>t+v.revenue,0)),
+      `<button class="btn-primary btn-small" onclick="mergeSourceVariants(${idx})">🔧 Gộp về "${escHtml(g.canon)}"</button>`
+    ]);
+    add('Nguồn trùng tên nhưng bị tách làm nhiều Nguồn', 'Nhìn giống hệt nhau nhưng máy coi là khác (do gõ dấu bằng 2 kiểu bảng mã, thừa khoảng trắng/ký tự ẩn khi copy, hoặc khác hoa/thường) → hiện 2 dòng trong danh sách chọn, data và doanh thu bị chia ra 2 Nguồn.',
+      rows, ['Các cách viết đang có','Tổng doanh thu','Xử lý'], 'Bấm "🔧 Gộp về…" để đưa hết về 1 tên chuẩn (đổi cả data, người được gán và danh sách Nguồn).');
+  }
   const issues = sections.reduce((n,x)=>n+x.rows.length,0);
   body.innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
