@@ -320,6 +320,18 @@
   .history-row .history-time{color:var(--ink-soft); font-size:12.5px;}
   .history-link{color:var(--accent); cursor:pointer; font-size:12.5px; text-decoration:underline; white-space:nowrap;}
   .copy-icon{cursor:pointer; font-size:13px; opacity:0.65; padding:2px 4px; border-radius:4px;}
+  /* Nộp báo cáo MKT */
+  .mr-step{ display:flex; align-items:center; gap:10px; font-size:16px; margin:6px 0 12px; }
+  .mr-step span{ width:26px; height:26px; border-radius:50%; background:rgba(79,140,255,0.16); color:#8DB4FF; font-size:13px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+  .mr-grid5{ grid-template-columns:repeat(5, minmax(0,1fr)) !important; margin-bottom:18px; }
+  @media (max-width:900px){ .mr-grid5{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; } }
+  .mr-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+  .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  .mr-linkchip{ display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; margin:0 6px 6px 0; }
+  .mr-pill.warn{ background:rgba(240,166,58,0.14); color:#F0A63A; }
+  .mr-pill.ok{ background:rgba(61,214,140,0.14); color:#3DD68C; }
+  .mr-pill.bad{ background:rgba(255,107,107,0.16); color:#FF6B6B; }
+  #mrSourceTable input{ width:110px; text-align:right; }
   /* Nút xác nhận cọc: viền cam, nền trong — nhìn là "đang chờ", không bị hiểu nhầm là khách ĐÃ cọc */
   .inv-await-deposit{ color:#F0A63A !important; border:1px dashed #F0A63A !important; background:transparent !important; font-weight:600; }
   .inv-await-deposit:hover{ background:rgba(240,166,58,0.14) !important; border-style:solid !important; }
@@ -858,6 +870,7 @@
       </div>
       <div id="navMktManager" style="display:none;">
         <div class="nav-item" data-page="mktManagerStats" onclick="goPage('mktManagerStats')"><span class="label">📊 Thống kê team MKT</span></div>
+        <div class="nav-item" data-page="mktReportsAdmin" onclick="goPage('mktReportsAdmin')"><span class="label">🗂️ Báo cáo team MKT</span></div>
         <div class="nav-item" data-page="mktInput" onclick="goPage('mktInput')"><span class="label">📥 Nhập data</span></div>
         <div class="nav-item" data-page="mktMyLeadsList" onclick="goPage('mktMyLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mktRevenue" onclick="goPage('mktRevenue')"><span class="label">💵 Doanh thu Nguồn</span></div>
@@ -884,6 +897,7 @@
         <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
         <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
+        <div class="nav-item" id="navItem_mktReportsAdmin" data-page="mktReportsAdmin" onclick="goPage('mktReportsAdmin')"><span class="label">🗂️ Báo cáo MKT</span></div>
         <div class="nav-item" id="navItem_videoShootsOverview" data-page="videoShootsOverview" onclick="goPage('videoShootsOverview')"><span class="label">🎬 Chi phí quay video (tổng)</span></div>
         <div class="nav-section-label" id="navSectionLabel_system">Hệ thống</div>
         <div class="nav-item" id="navItem_mgrAllChats" data-page="mgrAllChats" onclick="goPage('mgrAllChats')" style="display:none;"><span class="label">💬 Tất cả tin nhắn</span></div>
@@ -1245,10 +1259,43 @@
       </div>
 
       <!-- ---------- MKT: nộp báo cáo (khung tạm, chưa có form) ---------- -->
+      <div id="page-mktReportsAdmin" class="page" style="display:none;">
+        <div class="page-head"><div><h1 id="mraTitle">Báo cáo MKT</h1><p>Ai có vấn đề hiện lên đầu — bấm 1 người để xem chi tiết, data theo Nguồn và mở link bài đăng</p></div>
+          <span id="mraScope" class="mr-pill" style="background:rgba(79,140,255,0.14); color:#8DB4FF;"></span></div>
+        <div id="mraBox"></div>
+      </div>
+
       <div id="page-mktReport" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Nộp báo cáo</h1><p>Đang được xây dựng — form nộp báo cáo cho MKT sẽ sớm có ở đây</p></div></div>
+        <div class="page-head"><div><h1>Nộp báo cáo</h1><p>Hằng ngày: bài đăng, lời cảm ơn và data ngoài app · Cuối tuần: lượt tiếp cận</p></div>
+          <div id="mrPills" style="display:flex; gap:8px; flex-wrap:wrap;"></div></div>
+        <div id="mrWeeklyBox"></div>
         <div class="card">
-          <div class="empty-note">Chưa có nội dung — sẽ cập nhật sau.</div>
+          <div class="field" style="max-width:220px;"><label>Ngày báo cáo</label><input type="date" id="mr_date" onchange="mrLoadForDate()"></div>
+          <div id="mrDateSub" style="font-size:12.5px; color:var(--ink-soft); margin:-4px 0 14px;"></div>
+          <h3 class="mr-step"><span>1</span>Bài đăng hôm nay</h3>
+          <div class="grid-3 mr-grid5">
+            <div class="field"><label><span class="mr-dot" style="background:#FF4D7E;"></span>Bài đăng TikTok</label><input id="mr_tt" type="number" min="0" placeholder="0" oninput="mrUpdateStats()"></div>
+            <div class="field"><label><span class="mr-dot" style="background:#4F8CFF;"></span>Bài đăng Facebook</label><input id="mr_fb" type="number" min="0" placeholder="0" oninput="mrUpdateStats()"></div>
+            <div class="field"><label><span class="mr-dot" style="background:#2ECCB5;"></span>Bài đăng Zalo</label><input id="mr_zl" type="number" min="0" placeholder="0" oninput="mrUpdateStats()"></div>
+            <div class="field"><label>Video mới quay</label><input id="mr_video" type="number" min="0" placeholder="Không bắt buộc" title="Chỉ điền ngày đi quay" style="border-style:dashed;"></div>
+            <div class="field"><label>Số lời cảm ơn đã gửi</label><input id="mr_thanks" type="number" min="0" placeholder="0" oninput="mrUpdateStats()"></div>
+          </div>
+          <h3 class="mr-step"><span>2</span>Data theo Nguồn</h3>
+          <div class="table-wrap"><table class="rtable" id="mrSourceTable"></table></div>
+          <div style="font-size:12.5px; color:var(--ink-soft); margin:8px 0 16px; line-height:1.5;">🔒 <b style="color:var(--ink);">Trên app</b> hệ thống tự đếm theo data bạn đã nhập trong ngày (không sửa được). <b style="color:var(--ink);">Ngoài app</b> = mã QR, số nước ngoài nhập ở app khác — Sale chốt nhớ chọn đúng Nguồn.</div>
+          <div id="mrStats" class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin-bottom:16px;"></div>
+          <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+            <div class="field"><label>Link bài đăng — <b style="color:var(--ink);">bắt buộc với TikTok, Facebook</b> (mỗi link 1 dòng)</label><textarea id="mr_links" rows="4" placeholder="https://www.tiktok.com/@...&#10;https://www.facebook.com/share/..." oninput="mrUpdateLinks()"></textarea><div id="mrLinkSummary" style="margin-top:6px;"></div></div>
+            <div class="field"><label>Ghi chú (nội dung hiệu quả, data ngoài app gồm những gì…)</label><textarea id="mr_note" rows="4" placeholder="VD: 6 mã QR, 2 số Lào"></textarea></div>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:10px; align-items:center; margin-top:6px;">
+            <span id="mrMsg" style="font-size:13px; color:var(--success);"></span>
+            <button class="btn-primary" id="mrSubmitBtn" onclick="mrSubmit()">Nộp báo cáo hôm nay</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0;">Báo cáo gần đây của tôi</h2>
+          <div class="table-wrap"><table class="rtable" id="mrHistoryTable"></table></div>
         </div>
       </div>
 
@@ -2006,6 +2053,7 @@ const LocalDB = {
     return c.compare(String(this), String(that));
   };
 })();
+let fbMktReports = null, fbMktWeekly = null;
 let state = {
   branches: [], users: [], reports: [], trash: [],
   leads: [], checkins: {}, dailyRotation: null, managerConfirms: {},
@@ -2021,6 +2069,8 @@ let state = {
   products: [], // Danh mục sản phẩm (mã, tên, giá theo bậc SL, màu, size) — đồng bộ từ Google Sheet
   productSheetUrl: '', // Link CSV đã Publish to web của Sheet mã sản phẩm
   invoices: [], // Hoá đơn Sale xuất cho từng đơn hàng khách
+  mktReports: [], // Báo cáo ngày của MKT (nhánh riêng "mktReports" — không đụng tới data/báo cáo Sale)
+  mktWeekly: [],  // Cập nhật tuần của MKT: lượt tiếp cận theo kênh (nhánh riêng "mktWeekly")
   invoiceSettings: {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}, // Thông tin cửa hàng in trên hoá đơn
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
   session: LocalDB.read('session', null),
@@ -2099,6 +2149,8 @@ function startFirebaseListeners(){
   fbProducts = db.ref('products');
   fbProductSheetUrl = db.ref('productSheetUrl');
   fbInvoices = db.ref('invoices');
+  fbMktReports = db.ref('mktReports');
+  fbMktWeekly = db.ref('mktWeekly');
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
@@ -2206,7 +2258,7 @@ function onDataChanged(){
     // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
     // đang gõ dở hoặc nhảy màn hình giữa chừng. Trang "invoices" có nút "🔄 Làm mới" riêng để
     // Sale chủ động cập nhật (VD: khi Quản lý vừa thêm sản phẩm mới) mà không mất phần đang soạn.
-    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices'){
+    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices' && currentPageId!=='mktReport'){
       clearTimeout(dataChangedRenderTimer);
       // Chống lag: gộp các thay đổi liên tiếp, vẽ lại tối đa ~1 lần mỗi 1,5 giây (trước là mỗi 0,3 giây)
       const wait = Math.max(300, 1500 - (Date.now() - lastAutoRenderAt));
@@ -4611,6 +4663,507 @@ function leadInfoText(lead){
   if(!lead.raw) return lead.info || '';
   const sourceKey = Object.keys(lead.raw).find(k=>/ngu[oôồ]n/i.test(k) || /source/i.test(k));
   return Object.entries(lead.raw).filter(([k])=>k!==sourceKey).map(([k,v])=>`${k}: ${v}`).join(' · ');
+}
+
+
+// =========================== MKT: NỘP BÁO CÁO (ngày + tuần) ===========================
+// Lưu ở nhánh RIÊNG "mktReports" / "mktWeekly" → KHÔNG đụng tới data, đơn chốt, doanh thu hay báo cáo
+// Sale đã có. "Data trên app" chỉ ĐỌC từ kho data (đếm data MKT đã nhập trong ngày), không ghi gì vào đó.
+const MR_CHANNELS = [['tiktok','TikTok','mr_tt'],['facebook','Facebook','mr_fb'],['zalo','Zalo','mr_zl']];
+function mrMyReport(date){ const u = currentUser(); return state.mktReports.find(r=>u && r.userId===u.id && r.date===date); }
+// Data MKT đã nhập lên app trong ngày, theo Nguồn (tên Nguồn đã chuẩn hoá)
+function mrAppCountsFor(userId, date){
+  const out = {};
+  state.leads.forEach(l=>{
+    if(l.createdBy!==userId || !l.importedAt) return;
+    if(toLocalDateStr(new Date(l.importedAt))!==date) return;
+    const src = leadSource(l);
+    out[src] = (out[src]||0) + 1;
+  });
+  return out;
+}
+function mrSourceRows(userId, date){
+  const u = state.users.find(x=>x.id===userId) || currentUser();
+  const assigned = Array.from(new Set((u.assignedSources||[]).map(cleanSourceName).filter(Boolean)));
+  const app = mrAppCountsFor(userId, date);
+  const rows = assigned.map(src=>({source:src, app: app[src]||0, assigned:true}));
+  Object.keys(app).filter(src=>!assigned.includes(src)).forEach(src=>rows.push({source:src, app:app[src], assigned:false}));
+  return rows;
+}
+// ---- Link bài đăng: tự nhận kênh, đếm, bắt link sai / trùng ----
+function mrLinkChannel(url){
+  const u = url.toLowerCase();
+  if(/(^|\/\/|\.)(tiktok\.com)(\/|$)/.test(u)) return 'tiktok';
+  if(/(^|\/\/|\.)(facebook\.com|fb\.watch|fb\.com|fb\.me)(\/|$)/.test(u)) return 'facebook';
+  if(/(^|\/\/|\.)(zalo\.me)(\/|$)/.test(u)) return 'zalo';
+  return null;
+}
+// Chuẩn hoá để so trùng: bỏ http(s), www./m./web., dấu "/" cuối và các tham số theo dõi (mibextid, utm_…)
+function mrNormLink(url){
+  let t = String(url).trim().replace(/^https?:\/\//i,'').replace(/^(www\.|m\.|web\.|mobile\.)/i,'');
+  const [path, query] = t.split('?');
+  const keep = (query||'').split('&').filter(kv=>kv && !/^(utm_|mibextid|is_from_webapp|sender_device|_r|_t|refsrc|rdid|share_url|sfnsn|fs|app|lang|refid|__cft__|__tn__)/i.test(kv));
+  return (path.replace(/\/+$/,'') + (keep.length ? '?' + keep.join('&') : '')).toLowerCase();
+}
+function mrParseLinks(){
+  // Mỗi dòng: lấy các link trong dòng (dòng có thể kèm chữ, VD "video 1: https://…"); dòng không có link nào → link sai
+  const raw = [];
+  (document.getElementById('mr_links').value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
+    const found = line.match(/(https?:\/\/[^\s,]+|(?:www\.|m\.|vt\.|vm\.)?(?:tiktok\.com|facebook\.com|fb\.watch|fb\.com|fb\.me|zalo\.me)\/[^\s,]*)/gi);
+    if(found && found.length) found.forEach(x=>raw.push(x)); else raw.push(line);
+  });
+  const res = {byCh:{tiktok:[], facebook:[], zalo:[]}, invalid:[], dupInside:[], dupPast:[]};
+  const seen = new Set();
+  const u = currentUser();
+  const date = document.getElementById('mr_date').value || todayStr();
+  const past = new Map(); // link đã báo cáo ở NGÀY KHÁC của chính mình
+  state.mktReports.filter(r=>u && r.userId===u.id && r.date!==date && r.links).forEach(r=>{
+    String(r.links).split(/[\s,]+/).filter(Boolean).forEach(l=>{ if(mrLinkChannel(l)) past.set(mrNormLink(l), r.date); });
+  });
+  raw.forEach(l=>{
+    const ch = mrLinkChannel(l);
+    if(!ch){ res.invalid.push(l); return; }
+    const n = mrNormLink(l);
+    if(seen.has(n)){ res.dupInside.push(l); return; }
+    seen.add(n);
+    res.byCh[ch].push(l);
+    if(past.has(n)) res.dupPast.push({link:l, date:past.get(n)});
+  });
+  return res;
+}
+// Trả về {block:[lỗi chặn nộp], warn:[cảnh báo nhẹ]}
+function mrLinkProblems(parsed){
+  const block = [], warn = [];
+  const names = {tiktok:'TikTok', facebook:'Facebook', zalo:'Zalo'};
+  const posts = {tiktok: mrNum('mr_tt'), facebook: mrNum('mr_fb'), zalo: mrNum('mr_zl')};
+  ['tiktok','facebook'].forEach(k=>{
+    const n = parsed.byCh[k].length;
+    if(posts[k]>0 && n===0) block.push(`${names[k]} ghi ${posts[k]} bài nhưng chưa có link ${names[k]} nào`);
+    else if(posts[k]>n) warn.push(`${names[k]} ghi ${posts[k]} bài nhưng chỉ có ${n} link`);
+  });
+  if(parsed.invalid.length) block.push(`${parsed.invalid.length} dòng không phải link TikTok/Facebook/Zalo: ${parsed.invalid.slice(0,3).map(x=>'"'+escHtml(x.length>40?x.slice(0,40)+'…':x)+'"').join(', ')}`);
+  if(parsed.dupInside.length) warn.push(`${parsed.dupInside.length} link bị dán 2 lần (chỉ tính 1)`);
+  parsed.dupPast.forEach(d=>warn.push(`Link đã báo cáo ngày ${fmtDate(d.date)}: ${escHtml(d.link.length>50?d.link.slice(0,50)+'…':d.link)}`));
+  return {block, warn};
+}
+function mrUpdateLinks(){
+  const box = document.getElementById('mrLinkSummary'); if(!box) return;
+  const parsed = mrParseLinks();
+  const pr = mrLinkProblems(parsed);
+  const col = {tiktok:'#FF4D7E', facebook:'#4F8CFF', zalo:'#2ECCB5'};
+  const names = {tiktok:'TikTok', facebook:'Facebook', zalo:'Zalo'};
+  const chips = Object.keys(parsed.byCh).map(k=>`<span class="mr-linkchip"><span class="mr-dot" style="background:${col[k]}; margin-right:2px;"></span>${names[k]} <b>${parsed.byCh[k].length}</b> link</span>`).join('');
+  box.innerHTML = chips +
+    pr.block.map(t=>`<div style="font-size:12.5px; color:var(--danger); margin-top:2px;">⛔ ${t}</div>`).join('') +
+    pr.warn.map(t=>`<div style="font-size:12.5px; color:#F0A63A; margin-top:2px;">⚠️ ${t}</div>`).join('');
+}
+function mrNum(id){ const el = document.getElementById(id); return el && el.value!=='' ? (Number(el.value)||0) : 0; }
+// ---- Tuần: tuần cần cập nhật = tuần gần nhất đã kết thúc (Chủ nhật tính luôn tuần đang kết thúc hôm nay) ----
+function mrWeekTarget(){
+  const t = new Date(); t.setHours(0,0,0,0);
+  const dow = t.getDay(); // 0 = CN
+  const monThis = new Date(t); monThis.setDate(t.getDate() - ((dow+6)%7));
+  const start = new Date(monThis); if(dow!==0) start.setDate(monThis.getDate()-7);
+  const end = new Date(start); end.setDate(start.getDate()+6);
+  const due = new Date(end); due.setDate(end.getDate()+1); // hạn: hết thứ Hai sau tuần đó
+  // số tuần ISO
+  const th = new Date(start); th.setDate(start.getDate()+3);
+  const jan4 = new Date(th.getFullYear(),0,4);
+  const week = 1 + Math.round(((th - jan4)/86400000 - 3 + ((jan4.getDay()+6)%7))/7);
+  return {start: toLocalDateStr(start), end: toLocalDateStr(end), due: toLocalDateStr(due), week, overdue: toLocalDateStr(t) > toLocalDateStr(due)};
+}
+function mrWeekRecord(userId, weekStart){ return state.mktWeekly.find(w=>w.userId===userId && w.weekStart===weekStart); }
+function mrPrevWeekStart(weekStart){ const d = new Date(weekStart+'T00:00:00'); d.setDate(d.getDate()-7); return toLocalDateStr(d); }
+function renderMrWeekly(){
+  const box = document.getElementById('mrWeeklyBox'); if(!box) return;
+  const u = currentUser(); if(!u) return;
+  const wk = mrWeekTarget();
+  const rec = mrWeekRecord(u.id, wk.start);
+  const prev = mrWeekRecord(u.id, mrPrevWeekStart(wk.start));
+  const fmtN = v => (v===undefined || v===null || v==='') ? '—' : fmtMoney(Number(v)||0);
+  const total = r => r && r.reach ? MR_CHANNELS.reduce((t,[k])=>t+(Number(r.reach[k])||0),0) : 0;
+  if(rec && !mrWeeklyEditing){
+    const t = total(rec), pt = total(prev);
+    const trend = pt ? Math.round((t-pt)*100/pt) : null;
+    box.innerHTML = `<div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div><b>✓ Đã cập nhật tiếp cận tuần ${wk.week}</b> <span style="color:var(--ink-soft); font-size:13px;">(${fmtDate(wk.start)} – ${fmtDate(wk.end)})</span>
+        <div style="font-size:13px; margin-top:4px;">${MR_CHANNELS.map(([k,n])=>`${n}: <b>${fmtN(rec.reach&&rec.reach[k])}</b>`).join(' · ')} · Tổng <b>${fmtMoney(t)}</b>${trend!==null?` <span style="color:${trend>=0?'var(--success)':'var(--danger)'}; font-weight:700;">${trend>=0?'↑':'↓'} ${Math.abs(trend)}% so với tuần trước</span>`:''}</div></div>
+      <button class="btn-ghost btn-small" onclick="mrWeeklyEditing=true; renderMrWeekly();">Sửa</button></div>`;
+    return;
+  }
+  box.innerHTML = `<div class="card" style="border:1px solid ${wk.overdue?'#FF6B6B':'#F0A63A'}; background:rgba(240,166,58,0.06);">
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-bottom:12px;">
+      <div><div style="font-weight:700; font-size:16px;">📅 Cập nhật tuần ${wk.week} · ${fmtDate(wk.start)} – ${fmtDate(wk.end)}</div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-top:2px;">Lấy số "Lượt tiếp cận 7 ngày" trong TikTok Studio / Meta Business Suite · hạn hết thứ Hai ${fmtDate(wk.due)}</div></div>
+      <span class="mr-pill ${wk.overdue?'bad':'warn'}">${rec ? 'Đang sửa' : (wk.overdue ? 'Quá hạn' : 'Chưa cập nhật')}</span>
+    </div>
+    <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+      ${MR_CHANNELS.map(([k,n])=>`<div class="field"><label>${n} — Lượt tiếp cận</label><input type="number" min="0" id="mrw_${k}" placeholder="0" value="${rec&&rec.reach&&rec.reach[k]!==undefined?rec.reach[k]:''}"><span style="font-size:12px; color:var(--ink-soft);">Tuần trước: ${fmtN(prev&&prev.reach&&prev.reach[k])}</span></div>`).join('')}
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+      ${rec ? `<button class="btn-ghost btn-small" onclick="mrWeeklyEditing=false; renderMrWeekly();">Huỷ</button>` : ''}
+      <button class="btn-primary btn-small" onclick="mrSaveWeekly()">Lưu cập nhật tuần</button>
+    </div></div>`;
+}
+let mrWeeklyEditing = false;
+function mrSaveWeekly(){
+  const u = currentUser(); if(!u) return;
+  const wk = mrWeekTarget();
+  const reach = {};
+  let any = false;
+  MR_CHANNELS.forEach(([k])=>{ const el = document.getElementById('mrw_'+k); const v = el && el.value!=='' ? Math.max(0, Number(el.value)||0) : 0; if(el && el.value!=='') any = true; reach[k] = v; });
+  if(!any){ showToast('Điền ít nhất 1 kênh (kênh không có thì để 0).'); return; }
+  const existing = mrWeekRecord(u.id, wk.start);
+  const rec = {id: wk.start+'_'+u.id, userId:u.id, userName:u.name, mktBranchId:u.mktBranchId||null,
+    weekStart:wk.start, weekEnd:wk.end, reach, createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
+  state.mktWeekly = state.mktWeekly.filter(w=>w.id!==rec.id).concat([rec]);
+  fbMktWeekly.child(rec.id).set(rec).catch(e=>{ console.error(e); showToast('Lưu cập nhật tuần thất bại — thử lại.'); });
+  mrWeeklyEditing = false;
+  renderMrWeekly(); renderMrPills();
+  showToast('Đã lưu lượt tiếp cận tuần ' + wk.week);
+}
+function renderMrPills(){
+  const el = document.getElementById('mrPills'); if(!el) return;
+  const u = currentUser(); if(!u) return;
+  const today = mrMyReport(todayStr());
+  const wk = mrWeekTarget();
+  const w = mrWeekRecord(u.id, wk.start);
+  el.innerHTML = `<span class="mr-pill ${today?'ok':'warn'}">${today?'✓ Hôm nay: đã nộp':'Hôm nay: chưa nộp'}</span>
+    <span class="mr-pill ${w?'ok':(wk.overdue?'bad':'warn')}">${w?`✓ Tuần ${wk.week}: đã cập nhật`:`Tuần ${wk.week}: chưa cập nhật tiếp cận`}</span>`;
+}
+// ---- Ngày ----
+function renderMrSourceTable(keepTyped){
+  const u = currentUser(); if(!u) return;
+  const date = document.getElementById('mr_date').value || todayStr();
+  const typed = {};
+  if(keepTyped) document.querySelectorAll('#mrSourceTable input[data-src]').forEach(i=>{ typed[i.dataset.src] = i.value; });
+  const existing = mrMyReport(date);
+  const saved = {}; ((existing && existing.sources) || []).forEach(x=>{ saved[cleanSourceName(x.source)] = x.outside; });
+  const rows = mrSourceRows(u.id, date);
+  // Nguồn đã khai "ngoài app" trong báo cáo cũ nhưng nay không còn gán → vẫn hiện để không mất số
+  Object.keys(saved).filter(src=>!rows.some(r=>r.source===src)).forEach(src=>rows.push({source:src, app:0, assigned:false}));
+  const table = document.getElementById('mrSourceTable');
+  if(!rows.length){
+    table.innerHTML = '<tbody><tr><td class="empty-note">Bạn chưa được gán Nguồn nào và hôm nay chưa nhập data — liên hệ Quản lý để được gán Nguồn.</td></tr></tbody>';
+    mrUpdateStats(); return;
+  }
+  table.innerHTML = `<thead><tr><th>Nguồn</th><th class="num">Trên app</th><th class="num">Ngoài app</th><th class="num">Tổng</th></tr></thead><tbody>` +
+    rows.map(r=>{
+      const v = keepTyped && typed[r.source]!==undefined ? typed[r.source] : (saved[r.source]!==undefined && saved[r.source]!==null ? saved[r.source] : '');
+      return `<tr><td data-label="Nguồn"><b>${escHtml(r.source)}</b>${r.assigned?'':' <span style="font-size:11px; color:var(--ink-soft);">(không thuộc Nguồn bạn phụ trách)</span>'}</td>
+        <td class="num" data-label="Trên app">🔒 <span class="mr-app" data-src="${escHtml(r.source)}">${r.app}</span></td>
+        <td class="num" data-label="Ngoài app"><input type="number" min="0" placeholder="0" data-src="${escHtml(r.source)}" value="${escHtml(String(v))}" oninput="mrUpdateStats()"></td>
+        <td class="num mr-rowtotal" data-label="Tổng" style="font-weight:700;">${r.app + (Number(v)||0)}</td></tr>`;
+    }).join('') + `<tr class="total-row"><td><b>Tổng</b></td><td class="num" id="mrAppTotal"></td><td class="num" id="mrOutTotal"></td><td class="num" id="mrAllTotal"></td></tr></tbody>`;
+  mrUpdateStats();
+}
+function mrCollectSources(){
+  const list = [];
+  document.querySelectorAll('#mrSourceTable tbody tr').forEach(tr=>{
+    const inp = tr.querySelector('input[data-src]'); const appEl = tr.querySelector('.mr-app');
+    if(!inp || !appEl) return;
+    list.push({source: inp.dataset.src, app: Number(appEl.textContent)||0, outside: inp.value!=='' ? Math.max(0, Number(inp.value)||0) : 0});
+  });
+  return list;
+}
+function mrUpdateStats(){
+  const srcs = mrCollectSources();
+  document.querySelectorAll('#mrSourceTable tbody tr').forEach(tr=>{
+    const inp = tr.querySelector('input[data-src]'); const appEl = tr.querySelector('.mr-app'); const tot = tr.querySelector('.mr-rowtotal');
+    if(inp && appEl && tot) tot.textContent = (Number(appEl.textContent)||0) + (Number(inp.value)||0);
+  });
+  const app = srcs.reduce((t,x)=>t+x.app,0), out = srcs.reduce((t,x)=>t+x.outside,0);
+  const set = (id,v)=>{ const e=document.getElementById(id); if(e) e.innerHTML = v; };
+  set('mrAppTotal', `<b>${app}</b>`); set('mrOutTotal', `<b>${out}</b>`); set('mrAllTotal', `<b>${app+out}</b>`);
+  const posts = mrNum('mr_tt')+mrNum('mr_fb')+mrNum('mr_zl');
+  try{ mrUpdateLinks(); }catch(e){}
+  const box = (label, value, sub, color)=>`<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value"${color?` style="color:${color};"`:''}>${value}</div>${sub?`<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${sub}</div>`:''}</div>`;
+  set('mrStats',
+    box('Tổng bài đăng', posts, `TikTok ${mrNum('mr_tt')} · Facebook ${mrNum('mr_fb')} · Zalo ${mrNum('mr_zl')}`) +
+    box('Tổng data', app+out, `${app} trên app + ${out} ngoài app`) +
+    box('Data / bài đăng', posts ? ((app+out)/posts).toFixed(1).replace('.',',') : '—', 'Trung bình mỗi bài ra bao nhiêu data', 'var(--success)') +
+    box('Lời cảm ơn đã gửi', mrNum('mr_thanks'), ''));
+}
+function mrLoadForDate(){
+  const u = currentUser(); if(!u) return;
+  const dateEl = document.getElementById('mr_date');
+  if(!dateEl.value) dateEl.value = todayStr();
+  const date = dateEl.value;
+  const r = mrMyReport(date);
+  const setv = (id,v)=>{ const e=document.getElementById(id); if(e) e.value = (v===undefined || v===null) ? '' : v; };
+  setv('mr_tt', r && r.posts ? r.posts.tiktok : '');
+  setv('mr_fb', r && r.posts ? r.posts.facebook : '');
+  setv('mr_zl', r && r.posts ? r.posts.zalo : '');
+  setv('mr_video', r ? r.videos : '');
+  setv('mr_thanks', r ? r.thanks : '');
+  setv('mr_links', r ? r.links : '');
+  setv('mr_note', r ? r.note : '');
+  document.getElementById('mrDateSub').textContent = r
+    ? `Ngày ${fmtDate(date)} — đã nộp lúc ${new Date(r.updatedAt||r.createdAt).toLocaleString('vi-VN')}. Sửa rồi bấm "Cập nhật báo cáo".`
+    : (date===todayStr() ? 'Chưa nộp báo cáo hôm nay.' : `Ngày ${fmtDate(date)} chưa có báo cáo.`);
+  document.getElementById('mrSubmitBtn').textContent = r ? 'Cập nhật báo cáo' : (date===todayStr() ? 'Nộp báo cáo hôm nay' : 'Nộp báo cáo ngày ' + fmtDate(date));
+  document.getElementById('mrMsg').textContent = '';
+  renderMrSourceTable(false);
+}
+function mrSubmit(){
+  const u = currentUser(); if(!u) return;
+  const date = document.getElementById('mr_date').value || todayStr();
+  if(date > todayStr()){ showToast('Không thể nộp báo cáo cho ngày trong tương lai.'); return; }
+  const parsedLinks = mrParseLinks();
+  const lp = mrLinkProblems(parsedLinks);
+  if(lp.block.length){
+    mrUpdateLinks();
+    document.getElementById('mr_links').focus();
+    showToast('Chưa nộp được: ' + lp.block[0].replace(/<[^>]+>/g,''));
+    return;
+  }
+  const nullable = id => { const e=document.getElementById(id); return e && e.value!=='' ? Math.max(0, Number(e.value)||0) : null; };
+  const existing = mrMyReport(date);
+  const rec = {
+    id: date+'_'+u.id, userId:u.id, userName:u.name, mktBranchId:u.mktBranchId||null, date,
+    posts: {tiktok: mrNum('mr_tt'), facebook: mrNum('mr_fb'), zalo: mrNum('mr_zl')},
+    videos: nullable('mr_video'),           // null = không quay (không bắt buộc)
+    thanks: mrNum('mr_thanks'),
+    sources: mrCollectSources(),            // [{source, app (chụp lại lúc nộp), outside}]
+    links: (document.getElementById('mr_links').value||'').trim(),
+    linkCounts: {tiktok: parsedLinks.byCh.tiktok.length, facebook: parsedLinks.byCh.facebook.length, zalo: parsedLinks.byCh.zalo.length},
+    linkWarnings: lp.warn.map(t=>t.replace(/<[^>]+>/g,'')),   // để trang Quản lý hiện lại
+    note: (document.getElementById('mr_note').value||'').trim(),
+    createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now(),
+  };
+  state.mktReports = state.mktReports.filter(x=>x.id!==rec.id).concat([rec]);
+  fbMktReports.child(rec.id).set(rec).then(()=>{
+    document.getElementById('mrMsg').textContent = (existing ? '✓ Đã cập nhật' : '✓ Đã nộp') + ' báo cáo ngày ' + fmtDate(date);
+  }).catch(e=>{ console.error(e); showToast('Lưu báo cáo thất bại — thử lại.'); });
+  showToast((existing ? 'Đã cập nhật' : 'Đã nộp') + ' báo cáo ngày ' + fmtDate(date));
+  mrLoadForDate(); renderMrHistory(); renderMrPills();
+}
+function renderMrHistory(){
+  const u = currentUser(); if(!u) return;
+  const mine = state.mktReports.filter(r=>r.userId===u.id).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
+  const table = document.getElementById('mrHistoryTable');
+  if(!mine.length){ table.innerHTML = '<tbody><tr><td class="empty-note">Chưa có báo cáo nào.</td></tr></tbody>'; return; }
+  table.innerHTML = `<thead><tr><th>Ngày</th><th class="num">Bài đăng</th><th class="num">Video quay</th><th class="num">Lời cảm ơn</th><th class="num">Data trên app</th><th class="num">Ngoài app</th><th class="num">Tổng data</th><th></th></tr></thead><tbody>` +
+    mine.map(r=>{
+      const posts = r.posts ? (Number(r.posts.tiktok)||0)+(Number(r.posts.facebook)||0)+(Number(r.posts.zalo)||0) : 0;
+      const app = (r.sources||[]).reduce((t,x)=>t+(Number(x.app)||0),0), out = (r.sources||[]).reduce((t,x)=>t+(Number(x.outside)||0),0);
+      return `<tr><td data-label="Ngày">${fmtDate(r.date)}</td><td class="num" data-label="Bài đăng">${posts}</td>
+        <td class="num" data-label="Video quay">${r.videos===null||r.videos===undefined?'<span style="color:var(--ink-soft);">—</span>':r.videos}</td>
+        <td class="num" data-label="Lời cảm ơn">${Number(r.thanks)||0}</td>
+        <td class="num" data-label="Data trên app">${app}</td><td class="num" data-label="Ngoài app">${out}</td>
+        <td class="num" data-label="Tổng data"><b>${app+out}</b></td>
+        <td><button class="btn-ghost btn-small" onclick="document.getElementById('mr_date').value='${r.date}'; mrLoadForDate(); window.scrollTo({top:0, behavior:'smooth'});">Sửa</button></td></tr>`;
+    }).join('') + '</tbody>';
+}
+function renderMktReportPage(){
+  const dateEl = document.getElementById('mr_date');
+  if(dateEl && !dateEl.value) dateEl.value = todayStr();
+  renderMrPills(); renderMrWeekly(); mrLoadForDate(); renderMrHistory();
+}
+
+
+// =========================== QUẢN LÝ: BÁO CÁO MKT ===========================
+// CHỈ ĐỌC báo cáo MKT (mktReports / mktWeekly) + đếm data trên app từ kho data. Không ghi gì.
+let mraFrom = null, mraTo = null, mraTeam = '', mraMember = '', mraOnlyIssues = false, mraTab = 'people', mraOpen = null;
+function mraDefault(){ if(mraFrom===null){ const d=new Date(); d.setDate(d.getDate()-1); mraFrom = mraTo = toLocalDateStr(d); } }
+function mraSet(field, v){
+  if(field==='preset'){ const [f,t] = (v==='thismonth'||v==='lastmonth') ? calendarMonthRangeFor(v) : dateRangeFor(v); mraFrom = f||todayStr(); mraTo = t||todayStr(); }
+  if(field==='from') mraFrom = v || mraFrom;
+  if(field==='to') mraTo = v || mraTo;
+  if(field==='team'){ mraTeam = v; mraMember = ''; }
+  if(field==='member') mraMember = v;
+  if(field==='only') mraOnlyIssues = !!v;
+  if(field==='tab') mraTab = v;
+  if(field==='open') mraOpen = (mraOpen===v ? null : v);
+  renderMktReportsAdmin();
+}
+function mraDatesInRange(){
+  const out = []; const d = new Date(mraFrom+'T00:00:00'); const end = new Date(mraTo+'T00:00:00');
+  let guard = 0;
+  while(d <= end && guard++ < 400){ out.push(toLocalDateStr(d)); d.setDate(d.getDate()+1); }
+  return out;
+}
+function mraScopeMembers(){
+  const me = currentUser();
+  let users = state.users.filter(u=>u.role==='mkt' || u.role==='mkt_manager');
+  if(me && me.role==='mkt_manager') users = users.filter(u=>u.mktBranchId && u.mktBranchId===me.mktBranchId);
+  else if(mraTeam) users = users.filter(u=>(u.mktBranchId||'')===mraTeam);
+  if(mraMember) users = users.filter(u=>u.id===mraMember);
+  return users.sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+}
+function mraAppCounts(userId, dates){
+  const set = new Set(dates); const bySrc = {}; let total = 0;
+  state.leads.forEach(l=>{
+    if(l.createdBy!==userId || !l.importedAt) return;
+    if(!set.has(toLocalDateStr(new Date(l.importedAt)))) return;
+    const src = leadSource(l); bySrc[src] = (bySrc[src]||0)+1; total++;
+  });
+  return {bySrc, total};
+}
+// Link bị trùng giữa NHIỀU người / nhiều ngày (quét toàn bộ báo cáo MKT đang tải)
+function mraLinkIndex(){
+  const idx = new Map(); // norm -> [{userId, userName, date, link}]
+  state.mktReports.forEach(r=>{
+    String(r.links||'').split(/\r?\n/).forEach(line=>{
+      const found = line.match(/(https?:\/\/[^\s,]+|(?:www\.|m\.|vt\.|vm\.)?(?:tiktok\.com|facebook\.com|fb\.watch|fb\.com|fb\.me|zalo\.me)\/[^\s,]*)/gi) || [];
+      found.forEach(l=>{ if(!mrLinkChannel(l)) return; const n = mrNormLink(l); const arr = idx.get(n) || []; arr.push({userId:r.userId, userName:r.userName, date:r.date, link:l}); idx.set(n, arr); });
+    });
+  });
+  return idx;
+}
+function mraPersonSummary(u, dates, linkIdx){
+  const reps = state.mktReports.filter(r=>r.userId===u.id && dates.includes(r.date));
+  const repDates = new Set(reps.map(r=>r.date));
+  const missing = dates.filter(d=>!repDates.has(d));
+  const posts = {tiktok:0, facebook:0, zalo:0}; let videos = 0, thanks = 0, outside = 0; const outBySrc = {};
+  const links = []; const warns = []; const notes = [];
+  reps.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+    Object.keys(posts).forEach(k=>posts[k] += Number(r.posts && r.posts[k])||0);
+    videos += Number(r.videos)||0; thanks += Number(r.thanks)||0;
+    (r.sources||[]).forEach(x=>{ const src = cleanSourceName(x.source); const o = Number(x.outside)||0; outside += o; outBySrc[src] = (outBySrc[src]||0) + o; });
+    (r.linkWarnings||[]).forEach(w=>{ if(!/Link đã báo cáo ngày/.test(w)) warns.push(`${fmtDate(r.date)}: ${w}`); });
+    if(r.note) notes.push({date:r.date, note:r.note});
+    String(r.links||'').split(/\r?\n/).forEach(line=>{
+      const found = line.match(/(https?:\/\/[^\s,]+|(?:www\.|m\.|vt\.|vm\.)?(?:tiktok\.com|facebook\.com|fb\.watch|fb\.com|fb\.me|zalo\.me)\/[^\s,]*)/gi) || [];
+      found.forEach(l=>{
+        const ch = mrLinkChannel(l); if(!ch) return;
+        const others = (linkIdx.get(mrNormLink(l))||[]).filter(o=>!(o.userId===u.id && o.date===r.date));
+        const dupWith = others.length ? others.sort((a,b)=>a.date.localeCompare(b.date))[0] : null;
+        links.push({link:l, ch, date:r.date, dupWith});
+      });
+    });
+  });
+  const app = mraAppCounts(u.id, dates);
+  const totalData = app.total + outside;
+  // Ngoài app cao bất thường: so với tỉ lệ của chính người đó trong 30 ngày trước khoảng đang xem
+  const d30 = []; { const d = new Date(mraFrom+'T00:00:00'); for(let i=1;i<=30;i++){ const x = new Date(d); x.setDate(d.getDate()-i); d30.push(toLocalDateStr(x)); } }
+  const base = state.mktReports.filter(r=>r.userId===u.id && d30.includes(r.date));
+  const baseOut = base.reduce((t,r)=>t+(r.sources||[]).reduce((a,x)=>a+(Number(x.outside)||0),0),0);
+  const baseApp = mraAppCounts(u.id, d30).total;
+  const baseShare = (baseOut+baseApp) ? baseOut/(baseOut+baseApp) : 0;
+  const share = totalData ? outside/totalData : 0;
+  const highOutside = outside>=3 && share > Math.max(0.15, baseShare*2);
+  const dupLinks = links.filter(x=>x.dupWith);
+  // Tuần gần nhất đã kết thúc: đã cập nhật tiếp cận chưa
+  const wk = mrWeekTarget();
+  const weeklyMissing = !mrWeekRecord(u.id, wk.start);
+  const issues = [];
+  if(missing.length) issues.push({lvl:4, text: dates.length===1 ? 'Chưa nộp' : `Thiếu ${missing.length} ngày`, detail: `Chưa nộp báo cáo: ${missing.slice(0,8).map(fmtDate).join(', ')}${missing.length>8?'…':''}`});
+  if(dupLinks.length) issues.push({lvl:3, text:`${dupLinks.length} link trùng`, detail: dupLinks.slice(0,5).map(x=>`Link trùng với báo cáo của ${x.dupWith.userName||'—'} ngày ${fmtDate(x.dupWith.date)}`).join(' · ')});
+  if(warns.length) issues.push({lvl:2, text:'Thiếu link', detail: warns.slice(0,5).join(' · ')});
+  if(highOutside) issues.push({lvl:2, text:`Ngoài app cao (${Math.round(share*100)}%)`, detail:`Data ngoài app ${outside}/${totalData} (${Math.round(share*100)}%) — ` + ((baseOut+baseApp) ? `30 ngày trước thường khoảng ${Math.round(baseShare*100)}%` : 'chưa có số liệu 30 ngày trước để so, ngưỡng mặc định 15%')});
+  if(weeklyMissing) issues.push({lvl:1, text:`Chưa cập nhật tiếp cận tuần ${wk.week}`, detail:`Chưa cập nhật lượt tiếp cận tuần ${wk.week} (${fmtDate(wk.start)} – ${fmtDate(wk.end)})`});
+  issues.sort((a,b)=>b.lvl-a.lvl);
+  return {u, reps, missing, posts, videos, thanks, outside, outBySrc, app, totalData, links, notes, issues};
+}
+function renderMktReportsAdmin(){
+  const box = document.getElementById('mraBox'); if(!box) return;
+  const me = currentUser(); if(!me) return;
+  mraDefault();
+  const isTeamMgr = me.role==='mkt_manager';
+  const teamName = id => { const b = (state.mktBranches||[]).find(x=>x.id===id); return b ? b.name : 'Chưa có team'; };
+  document.getElementById('mraTitle').textContent = isTeamMgr ? 'Báo cáo team MKT' : 'Báo cáo MKT';
+  document.getElementById('mraScope').textContent = isTeamMgr ? `Team ${teamName(me.mktBranchId)}` : (mraTeam ? `Team ${teamName(mraTeam)}` : 'Tất cả team MKT');
+  const dates = mraDatesInRange();
+  const members = mraScopeMembers();
+  const linkIdx = mraLinkIndex();
+  const sums = members.map(u=>mraPersonSummary(u, dates, linkIdx));
+  const needCheck = sums.filter(x=>x.issues.some(i=>i.lvl>=2)).length;
+  const submittedCells = sums.reduce((t,x)=>t+(dates.length-x.missing.length),0);
+  const appTotal = sums.reduce((t,x)=>t+x.app.total,0), outTotal = sums.reduce((t,x)=>t+x.outside,0);
+  const presets = [['today','Hôm nay'],['yesterday','Hôm qua'],['week','7 ngày'],['thismonth','Tháng này'],['lastmonth','Tháng trước']];
+  const presetSel = k => { const [f,t] = (k==='thismonth'||k==='lastmonth') ? calendarMonthRangeFor(k) : dateRangeFor(k); return f===mraFrom && t===mraTo; };
+  const allMkt = state.users.filter(u=>u.role==='mkt'||u.role==='mkt_manager');
+  const teamIds = Array.from(new Set(allMkt.map(u=>u.mktBranchId||''))).filter(Boolean);
+  const memberOpts = (isTeamMgr ? allMkt.filter(u=>u.mktBranchId===me.mktBranchId) : allMkt.filter(u=>!mraTeam || (u.mktBranchId||'')===mraTeam)).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  const filters = `<div class="card">
+    <div class="chip-row" style="margin-bottom:10px;">${presets.map(([k,v])=>`<div class="chip${presetSel(k)?' selected':''}" onclick="mraSet('preset','${k}')">${v}</div>`).join('')}</div>
+    <div class="toolbar" style="gap:10px; align-items:flex-end; margin:0;">
+      <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" value="${mraFrom}" onchange="mraSet('from', this.value)"></div>
+      <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${mraTo}" onchange="mraSet('to', this.value)"></div>
+      ${isTeamMgr ? `<div class="field" style="max-width:200px; margin:0;"><label>Team MKT</label><input value="🔒 ${escHtml(teamName(me.mktBranchId))}" disabled></div>`
+        : `<div class="field" style="max-width:200px; margin:0;"><label>Team MKT</label><select onchange="mraSet('team', this.value)"><option value="">Tất cả team</option>${teamIds.map(id=>`<option value="${id}" ${mraTeam===id?'selected':''}>${escHtml(teamName(id))}</option>`).join('')}</select></div>`}
+      <div class="field" style="max-width:220px; margin:0;"><label>Thành viên</label><select onchange="mraSet('member', this.value)"><option value="">Tất cả</option>${memberOpts.map(u=>`<option value="${u.id}" ${mraMember===u.id?'selected':''}>${escHtml(u.name)}</option>`).join('')}</select></div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" ${mraOnlyIssues?'checked':''} onchange="mraSet('only', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện cần xem</label>
+    </div></div>`;
+  const stats = `<div class="grid-3" style="grid-template-columns:repeat(3,minmax(0,1fr)); margin-bottom:16px;">
+    <div class="stat-box"><div class="stat-label">Đã nộp báo cáo</div><div class="stat-value">${dates.length===1 ? `${submittedCells} / ${members.length}` : `${submittedCells} / ${members.length*dates.length}`}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${dates.length===1 ? 'người · ngày '+fmtDate(mraFrom) : `lượt (người × ngày) · ${fmtDate(mraFrom)} – ${fmtDate(mraTo)}`}</div></div>
+    <div class="stat-box"><div class="stat-label">Data: trên app + ngoài app</div><div class="stat-value">${appTotal} + ${outTotal}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Trên app hệ thống tự đếm · ngoài app MKT tự khai</div></div>
+    <div class="stat-box" style="cursor:pointer; ${needCheck?'border-color:#FF6B6B;':''}" onclick="mraSet('only', ${!mraOnlyIssues})"><div class="stat-label">Cần xem</div><div class="stat-value" style="color:${needCheck?'var(--danger)':'var(--success)'};">${needCheck} người</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${mraOnlyIssues?'Đang lọc — bấm để hiện tất cả':'Bấm để chỉ hiện những người này'}</div></div>
+  </div>`;
+  const tabs = `<div style="display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:6px;">${[['people','Theo người'],['days','Theo ngày'],['weeks','Theo tuần (tiếp cận)']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${mraTab===k?'var(--accent)':'transparent'}; font-weight:${mraTab===k?700:500}; color:${mraTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="mraSet('tab','${k}')">${v}</button>`).join('')}</div>`;
+  let content = '';
+  const statusHtml = issues => {
+    if(!issues.length) return `<span style="color:var(--success); font-weight:700;">● Ổn</span>`;
+    const top = issues[0]; const col = top.lvl>=3 ? 'var(--danger)' : (top.lvl===2 ? '#F0A63A' : '#F0A63A');
+    return `<span style="color:${col}; font-weight:700;">● ${top.text}</span>${issues.length>1?` <span style="font-size:11.5px; color:var(--ink-soft);">+${issues.length-1}</span>`:''}`;
+  };
+  if(mraTab==='people'){
+    let rows = sums.slice().sort((a,b)=>((b.issues[0]||{lvl:0}).lvl-(a.issues[0]||{lvl:0}).lvl) || a.u.name.localeCompare(b.u.name,'vi'));
+    if(mraOnlyIssues) rows = rows.filter(x=>x.issues.some(i=>i.lvl>=2));
+    const chCol = {tiktok:'#FF4D7E', facebook:'#4F8CFF', zalo:'#2ECCB5'}, chName = {tiktok:'TikTok', facebook:'Facebook', zalo:'Zalo'};
+    content = !rows.length ? '<div class="empty-note">Không có ai cần xem trong khoảng này 🎉</div>' :
+      `<div class="table-wrap"><table class="rtable"><thead><tr><th>MKT</th><th class="num">Bài đăng</th><th class="num">Data (app + ngoài app)</th><th class="num">Lời cảm ơn</th><th>Tình trạng</th></tr></thead><tbody>` +
+      rows.map(x=>{
+        const open = mraOpen===x.u.id;
+        const postsTotal = x.posts.tiktok+x.posts.facebook+x.posts.zalo;
+        let html = `<tr style="cursor:pointer; ${open?'background:rgba(79,140,255,0.08);':''}" onclick="mraSet('open','${x.u.id}')">
+          <td data-label="MKT"><b>${open?'▾':'▸'} ${escHtml(x.u.name)}</b>${!isTeamMgr && !mraTeam ? ` <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(teamName(x.u.mktBranchId))}</span>`:''}</td>
+          <td class="num" data-label="Bài đăng">${x.reps.length?postsTotal:'—'}</td>
+          <td class="num" data-label="Data">${x.app.total} + ${x.reps.length?x.outside:'—'}</td>
+          <td class="num" data-label="Lời cảm ơn">${x.reps.length?x.thanks:'—'}</td>
+          <td data-label="Tình trạng">${statusHtml(x.issues)}</td></tr>`;
+        if(open){
+          const srcNames = Array.from(new Set(Object.keys(x.app.bySrc).concat(Object.keys(x.outBySrc))));
+          html += `<tr><td colspan="5" style="padding:10px 16px 16px 32px !important; background:rgba(79,140,255,0.04);">
+            ${x.issues.length ? x.issues.map(i=>`<div style="font-size:13px; color:${i.lvl>=3?'var(--danger)':'#F0A63A'}; margin-bottom:3px;">• ${escHtml(i.detail)}</div>`).join('') : '<div style="font-size:13px; color:var(--success);">✓ Không có vấn đề</div>'}
+            <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:10px 0;">
+              ${['tiktok','facebook','zalo'].map(k=>`<span><b style="color:${chCol[k]};">${chName[k]}</b> ${x.posts[k]} bài</span>`).join('')}
+              <span>Video mới quay: <b style="color:var(--ink);">${x.videos}</b></span><span>Lời cảm ơn: <b style="color:var(--ink);">${x.thanks}</b></span>
+            </div>
+            ${srcNames.length ? `<div style="font-size:13px; margin-bottom:10px;">Data theo Nguồn: ${srcNames.map(n=>`<b>${escHtml(n)}</b> ${x.app.bySrc[n]||0} + ${x.outBySrc[n]||0}`).join(' · ')}</div>` : ''}
+            <div style="margin-bottom:8px;">${x.links.length ? x.links.map(l=>`<a href="${escHtml(/^https?:/i.test(l.link)?l.link:'https://'+l.link)}" target="_blank" rel="noopener" class="mr-linkchip" style="text-decoration:none; color:var(--ink); ${l.dupWith?'border-color:#FF6B6B;':''}" onclick="event.stopPropagation()"><b style="color:${chCol[l.ch]};">${chName[l.ch]}</b> ${escHtml(shortFbLink(l.link).slice(0,38))}${shortFbLink(l.link).length>38?'…':''} ↗${l.dupWith?` <span style="color:#FF6B6B; font-weight:700;">trùng · ${escHtml(l.dupWith.userName||'')} ${fmtDate(l.dupWith.date)}</span>`:''}</a>`).join('') : '<span style="font-size:13px; color:var(--ink-soft);">Không có link</span>'}</div>
+            ${x.notes.length ? `<div style="font-size:13px; color:var(--ink-soft);">Ghi chú: ${x.notes.slice(-5).map(n=>`<span style="color:var(--ink);">${fmtDate(n.date)}: ${escHtml(n.note)}</span>`).join(' · ')}</div>` : ''}
+            <div style="margin-top:10px;"><button class="btn-ghost btn-small" onclick="event.stopPropagation(); openMktPersonRevenue('${x.u.id}')">Xem doanh thu Nguồn →</button></div>
+          </td></tr>`;
+        }
+        return html;
+      }).join('') + `</tbody></table></div>`;
+  }
+  if(mraTab==='days'){
+    const ids = new Set(members.map(u=>u.id));
+    const rows = dates.slice().reverse().map(d=>{
+      const reps = state.mktReports.filter(r=>ids.has(r.userId) && r.date===d);
+      const posts = reps.reduce((t,r)=>t+(Number(r.posts&&r.posts.tiktok)||0)+(Number(r.posts&&r.posts.facebook)||0)+(Number(r.posts&&r.posts.zalo)||0),0);
+      const videos = reps.reduce((t,r)=>t+(Number(r.videos)||0),0), thanks = reps.reduce((t,r)=>t+(Number(r.thanks)||0),0);
+      const out = reps.reduce((t,r)=>t+(r.sources||[]).reduce((a,x)=>a+(Number(x.outside)||0),0),0);
+      const app = members.reduce((t,u)=>t+mraAppCounts(u.id,[d]).total,0);
+      return {d, n:reps.length, posts, videos, thanks, out, app};
+    });
+    const T = rows.reduce((t,r)=>({n:t.n+r.n, posts:t.posts+r.posts, videos:t.videos+r.videos, thanks:t.thanks+r.thanks, out:t.out+r.out, app:t.app+r.app}), {n:0,posts:0,videos:0,thanks:0,out:0,app:0});
+    content = `<div class="table-wrap"><table class="rtable"><thead><tr><th>Ngày</th><th class="num">Đã nộp</th><th class="num">Bài đăng</th><th class="num">Video quay</th><th class="num">Lời cảm ơn</th><th class="num">Data trên app</th><th class="num">Ngoài app</th><th class="num">Tổng data</th></tr></thead><tbody>` +
+      rows.map(r=>`<tr><td data-label="Ngày">${fmtDate(r.d)}</td><td class="num" data-label="Đã nộp" style="${r.n<members.length?'color:var(--danger); font-weight:700;':''}">${r.n}/${members.length}</td><td class="num" data-label="Bài đăng">${r.posts}</td><td class="num" data-label="Video">${r.videos}</td><td class="num" data-label="Lời cảm ơn">${r.thanks}</td><td class="num" data-label="Trên app">${r.app}</td><td class="num" data-label="Ngoài app">${r.out}</td><td class="num" data-label="Tổng"><b>${r.app+r.out}</b></td></tr>`).join('') +
+      `<tr class="total-row"><td><b>TỔNG</b></td><td class="num"><b>${T.n}/${members.length*rows.length}</b></td><td class="num"><b>${T.posts}</b></td><td class="num"><b>${T.videos}</b></td><td class="num"><b>${T.thanks}</b></td><td class="num"><b>${T.app}</b></td><td class="num"><b>${T.out}</b></td><td class="num"><b>${T.app+T.out}</b></td></tr></tbody></table></div>`;
+  }
+  if(mraTab==='weeks'){
+    const wk = mrWeekTarget();
+    const weeks = []; { let st = wk.start; for(let i=0;i<8;i++){ weeks.push(st); st = mrPrevWeekStart(st); } }
+    const ids = members.map(u=>u.id);
+    const row = st => {
+      const recs = state.mktWeekly.filter(w=>ids.includes(w.userId) && w.weekStart===st);
+      const sum = k => recs.reduce((t,w)=>t+(Number(w.reach&&w.reach[k])||0),0);
+      return {st, n:recs.length, tt:sum('tiktok'), fb:sum('facebook'), zl:sum('zalo')};
+    };
+    const rows = weeks.map(row);
+    const endOf = st => { const d=new Date(st+'T00:00:00'); d.setDate(d.getDate()+6); return toLocalDateStr(d); };
+    const missingNow = members.filter(u=>!mrWeekRecord(u.id, wk.start));
+    content = `${missingNow.length ? `<div style="font-size:13px; color:#F0A63A; margin:6px 0 10px;">⚠️ Chưa cập nhật tiếp cận tuần ${wk.week} (hạn hết ${fmtDate(wk.due)}): ${missingNow.map(u=>escHtml(u.name)).join(', ')}</div>` : `<div style="font-size:13px; color:var(--success); margin:6px 0 10px;">✓ Mọi người đã cập nhật tiếp cận tuần ${wk.week}</div>`}
+      <div class="table-wrap"><table class="rtable"><thead><tr><th>Tuần</th><th class="num">Đã cập nhật</th><th class="num">TikTok</th><th class="num">Facebook</th><th class="num">Zalo</th><th class="num">Tổng tiếp cận</th><th class="num">So tuần trước</th></tr></thead><tbody>` +
+      rows.map((r,i)=>{ const t = r.tt+r.fb+r.zl; const p = rows[i+1] ? rows[i+1].tt+rows[i+1].fb+rows[i+1].zl : 0; const tr = p ? Math.round((t-p)*100/p) : null;
+        return `<tr><td data-label="Tuần">${fmtDate(r.st)} – ${fmtDate(endOf(r.st))}</td><td class="num" data-label="Đã cập nhật" style="${r.n<members.length?'color:#F0A63A; font-weight:700;':''}">${r.n}/${members.length}</td><td class="num">${fmtMoney(r.tt)}</td><td class="num">${fmtMoney(r.fb)}</td><td class="num">${fmtMoney(r.zl)}</td><td class="num"><b>${fmtMoney(t)}</b></td><td class="num">${tr===null?'—':`<span style="color:${tr>=0?'var(--success)':'var(--danger)'}; font-weight:700;">${tr>=0?'↑':'↓'} ${Math.abs(tr)}%</span>`}</td></tr>`; }).join('') +
+      `</tbody></table></div>`;
+  }
+  box.innerHTML = filters + stats + `<div class="card">${tabs}${content}</div>`;
 }
 
 /* =========================== MKT: NHẬP DATA TRỰC TIẾP TRÊN APP =========================== */
@@ -7075,6 +7628,15 @@ function setupRoleScopedListeners(user){
   const trashKey = (r==='general_manager' || r==='data_manager') ? 'on' : 'none';
   attachScoped('trash', trashKey, trashKey==='on' ? fbTrash : null, setAndRender('trash'), false);
 
+  // Báo cáo MKT (ngày + tuần): MKT chỉ tải của mình; Quản lý MKT / Quản lý chung tải hết
+  const mrKey = !user ? 'none' : (r==='mkt' ? 'mine:'+user.id : ((r==='mkt_manager' || r==='general_manager') ? 'all' : 'none'));
+  attachScoped('mktReports', mrKey,
+    mrKey==='none' ? null : (mrKey==='all' ? fbMktReports : fbMktReports.orderByChild('userId').equalTo(user.id)),
+    setAndRender('mktReports'), false);
+  attachScoped('mktWeekly', mrKey,
+    mrKey==='none' ? null : (mrKey==='all' ? fbMktWeekly : fbMktWeekly.orderByChild('userId').equalTo(user.id)),
+    setAndRender('mktWeekly'), false);
+
   // Hoá đơn
   const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
   attachScoped('invoices', invKey,
@@ -7140,6 +7702,7 @@ function enterApp(){
   // team KHÔNG được xem, kể cả giới hạn trong team mình (khác với "Phân bổ data" là được xem).
   document.getElementById('navItem_mgrLeadsList').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   document.getElementById('navItem_mktOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
+  document.getElementById('navItem_mktReportsAdmin').style.display = (user.role==='general_manager') ? 'flex' : 'none';
   document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   if(user.role==='team_manager') document.getElementById('navItem_mgrTrash').style.display = 'none'; // Trưởng team không dùng Thùng rác — chỉ Quản lý chung
   document.getElementById('navItem_invoicesOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // Tổng hợp hoá đơn: CHỈ Quản lý chung được xem
@@ -7191,7 +7754,7 @@ function goPage(pageId){
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
-  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
+  if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktReportsAdmin' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
   closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
@@ -7206,6 +7769,12 @@ function goPage(pageId){
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
   if(pageId==='reportDiff') renderReportDiff();
+  if(pageId==='mktReport') renderMktReportPage();
+  if(pageId==='mktReportsAdmin'){
+    const ur = currentUser();
+    if(ur && !['general_manager','mkt_manager'].includes(ur.role)){ goPage('mgrDashboard'); return; }
+    renderMktReportsAdmin();
+  }
   if(pageId==='mgrSelfLeadsList') renderMgrSelfLeadsList();
   if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
   if(pageId==='invoices') renderInvoicesPage();
