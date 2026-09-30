@@ -1727,6 +1727,11 @@
           </div>
         </div>
 
+        <div class="card" id="settingsDataAuditCard" style="display:none;">
+          <span class="history-link" onclick="openSettingsTool('dataAudit')">Ẩn Kiểm tra dữ liệu ▾</span>
+          <div id="dataAuditBody" style="margin-top:10px;"></div>
+        </div>
+
         <div class="card" id="settingsInvoiceInfoCard" style="display:none;">
           <span class="history-link" onclick="toggleSettingsInvoiceInfoSection()" id="settingsInvoiceInfoToggle">Thông tin in trên hoá đơn ▸</span>
           <div id="settingsInvoiceInfoBody" style="display:none; margin-top:10px;">
@@ -8851,9 +8856,121 @@ const SETTINGS_TOOLS = [
    get:()=>settingsCallAttemptOpen, set:v=>{ settingsCallAttemptOpen=v; }},
   {key:'products',    card:'settingsProductsCard',    icon:'👕', label:'Danh mục sản phẩm',    count:()=>state.products.length,
    get:()=>settingsProductsOpen,    set:v=>{ settingsProductsOpen=v; }},
-  {key:'invoiceInfo', card:'settingsInvoiceInfoCard', icon:'🧾', label:'Thông tin in hoá đơn', count:null,
+  {key:'invoiceInfo', card:'settingsInvoiceInfoCard', icon:'🧾', label:'Thông tin in hoá đơn', count:null, sub:'Cửa hàng, STK, QR',
    get:()=>settingsInvoiceInfoOpen, set:v=>{ settingsInvoiceInfoOpen=v; }},
+  {key:'dataAudit',   card:'settingsDataAuditCard',   icon:'🩺', label:'Kiểm tra dữ liệu',     count:null, sub:'Tìm số liệu sai, trùng',
+   get:()=>settingsDataAuditOpen,   set:v=>{ settingsDataAuditOpen=v; }},
 ];
+let settingsDataAuditOpen = false;
+// ===== 🩺 KIỂM TRA DỮ LIỆU (chỉ Quản lý chung, chỉ ĐỌC — không tự sửa gì) =====
+// Rà các chỗ dễ làm số liệu doanh thu / đơn chốt bị sai để Quản lý xử lý tay.
+function renderDataAudit(){
+  const body = document.getElementById('dataAuditBody');
+  if(!body) return;
+  if(!leadsDataReady){ body.innerHTML = '<div class="empty-note">Đang tải kho data…</div>'; return; }
+  const userName = id => { const x = state.users.find(u=>u.id===id); return x ? x.name : (id||'—'); };
+  const money = v => fmtMoney(Number(v)||0) + ' đ';
+  const closed = state.leads.filter(l=>l.status==='Đã chốt');
+  const invById = {}; (state.invoices||[]).forEach(inv=>{ invById[inv.id]=inv; });
+  const sections = [];
+  const table = (head, rows, limit=50) => rows.length
+    ? `<div class="table-wrap"><table class="rtable" style="font-size:12.5px;"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,limit).map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${rows.length>limit?`<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">… và ${rows.length-limit} dòng khác</div>`:''}`
+    : '';
+  const add = (title, why, rows, head, fix) => sections.push({title, why, rows, head, fix});
+
+  // 1) Đơn chốt có thể bị CỘNG ĐÔI: cùng Sale + cùng SĐT, 2 lần chốt cách nhau ≤ 7 ngày
+  {
+    const groups = {};
+    closed.forEach(l=>{ const k = (l.assignedTo||'') + '|' + normalizePhone(leadPhone(l)); if(!normalizePhone(leadPhone(l))) return; (groups[k]=groups[k]||[]).push(l); });
+    const rows = [];
+    Object.values(groups).forEach(arr=>{
+      if(arr.length<2) return;
+      arr.sort((a,b)=>(a.closedDate||'').localeCompare(b.closedDate||''));
+      for(let i=1;i<arr.length;i++){
+        const a = arr[i-1], b = arr[i];
+        const gap = (Date.parse((b.closedDate||'')+'T00:00:00') - Date.parse((a.closedDate||'')+'T00:00:00'))/86400000;
+        if(isNaN(gap) || gap>7) continue;
+        rows.push([escHtml(userName(b.assignedTo)), escHtml(leadPhone(b)),
+          `${fmtDate(a.closedDate)} · ${money(a.closedAmount)}${a.invoiceNumber?` · 🧾${escHtml(a.invoiceNumber)}`:''}`,
+          `${fmtDate(b.closedDate)} · ${money(b.closedAmount)}${b.invoiceNumber?` · 🧾${escHtml(b.invoiceNumber)}`:''}`]);
+      }
+    });
+    add('Đơn chốt có thể bị cộng đôi', 'Cùng 1 Sale chốt cùng 1 SĐT 2 lần cách nhau ≤ 7 ngày — thường do vừa chọn tay "Đã chốt" vừa bấm xác nhận cọc (trước khi khoá). Nếu đúng là trùng, doanh thu đang bị tính 2 lần.',
+      rows, ['Sale','SĐT','Lần chốt trước','Lần chốt sau'], 'Vào Data chốt tổng, tìm SĐT, xoá dòng thừa (hoặc Sale huỷ xác nhận cọc rồi bấm lại).');
+  }
+  // 2) Đơn chốt thiếu số tiền / ngày chốt
+  {
+    const rows = closed.filter(l=>!(Number(l.closedAmount)>0) || !l.closedDate)
+      .map(l=>[escHtml(userName(l.assignedTo)), escHtml(leadPhone(l)), l.closedDate?fmtDate(l.closedDate):'<b style="color:var(--danger)">thiếu</b>', Number(l.closedAmount)>0?money(l.closedAmount):'<b style="color:var(--danger)">thiếu</b>']);
+    add('Đơn chốt thiếu Số tiền hoặc Ngày chốt', 'Đơn không có số tiền → doanh thu bị thiếu; không có ngày chốt → không rơi vào ngày/tháng nào khi lọc thống kê.',
+      rows, ['Sale','SĐT','Ngày chốt','Số tiền'], 'Nhắc Sale điền bổ sung trong tab Data đã chốt.');
+  }
+  // 3) Số tiền chốt khác tổng tiền hoá đơn đã gắn
+  {
+    const rows = closed.filter(l=>l.invoiceId && invById[l.invoiceId] && Number(invById[l.invoiceId].totalAmount)!==Number(l.closedAmount))
+      .map(l=>{ const inv = invById[l.invoiceId]; return [escHtml(userName(l.assignedTo)), escHtml(leadPhone(l)), '🧾 '+escHtml(inv.invoiceNumber||''), money(inv.totalAmount), money(l.closedAmount)]; });
+    add('Số tiền chốt khác tổng tiền hoá đơn', 'Dòng chốt đã gắn hoá đơn nhưng số tiền bị sửa tay khác với hoá đơn.',
+      rows, ['Sale','SĐT','Hoá đơn','Tiền hoá đơn','Tiền chốt'], 'Kiểm tra lại với Sale — sửa Số tiền chốt cho khớp hoá đơn (hoặc sửa hoá đơn).');
+  }
+  // 4) Hoá đơn đã xác nhận cọc nhưng dòng chốt không còn / không còn "Đã chốt"
+  {
+    const leadById = {}; state.leads.forEach(l=>{ leadById[l.id]=l; });
+    const rows = (state.invoices||[]).filter(inv=>inv.depositLink && (!leadById[inv.depositLink.leadId] || leadById[inv.depositLink.leadId].status!=='Đã chốt'))
+      .map(inv=>{ const l = leadById[inv.depositLink.leadId]; return ['🧾 '+escHtml(inv.invoiceNumber||''), escHtml(inv.saleName||userName(inv.saleId)), escHtml(inv.customerName||''), money(inv.totalAmount), l ? `Đang là "${escHtml(l.status||'—')}"` : '<b style="color:var(--danger)">Dòng chốt đã bị xoá</b>']; });
+    add('Hoá đơn đã cọc nhưng không có trong Data chốt', 'Hoá đơn hiện "✅ Đã cọc" nhưng dòng chốt tương ứng đã bị xoá hoặc bị đổi trạng thái → đơn này KHÔNG được tính doanh thu.',
+      rows, ['Hoá đơn','Sale','Khách','Tiền','Tình trạng'], 'Sale bấm "✅ Đã cọc" để huỷ rồi bấm xác nhận lại.');
+  }
+  // 5) Nguồn có doanh thu nhưng chưa gán MKT nào  +  6) Nguồn gán cho nhiều MKT
+  {
+    const owners = {};
+    state.users.filter(u=>u.role==='mkt'||u.role==='mkt_manager').forEach(u=>(u.assignedSources||[]).forEach(src=>{ (owners[src]=owners[src]||[]).push(u.name); }));
+    const bySrc = {};
+    closed.forEach(l=>{ const src = leadSource(l); if(!src || src==='—') return; const b = bySrc[src]||(bySrc[src]={n:0,sum:0}); b.n++; b.sum += Number(l.closedAmount)||0; });
+    const ignore = [returningSourceName().toLowerCase(), 'khách tự tìm', 'khách cũ'];
+    const rows5 = Object.keys(bySrc).filter(src=>!owners[src] && !ignore.includes(src.toLowerCase()))
+      .sort((a,b)=>bySrc[b].sum-bySrc[a].sum).map(src=>[escHtml(src), bySrc[src].n, money(bySrc[src].sum)]);
+    add('Nguồn có đơn chốt nhưng chưa gán cho MKT nào', 'Doanh thu từ các Nguồn này KHÔNG được tính cho MKT nào trong Tổng hợp MKT (thường do gõ tên Nguồn khác chính tả, hoặc Nguồn mới chưa gán).',
+      rows5, ['Nguồn','Số đơn','Doanh thu'], 'Cài đặt → Nguồn MKT: gán Nguồn cho đúng MKT, hoặc gộp nhóm với tên Nguồn chuẩn.');
+    const rows6 = Object.keys(owners).filter(src=>owners[src].length>1)
+      .map(src=>[escHtml(src), escHtml(owners[src].join(', ')), bySrc[src]?bySrc[src].n:0, money(bySrc[src]?bySrc[src].sum:0)]);
+    add('Nguồn đang gán cho nhiều MKT cùng lúc', 'Doanh thu của Nguồn này được tính cho TẤT CẢ các MKT được gán → khi cộng doanh thu các MKT lại sẽ bị trùng.',
+      rows6, ['Nguồn','Các MKT','Số đơn','Doanh thu'], 'Chỉ giữ 1 MKT phụ trách mỗi Nguồn (nếu đúng là làm chung thì bỏ qua mục này).');
+  }
+  // 7) Báo cáo Sale tự khai lệch với Data đã chốt (30 ngày gần nhất)
+  {
+    const since = (()=>{ const d=new Date(); d.setDate(d.getDate()-30); return toLocalDateStr(d); })();
+    const sys = {};
+    closed.forEach(l=>{ if(!l.closedDate || l.closedDate<since) return; const k = l.assignedTo+'|'+l.closedDate; const v = sys[k]||(sys[k]={n:0,sum:0}); v.n++; v.sum += Number(l.closedAmount)||0; });
+    const rows = [];
+    (state.reports||[]).filter(r=>r.date>=since).forEach(r=>{
+      const v = sys[r.userId+'|'+r.date] || {n:0,sum:0};
+      const rn = Number(r.orderCount)||0, rs = Number(r.revenue)||0;
+      if(rn!==v.n || Math.abs(rs-v.sum)>1000){
+        rows.push([fmtDate(r.date), escHtml(userName(r.userId)), `${rn} đơn · ${money(rs)}`, `${v.n} đơn · ${money(v.sum)}`,
+          `<b style="color:${rs>=v.sum?'var(--warn)':'var(--danger)'};">${rs-v.sum>=0?'+':''}${fmtMoney(rs-v.sum)} đ</b>`]);
+      }
+    });
+    rows.sort((a,b)=>0);
+    add('Báo cáo Sale tự khai lệch với Data đã chốt (30 ngày)', 'Số đơn/doanh thu Sale ghi trong "Nộp báo cáo" khác với số đơn/tiền thực tế trong Data đã chốt cùng ngày. Lệch nhỏ có thể do đơn tự tìm/đơn viết tay chưa nhập vào hệ thống.',
+      rows, ['Ngày','Sale','Báo cáo tự khai','Data đã chốt','Chênh lệch'], 'Nhắc Sale nhập đủ đơn vào Data đã chốt, hoặc sửa lại báo cáo cho đúng.');
+  }
+
+  const issues = sections.reduce((n,x)=>n+x.rows.length,0);
+  body.innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+      <div style="font-size:14px;">${issues ? `Tìm thấy <b style="color:var(--warn);">${issues}</b> điểm cần xem lại` : '<b style="color:var(--success);">✅ Không phát hiện sai lệch nào</b>'}
+        <span style="color:var(--ink-soft); font-size:12.5px;"> · đã rà ${closed.length} đơn chốt, ${(state.invoices||[]).length} hoá đơn (30 ngày), ${(state.reports||[]).length} báo cáo</span></div>
+      <button class="btn-ghost btn-small" onclick="renderDataAudit()">🔄 Kiểm tra lại</button>
+    </div>
+    <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">Công cụ chỉ ĐỌC và liệt kê — không tự sửa hay xoá gì.</div>` +
+    sections.map(sec=>`
+      <div style="border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+        <div style="font-weight:700; font-size:14px;">${sec.rows.length ? '⚠️' : '✅'} ${sec.title} <span style="font-weight:600; color:${sec.rows.length?'var(--warn)':'var(--success)'};">(${sec.rows.length})</span></div>
+        <div style="font-size:12.5px; color:var(--ink-soft); margin:4px 0 ${sec.rows.length?8:0}px;">${sec.why}</div>
+        ${sec.rows.length ? table(sec.head, sec.rows) + `<div style="font-size:12.5px; margin-top:6px;">👉 <b>Cách xử lý:</b> ${sec.fix}</div>` : ''}
+      </div>`).join('');
+}
+
 function openSettingsTool(key){
   const t = SETTINGS_TOOLS.find(x=>x.key===key);
   if(!t) return;
@@ -8884,7 +9001,7 @@ function renderSettingsToolGrid(){
   gridCard.style.display = allowed.length ? '' : 'none';
   grid.innerHTML = allowed.map(t=>{
     let n = null; try{ n = t.count ? t.count() : null; }catch(e){}
-    return `<button class="settings-tool-btn${t.get()?' active':''}" onclick="openSettingsTool('${t.key}')"><span class="ico">${t.icon}</span><span>${t.label}${n!==null?`<span class="cnt">${n} mục</span>`:'<span class="cnt">Cửa hàng, STK, QR</span>'}</span></button>`;
+    return `<button class="settings-tool-btn${t.get()?' active':''}" onclick="openSettingsTool('${t.key}')"><span class="ico">${t.icon}</span><span>${t.label}${n!==null?`<span class="cnt">${n} mục</span>`:`<span class="cnt">${t.sub||''}</span>`}</span></button>`;
   }).join('');
 }
 function renderMgrSettings(){
@@ -8941,6 +9058,9 @@ function renderMgrSettings(){
   document.getElementById('settingsCallAttemptCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsProductsCard').style.display = scope ? 'none' : 'block';
   document.getElementById('settingsInvoiceInfoCard').style.display = scope ? 'none' : 'block';
+  { const me0 = currentUser();
+    document.getElementById('settingsDataAuditCard').style.display = (!scope && me0 && me0.role==='general_manager') ? 'block' : 'none';
+    if(settingsDataAuditOpen && !scope) renderDataAudit(); }
   if(!scope){
     const mktListEl = document.getElementById('settingsMktBranchList');
     mktListEl.innerHTML = state.mktBranches.map(b=>{
