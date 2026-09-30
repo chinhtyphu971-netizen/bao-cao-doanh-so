@@ -8895,7 +8895,11 @@ function rewriteLeadSources(oldNames, newName){
   const olds = new Set(oldNames);
   const updates = {};
   state.leads.forEach(l=>{
-    if(l.source && olds.has(l.source) && l.source!==newName){ updates[l.id + '/source'] = newName; l.source = newName; }
+    // Dùng leadSource(): nhiều data nhập từ Google Sheet KHÔNG có trường "source" mà Nguồn nằm trong
+    // cột gốc (raw) — trước đây bỏ sót nhóm này nên bấm Gộp không đổi được gì. Ghi trường "source"
+    // (được ưu tiên hơn cột gốc) nên không cần sửa dữ liệu gốc từ Sheet.
+    const cur = leadSource(l);
+    if(cur && olds.has(cur) && cur!==newName){ updates[l.id + '/source'] = newName; l.source = newName; }
   });
   const keys = Object.keys(updates);
   for(let i=0;i<keys.length;i+=500){
