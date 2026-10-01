@@ -3388,7 +3388,9 @@ function invPhoneInput(el){
   if(isValidVNPhone(cp)){
     const u = currentUser();
     const sid = d.saleId || (u && u.id);
-    d.leadSource = detectInvoiceSource(sid, cp, d.id) || '';
+    const detectedSrc = detectInvoiceSource(sid, cp, d.id) || '';
+    if(detectedSrc){ d.leadSource = detectedSrc; d._sourcePicked = false; }
+    else if(!d._sourcePicked){ d.leadSource = ''; } // Sale đã tự chọn Nguồn thì giữ nguyên
     d.ownOldCustomer = isOwnReturningCustomer(sid, cp, d.id);
     refreshInvoiceSourceBox();
     applyOldCustomerDeposit();
@@ -3478,8 +3480,21 @@ function applyOldCustomerDeposit(){
     d.deposit = DEFAULT_INVOICE_DEPOSIT; d._autoDepositZero = false; refreshInvoiceDepositDom();
   }
 }
+// Nguồn kênh trên hoá đơn: tự nhận theo SĐT → hiện chữ. KHÔNG tự nhận được (khách mới, data ngoài app…)
+// → Sale tự chọn trong danh sách Nguồn; Nguồn đã chọn đi theo hoá đơn sang Data đã chốt khi xác nhận cọc.
 function invSourceBoxHtml(src){
-  return src ? `<label>Nguồn kênh</label><div class="inv-static-val">${escHtml(src)}</div>` : '';
+  const d = currentInvoiceDraft || {};
+  if(src && !d._sourcePicked) return `<label>Nguồn kênh</label><div class="inv-static-val">${escHtml(src)}</div>`;
+  return `<label>Nguồn kênh</label>
+    <select class="no-print" style="min-width:150px; max-width:190px;" onchange="pickInvoiceSource(this.value)">${mktSourceOptionsHtml(src||'', [returningSourceName()])}</select>
+    <div class="inv-static-val print-only">${escHtml(src||'')}</div>`;
+}
+function pickInvoiceSource(v){
+  const d = currentInvoiceDraft; if(!d) return;
+  d.leadSource = v || '';
+  d._sourcePicked = !!v;
+  const p = document.querySelector('#invSourceBox .print-only'); if(p) p.textContent = v || '';
+  updateInvoiceWatermark();
 }
 function refreshInvoiceSourceBox(){
   const box = document.getElementById('invSourceBox');
