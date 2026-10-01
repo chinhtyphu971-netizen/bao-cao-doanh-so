@@ -3701,7 +3701,7 @@ function markInvoiceDeposited(invoiceId){
         prev: {status: existing.status||'', closedDate: existing.closedDate||'', closedAmount: (existing.closedAmount===undefined ? null : existing.closedAmount)}};
       const updates = recentClosed
         ? {closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber} // giữ nguyên Ngày chốt Sale đã ghi
-        : {status:'Đã chốt', closedDate: today, closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
+        : {status:'Đã chốt', closedDate: today, closedAt: Date.now(), closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
       if(!existing.customerName) updates.customerName = inv.customerName;
       Object.assign(existing, updates);
       fbUpdateLead(existing.id, updates);
@@ -3712,6 +3712,7 @@ function markInvoiceDeposited(invoiceId){
         source: isReturningCustomerFor(null, phone, null, inv.id) ? returningSourceName() : ((inv.leadSource && inv.leadSource!==returningSourceName()) ? inv.leadSource : ''),
         status: 'Đã chốt',
         closedDate: today,
+        closedAt: Date.now(),
         closedAmount: amount,
         customerName: inv.customerName || '',
         assignedTo: owner.id,
@@ -4653,6 +4654,7 @@ function updateLeadStatus(leadId, newStatus){
   if(newStatus==='Đã chốt' && !lead.closedDate){
     updates.closedDate = todayStr();
   }
+  if(newStatus==='Đã chốt' && !lead.closedAt) updates.closedAt = Date.now();
   Object.assign(lead, updates);
   fbUpdateLead(leadId, updates);
 }
@@ -5854,6 +5856,7 @@ function addManualClosedLead(){
     source: '',
     status: 'Đã chốt',
     closedDate: todayStr(),
+    closedAt: Date.now(),
     closedAmount: null,
     assignedTo: u.id,
     assignedToName: u.name,
@@ -6558,6 +6561,9 @@ function closedRepeatLeadIds(){
   });
   return repeat;
 }
+// Thời điểm chốt để xếp "mới nhất lên đầu" trong cùng 1 ngày: closedAt (lúc bấm chốt / xác nhận cọc);
+// data cũ chưa có closedAt thì lấy lúc tạo dòng (thêm tay) hoặc lúc được chia.
+function closedSortTime(l){ return Number(l.closedAt) || Number(l.createdAt) || Number(l.assignedAt) || Number(l.importedAt) || 0; }
 function renderMgrClosedLeads(){
   const scope = scopeBranchId();
   const canSeePhone = currentUser().role !== 'team_manager';
@@ -6585,7 +6591,7 @@ function renderMgrClosedLeads(){
       if(!assignee || assignee.branchId!==scope) return false;
     }
     return true;
-  }).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''));
+  }).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'') || closedSortTime(b)-closedSortTime(a));
 
   if(mgrClosedDateFrom || mgrClosedDateTo){
     leads = leads.filter(l=>{
@@ -6640,7 +6646,7 @@ function renderMgrClosedLeads(){
         const assignee = state.users.find(u=>u.id===l.assignedTo);
         const branchLabel = assignee ? (assignee.branchId ? branchName(assignee.branchId) : 'Toàn công ty') : '—';
         return `<tr${repeatIds.has(l.id) ? ' class="closed-repeat-row"' : ''}>
-        <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}</td>
+        <td data-label="Ngày chốt">${l.closedDate?fmtDate(l.closedDate):'—'}${l.closedAt ? `<div style="font-size:11px; color:var(--ink-soft);">${new Date(Number(l.closedAt)).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}</td>
         <td data-label="Người chốt">${l.assignedToName||'—'}</td>
         <td data-label="Chi nhánh">${branchLabel}</td>
         <td data-label="Nguồn">${leadSourceEditableHtml(l)}</td>
