@@ -1281,14 +1281,15 @@
             <div class="field"><label>Video mới quay</label><input id="mr_video" type="number" min="0" placeholder="Không bắt buộc" title="Chỉ điền ngày đi quay" style="border-style:dashed;"></div>
             <div class="field"><label>Số lời cảm ơn đã gửi</label><input id="mr_thanks" type="number" min="0" placeholder="0" oninput="mrUpdateStats()"></div>
           </div>
-          <h3 class="mr-step"><span>2</span>Data theo Nguồn</h3>
-          <div class="table-wrap"><table class="rtable" id="mrSourceTable"></table></div>
-          <div style="font-size:12.5px; color:var(--ink-soft); margin:8px 0 16px; line-height:1.5;">🔒 <b style="color:var(--ink);">Trên app</b> hệ thống tự đếm theo data bạn đã nhập trong ngày (không sửa được). <b style="color:var(--ink);">Ngoài app</b> = mã QR, số nước ngoài nhập ở app khác — Sale chốt nhớ chọn đúng Nguồn.</div>
-          <div id="mrStats" class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin-bottom:16px;"></div>
-          <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+          <h3 class="mr-step"><span>2</span>Link bài đăng &amp; ghi chú</h3>
+          <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); margin-bottom:18px;">
             <div class="field"><label>Link bài đăng — <b style="color:var(--ink);">bắt buộc với TikTok, Facebook</b> (mỗi link 1 dòng)</label><textarea id="mr_links" rows="4" placeholder="https://www.tiktok.com/@...&#10;https://www.facebook.com/share/..." oninput="mrUpdateLinks()"></textarea><div id="mrLinkSummary" style="margin-top:6px;"></div></div>
             <div class="field"><label>Ghi chú (nội dung hiệu quả, data ngoài app gồm những gì…)</label><textarea id="mr_note" rows="4" placeholder="VD: 6 mã QR, 2 số Lào"></textarea></div>
           </div>
+          <h3 class="mr-step"><span>3</span>Data theo Nguồn</h3>
+          <div class="table-wrap"><table class="rtable" id="mrSourceTable"></table></div>
+          <div style="font-size:12.5px; color:var(--ink-soft); margin:8px 0 16px; line-height:1.5;">🔒 <b style="color:var(--ink);">Trên app</b> hệ thống tự đếm theo data bạn đã nhập trong ngày (không sửa được). <b style="color:var(--ink);">Ngoài app</b> = mã QR, số nước ngoài nhập ở app khác — Sale chốt nhớ chọn đúng Nguồn.</div>
+          <div id="mrStats" class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); margin-bottom:16px;"></div>
           <div style="display:flex; justify-content:flex-end; gap:10px; align-items:center; margin-top:6px;">
             <span id="mrMsg" style="font-size:13px; color:var(--success);"></span>
             <button class="btn-primary" id="mrSubmitBtn" onclick="mrSubmit()">Nộp báo cáo hôm nay</button>
