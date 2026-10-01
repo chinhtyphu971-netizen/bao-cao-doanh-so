@@ -1580,6 +1580,11 @@
             <div class="field" style="max-width:170px;"><label>Từ ngày</label><input type="date" id="invOverviewFrom" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="invOverviewTo" onchange="applyInvOverviewCustomRange()"></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo tài khoản</label><select id="invOverviewSaleFilter" onchange="renderInvoicesOverviewPage()"></select></div>
+            <div class="field" style="max-width:200px;"><label>Trạng thái cọc</label><select id="invOverviewDepositFilter" onchange="renderInvoicesOverviewPage()">
+              <option value="">— Tất cả —</option>
+              <option value="done">✅ Đã cọc / đã chốt</option>
+              <option value="pending">⏳ Chưa cọc</option>
+            </select></div>
             <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="clearTimeout(window.__invSearchT); window.__invSearchT=setTimeout(renderInvoicesOverviewPage, 250)"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
@@ -4067,11 +4072,12 @@ function renderInvoicesOverviewPage(){
   // Trang này chỉ phụ thuộc hoá đơn + bộ lọc: nếu chỉ có data khách/báo cáo thay đổi (rất thường xuyên)
   // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
   // Đổi bộ lọc (ngày / tài khoản / tìm kiếm) → quay về trang 1
+  const depFilter = (document.getElementById('invOverviewDepositFilter')||{}).value || '';
   const filterKey = [invOverviewDateFrom, invOverviewDateTo,
-    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value].join('|');
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter].join('|');
   if(filterKey !== lastInvOverviewFilterKey){ pagerPages.invOverview = 1; lastInvOverviewFilterKey = filterKey; }
   const memoKey = [invOverviewDateFrom, invOverviewDateTo,
-    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter,
     pagerPages.invOverview||1, invByProductOpen ? 1 : 0].join('|');
   if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
   invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
@@ -4101,6 +4107,16 @@ function renderInvoicesOverviewPage(){
   }
   const saleFilter = saleSel.value;
   if(saleFilter) invoices = invoices.filter(inv=>inv.saleId===saleFilter);
+  // Trạng thái cọc: "đã cọc / đã chốt" = đã bấm Xác nhận cọc (hoặc Chốt đơn khách cũ) → đã vào Data đã chốt
+  { const depSel = document.getElementById('invOverviewDepositFilter');
+    if(depSel){
+      const nDone = invoices.filter(inv=>inv.depositLink).length, nPending = invoices.length - nDone;
+      depSel.options[1].textContent = `✅ Đã cọc / đã chốt (${nDone})`;
+      depSel.options[2].textContent = `⏳ Chưa cọc (${nPending})`;
+    }
+    if(depFilter==='done') invoices = invoices.filter(inv=>inv.depositLink);
+    if(depFilter==='pending') invoices = invoices.filter(inv=>!inv.depositLink);
+  }
   invoices.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   lastFilteredInvoices = invoices;
 
@@ -4166,7 +4182,7 @@ function renderInvoicesOverviewPage(){
       <td>${invoiceSourceCellHtml(inv)}</td>
       <td class="num">${inv.totalQty}</td>
       <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
-      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? `<div style="font-size:11px; font-weight:600;">${isOldCustomerInvoice(inv) ? '✅ Đã chốt (khách cũ)' : '✅ Đã cọc'}</div>` : ''}</td>
+      <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? `<div style="font-size:11px; font-weight:600;">${isOldCustomerInvoice(inv) ? '✅ Đã chốt (khách cũ)' : '✅ Đã cọc'}</div>` : '<div style="font-size:11px; font-weight:600; color:#F0A63A;">⏳ Chưa cọc</div>'}</td>
     </tr>`).join('') + `</tbody>`;
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
@@ -4248,10 +4264,11 @@ function exportInvoicesOverview(){
     soHd: inv.invoiceNumber, ngay: fmtDate(inv.invoiceDate), khachHang: inv.customerName,
     sdt: canSeeFullPhone() ? cleanPhone(inv.customerPhone) : maskPhone(inv.customerPhone),
     nguon: inv.leadSource || '',
+    trangThaiCoc: inv.depositLink ? (isOldCustomerInvoice(inv) ? 'Đã chốt (khách cũ)' : 'Đã cọc') : 'Chưa cọc',
     taiKhoan: inv.saleId ? userName(inv.saleId) : '', sale: inv.saleName||'', team: inv.teamName||'', soLuong: inv.totalQty, coc: Number(inv.deposit)||0, tongThanhToan: inv.finalAmount,
   }));
   exportRowsToExcel(rows, [
-    {key:'soHd', header:'Số HĐ'}, {key:'ngay', header:'Ngày'}, {key:'khachHang', header:'Khách hàng'}, {key:'sdt', header:'SĐT khách'}, {key:'nguon', header:'Nguồn kênh'},
+    {key:'soHd', header:'Số HĐ'}, {key:'ngay', header:'Ngày'}, {key:'khachHang', header:'Khách hàng'}, {key:'sdt', header:'SĐT khách'}, {key:'nguon', header:'Nguồn kênh'}, {key:'trangThaiCoc', header:'Trạng thái cọc'},
     {key:'taiKhoan', header:'Tài khoản'}, {key:'sale', header:'Nhân viên ghi'}, {key:'team', header:'Team'}, {key:'soLuong', header:'SL'}, {key:'coc', header:'Cọc'}, {key:'tongThanhToan', header:'Tổng thanh toán'},
   ], `danh-sach-hoa-don-${todayStr()}.xlsx`);
 }
