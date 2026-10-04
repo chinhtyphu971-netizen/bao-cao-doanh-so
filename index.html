@@ -337,6 +337,8 @@
   .po-bar{ flex:0 0 140px; height:8px; border-radius:99px; background:rgba(255,255,255,0.08); overflow:hidden; }
   .po-bar > i{ display:block; height:100%; background:#3DD68C; }
   .po-count{ flex:0 0 70px; text-align:right; font-weight:700; font-size:13.5px; }
+  .po-table td{ padding-top:8px !important; padding-bottom:8px !important; vertical-align:middle; }
+  .po-table .po-items{ display:inline-block; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; cursor:help; }
   .pr-prod h3{ margin:0 0 8px; font-size:15px; }
   .pr-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(400px,1fr)); gap:6px 18px; }
   @media (max-width:520px){ .pr-grid{ grid-template-columns:1fr; } }
@@ -4217,6 +4219,26 @@ let invOverviewRenderMemo = null;
 let lastInvOverviewFilterKey = null;
 const debouncedRenderInvOverview = debounce(()=>renderInvoicesOverviewPage(), 250);
 let invByProductView = 'colors';
+// Sắp xếp bảng theo hình: cột + chiều (bấm tiêu đề để đổi). Mặc định theo tên hình A→Z.
+let invByProductSort = {col:'design', dir:'asc'};
+function ibpSortGroups(groups){
+  const sd = invByProductSort.dir==='asc' ? 1 : -1;
+  groups.sort((a,b)=>{
+    if(invByProductSort.col==='qty') return sd*(a.qty-b.qty) || a.design.localeCompare(b.design,'vi',{numeric:true});
+    if(invByProductSort.col==='amount') return sd*(a.amount-b.amount) || a.design.localeCompare(b.design,'vi',{numeric:true});
+    return sd*(a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}));
+  });
+  // trong mỗi hình: màu nhiều nhất lên trên khi đang xếp theo số lượng / thành tiền
+  if(invByProductSort.col!=='design') groups.forEach(g=>g.rows.sort((a,b)=>b.qty-a.qty));
+  return groups;
+}
+function setInvByProductSort(col){
+  if(invByProductSort.col===col) invByProductSort.dir = invByProductSort.dir==='asc' ? 'desc' : 'asc';
+  else invByProductSort = {col, dir: col==='design' ? 'asc' : 'desc'}; // bấm Tổng SL / Thành tiền lần đầu → nhiều nhất lên đầu
+  renderInvoicesOverviewPage();
+}
+function ibpArrow(col){ return invByProductSort.col===col ? (invByProductSort.dir==='asc' ? ' ▲' : ' ▼') : ' <span style="opacity:0.35;">⇅</span>'; }
+function ibpTh(label, col, num){ return `<th class="sortable${num?' num':''}" style="cursor:pointer; user-select:none;" onclick="setInvByProductSort('${col}')" title="Bấm để sắp xếp">${label}${ibpArrow(col)}</th>`; }
 function setInvByProductView(v){
   invByProductView = v;
   ['colors','designs'].forEach(k=>{ const el = document.getElementById('invByProductView_'+k); if(el) el.classList.toggle('selected', k===v); });
@@ -4237,7 +4259,7 @@ function renderInvoicesOverviewPage(){
     (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter].join('|');
   if(filterKey !== lastInvOverviewFilterKey){ pagerPages.invOverview = 1; lastInvOverviewFilterKey = filterKey; }
   const memoKey = [invOverviewDateFrom, invOverviewDateTo,
-    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter, codeFilterRaw, invByProductView,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter, codeFilterRaw, invByProductView, invByProductSort.col+invByProductSort.dir,
     pagerPages.invOverview||1, invByProductOpen ? 1 : 0].join('|');
   if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
   invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
@@ -4336,14 +4358,15 @@ function renderInvoicesOverviewPage(){
       if(gIdx[k]===undefined){ gIdx[k] = groups.length; groups.push({code:r.code, name:r.name, design:r.design||'', rows:[], qty:0, amount:0}); }
       const g = groups[gIdx[k]]; g.rows.push(r); g.qty += r.qty; g.amount += r.amount;
     });
+    ibpSortGroups(groups);
     byProductTable.innerHTML = invByProductView==='designs'
-      ? `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Mẫu in</th><th>Các màu</th><th class="num">Tổng SL</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+      ? `<thead><tr><th>Mã</th><th>Tên sản phẩm</th>${ibpTh('Mẫu in','design')}<th>Các màu</th>${ibpTh('Tổng SL','qty',true)}${ibpTh('Thành tiền','amount',true)}</tr></thead><tbody>` +
         groups.map(g=>`<tr>
           <td>${escHtml(g.code)}</td><td>${escHtml(g.name||'')}</td><td><b>${escHtml(g.design)||'—'}</b></td>
           <td style="font-size:12.5px; color:var(--ink-soft);">${g.rows.map(r=>`${escHtml(r.color)} <b style="color:var(--ink);">${r.qty}</b>`).join(' · ')}</td>
           <td class="num" style="font-weight:700;">${g.qty}</td><td class="num">${fmtMoney(g.amount)} đ</td></tr>`).join('') +
         `<tr class="total-row"><td colspan="4">TỔNG CỘNG (${groups.length} hình)</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr></tbody>`
-      : `<thead><tr><th>Mẫu in / màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+      : `<thead><tr>${ibpTh('Mẫu in / màu','design')}${ibpTh('Số lượng','qty',true)}${ibpTh('Thành tiền','amount',true)}</tr></thead><tbody>` +
       groups.map(g=>`<tr class="ibp-head"><td><b>${escHtml(g.design||'(không có mẫu in)')}</b> <span class="ibp-sub">${escHtml(g.code)} · ${escHtml(g.name||'')}</span></td>
           <td class="num"><b>${g.qty}</b></td><td class="num"><b>${fmtMoney(g.amount)} đ</b></td></tr>` +
         g.rows.map(r=>`<tr class="ibp-line"><td>${escHtml(r.color)}</td><td class="num">${r.qty}</td><td class="num">${fmtMoney(r.amount)} đ</td></tr>`).join('')
@@ -4450,6 +4473,7 @@ function exportInvoicesByProduct(){
     if(gIdx[k]===undefined){ gIdx[k] = groups.length; groups.push({code:r.code, name:r.name, design:r.design||'', rows:[], qty:0, amount:0}); }
     const g = groups[gIdx[k]]; g.rows.push(r); g.qty += r.qty; g.amount += r.amount;
   });
+  ibpSortGroups(groups); // xuất đúng thứ tự đang xem
   const rows = [];
   groups.forEach(g=>{
     if(invByProductView==='designs'){
@@ -5572,8 +5596,25 @@ function renderPoList(){
   if(me && me.role!=='general_manager') list = list.filter(o=>o.createdBy===me.id); // người đặt đơn chỉ thấy đơn mình gửi
   list.sort((a,b)=>b.createdAt-a.createdAt);
   if(poTab==='done') list = list.slice(0,30);
+  // Mỗi đơn 1 DÒNG gọn: mã · hình × số lượng · tiến độ · người gửi · hạn · trạng thái
+  const fmtT = t => new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
   box.innerHTML = !list.length ? `<div class="empty-note">${poTab==='open'?'Không có đơn nào đang in.':'Chưa có đơn nào xong.'}</div>` :
-    list.map(o=>poOrderCardHtml(o,false).replace(/<\/div>\s*$/, `${o.status==='open' && (me.role==='general_manager' || o.createdBy===me.id) ? `<div style="text-align:right; margin-top:8px;"><button class="btn-ghost btn-small" onclick="poDelete('${o.id}')">🗑️ Huỷ đơn</button></div>` : ''}</div>`)).join('');
+    `<div class="table-wrap"><table class="rtable po-table"><thead><tr><th>Đơn</th><th>Hình × số lượng</th><th>Tiến độ</th><th>Người gửi</th><th>Hạn</th><th>${poTab==='open'?'':'Xong lúc'}</th></tr></thead><tbody>` +
+    list.map(o=>{
+      const pg = poOrderProgress(o);
+      const itemsTxt = (o.items||[]).map(it=>`${it.design.split(' - ')[0]} ×${it.qty}`).join(', ');
+      const itemsFull = (o.items||[]).map(it=>`${it.design}: ${Math.min(Number(it.printed)||0, it.qty)}/${it.qty}`).join('\n');
+      const late = o.status==='open' && o.dueDate && o.dueDate < todayStr();
+      const canDel = o.status==='open' && (me.role==='general_manager' || o.createdBy===me.id);
+      return `<tr>
+        <td data-label="Đơn"><b>${escHtml(o.code||'')}</b>${o.note?` <span title="${escHtml(o.note)}" style="cursor:help;">📝</span>`:''}</td>
+        <td data-label="Hình"><span class="po-items" title="${escHtml(itemsFull)}">${escHtml(itemsTxt)}</span></td>
+        <td data-label="Tiến độ"><div style="display:flex; align-items:center; gap:8px;"><div class="po-bar" style="flex:0 0 90px;"><i style="width:${pg.pct}%;"></i></div><b style="color:${o.status==='done'?'var(--success)':'var(--ink)'}; white-space:nowrap;">${pg.done}/${pg.need}</b></div></td>
+        <td data-label="Người gửi" style="white-space:nowrap;">${escHtml(o.createdByName||'')}${o.assignedToName?` <span style="font-size:11.5px; color:var(--ink-soft);">→ ${escHtml(o.assignedToName)}</span>`:''}</td>
+        <td data-label="Hạn" style="white-space:nowrap; ${late?'color:var(--danger); font-weight:700;':''}">${o.dueDate?fmtDate(o.dueDate).slice(0,5):'—'}${late?' ⚠️':''}</td>
+        <td style="white-space:nowrap; text-align:right;">${o.status==='done' ? `<span style="color:var(--success); font-size:12.5px;">✓ ${o.doneAt?fmtT(o.doneAt):''}</span>` : (canDel ? `<button class="btn-ghost btn-small" onclick="poDelete('${o.id}')" title="Huỷ đơn">🗑️</button>` : '')}</td>
+      </tr>`;
+    }).join('') + `</tbody></table></div>`;
 }
 
 // =========================== NHÂN VIÊN IN HÌNH ===========================
