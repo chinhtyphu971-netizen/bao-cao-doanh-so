@@ -329,6 +329,14 @@
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
   /* Báo cáo in hình */
   .pr-prod{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .po-card{ border:1px solid #F0A63A; border-radius:14px; padding:14px; margin-bottom:12px; background:rgba(240,166,58,0.05); }
+  .po-card.done{ border-color:var(--line); background:transparent; opacity:0.85; }
+  .po-item{ display:flex; align-items:center; gap:10px; padding:6px 0; border-top:1px dashed var(--line); flex-wrap:wrap; }
+  .po-item:first-of-type{ border-top:none; }
+  .po-item .po-name{ flex:1 1 220px; font-size:13.5px; }
+  .po-bar{ flex:0 0 140px; height:8px; border-radius:99px; background:rgba(255,255,255,0.08); overflow:hidden; }
+  .po-bar > i{ display:block; height:100%; background:#3DD68C; }
+  .po-count{ flex:0 0 70px; text-align:right; font-weight:700; font-size:13.5px; }
   .pr-prod h3{ margin:0 0 8px; font-size:15px; }
   .pr-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(400px,1fr)); gap:6px 18px; }
   @media (max-width:520px){ .pr-grid{ grid-template-columns:1fr; } }
@@ -888,7 +896,10 @@
         <div class="nav-item" data-page="companyRules" onclick="goPage('companyRules')"><span class="label">📜 Nội quy & Văn hoá công ty</span></div>
       </div>
       <div id="navPrinter" style="display:none;">
-        <div class="nav-item" data-page="printReport" onclick="goPage('printReport')"><span class="label">🖨️ Báo cáo in hình</span></div>
+        <div class="nav-item" data-page="printReport" onclick="goPage('printReport')"><span class="label" id="navPrintReportLabel">🖨️ Báo cáo in hình</span></div>
+      </div>
+      <div id="navPrintOrder" style="display:none;">
+        <div class="nav-item" data-page="printOrders" onclick="goPage('printOrders')"><span class="label">📝 Đặt đơn in hình</span></div>
       </div>
       <div id="navMkt" style="display:none;">
         <div class="nav-item" data-page="mktReport" onclick="goPage('mktReport')"><span class="label">🧾 Nộp báo cáo</span></div>
@@ -1292,6 +1303,7 @@
       <div id="page-printReport" class="page" style="display:none;">
         <div class="page-head"><div><h1>Báo cáo in hình</h1><p>Ghi số lượng đã in trong ngày cho từng hình (H1, H2…)</p></div>
           <span id="prStatus" class="mr-pill"></span></div>
+        <div id="prOrdersBox"></div>
         <div class="card">
           <div class="toolbar" style="gap:12px; align-items:flex-end; margin-bottom:6px;">
             <div class="field" style="max-width:200px; margin:0;"><label>Ngày in</label><input type="date" id="pr_date" onchange="prLoadForDate()"></div>
@@ -1310,6 +1322,37 @@
         <div class="card">
           <h2 style="margin-top:0;">Báo cáo in gần đây</h2>
           <div class="table-wrap"><table class="rtable" id="prHistoryTable"></table></div>
+        </div>
+      </div>
+
+      <div id="page-printOrders" class="page" style="display:none;">
+        <div class="page-head"><div><h1>Đặt đơn in hình</h1><p>Chọn hình và số lượng cần in — Nhân viên in nhận đơn ngay trên app và bấm tiến độ khi in</p></div></div>
+        <div class="card">
+          <h2 style="margin-top:0;">Tạo đơn in mới</h2>
+          <div class="toolbar" style="gap:12px; align-items:flex-end; margin-bottom:10px;">
+            <div class="field" style="max-width:170px; margin:0;"><label>Hạn in xong</label><input type="date" id="po_due"></div>
+            <div class="field" style="max-width:220px; margin:0;"><label>Giao cho</label><select id="po_assignee"></select></div>
+            <div class="field" style="max-width:240px; margin:0;"><label>Tìm hình</label><input id="po_search" placeholder="VD: H2, Celine…" oninput="poFilterRows()"></div>
+          </div>
+          <div id="poDesignList"></div>
+          <div class="field" style="margin-top:10px;"><label>Ghi chú cho thợ in</label><textarea id="po_note" rows="2" placeholder="VD: in gấp cho đơn sỉ chị Lan, ưu tiên H2"></textarea></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div id="poFormTotal"></div>
+            <button class="btn-primary" onclick="poCreate()">📤 Gửi đơn in</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0;">Đơn in đã gửi</h2>
+          <div class="chip-row" style="margin-bottom:10px;">
+            <div class="chip selected" id="poTab_open" onclick="poSetTab('open')">Đang in</div>
+            <div class="chip" id="poTab_done" onclick="poSetTab('done')">Đã xong</div>
+          </div>
+          <div id="poList"></div>
+        </div>
+        <div class="card" id="poPermCard" style="display:none;">
+          <h2 style="margin-top:0;">Người được đặt đơn in</h2>
+          <div style="font-size:13px; color:var(--ink-soft); margin-bottom:10px;">Tick những người được phép tạo đơn in (ngoài Quản lý chung). Người được tick sẽ thấy mục "📝 Đặt đơn in hình" trên menu.</div>
+          <div id="poPermList"></div>
         </div>
       </div>
 
@@ -2129,7 +2172,8 @@ const LocalDB = {
     return c.compare(String(this), String(that));
   };
 })();
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null;
+let printOrdersLoadedOnce = false;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null;
 // KHOÁ NHẬP DATA khi MKT chưa nộp báo cáo của HÔM TRƯỚC. Chỉ áp dụng cho các ngày từ mốc này trở đi
 // (tránh khoá oan ngày đầu mới có tính năng báo cáo MKT).
 const MKT_REPORT_LOCK_FROM = '2026-10-01';
@@ -2151,6 +2195,7 @@ let state = {
   mktReports: [], // Báo cáo ngày của MKT (nhánh riêng "mktReports" — không đụng tới data/báo cáo Sale)
   mktWeekly: [],  // Cập nhật tuần của MKT: lượt tiếp cận theo kênh (nhánh riêng "mktWeekly")
   printReports: [], // Báo cáo in hình hằng ngày của Nhân viên in hình (nhánh riêng "printReports")
+  printOrders: [],  // Đơn đặt in hình (Quản lý / người được giao đặt đơn → Nhân viên in) — nhánh riêng "printOrders"
   invoiceSettings: {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}, // Thông tin cửa hàng in trên hoá đơn
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
   session: LocalDB.read('session', null),
@@ -2232,6 +2277,7 @@ function startFirebaseListeners(){
   fbMktReports = db.ref('mktReports');
   fbMktWeekly = db.ref('mktWeekly');
   fbPrintReports = db.ref('printReports');
+  fbPrintOrders = db.ref('printOrders');
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
@@ -2339,7 +2385,7 @@ function onDataChanged(){
     // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
     // đang gõ dở hoặc nhảy màn hình giữa chừng. Trang "invoices" có nút "🔄 Làm mới" riêng để
     // Sale chủ động cập nhật (VD: khi Quản lý vừa thêm sản phẩm mới) mà không mất phần đang soạn.
-    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices' && currentPageId!=='mktReport' && currentPageId!=='printReport'){
+    if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices' && currentPageId!=='mktReport' && currentPageId!=='printReport' && currentPageId!=='printOrders'){
       clearTimeout(dataChangedRenderTimer);
       // Chống lag: gộp các thay đổi liên tiếp, vẽ lại tối đa ~1 lần mỗi 1,5 giây (trước là mỗi 0,3 giây)
       const wait = Math.max(300, 1500 - (Date.now() - lastAutoRenderAt));
@@ -5343,6 +5389,168 @@ function renderMktReportsAdmin(){
 }
 
 
+
+// =========================== ĐƠN ĐẶT IN HÌNH ===========================
+// Quản lý chung / người được giao tạo đơn: các hình + số lượng → Nhân viên in thấy đơn trên trang Báo cáo in,
+// bấm +1/+5/+10/Xong ngay trong đơn → cộng vào tiến độ đơn VÀ cộng luôn vào báo cáo in trong ngày (không phải bấm 2 lần).
+let poTab = 'open';
+function updatePrintOrdersBadge(){
+  const el = document.getElementById('navPrintReportLabel'); if(!el) return;
+  const u = currentUser();
+  const n = (state.printOrders||[]).filter(o=>o.status==='open' && (!o.assignedTo || (u && o.assignedTo===u.id))).length;
+  el.innerHTML = '🖨️ Báo cáo in hình' + (n ? ` <span class="mr-pill warn" style="padding:1px 8px; font-size:11px;">${n} đơn</span>` : '');
+}
+function poOrderProgress(o){
+  const need = (o.items||[]).reduce((t,x)=>t+(Number(x.qty)||0),0);
+  const done = (o.items||[]).reduce((t,x)=>t+Math.min(Number(x.printed)||0, Number(x.qty)||0),0);
+  return {need, done, pct: need ? Math.round(done*100/need) : 0};
+}
+function poOrderCardHtml(o, forPrinter){
+  const pg = poOrderProgress(o);
+  const u = currentUser();
+  const canEdit = forPrinter && o.status==='open';
+  const lateTag = o.status==='open' && o.dueDate && o.dueDate < todayStr() ? ' <span class="mr-pill bad" style="padding:1px 8px; font-size:11px;">Quá hạn</span>' : '';
+  return `<div class="po-card${o.status==='done'?' done':''}">
+    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+      <div><b style="font-size:15px;">📥 Đơn in ${escHtml(o.code||'')}</b>${lateTag}
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-top:2px;">Từ <b style="color:var(--ink);">${escHtml(o.createdByName||'')}</b> · ${new Date(o.createdAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}${o.dueDate?` · hạn <b style="color:var(--ink);">${fmtDate(o.dueDate)}</b>`:''}${o.assignedToName?` · giao ${escHtml(o.assignedToName)}`:''}</div>
+        ${o.note?`<div style="font-size:13px; margin-top:6px;">📝 ${escHtml(o.note)}</div>`:''}</div>
+      <div style="text-align:right;"><div style="font-size:20px; font-weight:800; color:${o.status==='done'?'var(--success)':'#F0A63A'};">${pg.done}/${pg.need}</div><div style="font-size:12px; color:var(--ink-soft);">${o.status==='done'?'✓ Đã xong'+(o.doneAt?' '+new Date(o.doneAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):''):pg.pct+'%'}</div></div>
+    </div>
+    <div style="margin-top:8px;">${(o.items||[]).map((it,idx)=>{ const pr = Number(it.printed)||0, q = Number(it.qty)||0; const full = pr>=q;
+      return `<div class="po-item"><span class="po-name"><b>${escHtml(it.design)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(it.code)}</span></span>
+        <div class="po-bar"><i style="width:${q?Math.min(100,Math.round(pr*100/q)):0}%;"></i></div>
+        <span class="po-count" style="color:${full?'var(--success)':'var(--ink)'};">${pr}/${q}</span>
+        ${canEdit ? `<div class="pr-ctl"><button type="button" class="pr-btn" onclick="poBump('${o.id}',${idx},-1)">−</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},1)">+1</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},5)">+5</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},10)">+10</button>${full?'<button type="button" class="pr-btn" style="visibility:hidden;" tabindex="-1">Xong</button>':`<button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},${q-pr})">Xong</button>`}</div>` : ''}
+      </div>`; }).join('')}</div>
+    ${canEdit ? `<div style="text-align:right; margin-top:8px;"><button class="btn-ghost btn-small" onclick="poMarkDone('${o.id}')">✓ Đánh dấu đơn đã xong</button></div>` : ''}
+  </div>`;
+}
+// ---- Nhân viên in ----
+function renderPrintOrdersForPrinter(){
+  const box = document.getElementById('prOrdersBox'); if(!box) return;
+  const u = currentUser(); if(!u || u.role!=='printer'){ box.innerHTML=''; return; }
+  const mine = (state.printOrders||[]).filter(o=>!o.assignedTo || o.assignedTo===u.id);
+  const open = mine.filter(o=>o.status==='open').sort((a,b)=>(a.dueDate||'9').localeCompare(b.dueDate||'9') || a.createdAt-b.createdAt);
+  const doneToday = mine.filter(o=>o.status==='done' && o.doneAt && toLocalDateStr(new Date(o.doneAt))===todayStr());
+  box.innerHTML = (open.length || doneToday.length) ? `<div class="card"><h2 style="margin-top:0;">📥 Đơn cần in ${open.length?`<span class="mr-pill warn">${open.length} đơn</span>`:''}</h2>
+    ${open.length ? open.map(o=>poOrderCardHtml(o,true)).join('') : '<div class="empty-note">Không còn đơn nào cần in 🎉</div>'}
+    ${doneToday.length ? `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:13px; color:var(--ink-soft);">Đã xong hôm nay (${doneToday.length})</summary>${doneToday.map(o=>poOrderCardHtml(o,false)).join('')}</details>` : ''}
+  </div>` : '';
+}
+// Cộng vào báo cáo in trong ngày (dùng chung với nút +1/+5/+10 bên dưới) — tự lưu
+function prAddQty(code, design, delta){
+  const dateEl = document.getElementById('pr_date');
+  if(dateEl && dateEl.value!==todayStr()){ dateEl.value = todayStr(); prLoadForDate(); }
+  const inp = Array.from(document.querySelectorAll('#prProducts input[data-design]')).find(i=>i.dataset.code.toUpperCase()===String(code).toUpperCase() && cleanSourceName(i.dataset.design).toLowerCase()===cleanSourceName(design).toLowerCase());
+  if(!inp){ showToast('Hình "' + design + '" chưa có trong danh mục — báo Quản lý cập nhật cột Mẫu in.'); return false; }
+  const cur = Number(inp.value)||0, next = Math.max(0, cur+delta);
+  if(next===cur) return true;
+  inp.value = next || ''; inp.dataset.prev = next;
+  prLog.push({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty: next-cur, fromOrder: true});
+  prUpdateTotal(inp); renderPrLog(); prScheduleSave();
+  return true;
+}
+function poBump(orderId, idx, delta){
+  const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o || o.status!=='open') return;
+  const it = o.items[idx]; if(!it) return;
+  const cur = Number(it.printed)||0, next = Math.max(0, cur+delta);
+  if(next===cur) return;
+  if(!prAddQty(it.code, it.design, next-cur)) return;
+  it.printed = next;
+  const allDone = o.items.every(x=>(Number(x.printed)||0) >= (Number(x.qty)||0));
+  const upd = {items: o.items, updatedAt: Date.now()};
+  if(allDone){ upd.status='done'; upd.doneAt=Date.now(); o.status='done'; o.doneAt=upd.doneAt; showToast('✅ Đã in xong đơn ' + (o.code||'')); }
+  fbPrintOrders.child(o.id).update(upd).catch(e=>{ console.error(e); showToast('Lưu tiến độ thất bại — kiểm tra mạng.'); });
+  renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
+}
+function poMarkDone(orderId){
+  const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
+  const pg = poOrderProgress(o);
+  askConfirm('Đánh dấu đơn đã xong?', pg.done<pg.need ? `Đơn mới in ${pg.done}/${pg.need}. Vẫn đánh dấu xong (phần còn thiếu sẽ không in nữa)?` : 'Xác nhận đơn đã in xong.', ()=>{
+    o.status='done'; o.doneAt=Date.now();
+    fbPrintOrders.child(o.id).update({status:'done', doneAt:o.doneAt, updatedAt:Date.now()});
+    renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
+  });
+}
+// ---- Người đặt đơn ----
+function poSetTab(t){ poTab = t; ['open','done'].forEach(k=>{ const el=document.getElementById('poTab_'+k); if(el) el.classList.toggle('selected', k===t); }); renderPoList(); }
+function renderPrintOrdersPage(){
+  const due = document.getElementById('po_due'); if(due && !due.value) due.value = todayStr();
+  const sel = document.getElementById('po_assignee');
+  if(sel){ const cur = sel.value; const printers = state.users.filter(u=>u.role==='printer');
+    sel.innerHTML = '<option value="">Tất cả nhân viên in</option>' + printers.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join(''); sel.value = cur; }
+  const list = document.getElementById('poDesignList');
+  if(list && !list.querySelector('input')){
+    const cat = prDesignCatalog();
+    list.innerHTML = !cat.length ? '<div class="empty-note">Chưa có danh sách hình — cập nhật cột "Mẫu in" trong Danh mục sản phẩm (Cài đặt).</div>' :
+      cat.map(p=>`<div class="pr-prod"><h3>${escHtml(p.code)} · ${escHtml(p.name)}</h3><div class="pr-grid">` +
+        p.designs.map(ds=>`<div class="pr-row" data-search="${escHtml((p.code+' '+ds).toLowerCase())}"><span class="pr-name">${escHtml(ds)}</span><div class="pr-ctl"><input type="number" min="0" placeholder="0" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" oninput="poFormTotal(this)"></div></div>`).join('') + `</div></div>`).join('');
+  }
+  poFormTotal(); renderPoList();
+  const me = currentUser();
+  const perm = document.getElementById('poPermCard');
+  if(perm){ perm.style.display = me && me.role==='general_manager' ? '' : 'none';
+    if(me && me.role==='general_manager'){
+      const cand = state.users.filter(u=>!['general_manager','printer'].includes(u.role)).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+      document.getElementById('poPermList').innerHTML = `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:6px;">` + cand.map(u=>`<label style="display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer;"><input type="checkbox" style="width:auto; min-height:0;" ${u.canOrderPrint?'checked':''} onchange="poTogglePerm('${u.id}', this.checked)"> ${escHtml(u.name)} <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(roleLabel(u.role))}</span></label>`).join('') + `</div>`;
+    }
+  }
+}
+function poTogglePerm(userId, on){
+  const u = state.users.find(x=>x.id===userId); if(!u) return;
+  u.canOrderPrint = !!on; fbUpdateUser(userId, {canOrderPrint: !!on});
+  showToast((on?'Đã cho phép ':'Đã bỏ quyền ') + u.name + ' đặt đơn in');
+}
+function poFilterRows(){
+  const q = (document.getElementById('po_search').value||'').trim().toLowerCase();
+  document.querySelectorAll('#poDesignList .pr-row').forEach(el=>{ el.style.display = !q || el.dataset.search.includes(q) ? '' : 'none'; });
+}
+function poCollectForm(){
+  const items = [];
+  document.querySelectorAll('#poDesignList input[data-design]').forEach(i=>{ const q = Math.max(0, Number(i.value)||0); if(q>0) items.push({code:i.dataset.code, design:i.dataset.design, qty:q, printed:0}); });
+  return items;
+}
+function poFormTotal(el){
+  if(el) el.closest('.pr-row').classList.toggle('has', Number(el.value)>0);
+  const items = poCollectForm(); const box = document.getElementById('poFormTotal');
+  if(box) box.innerHTML = `Đơn gồm <b>${items.length}</b> hình · tổng <b>${items.reduce((t,x)=>t+x.qty,0)}</b> cái`;
+}
+function poCreate(){
+  const me = currentUser(); if(!me) return;
+  const items = poCollectForm();
+  if(!items.length){ showToast('Chưa nhập số lượng hình nào.'); return; }
+  const assignee = document.getElementById('po_assignee').value;
+  const ass = assignee ? state.users.find(u=>u.id===assignee) : null;
+  const n = (state.printOrders||[]).filter(o=>toLocalDateStr(new Date(o.createdAt))===todayStr()).length + 1;
+  const d = new Date(); const code = 'IN' + String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0') + '-' + String(n).padStart(2,'0');
+  const o = {id: 'po_' + uid(), code, items, note:(document.getElementById('po_note').value||'').trim(), dueDate: document.getElementById('po_due').value || todayStr(),
+    assignedTo: assignee || '', assignedToName: ass ? ass.name : '', status:'open', createdBy: me.id, createdByName: me.name, createdAt: Date.now(), updatedAt: Date.now()};
+  state.printOrders = (state.printOrders||[]).concat([o]);
+  fbPrintOrders.child(o.id).set(o).catch(e=>{ console.error(e); showToast('Gửi đơn thất bại — thử lại.'); });
+  document.querySelectorAll('#poDesignList input[data-design]').forEach(i=>{ i.value=''; i.closest('.pr-row').classList.remove('has'); });
+  document.getElementById('po_note').value = '';
+  showToast(`📤 Đã gửi đơn in ${code}: ${items.length} hình · ${items.reduce((t,x)=>t+x.qty,0)} cái`);
+  poFormTotal(); poSetTab('open');
+}
+function poDelete(orderId){
+  const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
+  askConfirm('Huỷ đơn in?', `Huỷ đơn ${o.code||''}${poOrderProgress(o).done ? ' (thợ in đã in một phần — số đã in vẫn giữ trong báo cáo in)' : ''}?`, ()=>{
+    state.printOrders = state.printOrders.filter(x=>x.id!==orderId);
+    fbPrintOrders.child(orderId).remove(); renderPoList();
+  });
+}
+function renderPoList(){
+  const box = document.getElementById('poList'); if(!box) return;
+  const me = currentUser();
+  let list = (state.printOrders||[]).filter(o=>o.status===poTab);
+  if(me && me.role!=='general_manager') list = list.filter(o=>o.createdBy===me.id); // người đặt đơn chỉ thấy đơn mình gửi
+  list.sort((a,b)=>b.createdAt-a.createdAt);
+  if(poTab==='done') list = list.slice(0,30);
+  box.innerHTML = !list.length ? `<div class="empty-note">${poTab==='open'?'Không có đơn nào đang in.':'Chưa có đơn nào xong.'}</div>` :
+    list.map(o=>poOrderCardHtml(o,false).replace(/<\/div>\s*$/, `${o.status==='open' && (me.role==='general_manager' || o.createdBy===me.id) ? `<div style="text-align:right; margin-top:8px;"><button class="btn-ghost btn-small" onclick="poDelete('${o.id}')">🗑️ Huỷ đơn</button></div>` : ''}</div>`)).join('');
+}
+
 // =========================== NHÂN VIÊN IN HÌNH ===========================
 // Danh sách hình lấy từ Danh mục sản phẩm (cột "Mẫu in" trong Sheet, VD mã A55: "H1 - Em Bé Nhảy Dù, H2 - …").
 // Lưu ở nhánh RIÊNG "printReports" — không đụng hoá đơn/data. Nhân viên in KHÔNG tải hoá đơn, data, báo cáo khác.
@@ -5359,7 +5567,7 @@ function prMyReport(date){ const u = currentUser(); return state.printReports.fi
 function renderPrintReportPage(){
   const d = document.getElementById('pr_date');
   if(d && !d.value) d.value = todayStr();
-  prLoadForDate(); renderPrHistory();
+  prLoadForDate(); renderPrHistory(); renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
 }
 function prLoadForDate(){
   const date = document.getElementById('pr_date').value || todayStr();
@@ -8075,6 +8283,19 @@ function setupRoleScopedListeners(user){
     prKey==='none' ? null : (prKey==='all' ? fbPrintReports : fbPrintReports.orderByChild('userId').equalTo(user.id)),
     setAndRender('printReports'), false);
 
+  // Đơn đặt in: Nhân viên in + Quản lý chung + người được giao đặt đơn in (không chứa dữ liệu khách)
+  const poKey = (user && (r==='printer' || r==='general_manager' || user.canOrderPrint)) ? 'on' : 'none';
+  attachScoped('printOrders', poKey, poKey==='on' ? fbPrintOrders : null, (arr)=>{
+    const before = new Set((state.printOrders||[]).map(o=>o.id));
+    const fresh = arr.filter(o=>!before.has(o.id) && o.status==='open');
+    state.printOrders = arr;
+    if(r==='printer' && printOrdersLoadedOnce && fresh.length){ try{ playTingSound(); }catch(e){} showToast(`📥 Có ${fresh.length} đơn in mới!`); }
+    printOrdersLoadedOnce = true;
+    updatePrintOrdersBadge();
+    if(currentPageId==='printReport') renderPrintOrdersForPrinter();
+    if(currentPageId==='printOrders') renderPrintOrdersPage();
+  }, false);
+
   // Hoá đơn
   const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
   attachScoped('invoices', invKey,
@@ -8131,6 +8352,7 @@ function enterApp(){
   const isManagerRole = user.role==='team_manager' || user.role==='general_manager' || isDataManager;
   const isPrinter = user.role==='printer';
   document.getElementById('navPrinter').style.display = isPrinter ? 'block' : 'none';
+  document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || user.canOrderPrint)) ? 'block' : 'none';
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
   document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
   document.getElementById('navPersonal').style.display = (isDataManager || isMkt || isMktManager || isPrinter) ? 'none' : 'block';
@@ -8205,6 +8427,7 @@ function goPage(pageId){
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
   // Nhân viên in hình: CHỈ trang Báo cáo in hình + Nội quy
   if(u && u.role==='printer' && pageId!=='printReport' && pageId!=='companyRules'){ pageId = 'printReport'; }
+  if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : 'companyRules'; }
   if(pageId==='printOverview' && u && u.role!=='general_manager'){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
@@ -8225,6 +8448,7 @@ function goPage(pageId){
   if(pageId==='reportDiff') renderReportDiff();
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
+  if(pageId==='printOrders') renderPrintOrdersPage();
   if(pageId==='mktReport') renderMktReportPage();
   if(pageId==='mktReportsAdmin'){
     const ur = currentUser();
