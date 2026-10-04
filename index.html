@@ -1894,8 +1894,9 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
               <input id="productSheetUrlInput" placeholder="Dán link CSV đã Publish to web..." style="flex:1; min-width:260px;">
               <button class="btn-ghost" onclick="saveProductSheetUrl()">Lưu link</button>
-              <button class="btn-primary" onclick="syncProductsFromSheet()">🔄 Cập nhật mã mới</button>
+              <button class="btn-primary" onclick="syncProductsFromSheet()">🔄 Cập nhật mã & giá mới</button>
             </div>
+            <div id="productSyncMsg" style="font-size:13px; line-height:1.55; margin-bottom:8px;"></div>
             <div id="settingsProductsList" style="margin:12px 0;"></div>
           </div>
         </div>
@@ -3164,6 +3165,16 @@ async function syncProductsFromSheet(){
     }
     const before = new Set((state.products||[]).map(p=>p.code));
     const newCodes = Object.values(products).map(p=>p.code).filter(c=>!before.has(c));
+    // So với danh mục đang có: mã nào ĐỔI GIÁ / đổi màu-mẫu in → báo rõ để biết lần cập nhật có tác dụng
+    const oldByCode = {}; (state.products||[]).forEach(p=>{ oldByCode[p.code] = p; });
+    const priceChanged = [], otherChanged = [];
+    Object.values(products).forEach(np=>{
+      const op = oldByCode[np.code]; if(!op) return;
+      const pc = ['price10','price100','price1000'].filter(k=>(Number(op[k])||0)!==(Number(np[k])||0));
+      if(pc.length) priceChanged.push(`${np.code}: ${fmtMoney(op.price10||0)} → ${fmtMoney(np.price10||0)}`);
+      else if((op.name||'')!==(np.name||'') || (op.colors||'')!==(np.colors||'') || (op.designs||'')!==(np.designs||'') || (op.sizeInfo||'')!==(np.sizeInfo||'')) otherChanged.push(np.code);
+    });
+    const removed = Object.keys(oldByCode).filter(c=>!Object.values(products).some(p=>p.code===c));
     try{
       await fbProducts.set(products);
     } catch(e){
@@ -3172,7 +3183,20 @@ async function syncProductsFromSheet(){
       return;
     }
     state.products = Object.values(products); // cập nhật ngay tại chỗ, không chờ Firebase đồng bộ vòng lại
-    showToast(`Đã cập nhật ${count} mã sản phẩm từ Sheet` + (newCodes.length ? ` — mã mới: ${newCodes.slice(0,8).join(', ')}${newCodes.length>8?'…':''}` : ' (không có mã mới)') + '.');
+    const nothing = !newCodes.length && !priceChanged.length && !otherChanged.length && !removed.length;
+    const isPublished = /\/pub(\?|$|html)|\/d\/e\//.test(url);
+    const msgEl = document.getElementById('productSyncMsg');
+    const timeTxt = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    if(msgEl) msgEl.innerHTML = nothing
+      ? `<div style="padding:10px 12px; border:1px dashed #F0A63A; border-radius:8px; background:rgba(240,166,58,0.08);">⚠️ <b>${timeTxt}</b> — Đã đọc ${count} mã nhưng <b>không thấy thay đổi nào</b> so với lần trước (giá, màu, mẫu in đều như cũ).<br>
+          ${isPublished ? 'Anh đang dùng link <b>"Công bố lên web"</b>: Google thường mất <b>khoảng 5 phút</b> mới cập nhật nội dung vừa sửa trên Sheet. Đợi vài phút rồi bấm lại.<br>Muốn lấy giá mới <b>ngay lập tức</b>: dùng link chỉnh sửa của Sheet (thanh địa chỉ dạng <i>…/spreadsheets/d/…/edit#gid=…</i>), bật chia sẻ "Bất kỳ ai có đường liên kết đều xem được", dán vào ô link → Lưu link → bấm cập nhật.' : 'Kiểm tra đã sửa đúng tab (trang tính) mà link đang trỏ tới chưa, và sửa đúng cột giá (cột D, E, F).'}</div>`
+      : `<div style="padding:10px 12px; border:1px solid rgba(61,214,140,0.5); border-radius:8px; background:rgba(61,214,140,0.08);">✅ <b>${timeTxt}</b> — Đã cập nhật ${count} mã.` +
+        (priceChanged.length ? `<br>💰 <b>${priceChanged.length} mã đổi giá</b>: ${priceChanged.slice(0,8).map(escHtml).join(' · ')}${priceChanged.length>8?' …':''}` : '') +
+        (newCodes.length ? `<br>🆕 Mã mới: ${newCodes.slice(0,10).map(escHtml).join(', ')}${newCodes.length>10?'…':''}` : '') +
+        (otherChanged.length ? `<br>✏️ Đổi tên/màu/size/mẫu in: ${otherChanged.slice(0,10).map(escHtml).join(', ')}${otherChanged.length>10?'…':''}` : '') +
+        (removed.length ? `<br>🗑️ Không còn trên Sheet: ${removed.slice(0,10).map(escHtml).join(', ')}` : '') +
+        `<br><span style="color:var(--ink-soft);">Giá mới áp dụng cho hoá đơn tạo/sửa từ bây giờ — hoá đơn đã lưu trước đó giữ nguyên giá cũ.</span></div>`;
+    showToast(nothing ? 'Không thấy thay đổi nào — xem ghi chú dưới nút cập nhật' : `Đã cập nhật ${count} mã` + (priceChanged.length ? ` · ${priceChanged.length} mã đổi giá` : '') + (newCodes.length ? ` · ${newCodes.length} mã mới` : ''));
     settingsProductsOpen = true; // tự mở rộng khung để thấy ngay danh sách vừa cập nhật
     renderMgrSettings();
     if(currentInvoiceDraft && currentPageId==='invoices') renderInvoiceEditor(); // hoá đơn đang mở thấy mã mới ngay
