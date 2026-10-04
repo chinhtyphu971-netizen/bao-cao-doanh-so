@@ -5433,10 +5433,11 @@ function renderPrintOrdersForPrinter(){
   const mine = (state.printOrders||[]).filter(o=>!o.assignedTo || o.assignedTo===u.id);
   const open = mine.filter(o=>o.status==='open').sort((a,b)=>(a.dueDate||'9').localeCompare(b.dueDate||'9') || a.createdAt-b.createdAt);
   const doneToday = mine.filter(o=>o.status==='done' && o.doneAt && toLocalDateStr(new Date(o.doneAt))===todayStr());
-  box.innerHTML = (open.length || doneToday.length) ? `<div class="card"><h2 style="margin-top:0;">📥 Đơn cần in ${open.length?`<span class="mr-pill warn">${open.length} đơn</span>`:''}</h2>
-    ${open.length ? open.map(o=>poOrderCardHtml(o,true)).join('') : '<div class="empty-note">Không còn đơn nào cần in 🎉</div>'}
+  // Luôn hiện khung "Đơn cần in" (kể cả khi chưa có đơn) để nhân viên in biết chỗ nhận đơn
+  box.innerHTML = `<div class="card"><h2 style="margin-top:0;">📥 Đơn cần in ${open.length?`<span class="mr-pill warn">${open.length} đơn</span>`:''}</h2>
+    ${open.length ? open.map(o=>poOrderCardHtml(o,true)).join('') : '<div class="empty-note">Chưa có đơn nào cần in — khi Quản lý gửi đơn, đơn sẽ hiện ở đây kèm tiếng "ting".</div>'}
     ${doneToday.length ? `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:13px; color:var(--ink-soft);">Đã xong hôm nay (${doneToday.length})</summary>${doneToday.map(o=>poOrderCardHtml(o,false)).join('')}</details>` : ''}
-  </div>` : '';
+  </div>`;
 }
 // Cộng vào báo cáo in trong ngày (dùng chung với nút +1/+5/+10 bên dưới) — tự lưu
 function prAddQty(code, design, delta){
