@@ -330,11 +330,21 @@
   /* Báo cáo in hình */
   .pr-prod{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
   .pr-prod h3{ margin:0 0 8px; font-size:15px; }
-  .pr-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(250px,1fr)); gap:6px 14px; }
-  .pr-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 6px; border-radius:8px; }
+  .pr-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(400px,1fr)); gap:6px 18px; }
+  @media (max-width:520px){ .pr-grid{ grid-template-columns:1fr; } }
+  .pr-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 8px; border-radius:10px; }
   .pr-row.has{ background:rgba(61,214,140,0.10); }
-  .pr-row span{ font-size:13.5px; }
-  .pr-row input{ width:86px; text-align:right; min-height:36px !important; height:36px; }
+  .pr-row .pr-name{ font-size:13.5px; flex:1 1 auto; min-width:0; }
+  .pr-ctl{ display:flex; align-items:center; gap:4px; flex:0 0 auto; }
+  .pr-ctl input{ width:62px; text-align:center; min-height:36px !important; height:36px; padding:0 4px !important; font-weight:700; }
+  .pr-btn{ min-height:36px !important; height:36px; min-width:36px; padding:0 8px !important; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; }
+  .pr-btn.add{ border-color:rgba(61,214,140,0.5); color:#3DD68C; }
+  .pr-btn.add:active{ background:#3DD68C; color:#06122B; }
+  .pr-flash{ animation:prFlash .6s ease; }
+  @keyframes prFlash{ 0%{ background:rgba(61,214,140,0.45); } 100%{ background:rgba(61,214,140,0.10); } }
+  .pr-log{ max-height:220px; overflow:auto; font-size:13px; border-top:1px dashed var(--line); margin-top:10px; padding-top:8px; }
+  .pr-log div{ padding:2px 0; color:var(--ink-soft); }
+  .pr-log b{ color:var(--ink); }
   /* Tổng hợp theo sản phẩm: mỗi hình 1 dòng tiêu đề (có tổng), các màu thụt vào bên dưới */
   #invByProductTable{ width:auto; min-width:min(560px,100%); }
   #invByProductTable tr.ibp-head td{ background:rgba(79,140,255,0.09); border-top:1px solid var(--line); padding-top:9px !important; padding-bottom:9px !important; }
@@ -1288,11 +1298,13 @@
             <div class="field" style="max-width:260px; margin:0;"><label>Tìm hình</label><input id="pr_search" placeholder="VD: H2, Celine…" oninput="prFilterRows()"></div>
           </div>
           <div id="prDateSub" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;"></div>
+          <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">In xong mẻ nào bấm <b style="color:#3DD68C;">+1 / +5 / +10</b> ngay ở hình đó (hoặc gõ số) — app <b>tự lưu</b> từng lần bấm, cuối ngày chỉ cần bấm <b>Chốt báo cáo</b>.</div>
           <div id="prProducts"></div>
-          <div class="field" style="margin-top:12px;"><label>Ghi chú (hình lỗi, thiếu mực, cần in thêm…)</label><textarea id="pr_note" rows="3" placeholder="Không bắt buộc"></textarea></div>
+          <div id="prLogBox"></div>
+          <div class="field" style="margin-top:12px;"><label>Ghi chú (hình lỗi, thiếu mực, cần in thêm…)</label><textarea id="pr_note" rows="3" placeholder="Không bắt buộc" oninput="prScheduleSave()"></textarea></div>
           <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px;">
             <div id="prTotal" style="font-size:15px;"></div>
-            <div style="display:flex; gap:10px; align-items:center;"><span id="prMsg" style="font-size:13px; color:var(--success);"></span><button class="btn-primary" id="prSubmitBtn" onclick="prSubmit()">Nộp báo cáo in</button></div>
+            <div style="display:flex; gap:10px; align-items:center;"><span id="prMsg" style="font-size:13px; color:var(--success);"></span><button class="btn-primary" id="prSubmitBtn" onclick="prSubmit()">✅ Chốt báo cáo cuối ngày</button></div>
           </div>
         </div>
         <div class="card">
@@ -5357,15 +5369,89 @@ function prLoadForDate(){
   const box = document.getElementById('prProducts');
   box.innerHTML = !cat.length ? '<div class="empty-note">Chưa có danh sách hình — nhờ Quản lý cập nhật cột "Mẫu in" trong Danh mục sản phẩm.</div>' :
     cat.map(p=>`<div class="pr-prod"><h3>${escHtml(p.code)} · ${escHtml(p.name)}</h3><div class="pr-grid">` +
-      p.designs.map(ds=>{ const v = saved[prKey(p.code, ds)]; return `<label class="pr-row${v?' has':''}" data-search="${escHtml((p.code+' '+ds).toLowerCase())}"><span>${escHtml(ds)}</span><input type="number" min="0" placeholder="0" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" value="${v||''}" oninput="prUpdateTotal(this)"></label>`; }).join('') +
+      p.designs.map(ds=>{ const v = saved[prKey(p.code, ds)]; return `<div class="pr-row${v?' has':''}" data-search="${escHtml((p.code+' '+ds).toLowerCase())}">
+        <span class="pr-name">${escHtml(ds)}</span>
+        <div class="pr-ctl">
+          <button type="button" class="pr-btn" onclick="prBump(this,-1)" aria-label="Bớt 1">−</button>
+          <input type="number" min="0" placeholder="0" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" data-prev="${v||0}" value="${v||''}" oninput="prUpdateTotal(this)" onchange="prManualChange(this)">
+          <button type="button" class="pr-btn add" onclick="prBump(this,1)">+1</button>
+          <button type="button" class="pr-btn add" onclick="prBump(this,5)">+5</button>
+          <button type="button" class="pr-btn add" onclick="prBump(this,10)">+10</button>
+        </div></div>`; }).join('') +
       `</div></div>`).join('');
   document.getElementById('pr_note').value = r ? (r.note||'') : '';
-  document.getElementById('prDateSub').textContent = r ? `Đã nộp lúc ${new Date(r.updatedAt||r.createdAt).toLocaleString('vi-VN')} — sửa rồi bấm "Cập nhật báo cáo".` : (date===todayStr() ? 'Chưa nộp báo cáo in hôm nay.' : `Ngày ${fmtDate(date)} chưa có báo cáo.`);
-  document.getElementById('prSubmitBtn').textContent = r ? 'Cập nhật báo cáo' : 'Nộp báo cáo in';
+  prLog = (r && Array.isArray(r.log)) ? r.log.slice() : [];
+  document.getElementById('prDateSub').textContent = r
+    ? (r.submitted ? `Đã chốt báo cáo lúc ${new Date(r.submittedAt||r.updatedAt).toLocaleString('vi-VN')} — vẫn bấm thêm/sửa được, app tự lưu.` : `Đang in — app tự lưu, lần lưu gần nhất ${new Date(r.updatedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}.`)
+    : (date===todayStr() ? 'Chưa in hình nào hôm nay.' : `Ngày ${fmtDate(date)} chưa có báo cáo.`);
+  document.getElementById('prSubmitBtn').textContent = r && r.submitted ? '✅ Chốt lại báo cáo' : '✅ Chốt báo cáo cuối ngày';
   document.getElementById('prMsg').textContent = '';
-  const st = document.getElementById('prStatus'); const today = prMyReport(todayStr());
-  st.className = 'mr-pill ' + (today ? 'ok' : 'warn'); st.textContent = today ? '✓ Hôm nay: đã nộp' : 'Hôm nay: chưa nộp';
+  prRenderStatus(); renderPrLog();
   prFilterRows(); prUpdateTotal();
+}
+// ---- Thao tác trong ngày: mỗi lần in xong bấm +1/+5/+10 → cộng dồn, ghi nhật ký, TỰ LƯU ----
+let prLog = [];            // nhật ký thao tác của ngày đang xem: [{t, code, design, qty}]
+let prSaveTimer = null;
+function prBump(btn, delta){
+  const row = btn.closest('.pr-row'); const inp = row.querySelector('input[data-design]');
+  const cur = Number(inp.value)||0; const next = Math.max(0, cur + delta);
+  if(next===cur) return;
+  inp.value = next || ''; inp.dataset.prev = next;
+  prLog.push({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty: next - cur});
+  row.classList.remove('pr-flash'); void row.offsetWidth; row.classList.add('pr-flash');
+  prUpdateTotal(inp); renderPrLog(); prScheduleSave();
+}
+function prManualChange(inp){
+  const prev = Number(inp.dataset.prev)||0; const now = Math.max(0, Number(inp.value)||0);
+  if(now===prev) return;
+  inp.dataset.prev = now;
+  prLog.push({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty: now - prev, manual: true});
+  renderPrLog(); prScheduleSave();
+}
+function prUndoLast(){
+  const last = prLog.pop(); if(!last) return;
+  const inp = Array.from(document.querySelectorAll('#prProducts input[data-design]')).find(i=>i.dataset.code===last.code && i.dataset.design===last.design);
+  if(inp){ const v = Math.max(0, (Number(inp.value)||0) - last.qty); inp.value = v || ''; inp.dataset.prev = v; prUpdateTotal(inp); }
+  renderPrLog(); prScheduleSave();
+  showToast('Đã hoàn tác: ' + last.design + ' ' + (last.qty>0?'+':'') + last.qty);
+}
+function renderPrLog(){
+  const box = document.getElementById('prLogBox'); if(!box) return;
+  if(!prLog.length){ box.innerHTML = ''; return; }
+  const recent = prLog.slice().reverse().slice(0,40);
+  box.innerHTML = `<div class="pr-log"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;"><b>🕘 Nhật ký in hôm nay (${prLog.length} lần)</b><button type="button" class="btn-ghost btn-small" onclick="prUndoLast()">↶ Hoàn tác lần cuối</button></div>` +
+    recent.map(x=>`<div>${new Date(x.t).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · <b>${escHtml(x.design)}</b> <span style="color:${x.qty>0?'#3DD68C':'var(--danger)'}; font-weight:700;">${x.qty>0?'+':''}${x.qty}</span>${x.manual?' <i>(gõ tay)</i>':''}</div>`).join('') + `</div>`;
+}
+function prScheduleSave(){
+  const msg = document.getElementById('prMsg'); if(msg){ msg.style.color='var(--ink-soft)'; msg.textContent = 'Đang lưu…'; }
+  clearTimeout(prSaveTimer);
+  prSaveTimer = setTimeout(()=>prSave(false), 700);
+}
+// Lưu báo cáo (tự động khi thao tác, hoặc khi bấm Chốt) — submitted: đã chốt cuối ngày hay chưa
+function prSave(submit){
+  const u = currentUser(); if(!u) return null;
+  const date = document.getElementById('pr_date').value || todayStr();
+  if(date > todayStr()){ showToast('Không thể báo cáo cho ngày trong tương lai.'); return null; }
+  const items = prCollect();
+  const existing = prMyReport(date);
+  const rec = {id: date+'_'+u.id, userId:u.id, userName:u.name, date, items, total: items.reduce((t,x)=>t+x.qty,0),
+    log: prLog.slice(-500), note: (document.getElementById('pr_note').value||'').trim(),
+    submitted: submit ? true : !!(existing && existing.submitted),
+    submittedAt: submit ? Date.now() : (existing && existing.submittedAt) || null,
+    createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
+  state.printReports = state.printReports.filter(x=>x.id!==rec.id).concat([rec]);
+  fbPrintReports.child(rec.id).set(rec).then(()=>{
+    const msg = document.getElementById('prMsg');
+    if(msg){ msg.style.color='var(--success)'; msg.textContent = (submit ? '✓ Đã chốt báo cáo' : '✓ Đã tự lưu') + ' lúc ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); }
+  }).catch(e=>{ console.error(e); showToast('Lưu thất bại — kiểm tra mạng rồi thử lại.'); });
+  renderPrHistory(); prRenderStatus();
+  return rec;
+}
+function prRenderStatus(){
+  const st = document.getElementById('prStatus'); if(!st) return;
+  const today = prMyReport(todayStr());
+  st.className = 'mr-pill ' + (today && today.submitted ? 'ok' : 'warn');
+  st.textContent = today && today.submitted ? '✓ Hôm nay: đã chốt báo cáo' : (today ? 'Hôm nay: đang in — chưa chốt' : 'Hôm nay: chưa có báo cáo');
 }
 function prFilterRows(){
   const q = (document.getElementById('pr_search').value||'').trim().toLowerCase();
@@ -5382,26 +5468,20 @@ function prUpdateTotal(el){
   document.getElementById('prTotal').innerHTML = `Tổng đã in: <b>${items.reduce((t,x)=>t+x.qty,0)}</b> hình · <b>${items.length}</b> mẫu`;
 }
 function prSubmit(){
-  const u = currentUser(); if(!u) return;
-  const date = document.getElementById('pr_date').value || todayStr();
-  if(date > todayStr()){ showToast('Không thể nộp báo cáo cho ngày trong tương lai.'); return; }
   const items = prCollect();
-  if(!items.length){ showToast('Chưa điền số lượng hình nào.'); return; }
-  const existing = prMyReport(date);
-  const rec = {id: date+'_'+u.id, userId:u.id, userName:u.name, date, items, total: items.reduce((t,x)=>t+x.qty,0),
-    note: (document.getElementById('pr_note').value||'').trim(), createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
-  state.printReports = state.printReports.filter(x=>x.id!==rec.id).concat([rec]);
-  fbPrintReports.child(rec.id).set(rec).catch(e=>{ console.error(e); showToast('Lưu thất bại — thử lại.'); });
-  showToast((existing?'Đã cập nhật':'Đã nộp') + ' báo cáo in ngày ' + fmtDate(date));
-  prLoadForDate(); renderPrHistory();
+  if(!items.length){ showToast('Chưa có hình nào được in.'); return; }
+  clearTimeout(prSaveTimer);
+  const rec = prSave(true); if(!rec) return;
+  showToast(`Đã chốt báo cáo in ngày ${fmtDate(rec.date)}: ${rec.total} hình · ${rec.items.length} mẫu`);
+  prLoadForDate();
 }
 function renderPrHistory(){
   const u = currentUser(); if(!u) return;
   const mine = state.printReports.filter(r=>r.userId===u.id).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
   const t = document.getElementById('prHistoryTable');
   t.innerHTML = !mine.length ? '<tbody><tr><td class="empty-note">Chưa có báo cáo nào.</td></tr></tbody>' :
-    `<thead><tr><th>Ngày</th><th class="num">Tổng hình</th><th class="num">Số mẫu</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
-    mine.map(r=>`<tr><td>${fmtDate(r.date)}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td>
+    `<thead><tr><th>Ngày</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mẫu</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+    mine.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td>
       <td><button class="btn-ghost btn-small" onclick="document.getElementById('pr_date').value='${r.date}'; prLoadForDate(); window.scrollTo({top:0, behavior:'smooth'});">Sửa</button></td></tr>`).join('') + '</tbody>';
 }
 // ---- Quản lý chung: đã in vs cần in ----
@@ -5428,7 +5508,8 @@ function renderPrintOverview(){
   const printers = {};
   (state.printReports||[]).forEach(r=>{
     if(!inRange(r.date)) return;
-    printers[r.userName||r.userId] = (printers[r.userName||r.userId]||0) + (r.total||0);
+    const pn = (r.userName||r.userId) + (r.submitted ? '' : ' (chưa chốt)');
+    printers[pn] = (printers[pn]||0) + (r.total||0);
     (r.items||[]).forEach(it=>{ get(it.code, it.design).printed += Number(it.qty)||0; });
   });
   let list = Object.values(rows).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}));
