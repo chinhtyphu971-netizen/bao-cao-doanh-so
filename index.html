@@ -1604,6 +1604,10 @@
               <button class="btn-ghost btn-small" style="margin-bottom:2px;" onclick="invByProductOnlyDeposited()">✅ Chỉ tính hoá đơn đã cọc</button>
               <button class="btn-ghost btn-small" style="margin-bottom:2px;" onclick="exportInvoicesByProduct()">⬇️ Xuất Excel</button>
             </div>
+            <div class="chip-row" style="margin:0 0 8px;">
+              <div class="chip selected" id="invByProductView_colors" onclick="setInvByProductView('colors')">Từng màu + tổng mỗi hình</div>
+              <div class="chip" id="invByProductView_designs" onclick="setInvByProductView('designs')">Chỉ tổng theo hình</div>
+            </div>
             <div id="invByProductScope" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;"></div>
             <div id="invByProductSummary" style="margin-bottom:10px;"></div>
             <div class="table-wrap"><table id="invByProductTable" class="rtable"></table></div>
@@ -4081,6 +4085,12 @@ function toggleInvByProductSection(){
 let invOverviewRenderMemo = null;
 let lastInvOverviewFilterKey = null;
 const debouncedRenderInvOverview = debounce(()=>renderInvoicesOverviewPage(), 250);
+let invByProductView = 'colors';
+function setInvByProductView(v){
+  invByProductView = v;
+  ['colors','designs'].forEach(k=>{ const el = document.getElementById('invByProductView_'+k); if(el) el.classList.toggle('selected', k===v); });
+  renderInvoicesOverviewPage();
+}
 function invByProductOnlyDeposited(){
   const sel = document.getElementById('invOverviewDepositFilter');
   if(sel){ sel.value = 'done'; }
@@ -4096,7 +4106,7 @@ function renderInvoicesOverviewPage(){
     (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter].join('|');
   if(filterKey !== lastInvOverviewFilterKey){ pagerPages.invOverview = 1; lastInvOverviewFilterKey = filterKey; }
   const memoKey = [invOverviewDateFrom, invOverviewDateTo,
-    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter, codeFilterRaw,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter, codeFilterRaw, invByProductView,
     pagerPages.invOverview||1, invByProductOpen ? 1 : 0].join('|');
   if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
   invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
@@ -4164,7 +4174,7 @@ function renderInvoicesOverviewPage(){
   });
   // Lọc ĐÚNG mã (không phân biệt hoa/thường; nhiều mã cách nhau dấu phẩy) — VD "A55" chỉ lấy A55, không lấy A550
   const codeList = codeFilterRaw ? codeFilterRaw.split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean) : [];
-  const byProductRows = Object.values(byProduct).filter(r=>!codeList.length || codeList.includes(String(r.code||'').trim().toUpperCase())).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi') || a.color.localeCompare(b.color,'vi'));
+  const byProductRows = Object.values(byProduct).filter(r=>!codeList.length || codeList.includes(String(r.code||'').trim().toUpperCase())).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}) || a.color.localeCompare(b.color,'vi'));
   lastFilteredInvoicesByProduct = byProductRows;
   { const scopeEl = document.getElementById('invByProductScope');
     if(scopeEl){
@@ -4188,12 +4198,26 @@ function renderInvoicesOverviewPage(){
   } else {
     const totalQtyAll = byProductRows.reduce((s,r)=>s+r.qty,0);
     const totalAmountAll = byProductRows.reduce((s,r)=>s+r.amount,0);
-    byProductTable.innerHTML = `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Mẫu in</th><th>Màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
-      byProductRows.map(r=>`<tr>
-        <td>${r.code}</td><td>${r.name}</td><td>${r.design||''}</td><td>${r.color}</td>
+    // Gom theo HÌNH (mã + mẫu in): mỗi hình có dòng tổng các màu
+    const groups = []; const gIdx = {};
+    byProductRows.forEach(r=>{
+      const k = r.code + '|' + (r.design||'');
+      if(gIdx[k]===undefined){ gIdx[k] = groups.length; groups.push({code:r.code, name:r.name, design:r.design||'', rows:[], qty:0, amount:0}); }
+      const g = groups[gIdx[k]]; g.rows.push(r); g.qty += r.qty; g.amount += r.amount;
+    });
+    byProductTable.innerHTML = invByProductView==='designs'
+      ? `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Mẫu in</th><th>Các màu</th><th class="num">Tổng SL</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+        groups.map(g=>`<tr>
+          <td>${escHtml(g.code)}</td><td>${escHtml(g.name||'')}</td><td><b>${escHtml(g.design)||'—'}</b></td>
+          <td style="font-size:12.5px; color:var(--ink-soft);">${g.rows.map(r=>`${escHtml(r.color)} <b style="color:var(--ink);">${r.qty}</b>`).join(' · ')}</td>
+          <td class="num" style="font-weight:700;">${g.qty}</td><td class="num">${fmtMoney(g.amount)} đ</td></tr>`).join('') +
+        `<tr class="total-row"><td colspan="4">TỔNG CỘNG (${groups.length} hình)</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr></tbody>`
+      : `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Mẫu in</th><th>Màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+      groups.map(g=>g.rows.map(r=>`<tr>
+        <td>${escHtml(r.code)}</td><td>${escHtml(r.name||'')}</td><td>${escHtml(r.design||'')}</td><td>${escHtml(r.color)}</td>
         <td class="num" style="font-weight:600;">${r.qty}</td>
         <td class="num">${fmtMoney(r.amount)} đ</td>
-      </tr>`).join('') +
+      </tr>`).join('') + `<tr style="background:rgba(79,140,255,0.10);"><td colspan="4" style="font-weight:700;">Tổng ${escHtml(g.code)}${g.design?' · '+escHtml(g.design):''} <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(${g.rows.length} màu)</span></td><td class="num" style="font-weight:800;">${g.qty}</td><td class="num" style="font-weight:700;">${fmtMoney(g.amount)} đ</td></tr>`).join('') +
       `<tr class="total-row"><td colspan="4">TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr>` +
       `</tbody>`;
   }
@@ -4290,9 +4314,22 @@ function printInvoiceView(){
   window.print();
 }
 function exportInvoicesByProduct(){
-  const rows = lastFilteredInvoicesByProduct.map(r=>({
-    ma: r.code, ten: r.name, mau: r.color, mauIn: r.design||'', soLuong: r.qty, thanhTien: r.amount,
-  }));
+  // Gom theo hình (mã + mẫu in) — xuất đúng kiểu đang xem: từng màu kèm dòng tổng mỗi hình, hoặc chỉ tổng theo hình
+  const groups = []; const gIdx = {};
+  lastFilteredInvoicesByProduct.forEach(r=>{
+    const k = r.code + '|' + (r.design||'');
+    if(gIdx[k]===undefined){ gIdx[k] = groups.length; groups.push({code:r.code, name:r.name, design:r.design||'', rows:[], qty:0, amount:0}); }
+    const g = groups[gIdx[k]]; g.rows.push(r); g.qty += r.qty; g.amount += r.amount;
+  });
+  const rows = [];
+  groups.forEach(g=>{
+    if(invByProductView==='designs'){
+      rows.push({ma:g.code, ten:g.name, mauIn:g.design, mau:g.rows.map(r=>`${r.color} ${r.qty}`).join(', '), soLuong:g.qty, thanhTien:g.amount});
+    } else {
+      g.rows.forEach(r=>rows.push({ma:r.code, ten:r.name, mau:r.color, mauIn:r.design||'', soLuong:r.qty, thanhTien:r.amount}));
+      rows.push({ma:g.code, ten:'TỔNG HÌNH', mauIn:g.design, mau:`${g.rows.length} màu`, soLuong:g.qty, thanhTien:g.amount});
+    }
+  });
   exportRowsToExcel(rows, [
     {key:'ma', header:'Mã'}, {key:'ten', header:'Tên sản phẩm'}, {key:'mauIn', header:'Mẫu in'}, {key:'mau', header:'Màu'},
     {key:'soLuong', header:'Số lượng'}, {key:'thanhTien', header:'Thành tiền'},
