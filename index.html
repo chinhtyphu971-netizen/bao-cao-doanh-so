@@ -327,6 +327,13 @@
   @media (max-width:900px){ .mr-grid5{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; } }
   .mr-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  /* Tổng hợp theo sản phẩm: mỗi hình 1 dòng tiêu đề (có tổng), các màu thụt vào bên dưới */
+  #invByProductTable{ width:auto; min-width:min(560px,100%); }
+  #invByProductTable tr.ibp-head td{ background:rgba(79,140,255,0.09); border-top:1px solid var(--line); padding-top:9px !important; padding-bottom:9px !important; }
+  #invByProductTable tr.ibp-head .ibp-sub{ font-size:11.5px; color:var(--ink-soft); font-weight:400; margin-left:6px; }
+  #invByProductTable tr.ibp-line td{ border:none !important; padding-top:3px !important; padding-bottom:3px !important; color:var(--ink-soft); font-size:13px; }
+  #invByProductTable tr.ibp-line + tr.ibp-head td{ border-top:6px solid transparent; background-clip:padding-box; }
+  #invByProductTable tr.ibp-line td:first-child{ padding-left:28px !important; }
   [data-locked-by-report]{ opacity:0.45; cursor:not-allowed !important; pointer-events:none; }
   .mr-linkchip{ display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; margin:0 6px 6px 0; }
   .mr-pill.warn{ background:rgba(240,166,58,0.14); color:#F0A63A; }
@@ -1605,7 +1612,7 @@
               <button class="btn-ghost btn-small" style="margin-bottom:2px;" onclick="exportInvoicesByProduct()">⬇️ Xuất Excel</button>
             </div>
             <div class="chip-row" style="margin:0 0 8px;">
-              <div class="chip selected" id="invByProductView_colors" onclick="setInvByProductView('colors')">Từng màu + tổng mỗi hình</div>
+              <div class="chip selected" id="invByProductView_colors" onclick="setInvByProductView('colors')">Theo hình, chi tiết từng màu</div>
               <div class="chip" id="invByProductView_designs" onclick="setInvByProductView('designs')">Chỉ tổng theo hình</div>
             </div>
             <div id="invByProductScope" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;"></div>
@@ -4212,14 +4219,12 @@ function renderInvoicesOverviewPage(){
           <td style="font-size:12.5px; color:var(--ink-soft);">${g.rows.map(r=>`${escHtml(r.color)} <b style="color:var(--ink);">${r.qty}</b>`).join(' · ')}</td>
           <td class="num" style="font-weight:700;">${g.qty}</td><td class="num">${fmtMoney(g.amount)} đ</td></tr>`).join('') +
         `<tr class="total-row"><td colspan="4">TỔNG CỘNG (${groups.length} hình)</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr></tbody>`
-      : `<thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>Mẫu in</th><th>Màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
-      groups.map(g=>g.rows.map(r=>`<tr>
-        <td>${escHtml(r.code)}</td><td>${escHtml(r.name||'')}</td><td>${escHtml(r.design||'')}</td><td>${escHtml(r.color)}</td>
-        <td class="num" style="font-weight:600;">${r.qty}</td>
-        <td class="num">${fmtMoney(r.amount)} đ</td>
-      </tr>`).join('') + `<tr style="background:rgba(79,140,255,0.10);"><td colspan="4" style="font-weight:700;">Tổng ${escHtml(g.code)}${g.design?' · '+escHtml(g.design):''} <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(${g.rows.length} màu)</span></td><td class="num" style="font-weight:800;">${g.qty}</td><td class="num" style="font-weight:700;">${fmtMoney(g.amount)} đ</td></tr>`).join('') +
-      `<tr class="total-row"><td colspan="4">TỔNG CỘNG</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr>` +
-      `</tbody>`;
+      : `<thead><tr><th>Mẫu in / màu</th><th class="num">Số lượng</th><th class="num">Thành tiền</th></tr></thead><tbody>` +
+      groups.map(g=>`<tr class="ibp-head"><td><b>${escHtml(g.design||'(không có mẫu in)')}</b> <span class="ibp-sub">${escHtml(g.code)} · ${escHtml(g.name||'')}</span></td>
+          <td class="num"><b>${g.qty}</b></td><td class="num"><b>${fmtMoney(g.amount)} đ</b></td></tr>` +
+        g.rows.map(r=>`<tr class="ibp-line"><td>${escHtml(r.color)}</td><td class="num">${r.qty}</td><td class="num">${fmtMoney(r.amount)} đ</td></tr>`).join('')
+      ).join('') +
+      `<tr class="total-row"><td>TỔNG CỘNG (${groups.length} hình)</td><td class="num" style="font-weight:700;">${totalQtyAll}</td><td class="num" style="font-weight:700;">${fmtMoney(totalAmountAll)} đ</td></tr></tbody>`;
   }
 
   const invTable = document.getElementById('invOverviewTable');
