@@ -1599,7 +1599,13 @@
         <div class="card">
           <h2 style="margin:0; cursor:pointer; user-select:none;" onclick="toggleInvByProductSection()">Tổng hợp theo sản phẩm/màu <span id="invByProductToggleIcon" style="font-size:14px; color:var(--ink-soft);">▸ bấm để xem</span></h2>
           <div id="invByProductBody" style="display:none; margin-top:12px;">
-            <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportInvoicesByProduct()">⬇️ Xuất Excel</button>
+            <div class="toolbar" style="gap:10px; align-items:flex-end; margin-bottom:10px;">
+              <div class="field" style="max-width:300px; margin:0;"><label>Lọc theo mã sản phẩm</label><input id="invByProductCode" placeholder="VD: A55 (nhiều mã cách nhau dấu phẩy)" oninput="debouncedRenderInvOverview()"></div>
+              <button class="btn-ghost btn-small" style="margin-bottom:2px;" onclick="invByProductOnlyDeposited()">✅ Chỉ tính hoá đơn đã cọc</button>
+              <button class="btn-ghost btn-small" style="margin-bottom:2px;" onclick="exportInvoicesByProduct()">⬇️ Xuất Excel</button>
+            </div>
+            <div id="invByProductScope" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;"></div>
+            <div id="invByProductSummary" style="margin-bottom:10px;"></div>
             <div class="table-wrap"><table id="invByProductTable" class="rtable"></table></div>
           </div>
         </div>
@@ -4074,16 +4080,23 @@ function toggleInvByProductSection(){
 }
 let invOverviewRenderMemo = null;
 let lastInvOverviewFilterKey = null;
+const debouncedRenderInvOverview = debounce(()=>renderInvoicesOverviewPage(), 250);
+function invByProductOnlyDeposited(){
+  const sel = document.getElementById('invOverviewDepositFilter');
+  if(sel){ sel.value = 'done'; }
+  renderInvoicesOverviewPage();
+}
 function renderInvoicesOverviewPage(){
   // Trang này chỉ phụ thuộc hoá đơn + bộ lọc: nếu chỉ có data khách/báo cáo thay đổi (rất thường xuyên)
   // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
   // Đổi bộ lọc (ngày / tài khoản / tìm kiếm) → quay về trang 1
   const depFilter = (document.getElementById('invOverviewDepositFilter')||{}).value || '';
+  const codeFilterRaw = ((document.getElementById('invByProductCode')||{}).value || '').trim();
   const filterKey = [invOverviewDateFrom, invOverviewDateTo,
     (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter].join('|');
   if(filterKey !== lastInvOverviewFilterKey){ pagerPages.invOverview = 1; lastInvOverviewFilterKey = filterKey; }
   const memoKey = [invOverviewDateFrom, invOverviewDateTo,
-    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter,
+    (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter, codeFilterRaw,
     pagerPages.invOverview||1, invByProductOpen ? 1 : 0].join('|');
   if(invOverviewRenderMemo && invOverviewRenderMemo.inv===state.invoices && invOverviewRenderMemo.users===state.users && invOverviewRenderMemo.key===memoKey) return;
   invOverviewRenderMemo = {inv:state.invoices, users:state.users, key:memoKey};
@@ -4134,19 +4147,39 @@ function renderInvoicesOverviewPage(){
 
   // Bảng tổng hợp theo sản phẩm + màu
   const byProduct = {}; // key: code|color -> {code,name,color,qty,amount}
+  const invIdsByCode = {}; // mã SP -> các hoá đơn có mã đó (đếm số hoá đơn)
   invoices.forEach(inv=>{
     (inv.productGroups||[]).forEach(g=>{
       g.colorLines.forEach(l=>{
         const design = g.design || l.design || '';
-        const key = g.productCode + '|' + design + '|' + (l.color||'');
-        byProduct[key] = byProduct[key] || {code:g.productCode, name:g.productName, color:l.color||'—', design, qty:0, amount:0};
+        const codeU = String(g.productCode||'').trim().toUpperCase(); // gộp "a55" và "A55" làm 1 mã
+        const key = codeU + '|' + design + '|' + (l.color||'');
+        byProduct[key] = byProduct[key] || {code:codeU, name:g.productName, color:l.color||'—', design, qty:0, amount:0};
         byProduct[key].qty += Number(l.qty)||0;
         byProduct[key].amount += (Number(l.qty)||0) * (g.unitPrice||0);
+        const ck = String(g.productCode||'').trim().toUpperCase();
+        (invIdsByCode[ck] = invIdsByCode[ck] || new Set()).add(inv.id);
       });
     });
   });
-  const byProductRows = Object.values(byProduct).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi') || a.color.localeCompare(b.color,'vi'));
+  // Lọc ĐÚNG mã (không phân biệt hoa/thường; nhiều mã cách nhau dấu phẩy) — VD "A55" chỉ lấy A55, không lấy A550
+  const codeList = codeFilterRaw ? codeFilterRaw.split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean) : [];
+  const byProductRows = Object.values(byProduct).filter(r=>!codeList.length || codeList.includes(String(r.code||'').trim().toUpperCase())).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi') || a.color.localeCompare(b.color,'vi'));
   lastFilteredInvoicesByProduct = byProductRows;
+  { const scopeEl = document.getElementById('invByProductScope');
+    if(scopeEl){
+      const depTxt = depFilter==='done' ? '<b style="color:var(--success);">✅ chỉ hoá đơn đã cọc / đã chốt</b>' : (depFilter==='pending' ? '<b style="color:#F0A63A;">⏳ chỉ hoá đơn chưa cọc</b>' : '<b>tất cả hoá đơn (cả đã cọc và chưa cọc)</b>');
+      scopeEl.innerHTML = `Đang tính: ${depTxt} · ${invOverviewDateFrom ? fmtDate(invOverviewDateFrom) : 'từ đầu'} → ${invOverviewDateTo ? fmtDate(invOverviewDateTo) : 'nay'} · ${invoices.length} hoá đơn — đổi ngày / trạng thái cọc ở bộ lọc phía trên.`;
+    }
+    const sumEl = document.getElementById('invByProductSummary');
+    if(sumEl){
+      sumEl.innerHTML = !codeList.length ? '' : codeList.map(code=>{
+        const rows = byProductRows.filter(r=>String(r.code||'').trim().toUpperCase()===code);
+        const q = rows.reduce((t,r)=>t+r.qty,0), a = rows.reduce((t,r)=>t+r.amount,0), n = invIdsByCode[code] ? invIdsByCode[code].size : 0;
+        return `<div class="stat-box" style="display:inline-block; min-width:260px; margin:0 10px 8px 0;"><div class="stat-label">Mã ${escHtml(code)}</div><div class="stat-value">${q} sản phẩm</div><div style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">${fmtMoney(a)} đ · trong ${n} hoá đơn${rows.length?` · ${rows.length} dòng màu/mẫu`:''}</div></div>`;
+      }).join('');
+    }
+  }
   const byProductTable = document.getElementById('invByProductTable');
   if(!invByProductOpen){
     byProductTable.innerHTML = ''; // đang thu gọn → khỏi vẽ bảng (mở ra mới vẽ)
