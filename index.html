@@ -357,9 +357,9 @@
   .pr-log b{ color:var(--ink); }
   /* Tổng hợp theo sản phẩm: mỗi hình 1 dòng tiêu đề (có tổng), các màu thụt vào bên dưới */
   #invByProductTable{ width:auto; min-width:min(560px,100%); }
-  #invByProductTable tr.ibp-head td{ background:rgba(79,140,255,0.09); border-top:1px solid var(--line); padding-top:9px !important; padding-bottom:9px !important; }
-  #invByProductTable tr.ibp-head .ibp-sub{ font-size:11.5px; color:var(--ink-soft); font-weight:400; margin-left:6px; }
-  #invByProductTable tr.ibp-line td{ border:none !important; padding-top:3px !important; padding-bottom:3px !important; color:var(--ink-soft); font-size:13px; }
+  #invByProductTable tr.ibp-head td, #prSumTable tr.ibp-head td{ background:rgba(79,140,255,0.09); border-top:1px solid var(--line); padding-top:9px !important; padding-bottom:9px !important; }
+  #invByProductTable tr.ibp-head .ibp-sub, #prSumTable tr.ibp-head .ibp-sub{ font-size:11.5px; color:var(--ink-soft); font-weight:400; margin-left:6px; }
+  #invByProductTable tr.ibp-line td, #prSumTable tr.ibp-line td{ border:none !important; padding-top:3px !important; padding-bottom:3px !important; color:var(--ink-soft); font-size:13px; }
   #invByProductTable tr.ibp-line + tr.ibp-head td{ border-top:6px solid transparent; background-clip:padding-box; }
   #invByProductTable tr.ibp-line td:first-child{ padding-left:28px !important; }
   [data-locked-by-report]{ opacity:0.45; cursor:not-allowed !important; pointer-events:none; }
@@ -1307,6 +1307,24 @@
           <span id="prStatus" class="mr-pill"></span></div>
         <div id="prOrdersBox"></div>
         <div class="card">
+          <h2 style="margin:0; cursor:pointer; user-select:none;" onclick="prSumOpen=!prSumOpen; renderPrSummary();">📊 Tổng hợp mẫu cần in <span id="prSumToggle" style="font-size:14px; color:var(--ink-soft);">▸ bấm để xem</span></h2>
+          <div id="prSumBody" style="display:none; margin-top:12px;">
+            <div class="chip-row" style="margin-bottom:8px;" id="prSumPresets"></div>
+            <div class="toolbar" style="gap:10px; align-items:flex-end; margin-bottom:8px;">
+              <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" id="prSumFrom" onchange="renderPrSummary()"></div>
+              <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" id="prSumTo" onchange="renderPrSummary()"></div>
+              <div class="field" style="max-width:200px; margin:0;"><label>Mã sản phẩm</label><input id="prSumCode" placeholder="VD: A55" oninput="renderPrSummary()"></div>
+              <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" id="prSumDep" checked onchange="renderPrSummary()" style="width:auto; min-height:0;"> Chỉ đơn đã cọc / đã chốt</label>
+            </div>
+            <div class="chip-row" style="margin:0 0 8px;">
+              <div class="chip selected" id="prSumView_designs" onclick="prSumView='designs'; renderPrSummary();">Tổng theo hình</div>
+              <div class="chip" id="prSumView_colors" onclick="prSumView='colors'; renderPrSummary();">Theo hình, chi tiết từng màu</div>
+            </div>
+            <div id="prSumInfo" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;"></div>
+            <div class="table-wrap"><table class="rtable" id="prSumTable"></table></div>
+          </div>
+        </div>
+        <div class="card">
           <div class="toolbar" style="gap:12px; align-items:flex-end; margin-bottom:6px;">
             <div class="field" style="max-width:200px; margin:0;"><label>Ngày in</label><input type="date" id="pr_date" onchange="prLoadForDate()"></div>
             <div class="field" style="max-width:260px; margin:0;"><label>Tìm hình</label><input id="pr_search" placeholder="VD: H2, Celine…" oninput="prFilterRows()"></div>
@@ -2176,7 +2194,7 @@ const LocalDB = {
   };
 })();
 let printOrdersLoadedOnce = false;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null;
 // KHOÁ NHẬP DATA khi MKT chưa nộp báo cáo của HÔM TRƯỚC. Chỉ áp dụng cho các ngày từ mốc này trở đi
 // (tránh khoá oan ngày đầu mới có tính năng báo cáo MKT).
 const MKT_REPORT_LOCK_FROM = '2026-10-01';
@@ -2198,6 +2216,7 @@ let state = {
   mktReports: [], // Báo cáo ngày của MKT (nhánh riêng "mktReports" — không đụng tới data/báo cáo Sale)
   mktWeekly: [],  // Cập nhật tuần của MKT: lượt tiếp cận theo kênh (nhánh riêng "mktWeekly")
   printReports: [], // Báo cáo in hình hằng ngày của Nhân viên in hình (nhánh riêng "printReports")
+  invoiceItems: [], // Bản RÚT GỌN của hoá đơn cho Nhân viên in: chỉ mã/hình/màu/số lượng/ngày/đã cọc — KHÔNG có khách, SĐT, giá
   printOrders: [],  // Đơn đặt in hình (Quản lý / người được giao đặt đơn → Nhân viên in) — nhánh riêng "printOrders"
   invoiceSettings: {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}, // Thông tin cửa hàng in trên hoá đơn
   mktLegacyCounts: [], // Số liệu data đã nhập tay lên Sheet trước khi có tính năng "Nhập data" trong app — Quản lý chung tự điền bổ sung theo từng người
@@ -2281,6 +2300,7 @@ function startFirebaseListeners(){
   fbMktWeekly = db.ref('mktWeekly');
   fbPrintReports = db.ref('printReports');
   fbPrintOrders = db.ref('printOrders');
+  fbInvoiceItems = db.ref('invoiceItems');
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
@@ -3712,6 +3732,35 @@ function saveInvoiceDraft(afterSave){
   if(done) done();
 }
 let invoiceSaving = false;
+// ===== Bản rút gọn hoá đơn cho Nhân viên in (nhánh "invoiceItems") =====
+function invoiceItemsRecord(inv){
+  const items = [];
+  (inv.productGroups||[]).forEach(g=>(g.colorLines||[]).forEach(l=>{
+    const q = Number(l.qty)||0; if(!q) return;
+    items.push({code: String(g.productCode||'').trim().toUpperCase(), name: g.productName||'', design: g.design || l.design || '', color: l.color || '', qty: q});
+  }));
+  return {id: inv.id, invoiceDate: inv.invoiceDate || '', createdAt: inv.createdAt || Date.now(),
+    deposited: !!inv.depositLink, depositAt: (inv.depositLink && inv.depositLink.markedAt) || null, items, updatedAt: Date.now()};
+}
+function syncInvoiceItems(inv){ if(fbInvoiceItems && inv && inv.id) fbInvoiceItems.child(inv.id).set(invoiceItemsRecord(inv)).catch(()=>{}); }
+function removeInvoiceItems(id){ if(fbInvoiceItems && id) fbInvoiceItems.child(id).remove().catch(()=>{}); }
+// Máy Quản lý chung (có đủ hoá đơn) đồng bộ lại 1 lần/phiên: bù bản rút gọn còn thiếu/cũ + xoá bản thừa
+let invoiceItemsBackfilled = false;
+function backfillInvoiceItems(){
+  if(invoiceItemsBackfilled || !fbInvoiceItems || !state.invoices || !state.invoices.length) return;
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  invoiceItemsBackfilled = true;
+  const have = {}; (state.invoiceItems||[]).forEach(x=>{ have[x.id] = x; });
+  const upd = {};
+  state.invoices.forEach(inv=>{
+    const rec = invoiceItemsRecord(inv); const old = have[inv.id];
+    const same = old && old.deposited===rec.deposited && old.invoiceDate===rec.invoiceDate && JSON.stringify(old.items||[])===JSON.stringify(rec.items);
+    if(!same) upd[inv.id] = rec;
+  });
+  const ids = new Set(state.invoices.map(i=>i.id));
+  Object.keys(have).forEach(id=>{ if(!ids.has(id)) upd[id] = null; });
+  if(Object.keys(upd).length) fbInvoiceItems.update(upd).catch(e=>console.error('backfill invoiceItems', e));
+}
 function finishSaveInvoiceDraft(d, invoiceNumber){
   const isNew = !d.id;
   const id = d.id || ('inv_' + uid());
@@ -3771,6 +3820,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   }
   state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
   fbInvoices.child(id).set(finalInvoice);
+  syncInvoiceItems(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
   // Ở lại ngay trên hoá đơn vừa lưu (đã có Số HĐ) để chụp gửi khách / sửa tiếp — không đóng về danh sách
   currentInvoiceDraft = JSON.parse(JSON.stringify(finalInvoice));
@@ -3879,6 +3929,7 @@ function markInvoiceDeposited(invoiceId){
     }
     inv.depositLink = link;
     fbInvoices.child(inv.id).update({depositLink: link});
+    syncInvoiceItems(inv);
     showToast('Đã đưa khách vào "Data đã chốt" ✅');
     renderInvoicesPage();
   });
@@ -3902,6 +3953,7 @@ function unmarkInvoiceDeposited(invoiceId){
     }
     delete inv.depositLink;
     fbInvoices.child(inv.id).child('depositLink').remove();
+    syncInvoiceItems(inv);
     showToast('Đã huỷ đánh dấu khách đã cọc.');
     renderInvoicesPage();
   });
@@ -3925,6 +3977,7 @@ function purgeExpiredInvoices(list){
   (list||[]).forEach(inv=>{
     if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
       fbInvoices.child(inv.id).remove().catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại
+      removeInvoiceItems(inv.id);
     } else keep.push(inv);
   });
   return keep;
@@ -3938,6 +3991,7 @@ function deleteInvoice(invoiceId){
   askConfirm('Xoá hoá đơn?', 'Không thể khôi phục sau khi xoá.' + linkedNote, ()=>{
     state.invoices = state.invoices.filter(x=>x.id!==invoiceId);
     fbInvoices.child(invoiceId).remove();
+    removeInvoiceItems(invoiceId);
     renderInvoicesPage();
   });
 }
@@ -5630,10 +5684,72 @@ function prDesignCatalog(){
 }
 function prKey(code, design){ return String(code).toUpperCase() + '|' + cleanSourceName(design).toLowerCase(); }
 function prMyReport(date){ const u = currentUser(); return state.printReports.find(r=>u && r.userId===u.id && r.date===date); }
+
+// ---- Nhân viên in: Tổng hợp mẫu cần in (từ bản rút gọn hoá đơn — không có thông tin khách) ----
+let prSumOpen = false, prSumView = 'designs', prSumSort = {col:'qty', dir:'desc'}, prSumFrom = null, prSumTo = null;
+function prSumSetSort(col){
+  if(prSumSort.col===col) prSumSort.dir = prSumSort.dir==='asc' ? 'desc' : 'asc'; else prSumSort = {col, dir: col==='design' ? 'asc' : 'desc'};
+  renderPrSummary();
+}
+function prSumPreset(k){
+  const [f,t] = (k==='thismonth'||k==='lastmonth') ? calendarMonthRangeFor(k) : dateRangeFor(k);
+  document.getElementById('prSumFrom').value = f||''; document.getElementById('prSumTo').value = t||''; renderPrSummary();
+}
+function renderPrSummary(){
+  const body = document.getElementById('prSumBody'); if(!body) return;
+  body.style.display = prSumOpen ? 'block' : 'none';
+  document.getElementById('prSumToggle').textContent = prSumOpen ? '▾ thu gọn' : '▸ bấm để xem';
+  if(!prSumOpen) return;
+  const fromEl = document.getElementById('prSumFrom'), toEl = document.getElementById('prSumTo');
+  if(!fromEl.value && !toEl.value){ fromEl.value = toEl.value = todayStr(); }
+  const from = fromEl.value, to = toEl.value;
+  const presets = [['today','Hôm nay'],['yesterday','Hôm qua'],['week','7 ngày'],['thismonth','Tháng này']];
+  document.getElementById('prSumPresets').innerHTML = presets.map(([k,v])=>{ const [f,t] = k==='thismonth' ? calendarMonthRangeFor(k) : dateRangeFor(k); return `<div class="chip${f===from && t===to?' selected':''}" onclick="prSumPreset('${k}')">${v}</div>`; }).join('');
+  ['designs','colors'].forEach(k=>document.getElementById('prSumView_'+k).classList.toggle('selected', prSumView===k));
+  const onlyDep = document.getElementById('prSumDep').checked;
+  const codes = (document.getElementById('prSumCode').value||'').split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
+  // Ngày tính: đơn đã cọc → ngày xác nhận cọc; còn lại → ngày hoá đơn
+  const recs = (state.invoiceItems||[]).filter(r=>{
+    if(onlyDep && !r.deposited) return false;
+    const d = (onlyDep && r.depositAt) ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate;
+    return d && (!from || d>=from) && (!to || d<=to);
+  });
+  const groups = {}; let nInv = 0;
+  recs.forEach(r=>{
+    let used = false;
+    (r.items||[]).forEach(it=>{
+      if(codes.length && !codes.includes(it.code)) return;
+      used = true;
+      const k = it.code + '|' + (it.design||'');
+      const g = groups[k] || (groups[k] = {code:it.code, name:it.name, design:it.design||'', qty:0, colors:{}});
+      g.qty += it.qty; g.colors[it.color||'—'] = (g.colors[it.color||'—']||0) + it.qty;
+    });
+    if(used) nInv++;
+  });
+  const list = Object.values(groups);
+  const sd = prSumSort.dir==='asc' ? 1 : -1;
+  list.sort((a,b)=> prSumSort.col==='qty' ? sd*(a.qty-b.qty) || a.design.localeCompare(b.design,'vi',{numeric:true})
+    : sd*(a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true})));
+  const total = list.reduce((t,g)=>t+g.qty,0);
+  document.getElementById('prSumInfo').innerHTML = `${onlyDep?'<b style="color:var(--success);">Chỉ đơn đã cọc / đã chốt</b>':'<b>Tất cả đơn (cả chưa cọc)</b>'} · ${fmtDate(from)} → ${fmtDate(to)} · ${nInv} đơn · <b style="color:var(--ink);">${total}</b> sản phẩm · ${list.length} hình`;
+  const arrow = c => prSumSort.col===c ? (prSumSort.dir==='asc'?' ▲':' ▼') : ' <span style="opacity:0.35;">⇅</span>';
+  const th = (label, c, num) => `<th class="sortable${num?' num':''}" style="cursor:pointer; user-select:none;" onclick="prSumSetSort('${c}')">${label}${arrow(c)}</th>`;
+  const colorsSorted = g => Object.entries(g.colors).sort((a,b)=>b[1]-a[1]);
+  const t = document.getElementById('prSumTable');
+  if(!list.length){ t.innerHTML = '<tbody><tr><td class="empty-note">Không có đơn nào trong khoảng này.</td></tr></tbody>'; return; }
+  t.innerHTML = prSumView==='designs'
+    ? `<thead><tr><th>Mã</th>${th('Mẫu in','design')}<th>Các màu</th>${th('Tổng SL','qty',true)}</tr></thead><tbody>` +
+      list.map(g=>`<tr><td>${escHtml(g.code)}</td><td><b>${escHtml(g.design)||'—'}</b></td><td style="font-size:12.5px; color:var(--ink-soft);">${colorsSorted(g).map(([c,q])=>`${escHtml(c)} <b style="color:var(--ink);">${q}</b>`).join(' · ')}</td><td class="num"><b>${g.qty}</b></td></tr>`).join('') +
+      `<tr class="total-row"><td colspan="3">TỔNG CỘNG (${list.length} hình)</td><td class="num">${total}</td></tr></tbody>`
+    : `<thead><tr>${th('Mẫu in / màu','design')}${th('Số lượng','qty',true)}</tr></thead><tbody>` +
+      list.map(g=>`<tr class="ibp-head"><td><b>${escHtml(g.design)||'(không có mẫu in)'}</b> <span class="ibp-sub">${escHtml(g.code)} · ${escHtml(g.name||'')}</span></td><td class="num"><b>${g.qty}</b></td></tr>` +
+        colorsSorted(g).map(([c,q])=>`<tr class="ibp-line"><td style="padding-left:28px !important;">${escHtml(c)}</td><td class="num">${q}</td></tr>`).join('')).join('') +
+      `<tr class="total-row"><td>TỔNG CỘNG (${list.length} hình)</td><td class="num">${total}</td></tr></tbody>`;
+}
 function renderPrintReportPage(){
   const d = document.getElementById('pr_date');
   if(d && !d.value) d.value = todayStr();
-  prLoadForDate(); renderPrHistory(); renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
+  prLoadForDate(); renderPrHistory(); renderPrintOrdersForPrinter(); updatePrintOrdersBadge(); renderPrSummary();
 }
 function prLoadForDate(){
   const date = document.getElementById('pr_date').value || todayStr();
@@ -8349,6 +8465,14 @@ function setupRoleScopedListeners(user){
     prKey==='none' ? null : (prKey==='all' ? fbPrintReports : fbPrintReports.orderByChild('userId').equalTo(user.id)),
     setAndRender('printReports'), false);
 
+  // Bản rút gọn hoá đơn: Nhân viên in (xem tổng hợp mẫu cần in) + Quản lý chung (đồng bộ)
+  const iiKey = (user && (r==='printer' || r==='general_manager')) ? 'on' : 'none';
+  attachScoped('invoiceItems', iiKey, iiKey==='on' ? fbInvoiceItems : null, (arr)=>{
+    state.invoiceItems = arr;
+    if(r==='general_manager') backfillInvoiceItems();
+    if(currentPageId==='printReport') renderPrSummary();
+  }, false);
+
   // Đơn đặt in: Nhân viên in + Quản lý chung + người được giao đặt đơn in (không chứa dữ liệu khách)
   const poKey = (user && (r==='printer' || r==='general_manager' || user.canOrderPrint)) ? 'on' : 'none';
   attachScoped('printOrders', poKey, poKey==='on' ? fbPrintOrders : null, (arr)=>{
@@ -8366,7 +8490,7 @@ function setupRoleScopedListeners(user){
   const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
-    (arr)=>{ state.invoices = purgeExpiredInvoices(arr); onDataChanged(); }, false);
+    (arr)=>{ state.invoices = purgeExpiredInvoices(arr); onDataChanged(); if(r==='general_manager') backfillInvoiceItems(); }, false);
 
   // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
   const saleSide = user && !isMkt ? 'on' : 'none';
