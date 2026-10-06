@@ -900,6 +900,9 @@
       <div id="navPrinter" style="display:none;">
         <div class="nav-item" data-page="printReport" onclick="goPage('printReport')"><span class="label" id="navPrintReportLabel">🖨️ Báo cáo in hình</span></div>
       </div>
+      <div id="navWarehouse" style="display:none;">
+        <div class="nav-item" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">📦 Hàng cần in</span></div>
+      </div>
       <div id="navPrintOrder" style="display:none;">
         <div class="nav-item" data-page="printOrders" onclick="goPage('printOrders')"><span class="label">📝 Đặt đơn in hình</span></div>
       </div>
@@ -1377,7 +1380,7 @@
       </div>
 
       <div id="page-printOverview" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Báo cáo in hình</h1><p>Số đã in (Nhân viên in báo cáo) so với số cần in (hoá đơn đã cọc / đã chốt) theo từng hình</p></div></div>
+        <div class="page-head"><div><h1>Hàng cần in &amp; báo cáo in</h1><p>Cần in (hoá đơn đã cọc) · Đã in (báo cáo thợ in) · Còn thiếu — theo từng hình</p></div></div>
         <div id="poBox"></div>
       </div>
 
@@ -1846,6 +1849,7 @@
                 <option value="mkt">MKT (chỉ nhập data)</option>
                 <option value="mkt_manager">Quản lý team MKT</option>
                 <option value="printer">Nhân viên in hình (chỉ báo cáo in)</option>
+                <option value="warehouse">Kho / Đặt in (xem hàng cần in, đặt đơn in)</option>
               </select>
             </div>
             <div class="field" id="newAccBranchField">
@@ -3739,8 +3743,9 @@ function invoiceItemsRecord(inv){
     const q = Number(l.qty)||0; if(!q) return;
     items.push({code: String(g.productCode||'').trim().toUpperCase(), name: g.productName||'', design: g.design || l.design || '', color: l.color || '', qty: q});
   }));
-  return {id: inv.id, invoiceDate: inv.invoiceDate || '', createdAt: inv.createdAt || Date.now(),
-    deposited: !!inv.depositLink, depositAt: (inv.depositLink && inv.depositLink.markedAt) || null, items, updatedAt: Date.now()};
+  // Số HĐ + tên Sale để Kho đối chiếu đơn — KHÔNG có tên/SĐT khách, KHÔNG có giá
+  return {id: inv.id, invoiceNumber: inv.invoiceNumber || '', saleName: inv.saleName || '', invoiceDate: inv.invoiceDate || '', createdAt: inv.createdAt || Date.now(),
+    deposited: !!inv.depositLink, oldCustomer: !!(inv.depositLink && isOldCustomerInvoice(inv)), depositAt: (inv.depositLink && inv.depositLink.markedAt) || null, items, updatedAt: Date.now()};
 }
 function syncInvoiceItems(inv){ if(fbInvoiceItems && inv && inv.id) fbInvoiceItems.child(inv.id).set(invoiceItemsRecord(inv)).catch(()=>{}); }
 function removeInvoiceItems(id){ if(fbInvoiceItems && id) fbInvoiceItems.child(id).remove().catch(()=>{}); }
@@ -3754,7 +3759,7 @@ function backfillInvoiceItems(){
   const upd = {};
   state.invoices.forEach(inv=>{
     const rec = invoiceItemsRecord(inv); const old = have[inv.id];
-    const same = old && old.deposited===rec.deposited && old.invoiceDate===rec.invoiceDate && JSON.stringify(old.items||[])===JSON.stringify(rec.items);
+    const same = old && old.deposited===rec.deposited && old.invoiceDate===rec.invoiceDate && old.invoiceNumber===rec.invoiceNumber && old.saleName===rec.saleName && JSON.stringify(old.items||[])===JSON.stringify(rec.items);
     if(!same) upd[inv.id] = rec;
   });
   const ids = new Set(state.invoices.map(i=>i.id));
@@ -5875,59 +5880,160 @@ function renderPrHistory(){
       <td><button class="btn-ghost btn-small" onclick="document.getElementById('pr_date').value='${r.date}'; prLoadForDate(); window.scrollTo({top:0, behavior:'smooth'});">Sửa</button></td></tr>`).join('') + '</tbody>';
 }
 // ---- Quản lý chung: đã in vs cần in ----
-let poFrom = null, poTo = null, poCode = '', poOnlyGap = false;
+let poFrom = null, poTo = null, poCode = '', poOnlyGap = false, poViewTab = 'need', poSortCol = 'remain', poSortDir = 'desc', poOpenRep = null;
 function poSet(field, v){
   if(field==='preset'){ const [f,t] = (v==='thismonth'||v==='lastmonth') ? calendarMonthRangeFor(v) : dateRangeFor(v); poFrom = f||todayStr(); poTo = t||todayStr(); }
   if(field==='from') poFrom = v || poFrom; if(field==='to') poTo = v || poTo;
   if(field==='code') poCode = v; if(field==='gap') poOnlyGap = !!v;
+  if(field==='tab') poViewTab = v;
+  if(field==='sort'){ if(poSortCol===v) poSortDir = poSortDir==='asc'?'desc':'asc'; else { poSortCol = v; poSortDir = v==='design' ? 'asc' : 'desc'; } }
+  if(field==='openrep') poOpenRep = poOpenRep===v ? null : v;
   renderPrintOverview();
+}
+// Số liệu "cần in / đã in / còn thiếu" theo hình — dùng BẢN RÚT GỌN hoá đơn (không có thông tin khách)
+let poLastRows = [];
+function poComputeRows(){
+  const inRange = d => d && d>=poFrom && d<=poTo;
+  const rows = {};
+  const get = (code, design, name)=>{ const k = prKey(code, design); return rows[k] || (rows[k] = {code:String(code).toUpperCase(), name:name||'', design:cleanSourceName(design), need:0, printed:0, colors:{}}); };
+  (state.invoiceItems||[]).forEach(r=>{
+    if(!r.deposited) return;
+    const d = r.depositAt ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate;
+    if(!inRange(d)) return;
+    (r.items||[]).forEach(it=>{ if(!it.design) return; const g = get(it.code, it.design, it.name); g.need += it.qty; g.colors[it.color||'—'] = (g.colors[it.color||'—']||0) + it.qty; });
+  });
+  (state.printReports||[]).forEach(r=>{ if(!inRange(r.date)) return; (r.items||[]).forEach(it=>{ get(it.code, it.design).printed += Number(it.qty)||0; }); });
+  return Object.values(rows).map(r=>Object.assign(r, {remain: Math.max(0, r.need - r.printed)}));
+}
+function poOrderFromShortage(){
+  const list = poLastRows.filter(r=>r.remain>0);
+  if(!list.length){ showToast('Không có hình nào còn thiếu trong khoảng này.'); return; }
+  goPage('printOrders');
+  setTimeout(()=>{
+    let n = 0;
+    list.forEach(r=>{
+      const inp = Array.from(document.querySelectorAll('#poDesignList input[data-design]')).find(i=>prKey(i.dataset.code, i.dataset.design)===prKey(r.code, r.design));
+      if(inp){ inp.value = r.remain; inp.closest('.pr-row').classList.add('has'); n++; }
+    });
+    poFormTotal();
+    const note = document.getElementById('po_note'); if(note && !note.value) note.value = `In bù số còn thiếu ${fmtDate(poFrom)}${poTo!==poFrom?' – '+fmtDate(poTo):''}`;
+    showToast(`Đã điền sẵn ${n} hình theo số còn thiếu — kiểm tra lại rồi bấm Gửi đơn in`);
+  }, 150);
 }
 function renderPrintOverview(){
   const box = document.getElementById('poBox'); if(!box) return;
   if(poFrom===null){ poFrom = poTo = todayStr(); }
   const inRange = d => d && d>=poFrom && d<=poTo;
-  const rows = {}; // key -> {code, design, need, printed}
-  const get = (code, design)=>{ const k = prKey(code, design); return rows[k] || (rows[k] = {code:String(code).toUpperCase(), design:cleanSourceName(design), need:0, printed:0}); };
-  // Cần in: hoá đơn đã cọc / đã chốt, tính theo NGÀY XÁC NHẬN CỌC (chưa có thì theo ngày hoá đơn)
-  (state.invoices||[]).forEach(inv=>{
-    if(!inv.depositLink) return;
-    const d = inv.depositLink.markedAt ? toLocalDateStr(new Date(inv.depositLink.markedAt)) : inv.invoiceDate;
-    if(!inRange(d)) return;
-    (inv.productGroups||[]).forEach(g=>{ (g.colorLines||[]).forEach(l=>{ const ds = g.design || l.design; if(!ds) return; get(g.productCode, ds).need += Number(l.qty)||0; }); });
-  });
-  const printers = {};
-  (state.printReports||[]).forEach(r=>{
-    if(!inRange(r.date)) return;
-    const pn = (r.userName||r.userId) + (r.submitted ? '' : ' (chưa chốt)');
-    printers[pn] = (printers[pn]||0) + (r.total||0);
-    (r.items||[]).forEach(it=>{ get(it.code, it.design).printed += Number(it.qty)||0; });
-  });
-  let list = Object.values(rows).sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}));
-  const codes = Array.from(new Set(list.map(r=>r.code)));
+  const all = poComputeRows();
+  const codes = Array.from(new Set(all.map(r=>r.code))).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
+  let list = all.slice();
   if(poCode) list = list.filter(r=>r.code===poCode);
-  if(poOnlyGap) list = list.filter(r=>r.printed!==r.need);
-  const T = list.reduce((t,r)=>({need:t.need+r.need, printed:t.printed+r.printed}), {need:0, printed:0});
+  if(poOnlyGap) list = list.filter(r=>r.remain>0);
+  const sd = poSortDir==='asc' ? 1 : -1;
+  list.sort((a,b)=> poSortCol==='design' ? sd*(a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}))
+    : sd*((a[poSortCol]||0)-(b[poSortCol]||0)) || a.design.localeCompare(b.design,'vi',{numeric:true}));
+  poLastRows = list;
+  const T = list.reduce((t,r)=>({need:t.need+r.need, printed:t.printed+r.printed, remain:t.remain+r.remain}), {need:0, printed:0, remain:0});
   const presets = [['today','Hôm nay'],['yesterday','Hôm qua'],['week','7 ngày'],['thismonth','Tháng này']];
   const sel = k => { const [f,t] = k==='thismonth' ? calendarMonthRangeFor(k) : dateRangeFor(k); return f===poFrom && t===poTo; };
-  const gapCell = r => { const g = r.printed - r.need; return g===0 ? '<span style="color:var(--success); font-weight:700;">đủ</span>' : `<b style="color:${g<0?'var(--danger)':'#F0A63A'};">${g>0?'+':''}${g}</b>`; };
-  const reportedDays = Array.from(new Set((state.printReports||[]).filter(r=>inRange(r.date)).map(r=>r.date))).length;
-  box.innerHTML = `<div class="card">
+  const arrow = c => poSortCol===c ? (poSortDir==='asc'?' ▲':' ▼') : ' <span style="opacity:0.35;">⇅</span>';
+  const th = (label,c,num) => `<th class="sortable${num?' num':''}" style="cursor:pointer; user-select:none;" onclick="poSet('sort','${c}')">${label}${arrow(c)}</th>`;
+  const reps = (state.printReports||[]).filter(r=>inRange(r.date));
+  const printers = {}; reps.forEach(r=>{ const k = r.userName||r.userId; printers[k] = (printers[k]||0) + (r.total||0); });
+  const filters = `<div class="card">
       <div class="chip-row" style="margin-bottom:10px;">${presets.map(([k,v])=>`<div class="chip${sel(k)?' selected':''}" onclick="poSet('preset','${k}')">${v}</div>`).join('')}</div>
       <div class="toolbar" style="gap:10px; align-items:flex-end; margin:0;">
         <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" value="${poFrom}" onchange="poSet('from', this.value)"></div>
         <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${poTo}" onchange="poSet('to', this.value)"></div>
         <div class="field" style="max-width:180px; margin:0;"><label>Mã sản phẩm</label><select onchange="poSet('code', this.value)"><option value="">Tất cả</option>${codes.map(c=>`<option value="${escHtml(c)}" ${poCode===c?'selected':''}>${escHtml(c)}</option>`).join('')}</select></div>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" ${poOnlyGap?'checked':''} onchange="poSet('gap', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện hình bị lệch</label>
-      </div></div>
-    <div class="grid-3" style="grid-template-columns:repeat(3,minmax(0,1fr)); margin-bottom:16px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" ${poOnlyGap?'checked':''} onchange="poSet('gap', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện hình còn thiếu</label>
+      </div></div>`;
+  const stats = `<div class="grid-3" style="grid-template-columns:repeat(3,minmax(0,1fr)); margin-bottom:16px;">
       <div class="stat-box"><div class="stat-label">Cần in (đơn đã cọc)</div><div class="stat-value">${T.need}</div></div>
-      <div class="stat-box"><div class="stat-label">Đã in (báo cáo in)</div><div class="stat-value" style="color:var(--success);">${T.printed}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${Object.entries(printers).map(([n,v])=>`${escHtml(n)}: ${v}`).join(' · ') || 'Chưa có báo cáo in'}${reportedDays?` · ${reportedDays} ngày có báo cáo`:''}</div></div>
-      <div class="stat-box"><div class="stat-label">Chênh (đã in − cần in)</div><div class="stat-value" style="color:${T.printed-T.need<0?'var(--danger)':(T.printed-T.need>0?'#F0A63A':'var(--success)')};">${T.printed-T.need>0?'+':''}${T.printed-T.need}</div></div>
-    </div>
-    <div class="card"><div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th><th>Hình</th><th class="num">Cần in</th><th class="num">Đã in</th><th class="num">Chênh</th></tr></thead><tbody>` +
-    (list.length ? list.map(r=>`<tr><td>${escHtml(r.code)}</td><td><b>${escHtml(r.design)}</b></td><td class="num">${r.need}</td><td class="num">${r.printed}</td><td class="num">${gapCell(r)}</td></tr>`).join('') + `<tr class="total-row"><td colspan="2">TỔNG CỘNG</td><td class="num">${T.need}</td><td class="num">${T.printed}</td><td class="num">${T.printed-T.need>0?'+':''}${T.printed-T.need}</td></tr>`
-      : '<tr><td colspan="5" class="empty-note">Không có dữ liệu trong khoảng này.</td></tr>') +
-    `</tbody></table></div><div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Cần in tính theo ngày Sale bấm xác nhận cọc. Chênh <b style="color:var(--danger);">âm</b> = in thiếu, <b style="color:#F0A63A;">dương</b> = in dư so với đơn đã cọc.</div></div>`;
+      <div class="stat-box"><div class="stat-label">Đã in (báo cáo thợ in)</div><div class="stat-value" style="color:var(--success);">${T.printed}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${Object.entries(printers).map(([n,v])=>`${escHtml(n)}: ${v}`).join(' · ') || 'Chưa có báo cáo in'}</div></div>
+      <div class="stat-box"><div class="stat-label">Còn thiếu</div><div class="stat-value" style="color:${T.remain?'var(--danger)':'var(--success)'};">${T.remain}</div>${T.remain?`<button class="btn-primary btn-small" style="margin-top:8px;" onclick="poOrderFromShortage()">📝 Đặt đơn in theo số còn thiếu</button>`:''}</div>
+    </div>`;
+  const tabs = `<div style="display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px;">${[['need','Cần in / Đã in / Còn thiếu'],['best','🔥 Mẫu bán chạy'],['orders','Đơn đã cọc / đã chốt'],['reports','Báo cáo thợ in']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${poViewTab===k?'var(--accent)':'transparent'}; font-weight:${poViewTab===k?700:500}; color:${poViewTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="poSet('tab','${k}')">${v}</button>`).join('')}</div>`;
+  let content = '';
+  if(poViewTab==='best'){
+    // Mẫu bán chạy: từ hoá đơn ĐÃ CỌC / ĐÃ CHỐT trong khoảng ngày, so với khoảng liền trước cùng độ dài
+    const dayMs = 86400000;
+    const len = Math.round((new Date(poTo+'T00:00:00') - new Date(poFrom+'T00:00:00'))/dayMs) + 1;
+    const pTo = toLocalDateStr(new Date(new Date(poFrom+'T00:00:00').getTime() - dayMs));
+    const pFrom = toLocalDateStr(new Date(new Date(poFrom+'T00:00:00').getTime() - len*dayMs));
+    const dOf = r => r.depositAt ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate;
+    const agg = (from, to)=>{
+      const byCode = {}, byDesign = {}, byColor = {}; let total = 0;
+      (state.invoiceItems||[]).forEach(r=>{
+        if(!r.deposited) return; const d = dOf(r); if(!d || d<from || d>to) return;
+        const seen = new Set();
+        (r.items||[]).forEach(it=>{
+          if(poCode && it.code!==poCode) return;
+          total += it.qty;
+          const c = byCode[it.code] || (byCode[it.code] = {code:it.code, name:it.name, qty:0, orders:0}); c.qty += it.qty; if(!seen.has(it.code)){ c.orders++; seen.add(it.code); }
+          if(it.design){ const k = prKey(it.code, it.design); const g = byDesign[k] || (byDesign[k] = {code:it.code, design:cleanSourceName(it.design), qty:0}); g.qty += it.qty; }
+          const ck = it.code + '|' + (it.color||'—'); const cc = byColor[ck] || (byColor[ck] = {code:it.code, color:it.color||'—', qty:0}); cc.qty += it.qty;
+        });
+      });
+      return {byCode, byDesign, byColor, total};
+    };
+    const cur = agg(poFrom, poTo), prev = agg(pFrom, pTo);
+    const trend = (now, before)=> !before ? (now ? '<span style="color:var(--success); font-size:11.5px;">mới</span>' : '') : (()=>{ const p = Math.round((now-before)*100/before); return `<span style="font-size:11.5px; color:${p>=0?'var(--success)':'var(--danger)'};">${p>=0?'↑':'↓'}${Math.abs(p)}%</span>`; })();
+    const bar = (q, max) => `<span class="po-bar" style="display:inline-block; width:80px; vertical-align:middle; margin-right:8px;"><i style="width:${max?Math.round(q*100/max):0}%;"></i></span>`;
+    const topCodes = Object.values(cur.byCode).sort((a,b)=>b.qty-a.qty).slice(0,15);
+    const topDesigns = Object.values(cur.byDesign).sort((a,b)=>b.qty-a.qty).slice(0,20);
+    const topColors = Object.values(cur.byColor).sort((a,b)=>b.qty-a.qty).slice(0,12);
+    const maxC = topCodes[0] ? topCodes[0].qty : 0, maxD = topDesigns[0] ? topDesigns[0].qty : 0, maxK = topColors[0] ? topColors[0].qty : 0;
+    const rank = i => i<3 ? ['🥇','🥈','🥉'][i] : `<span style="color:var(--ink-soft);">${i+1}</span>`;
+    content = `<div style="font-size:13px; color:var(--ink-soft); margin:4px 0 12px;">Tính trên đơn <b style="color:var(--success);">đã cọc / đã chốt</b> · ${fmtDate(poFrom)} → ${fmtDate(poTo)} · <b style="color:var(--ink);">${cur.total}</b> sản phẩm ${trend(cur.total, prev.total)} <span>so với ${len} ngày liền trước (${prev.total})</span>. Mẹo: chọn "7 ngày" hoặc "Tháng này" để xem xu hướng rõ hơn.</div>
+      ${!cur.total ? '<div class="empty-note">Chưa có đơn đã cọc trong khoảng này.</div>' : `
+      <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px;">
+        <div><h3 style="margin:0 0 8px; font-size:15px;">Top sản phẩm (mã)</h3><table class="rtable"><tbody>${topCodes.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.code)}</b> <span style="font-size:12px; color:var(--ink-soft);">${escHtml(r.name||'')}</span><div style="font-size:11.5px; color:var(--ink-soft);">${r.orders} đơn</div></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxC)}<b>${r.qty}</b> ${trend(r.qty, prev.byCode[r.code] ? prev.byCode[r.code].qty : 0)}</td></tr>`).join('')}</tbody></table></div>
+        <div><h3 style="margin:0 0 8px; font-size:15px;">Top hình in</h3>${topDesigns.length ? `<table class="rtable"><tbody>${topDesigns.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.design)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(r.code)}</span></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxD)}<b>${r.qty}</b> ${trend(r.qty, (prev.byDesign[prKey(r.code,r.design)]||{}).qty||0)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-note">Không có sản phẩm in hình.</div>'}</div>
+        <div><h3 style="margin:0 0 8px; font-size:15px;">Top màu</h3><table class="rtable"><tbody>${topColors.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.color)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(r.code)}</span></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxK)}<b>${r.qty}</b> ${trend(r.qty, (prev.byColor[r.code+'|'+r.color]||{}).qty||0)}</td></tr>`).join('')}</tbody></table></div>
+      </div>`}`;
+  } else if(poViewTab==='orders'){
+    // Danh sách hoá đơn đã cọc / đã chốt trong khoảng ngày (theo ngày xác nhận cọc) — chỉ Số HĐ, Sale, hàng
+    let ords = (state.invoiceItems||[]).filter(r=>r.deposited && inRange(r.depositAt ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate));
+    if(poCode) ords = ords.filter(r=>(r.items||[]).some(it=>it.code===poCode));
+    ords.sort((a,b)=>(b.depositAt||0)-(a.depositAt||0));
+    const totQ = ords.reduce((t,r)=>t+(r.items||[]).filter(it=>!poCode || it.code===poCode).reduce((a,it)=>a+it.qty,0),0);
+    content = `<div style="font-size:13px; color:var(--ink-soft); margin:4px 0 10px;">${ords.length} đơn đã cọc / đã chốt · <b style="color:var(--ink);">${totQ}</b> sản phẩm${poCode?` (mã ${escHtml(poCode)})`:''}</div>
+      <div class="table-wrap"><table class="rtable"><thead><tr><th>Số HĐ</th><th>Ngày cọc</th><th>Sale</th><th>Hàng (mã · hình · màu × SL)</th><th class="num">Tổng SL</th></tr></thead><tbody>` +
+      (ords.length ? ords.map(r=>{
+        const items = (r.items||[]).filter(it=>!poCode || it.code===poCode);
+        // gom theo mã + hình: "A55 H2: TRẮNG 20 · ĐEN 10"
+        const g = {}; items.forEach(it=>{ const k = it.code + '|' + (it.design||''); (g[k] = g[k] || {code:it.code, design:it.design||'', cs:[]}).cs.push(`${escHtml(it.color||'—')} ${it.qty}`); });
+        const q = items.reduce((t,it)=>t+it.qty,0);
+        return `<tr><td><b>${escHtml(r.invoiceNumber||'—')}</b>${r.oldCustomer?' <span style="font-size:11px; color:#C9A0FF;">khách cũ</span>':''}</td>
+          <td style="white-space:nowrap;">${r.depositAt ? new Date(r.depositAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) : fmtDate(r.invoiceDate)}</td>
+          <td>${escHtml(r.saleName||'—')}</td>
+          <td style="font-size:12.5px;">${Object.values(g).map(x=>`<div><b>${escHtml(x.code)}${x.design?' · '+escHtml(x.design):''}</b>: <span style="color:var(--ink-soft);">${x.cs.join(' · ')}</span></div>`).join('')}</td>
+          <td class="num"><b>${q}</b></td></tr>`; }).join('') + `<tr class="total-row"><td colspan="4">TỔNG CỘNG (${ords.length} đơn)</td><td class="num">${totQ}</td></tr>`
+      : '<tr><td colspan="5" class="empty-note">Không có đơn đã cọc nào trong khoảng này.</td></tr>') + `</tbody></table></div>
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Chỉ hiện Số HĐ và tên Sale — không có tên, SĐT khách và giá tiền. Cần thông tin khách để gửi hàng thì hỏi Sale theo Số HĐ.</div>`;
+  } else if(poViewTab==='need'){
+    content = `<div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th>${th('Hình','design')}<th>Màu (cần in)</th>${th('Cần in','need',true)}${th('Đã in','printed',true)}${th('Còn thiếu','remain',true)}</tr></thead><tbody>` +
+      (list.length ? list.map(r=>`<tr><td>${escHtml(r.code)}</td><td><b>${escHtml(r.design)}</b></td>
+        <td style="font-size:12.5px; color:var(--ink-soft);">${Object.entries(r.colors).sort((a,b)=>b[1]-a[1]).map(([c,q])=>`${escHtml(c)} <b style="color:var(--ink);">${q}</b>`).join(' · ') || '—'}</td>
+        <td class="num">${r.need}</td><td class="num">${r.printed}</td>
+        <td class="num">${r.remain ? `<b style="color:var(--danger);">${r.remain}</b>` : (r.printed>r.need ? `<span style="color:#F0A63A;">dư ${r.printed-r.need}</span>` : '<span style="color:var(--success); font-weight:700;">đủ</span>')}</td></tr>`).join('') +
+        `<tr class="total-row"><td colspan="3">TỔNG CỘNG (${list.length} hình)</td><td class="num">${T.need}</td><td class="num">${T.printed}</td><td class="num">${T.remain}</td></tr>`
+      : '<tr><td colspan="6" class="empty-note">Không có dữ liệu trong khoảng này.</td></tr>') +
+      `</tbody></table></div><div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Cần in tính theo hoá đơn <b>đã cọc / đã chốt</b>, theo ngày Sale bấm xác nhận cọc. Đã in lấy từ báo cáo của thợ in trong cùng khoảng ngày.</div>`;
+  } else {
+    const sorted = reps.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (a.userName||'').localeCompare(b.userName||'','vi'));
+    const printerUsers = state.users.filter(u=>u.role==='printer');
+    const days = []; { const d = new Date(poFrom+'T00:00:00'); const e = new Date(poTo+'T00:00:00'); let g=0; while(d<=e && g++<60){ days.push(toLocalDateStr(d)); d.setDate(d.getDate()+1); } }
+    const missing = []; days.forEach(dd=>printerUsers.forEach(u=>{ if(dd<=todayStr() && !reps.some(r=>r.userId===u.id && r.date===dd)) missing.push(`${u.name} (${fmtDate(dd).slice(0,5)})`); }));
+    content = (missing.length ? `<div style="font-size:13px; color:#F0A63A; margin:4px 0 10px;">⚠️ Chưa có báo cáo in: ${missing.slice(0,12).map(escHtml).join(', ')}${missing.length>12?'…':''}</div>` : '') +
+      `<div class="table-wrap"><table class="rtable"><thead><tr><th>Ngày</th><th>Thợ in</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mẫu</th><th>Ghi chú</th></tr></thead><tbody>` +
+      (sorted.length ? sorted.map(r=>{ const open = poOpenRep===r.id;
+        return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
+          (open ? `<tr><td colspan="6" style="padding:8px 16px 12px 32px !important; background:rgba(79,140,255,0.04); font-size:13px;">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="mr-linkchip"><b>${escHtml(it.design)}</b>&nbsp;${it.qty}</span>`).join('')}</td></tr>` : ''); }).join('')
+      : '<tr><td colspan="6" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
+  }
+  box.innerHTML = filters + stats + `<div class="card">${tabs}${content}</div>`;
 }
 
 /* =========================== MKT: NHẬP DATA TRỰC TIẾP TRÊN APP =========================== */
@@ -8261,7 +8367,7 @@ function addBranch(){
   input.value='';
   createUserAndLogin(b.id);
 }
-const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung', mkt:'MKT', mkt_manager:'Quản lý team MKT', printer:'Nhân viên in hình'};
+const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung', mkt:'MKT', mkt_manager:'Quản lý team MKT', printer:'Nhân viên in hình', warehouse:'Kho / Đặt in'};
 function roleLabel(role){ return ROLE_LABELS[role] || role; }
 
 function renderRoleChips(){
@@ -8358,7 +8464,7 @@ let leadsSubKey = null, leadsSubQueries = [], leadsDataReady = false;
 function subscribeLeadsForUser(user){
   const r = user ? user.role : null;
   const fullRoles = ['general_manager','data_manager','team_manager'];
-  if(r==='printer'){ // Nhân viên in hình: không tải kho data
+  if(r==='printer' || r==='warehouse'){ // Nhân viên in hình / Kho: không tải kho data
     leadsSubQueries.forEach(q=>{ try{ q.off(); }catch(e){} });
     leadsSubQueries = []; leadsSubKey = 'none'; leadsDataReady = true; state.leads = []; onDataChanged(); return;
   }
@@ -8431,8 +8537,9 @@ function backfillLeadPhoneNorm(){
 function setupRoleScopedListeners(user){
   subscribeLeadsForUser(user);
   const r = user ? user.role : null;
-  const isPrinter = r==='printer';
-  const isMkt = r==='mkt' || r==='mkt_manager' || isPrinter; // Nhân viên in hình: như MKT, không tải báo cáo/hoá đơn Sale
+  const isWarehouse = r==='warehouse';
+  const isPrinter = r==='printer' || isWarehouse; // Kho dùng chung "vùng in": không tải hoá đơn/data/báo cáo Sale
+  const isMkt = r==='mkt' || r==='mkt_manager' || isPrinter; // Nhân viên in hình / Kho: như MKT, không tải báo cáo/hoá đơn Sale
   const isSaleMgr = r==='team_manager' || r==='data_manager' || r==='general_manager';
   const needVideo = r==='mkt' || r==='mkt_manager' || r==='data_manager' || r==='general_manager';
   const setAndRender = (field)=>(arr)=>{ state[field] = arr; onDataChanged(); };
@@ -8460,24 +8567,28 @@ function setupRoleScopedListeners(user){
     setAndRender('mktWeekly'), false);
 
   // Báo cáo in hình: Nhân viên in chỉ tải của mình; Quản lý chung tải hết
-  const prKey = !user ? 'none' : (r==='printer' ? 'mine:'+user.id : (r==='general_manager' ? 'all' : 'none'));
+  const prKey = !user ? 'none' : (r==='printer' ? 'mine:'+user.id : ((r==='general_manager' || r==='warehouse') ? 'all' : 'none'));
   attachScoped('printReports', prKey,
     prKey==='none' ? null : (prKey==='all' ? fbPrintReports : fbPrintReports.orderByChild('userId').equalTo(user.id)),
     setAndRender('printReports'), false);
 
   // Bản rút gọn hoá đơn: Nhân viên in (xem tổng hợp mẫu cần in) + Quản lý chung (đồng bộ)
-  const iiKey = (user && (r==='printer' || r==='general_manager')) ? 'on' : 'none';
+  const iiKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
   attachScoped('invoiceItems', iiKey, iiKey==='on' ? fbInvoiceItems : null, (arr)=>{
     state.invoiceItems = arr;
     if(r==='general_manager') backfillInvoiceItems();
     if(currentPageId==='printReport') renderPrSummary();
+    if(currentPageId==='printOverview') renderPrintOverview();
   }, false);
 
   // Đơn đặt in: Nhân viên in + Quản lý chung + người được giao đặt đơn in (không chứa dữ liệu khách)
-  const poKey = (user && (r==='printer' || r==='general_manager' || user.canOrderPrint)) ? 'on' : 'none';
+  const poKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse' || user.canOrderPrint)) ? 'on' : 'none';
   attachScoped('printOrders', poKey, poKey==='on' ? fbPrintOrders : null, (arr)=>{
     const before = new Set((state.printOrders||[]).map(o=>o.id));
     const fresh = arr.filter(o=>!before.has(o.id) && o.status==='open');
+    const prevStatus = {}; (state.printOrders||[]).forEach(o=>{ prevStatus[o.id] = o.status; });
+    const justDone = arr.filter(o=>o.status==='done' && prevStatus[o.id]==='open' && user && o.createdBy===user.id);
+    if(printOrdersLoadedOnce && justDone.length && r!=='printer'){ try{ playTingSound(); }catch(e){} showToast(`✅ Thợ in đã in xong đơn ${justDone.map(o=>o.code).join(', ')}`); }
     state.printOrders = arr;
     if(r==='printer' && printOrdersLoadedOnce && fresh.length){ try{ playTingSound(); }catch(e){} showToast(`📥 Có ${fresh.length} đơn in mới!`); }
     printOrdersLoadedOnce = true;
@@ -8541,11 +8652,13 @@ function enterApp(){
   const isMktManager = user.role==='mkt_manager';
   const isManagerRole = user.role==='team_manager' || user.role==='general_manager' || isDataManager;
   const isPrinter = user.role==='printer';
+  const isWarehouse = user.role==='warehouse';
   document.getElementById('navPrinter').style.display = isPrinter ? 'block' : 'none';
-  document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || user.canOrderPrint)) ? 'block' : 'none';
+  document.getElementById('navWarehouse').style.display = isWarehouse ? 'block' : 'none';
+  document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || isWarehouse || user.canOrderPrint)) ? 'block' : 'none';
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
   document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
-  document.getElementById('navPersonal').style.display = (isDataManager || isMkt || isMktManager || isPrinter) ? 'none' : 'block';
+  document.getElementById('navPersonal').style.display = (isDataManager || isMkt || isMktManager || isPrinter || isWarehouse) ? 'none' : 'block';
   // Quản lý chung ít khi cần tự nộp báo cáo/xem data cá nhân — gộp gọn 3 mục này lại thành 1
   // dòng bấm mới xổ ra (mặc định đóng), đỡ chiếm chỗ. Nhân viên và Quản lý team vẫn dùng phần
   // này hằng ngày nên giữ nguyên hiện sẵn luôn, không bắt họ bấm thêm 1 bước.
@@ -8574,6 +8687,7 @@ function enterApp(){
   document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
   if(isPrinter){ goPage('printReport'); }
+  else if(isWarehouse){ goPage('printOverview'); }
   else if(isMkt || isMktManager){ goPage('mktMyLeadsList'); } // MKT & Quản lý team MKT: mặc định mở "Danh sách data"
   else if(isDataManager){ goPage('mgrLeads'); }
   else if(user.role==='general_manager'){ goPage('mgrDashboard'); }
@@ -8596,7 +8710,38 @@ function toggleNavPersonalGroup(){
   body.style.display = isOpen ? 'none' : 'block';
   label.textContent = isOpen ? '🗂️ Data của tôi ▸' : '🗂️ Data của tôi ▾';
 }
+// ===== CHẶN MỞ TRANG NGOÀI QUYỀN =====
+// Mỗi vai trò chỉ mở được các trang CÓ TRÊN MENU của mình (+ trang con mở từ đó). Trước đây nhiều trang chỉ
+// ẩn mục menu — gõ lệnh trong công cụ trình duyệt vẫn mở được (VD Sale mở Cài đặt, Thùng rác).
+function navPagesVisibleForMe(){
+  const set = new Set();
+  document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+    let n = el, ok = true;
+    while(n && !(n.classList && n.classList.contains('sidebar'))){ if(n.style && n.style.display==='none'){ ok = false; break; } n = n.parentElement; }
+    if(ok) set.add(el.dataset.page);
+  });
+  return set;
+}
+const SUB_PAGE_PARENTS = {
+  mgrSelfLeadsList: ['mgrLeadsList'],
+  personLeads: ['mgrLeads'],
+  mktPersonDetail: ['mktOverview','mktReportsAdmin'],
+  mktRevenue: ['mktRevenue','mktOverview','mktReportsAdmin'], // Quản lý xem doanh thu Nguồn của 1 người
+};
+function pageAllowedForMe(pageId){
+  const u = currentUser();
+  if(!u || pageId==='companyRules') return true;
+  const vis = navPagesVisibleForMe();
+  if(!vis.size) return true; // menu chưa dựng xong (đang vào app) → không chặn vội
+  if(vis.has(pageId)) return true;
+  return (SUB_PAGE_PARENTS[pageId]||[]).some(p=>vis.has(p));
+}
+function homePageForMe(){
+  const vis = Array.from(navPagesVisibleForMe()).filter(p=>p!=='companyRules');
+  return vis[0] || 'companyRules';
+}
 function goPage(pageId){
+  if(!pageAllowedForMe(pageId)){ pageId = homePageForMe(); }
   if(!isAutoRefreshing && pageId!==currentPageId){ rowLimits = {}; pagerPages = {}; } // sang trang khác → bảng dài/phân trang về đầu
   // Đang soạn hoá đơn mà chuyển sang trang khác → tự lưu trước (hoặc hỏi nếu hoá đơn còn thiếu thông tin)
   if(currentPageId==='invoices' && pageId!=='invoices' && currentInvoiceDraft && invoiceDraftChanged()){
@@ -8617,8 +8762,10 @@ function goPage(pageId){
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
   // Nhân viên in hình: CHỈ trang Báo cáo in hình + Nội quy
   if(u && u.role==='printer' && pageId!=='printReport' && pageId!=='companyRules'){ pageId = 'printReport'; }
-  if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : 'companyRules'; }
-  if(pageId==='printOverview' && u && u.role!=='general_manager'){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
+  // Kho / Đặt in: CHỈ Hàng cần in + Đặt đơn in + Nội quy
+  if(u && u.role==='warehouse' && !['printOverview','printOrders','companyRules'].includes(pageId)){ pageId = 'printOverview'; }
+  if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.role==='warehouse' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : 'companyRules'; }
+  if(pageId==='printOverview' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktReportsAdmin' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
@@ -11120,7 +11267,7 @@ function renderPermissionsTable(){
 function onNewAccRoleChange(){
   const role = document.getElementById('newAccRole').value;
   const isMktRole = role==='mkt' || role==='mkt_manager';
-  const isGlobalRole = role==='general_manager' || role==='data_manager' || role==='printer';
+  const isGlobalRole = role==='general_manager' || role==='data_manager' || role==='printer' || role==='warehouse';
   document.getElementById('newAccBranchField').style.display = (isGlobalRole || isMktRole) ? 'none' : 'block';
   document.getElementById('newAccMktBranchField').style.display = isMktRole ? 'block' : 'none';
   document.getElementById('newAccMktSourcesField').style.display = isMktRole ? 'block' : 'none';
@@ -11171,7 +11318,7 @@ function createAccountByManager(){
   } else {
     role = document.getElementById('newAccRole').value;
     const isMktRole = role==='mkt' || role==='mkt_manager';
-    const isGlobalRole = role==='general_manager' || role==='data_manager' || role==='printer';
+    const isGlobalRole = role==='general_manager' || role==='data_manager' || role==='printer' || role==='warehouse';
     branchId = (isGlobalRole || isMktRole) ? null : document.getElementById('newAccBranch').value;
     if(!isGlobalRole && !isMktRole && !branchId){ errEl.textContent = 'Vui lòng thêm ít nhất 1 chi nhánh trước khi tạo tài khoản.'; return; }
     if(isMktRole){
