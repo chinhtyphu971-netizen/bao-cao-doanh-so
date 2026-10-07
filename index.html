@@ -5687,6 +5687,8 @@ function prDesignCatalog(){
   });
   return list.sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}));
 }
+// Các mã CÓ IN HÌNH = mã có danh sách "Mẫu in" trong Danh mục sản phẩm (hiện tại: A55)
+function printCodes(){ return prDesignCatalog().map(p=>p.code); }
 function prKey(code, design){ return String(code).toUpperCase() + '|' + cleanSourceName(design).toLowerCase(); }
 function prMyReport(date){ const u = currentUser(); return state.printReports.find(r=>u && r.userId===u.id && r.date===date); }
 
@@ -5712,7 +5714,9 @@ function renderPrSummary(){
   document.getElementById('prSumPresets').innerHTML = presets.map(([k,v])=>{ const [f,t] = k==='thismonth' ? calendarMonthRangeFor(k) : dateRangeFor(k); return `<div class="chip${f===from && t===to?' selected':''}" onclick="prSumPreset('${k}')">${v}</div>`; }).join('');
   ['designs','colors'].forEach(k=>document.getElementById('prSumView_'+k).classList.toggle('selected', prSumView===k));
   const onlyDep = document.getElementById('prSumDep').checked;
-  const codes = (document.getElementById('prSumCode').value||'').split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
+  const codeEl = document.getElementById('prSumCode');
+  if(!codeEl.dataset.inited){ codeEl.dataset.inited = '1'; if(!codeEl.value) codeEl.value = printCodes().join(', '); } // mặc định chỉ mã in hình (A55)
+  const codes = (codeEl.value||'').split(/[,;\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
   // Ngày tính: đơn đã cọc → ngày xác nhận cọc; còn lại → ngày hoá đơn
   const recs = (state.invoiceItems||[]).filter(r=>{
     if(onlyDep && !r.deposited) return false;
@@ -5880,7 +5884,7 @@ function renderPrHistory(){
       <td><button class="btn-ghost btn-small" onclick="document.getElementById('pr_date').value='${r.date}'; prLoadForDate(); window.scrollTo({top:0, behavior:'smooth'});">Sửa</button></td></tr>`).join('') + '</tbody>';
 }
 // ---- Quản lý chung: đã in vs cần in ----
-let poFrom = null, poTo = null, poCode = '', poOnlyGap = false, poViewTab = 'need', poSortCol = 'remain', poSortDir = 'desc', poOpenRep = null;
+let poFrom = null, poTo = null, poCode = '__print__', poOnlyGap = false, poViewTab = 'need', poSortCol = 'remain', poSortDir = 'desc', poOpenRep = null;
 function poSet(field, v){
   if(field==='preset'){ const [f,t] = (v==='thismonth'||v==='lastmonth') ? calendarMonthRangeFor(v) : dateRangeFor(v); poFrom = f||todayStr(); poTo = t||todayStr(); }
   if(field==='from') poFrom = v || poFrom; if(field==='to') poTo = v || poTo;
@@ -5892,6 +5896,11 @@ function poSet(field, v){
 }
 // Số liệu "cần in / đã in / còn thiếu" theo hình — dùng BẢN RÚT GỌN hoá đơn (không có thông tin khách)
 let poLastRows = [];
+function poCodeMatch(code){
+  if(!poCode) return true;
+  if(poCode==='__print__'){ const pc = printCodes(); return !pc.length || pc.includes(String(code).toUpperCase()); }
+  return String(code).toUpperCase()===poCode;
+}
 function poComputeRows(){
   const inRange = d => d && d>=poFrom && d<=poTo;
   const rows = {};
@@ -5925,9 +5934,8 @@ function renderPrintOverview(){
   if(poFrom===null){ poFrom = poTo = todayStr(); }
   const inRange = d => d && d>=poFrom && d<=poTo;
   const all = poComputeRows();
-  const codes = Array.from(new Set(all.map(r=>r.code))).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
-  let list = all.slice();
-  if(poCode) list = list.filter(r=>r.code===poCode);
+  const codes = Array.from(new Set(all.map(r=>r.code).concat(...(state.invoiceItems||[]).map(r=>(r.items||[]).map(it=>it.code))))).filter(Boolean).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
+  let list = all.filter(r=>poCodeMatch(r.code));
   if(poOnlyGap) list = list.filter(r=>r.remain>0);
   const sd = poSortDir==='asc' ? 1 : -1;
   list.sort((a,b)=> poSortCol==='design' ? sd*(a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}))
@@ -5945,7 +5953,7 @@ function renderPrintOverview(){
       <div class="toolbar" style="gap:10px; align-items:flex-end; margin:0;">
         <div class="field" style="max-width:160px; margin:0;"><label>Từ ngày</label><input type="date" value="${poFrom}" onchange="poSet('from', this.value)"></div>
         <div class="field" style="max-width:160px; margin:0;"><label>Đến ngày</label><input type="date" value="${poTo}" onchange="poSet('to', this.value)"></div>
-        <div class="field" style="max-width:180px; margin:0;"><label>Mã sản phẩm</label><select onchange="poSet('code', this.value)"><option value="">Tất cả</option>${codes.map(c=>`<option value="${escHtml(c)}" ${poCode===c?'selected':''}>${escHtml(c)}</option>`).join('')}</select></div>
+        <div class="field" style="max-width:220px; margin:0;"><label>Mã sản phẩm</label><select onchange="poSet('code', this.value)"><option value="__print__" ${poCode==='__print__'?'selected':''}>Mã in hình (${escHtml(printCodes().join(', ')||'—')})</option><option value="" ${poCode===''?'selected':''}>Tất cả mã</option>${codes.map(c=>`<option value="${escHtml(c)}" ${poCode===c?'selected':''}>${escHtml(c)}</option>`).join('')}</select></div>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px; cursor:pointer;"><input type="checkbox" ${poOnlyGap?'checked':''} onchange="poSet('gap', this.checked)" style="width:auto; min-height:0;"> Chỉ hiện hình còn thiếu</label>
       </div></div>`;
   const stats = `<div class="grid-3" style="grid-template-columns:repeat(3,minmax(0,1fr)); margin-bottom:16px;">
@@ -5968,7 +5976,7 @@ function renderPrintOverview(){
         if(!r.deposited) return; const d = dOf(r); if(!d || d<from || d>to) return;
         const seen = new Set();
         (r.items||[]).forEach(it=>{
-          if(poCode && it.code!==poCode) return;
+          if(!poCodeMatch(it.code)) return;
           total += it.qty;
           const c = byCode[it.code] || (byCode[it.code] = {code:it.code, name:it.name, qty:0, orders:0}); c.qty += it.qty; if(!seen.has(it.code)){ c.orders++; seen.add(it.code); }
           if(it.design){ const k = prKey(it.code, it.design); const g = byDesign[k] || (byDesign[k] = {code:it.code, design:cleanSourceName(it.design), qty:0}); g.qty += it.qty; }
@@ -5995,13 +6003,13 @@ function renderPrintOverview(){
   } else if(poViewTab==='orders'){
     // Danh sách hoá đơn đã cọc / đã chốt trong khoảng ngày (theo ngày xác nhận cọc) — chỉ Số HĐ, Sale, hàng
     let ords = (state.invoiceItems||[]).filter(r=>r.deposited && inRange(r.depositAt ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate));
-    if(poCode) ords = ords.filter(r=>(r.items||[]).some(it=>it.code===poCode));
+    ords = ords.filter(r=>(r.items||[]).some(it=>poCodeMatch(it.code)));
     ords.sort((a,b)=>(b.depositAt||0)-(a.depositAt||0));
-    const totQ = ords.reduce((t,r)=>t+(r.items||[]).filter(it=>!poCode || it.code===poCode).reduce((a,it)=>a+it.qty,0),0);
-    content = `<div style="font-size:13px; color:var(--ink-soft); margin:4px 0 10px;">${ords.length} đơn đã cọc / đã chốt · <b style="color:var(--ink);">${totQ}</b> sản phẩm${poCode?` (mã ${escHtml(poCode)})`:''}</div>
+    const totQ = ords.reduce((t,r)=>t+(r.items||[]).filter(it=>poCodeMatch(it.code)).reduce((a,it)=>a+it.qty,0),0);
+    content = `<div style="font-size:13px; color:var(--ink-soft); margin:4px 0 10px;">${ords.length} đơn đã cọc / đã chốt · <b style="color:var(--ink);">${totQ}</b> sản phẩm${poCode==='__print__'?` (mã in hình: ${escHtml(printCodes().join(', '))})`:(poCode?` (mã ${escHtml(poCode)})`:'')}</div>
       <div class="table-wrap"><table class="rtable"><thead><tr><th>Số HĐ</th><th>Ngày cọc</th><th>Sale</th><th>Hàng (mã · hình · màu × SL)</th><th class="num">Tổng SL</th></tr></thead><tbody>` +
       (ords.length ? ords.map(r=>{
-        const items = (r.items||[]).filter(it=>!poCode || it.code===poCode);
+        const items = (r.items||[]).filter(it=>poCodeMatch(it.code));
         // gom theo mã + hình: "A55 H2: TRẮNG 20 · ĐEN 10"
         const g = {}; items.forEach(it=>{ const k = it.code + '|' + (it.design||''); (g[k] = g[k] || {code:it.code, design:it.design||'', cs:[]}).cs.push(`${escHtml(it.color||'—')} ${it.qty}`); });
         const q = items.reduce((t,it)=>t+it.qty,0);
