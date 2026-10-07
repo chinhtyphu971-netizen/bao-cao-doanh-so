@@ -337,6 +337,25 @@
   .po-bar{ flex:0 0 140px; height:8px; border-radius:99px; background:rgba(255,255,255,0.08); overflow:hidden; }
   .po-bar > i{ display:block; height:100%; background:#3DD68C; }
   .po-count{ flex:0 0 70px; text-align:right; font-weight:700; font-size:13.5px; }
+  /* Mẫu bán chạy: 3 khối, mỗi khối tự co — không đè nhau; điện thoại xếp dọc */
+    .po-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .po-tabs::-webkit-scrollbar{ display:none; }
+  .po-tabs button{ white-space:nowrap; flex:0 0 auto; }
+  .best-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; }
+  @media (max-width:1100px){ .best-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  @media (max-width:700px){ .best-grid{ grid-template-columns:1fr; } }
+  .best-col{ min-width:0; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .best-col h3{ margin:0 0 8px; font-size:15px; }
+  .best-row{ display:grid; grid-template-columns:26px minmax(0,1fr) auto 52px; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:13px; }
+  .best-row:first-of-type{ border-top:none; }
+  .best-rank{ text-align:center; }
+  .best-name{ min-width:0; overflow-wrap:anywhere; line-height:1.3; }
+  .best-sub{ font-size:11.5px; color:var(--ink-soft); font-weight:400; }
+  .best-val{ display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .best-bar{ display:inline-block; width:70px; height:8px; border-radius:99px; background:rgba(255,255,255,0.08); overflow:hidden; }
+  .best-bar > i{ display:block; height:100%; background:#3DD68C; }
+  .best-trend{ text-align:right; white-space:nowrap; font-size:11.5px; }
+  @media (max-width:420px){ .best-bar{ width:44px; } .best-row{ grid-template-columns:22px minmax(0,1fr) auto 46px; gap:6px; } }
   .po-table td{ padding-top:8px !important; padding-bottom:8px !important; vertical-align:middle; }
   .po-table .po-items{ display:inline-block; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; cursor:help; }
   .pr-prod h3{ margin:0 0 8px; font-size:15px; }
@@ -5961,7 +5980,7 @@ function renderPrintOverview(){
       <div class="stat-box"><div class="stat-label">Đã in (báo cáo thợ in)</div><div class="stat-value" style="color:var(--success);">${T.printed}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${Object.entries(printers).map(([n,v])=>`${escHtml(n)}: ${v}`).join(' · ') || 'Chưa có báo cáo in'}</div></div>
       <div class="stat-box"><div class="stat-label">Còn thiếu</div><div class="stat-value" style="color:${T.remain?'var(--danger)':'var(--success)'};">${T.remain}</div>${T.remain?`<button class="btn-primary btn-small" style="margin-top:8px;" onclick="poOrderFromShortage()">📝 Đặt đơn in theo số còn thiếu</button>`:''}</div>
     </div>`;
-  const tabs = `<div style="display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px;">${[['need','Cần in / Đã in / Còn thiếu'],['best','🔥 Mẫu bán chạy'],['orders','Đơn đã cọc / đã chốt'],['reports','Báo cáo thợ in']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${poViewTab===k?'var(--accent)':'transparent'}; font-weight:${poViewTab===k?700:500}; color:${poViewTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="poSet('tab','${k}')">${v}</button>`).join('')}</div>`;
+  const tabs = `<div class="po-tabs">${[['need','Cần in / Đã in / Còn thiếu'],['best','🔥 Mẫu bán chạy'],['orders','Đơn đã cọc / đã chốt'],['reports','Báo cáo thợ in']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${poViewTab===k?'var(--accent)':'transparent'}; font-weight:${poViewTab===k?700:500}; color:${poViewTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="poSet('tab','${k}')">${v}</button>`).join('')}</div>`;
   let content = '';
   if(poViewTab==='best'){
     // Mẫu bán chạy: từ hoá đơn ĐÃ CỌC / ĐÃ CHỐT trong khoảng ngày, so với khoảng liền trước cùng độ dài
@@ -5993,12 +6012,16 @@ function renderPrintOverview(){
     const topColors = Object.values(cur.byColor).sort((a,b)=>b.qty-a.qty).slice(0,12);
     const maxC = topCodes[0] ? topCodes[0].qty : 0, maxD = topDesigns[0] ? topDesigns[0].qty : 0, maxK = topColors[0] ? topColors[0].qty : 0;
     const rank = i => i<3 ? ['🥇','🥈','🥉'][i] : `<span style="color:var(--ink-soft);">${i+1}</span>`;
+    // Mỗi dòng: hạng · tên (tự xuống dòng, không tràn) · thanh + số lượng · xu hướng — dạng lưới, không đè lên nhau
+    const bestRow = (i, nameHtml, q, max, tr) => `<div class="best-row"><span class="best-rank">${rank(i)}</span><span class="best-name">${nameHtml}</span>
+      <span class="best-val"><span class="best-bar"><i style="width:${max?Math.round(q*100/max):0}%;"></i></span><b>${q}</b></span><span class="best-trend">${tr||''}</span></div>`;
+    const bestBlock = (title, rows, empty) => `<div class="best-col"><h3>${title}</h3>${rows.length ? rows.join('') : `<div class="empty-note">${empty||'Không có dữ liệu.'}</div>`}</div>`;
     content = `<div style="font-size:13px; color:var(--ink-soft); margin:4px 0 12px;">Tính trên đơn <b style="color:var(--success);">đã cọc / đã chốt</b> · ${fmtDate(poFrom)} → ${fmtDate(poTo)} · <b style="color:var(--ink);">${cur.total}</b> sản phẩm ${trend(cur.total, prev.total)} <span>so với ${len} ngày liền trước (${prev.total})</span>. Mẹo: chọn "7 ngày" hoặc "Tháng này" để xem xu hướng rõ hơn.</div>
       ${!cur.total ? '<div class="empty-note">Chưa có đơn đã cọc trong khoảng này.</div>' : `
-      <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px;">
-        <div><h3 style="margin:0 0 8px; font-size:15px;">Top sản phẩm (mã)</h3><table class="rtable"><tbody>${topCodes.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.code)}</b> <span style="font-size:12px; color:var(--ink-soft);">${escHtml(r.name||'')}</span><div style="font-size:11.5px; color:var(--ink-soft);">${r.orders} đơn</div></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxC)}<b>${r.qty}</b> ${trend(r.qty, prev.byCode[r.code] ? prev.byCode[r.code].qty : 0)}</td></tr>`).join('')}</tbody></table></div>
-        <div><h3 style="margin:0 0 8px; font-size:15px;">Top hình in</h3>${topDesigns.length ? `<table class="rtable"><tbody>${topDesigns.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.design)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(r.code)}</span></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxD)}<b>${r.qty}</b> ${trend(r.qty, (prev.byDesign[prKey(r.code,r.design)]||{}).qty||0)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-note">Không có sản phẩm in hình.</div>'}</div>
-        <div><h3 style="margin:0 0 8px; font-size:15px;">Top màu</h3><table class="rtable"><tbody>${topColors.map((r,i)=>`<tr><td style="width:28px;">${rank(i)}</td><td><b>${escHtml(r.color)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(r.code)}</span></td><td class="num" style="white-space:nowrap;">${bar(r.qty,maxK)}<b>${r.qty}</b> ${trend(r.qty, (prev.byColor[r.code+'|'+r.color]||{}).qty||0)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="best-grid">
+        ${bestBlock('Top sản phẩm (mã)', topCodes.map((r,i)=>bestRow(i, `<b>${escHtml(r.code)}</b> <span class="best-sub">${escHtml(r.name||'')} · ${r.orders} đơn</span>`, r.qty, maxC, trend(r.qty, prev.byCode[r.code] ? prev.byCode[r.code].qty : 0))))}
+        ${bestBlock('Top hình in', topDesigns.map((r,i)=>bestRow(i, `<b>${escHtml(r.design)}</b> <span class="best-sub">${escHtml(r.code)}</span>`, r.qty, maxD, trend(r.qty, (prev.byDesign[prKey(r.code,r.design)]||{}).qty||0))), 'Không có sản phẩm in hình.')}
+        ${bestBlock('Top màu', topColors.map((r,i)=>bestRow(i, `<b>${escHtml(r.color)}</b> <span class="best-sub">${escHtml(r.code)}</span>`, r.qty, maxK, trend(r.qty, (prev.byColor[r.code+'|'+r.color]||{}).qty||0))))}
       </div>`}`;
   } else if(poViewTab==='orders'){
     // Danh sách hoá đơn đã cọc / đã chốt trong khoảng ngày (theo ngày xác nhận cọc) — chỉ Số HĐ, Sale, hàng
