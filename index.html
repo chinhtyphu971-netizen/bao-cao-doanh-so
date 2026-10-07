@@ -338,7 +338,18 @@
   .po-bar > i{ display:block; height:100%; background:#3DD68C; }
   .po-count{ flex:0 0 70px; text-align:right; font-weight:700; font-size:13.5px; }
   /* Mẫu bán chạy: 3 khối, mỗi khối tự co — không đè nhau; điện thoại xếp dọc */
-    .po-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    /* Chi tiết báo cáo thợ in: các hình tự xuống dòng trong khung, không tràn ngang */
+  .po-rep-items{ display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:6px; }
+  .po-rep-chip{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:5px 10px; border:1px solid var(--line); border-radius:8px; min-width:0; }
+  .po-rep-chip span{ min-width:0; overflow-wrap:anywhere; }
+  .po-rep-chip b{ flex:0 0 auto; }
+  @media (max-width:520px){ .po-rep-items{ grid-template-columns:1fr; } }
+  @media (max-width:600px){
+    .po-rep-table .po-hide-sm{ display:none; }
+    .po-rep-table th, .po-rep-table td{ padding-left:6px !important; padding-right:6px !important; font-size:12.5px; }
+    .po-rep-table{ width:100%; }
+  }
+  .po-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   .po-tabs::-webkit-scrollbar{ display:none; }
   .po-tabs button{ white-space:nowrap; flex:0 0 auto; }
   .best-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; }
@@ -6058,10 +6069,12 @@ function renderPrintOverview(){
     const days = []; { const d = new Date(poFrom+'T00:00:00'); const e = new Date(poTo+'T00:00:00'); let g=0; while(d<=e && g++<60){ days.push(toLocalDateStr(d)); d.setDate(d.getDate()+1); } }
     const missing = []; days.forEach(dd=>printerUsers.forEach(u=>{ if(dd<=todayStr() && !reps.some(r=>r.userId===u.id && r.date===dd)) missing.push(`${u.name} (${fmtDate(dd).slice(0,5)})`); }));
     content = (missing.length ? `<div style="font-size:13px; color:#F0A63A; margin:4px 0 10px;">⚠️ Chưa có báo cáo in: ${missing.slice(0,12).map(escHtml).join(', ')}${missing.length>12?'…':''}</div>` : '') +
-      `<div class="table-wrap"><table class="rtable"><thead><tr><th>Ngày</th><th>Thợ in</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mẫu</th><th>Ghi chú</th></tr></thead><tbody>` +
+      `<div class="table-wrap"><table class="rtable po-rep-table"><thead><tr><th>Ngày</th><th>Thợ in</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num po-hide-sm">Số mẫu</th><th class="po-hide-sm">Ghi chú</th></tr></thead><tbody>` +
       (sorted.length ? sorted.map(r=>{ const open = poOpenRep===r.id;
-        return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
-          (open ? `<tr><td colspan="6" style="padding:8px 16px 12px 32px !important; background:rgba(79,140,255,0.04); font-size:13px;">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="mr-linkchip"><b>${escHtml(it.design)}</b>&nbsp;${it.qty}</span>`).join('')}</td></tr>` : ''); }).join('')
+        return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num po-hide-sm">${(r.items||[]).length}</td><td class="po-hide-sm" style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
+          (open ? `<tr><td colspan="6" style="padding:8px 12px 12px 28px !important; background:rgba(79,140,255,0.04); font-size:13px; white-space:normal !important;">
+            <div class="po-rep-items">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="po-rep-chip"><span>${escHtml(it.design)}</span><b>${it.qty}</b></span>`).join('')}</div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Tổng ${r.total||0} hình · ${(r.items||[]).length} mẫu${r.note?` · 📝 ${escHtml(r.note)}`:''}</div></td></tr>` : ''); }).join('')
       : '<tr><td colspan="6" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
   }
   box.innerHTML = filters + stats + `<div class="card">${tabs}${content}</div>`;
