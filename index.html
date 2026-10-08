@@ -1370,7 +1370,7 @@
             <div class="field" style="max-width:260px; margin:0;"><label>Tìm hình</label><input id="pr_search" placeholder="VD: H2, Celine…" oninput="prFilterRows()"></div>
           </div>
           <div id="prDateSub" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;"></div>
-          <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">In xong mẻ nào: ở hình đó gõ <b>số lượng</b> + <b>số mét</b> (xem trên phần mềm máy in) rồi bấm <b style="color:#3DD68C;">＋ Thêm</b> — mỗi lần in là 1 dòng, app <b>tự cộng dồn và tự lưu</b>. Cuối ngày bấm <b>Chốt báo cáo</b>.</div>
+          <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">In xong mẻ nào: ở hình đó gõ <b>số lượng</b> + <b>số cm</b> (xem trên phần mềm máy in, app tự đổi ra mét) rồi bấm <b style="color:#3DD68C;">＋ Thêm</b> — mỗi lần in là 1 dòng, app <b>tự cộng dồn và tự lưu</b>. Cuối ngày bấm <b>Chốt báo cáo</b>.</div>
           <div id="prProducts"></div>
           <div id="prLogBox"></div>
           <div class="pr-meter-box">
@@ -5570,7 +5570,7 @@ function poOrderCardHtml(o, forPrinter){
       return `<div class="po-item"><span class="po-name"><b>${escHtml(it.design)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(it.code)}</span></span>
         <div class="po-bar"><i style="width:${q?Math.min(100,Math.round(pr*100/q)):0}%;"></i></div>
         <span class="po-count" style="color:${full?'var(--success)':'var(--ink)'};">${pr}/${q}</span>
-        ${canEdit ? `<div class="pr-ctl"><input type="number" min="1" class="pr-in-qty" placeholder="SL" value="${full?'':''}" inputmode="numeric"><input type="number" min="0" step="0.1" class="pr-in-m" placeholder="Mét" inputmode="decimal" onkeydown="if(event.key==='Enter') poAddBatch(this,'${o.id}',${idx})"><button type="button" class="pr-btn add" onclick="poAddBatch(this,'${o.id}',${idx})">＋ Thêm</button></div>` : ''}
+        ${canEdit ? `<div class="pr-ctl"><input type="number" min="1" class="pr-in-qty" placeholder="SL" value="${full?'':''}" inputmode="numeric"><input type="number" min="1" step="1" class="pr-in-m" placeholder="cm" inputmode="numeric" title="Số cm in (xem trên phần mềm máy in) — app tự đổi ra mét" onkeydown="if(event.key==='Enter') poAddBatch(this,'${o.id}',${idx})"><button type="button" class="pr-btn add" onclick="poAddBatch(this,'${o.id}',${idx})">＋ Thêm</button></div>` : ''}
       </div>`; }).join('')}</div>
     ${o.meters ? `<div class="po-meter"><span>📏 Đơn này đã in <b>${fmtMeters(o.meters)} m</b>${(()=>{ const pg=poOrderProgress(o); return pg.done ? ` · ${fmtMeters(pg.done/o.meters)} hình/m` : ''; })()}</span></div>` : ''}
     ${canEdit ? `<div style="text-align:right; margin-top:8px;"><button class="btn-ghost btn-small" onclick="poMarkDone('${o.id}')">✓ Đánh dấu đơn đã xong</button></div>` : ''}
@@ -5595,19 +5595,19 @@ function poAddBatch(el, orderId, idx){
   const it = o.items[idx]; if(!it) return;
   const box = el.closest('.pr-ctl');
   const qEl = box.querySelector('.pr-in-qty'), mEl = box.querySelector('.pr-in-m');
-  const qty = Math.floor(Number(qEl.value)||0), meters = Math.round((Number(mEl.value)||0)*10)/10;
+  const qty = Math.floor(Number(qEl.value)||0), cm = Math.round(Number(mEl.value)||0), meters = cm/100;
   if(qty<=0){ showToast('Nhập số lượng đã in.'); qEl.focus(); return; }
-  if(meters<=0){ showToast('Nhập số mét in (xem trên phần mềm máy in).'); mEl.focus(); return; }
+  if(cm<=0){ showToast('Nhập số cm in (xem trên phần mềm máy in).'); mEl.focus(); return; }
   const dateEl = document.getElementById('pr_date');
   if(dateEl && dateEl.value!==todayStr()){ dateEl.value = todayStr(); prLoadForDate(); }
   // Ghi luôn vào báo cáo in trong ngày (1 lần nhập — 2 nơi cập nhật)
   if(!prApplyBatch(it.code, it.design, qty, meters, {orderId: o.id, orderCode: o.code||'', itemIdx: idx})) return;
   it.printed = (Number(it.printed)||0) + qty;
-  o.meters = Math.round(((Number(o.meters)||0) + meters)*10)/10;
+  o.meters = Math.round(((Number(o.meters)||0) + meters)*100)/100;
   const u = currentUser();
   const upd = {items: o.items, meters: o.meters, metersByName: u ? u.name : '', updatedAt: Date.now()};
   if(o.items.every(x=>(Number(x.printed)||0) >= (Number(x.qty)||0))){ upd.status='done'; upd.doneAt=Date.now(); o.status='done'; o.doneAt=upd.doneAt; showToast('✅ Đã in xong đơn ' + (o.code||'')); }
-  else showToast(`Đã ghi: ${it.design} · ${qty} cái · ${fmtMeters(meters)} m`);
+  else showToast(`Đã ghi: ${it.design} · ${qty} cái · ${cm} cm (${fmtMeters(meters)} m)`);
   fbPrintOrders.child(o.id).update(upd).catch(e=>{ console.error(e); showToast('Lưu tiến độ thất bại — kiểm tra mạng.'); });
   renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
 }
@@ -5813,7 +5813,7 @@ function prLoadForDate(){
         <input type="hidden" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" value="${v||''}" data-meters="${m||0}">
         <div class="pr-ctl">
           <input type="number" min="1" class="pr-in-qty" placeholder="SL" inputmode="numeric">
-          <input type="number" min="0" step="0.1" class="pr-in-m" placeholder="Mét" inputmode="decimal" onkeydown="if(event.key==='Enter') prAddBatch(this)">
+          <input type="number" min="1" step="1" class="pr-in-m" placeholder="cm" inputmode="numeric" title="Số cm in (xem trên phần mềm máy in) — app tự đổi ra mét" onkeydown="if(event.key==='Enter') prAddBatch(this)">
           <button type="button" class="pr-btn add" onclick="prAddBatch(this)">＋ Thêm</button>
         </div></div>`; }).join('') +
       `</div></div>`).join('');
@@ -5834,7 +5834,7 @@ let prSaveTimer = null;
 function prApplyBatch(code, design, qty, meters, extra){
   const inp = Array.from(document.querySelectorAll('#prProducts input[data-design]')).find(i=>prKey(i.dataset.code, i.dataset.design)===prKey(code, design));
   if(!inp){ showToast('Hình "' + design + '" chưa có trong danh mục — báo Quản lý cập nhật cột Mẫu in.'); return false; }
-  const q = Math.max(0, (Number(inp.value)||0) + qty), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) + meters)*10)/10);
+  const q = Math.max(0, (Number(inp.value)||0) + qty), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) + meters)*100)/100);
   inp.value = q || ''; inp.dataset.meters = m;
   const row = inp.closest('.pr-row');
   row.classList.toggle('has', q>0);
@@ -5847,35 +5847,36 @@ function prApplyBatch(code, design, qty, meters, extra){
 function prAddBatch(el){
   const row = el.closest('.pr-row');
   const qEl = row.querySelector('.pr-in-qty'), mEl = row.querySelector('.pr-in-m');
-  const qty = Math.floor(Number(qEl.value)||0), meters = Math.round((Number(mEl.value)||0)*10)/10;
+  // Nhập theo CM (dễ đọc trên phần mềm máy in) → lưu & tổng hợp theo MÉT
+  const qty = Math.floor(Number(qEl.value)||0), cm = Math.round(Number(mEl.value)||0), meters = cm/100;
   if(qty<=0){ showToast('Nhập số lượng đã in.'); qEl.focus(); return; }
-  if(meters<=0){ showToast('Nhập số mét in (xem trên phần mềm máy in).'); mEl.focus(); return; }
+  if(cm<=0){ showToast('Nhập số cm in (xem trên phần mềm máy in).'); mEl.focus(); return; }
   const inp = row.querySelector('input[data-design]');
-  if(prApplyBatch(inp.dataset.code, inp.dataset.design, qty, meters)){ qEl.value=''; mEl.value=''; showToast(`Đã ghi: ${inp.dataset.design} · ${qty} cái · ${fmtMeters(meters)} m`); }
+  if(prApplyBatch(inp.dataset.code, inp.dataset.design, qty, meters)){ qEl.value=''; mEl.value=''; showToast(`Đã ghi: ${inp.dataset.design} · ${qty} cái · ${cm} cm (${fmtMeters(meters)} m)`); }
 }
 function prUndoLast(){
   const last = prLog[prLog.length-1]; if(!last) return;
   prLog.pop();
   const inp = Array.from(document.querySelectorAll('#prProducts input[data-design]')).find(i=>i.dataset.code===last.code && i.dataset.design===last.design);
   if(inp){
-    const q = Math.max(0, (Number(inp.value)||0) - (Number(last.qty)||0)), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) - (Number(last.meters)||0))*10)/10);
+    const q = Math.max(0, (Number(inp.value)||0) - (Number(last.qty)||0)), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) - (Number(last.meters)||0))*100)/100);
     inp.value = q || ''; inp.dataset.meters = m;
     const row = inp.closest('.pr-row'); row.classList.toggle('has', q>0); row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m` : '';
   }
   // Mẻ in thuộc đơn in → trả lại tiến độ đơn
   if(last.orderId){ const o = (state.printOrders||[]).find(x=>x.id===last.orderId); const it = o && o.items[last.itemIdx];
-    if(it){ it.printed = Math.max(0, (Number(it.printed)||0) - (Number(last.qty)||0)); o.meters = Math.max(0, Math.round(((Number(o.meters)||0) - (Number(last.meters)||0))*10)/10);
+    if(it){ it.printed = Math.max(0, (Number(it.printed)||0) - (Number(last.qty)||0)); o.meters = Math.max(0, Math.round(((Number(o.meters)||0) - (Number(last.meters)||0))*100)/100);
       const upd = {items:o.items, meters:o.meters, updatedAt:Date.now()}; if(o.status==='done'){ o.status='open'; upd.status='open'; upd.doneAt=null; }
       fbPrintOrders.child(o.id).update(upd); renderPrintOrdersForPrinter(); updatePrintOrdersBadge(); } }
   prUpdateTotal(); renderPrLog(); prUpdateMeterTotal(); prScheduleSave();
-  showToast('Đã hoàn tác: ' + last.design + ' −' + last.qty + (last.meters?` · −${fmtMeters(last.meters)} m`:''));
+  showToast('Đã hoàn tác: ' + last.design + ' −' + last.qty + (last.meters?` · −${fmtCm(last.meters)} cm`:''));
 }
 function renderPrLog(){
   const box = document.getElementById('prLogBox'); if(!box) return;
   if(!prLog.length){ box.innerHTML = ''; return; }
   const recent = prLog.slice().reverse().slice(0,40);
   box.innerHTML = `<div class="pr-log"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;"><b>🕘 Nhật ký in hôm nay (${prLog.length} mẻ)</b><button type="button" class="btn-ghost btn-small" onclick="prUndoLast()">↶ Hoàn tác mẻ cuối</button></div>` +
-    recent.map(x=>`<div>${new Date(x.t).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · <b>${escHtml(x.design)}</b> <span style="color:#3DD68C; font-weight:700;">+${x.qty}</span>${x.meters?` · ${fmtMeters(x.meters)} m`:''}${x.orderCode?` <span style="font-size:11.5px;">(đơn ${escHtml(x.orderCode)})</span>`:''}</div>`).join('') + `</div>`;
+    recent.map(x=>`<div>${new Date(x.t).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · <b>${escHtml(x.design)}</b> <span style="color:#3DD68C; font-weight:700;">+${x.qty}</span>${x.meters?` · ${fmtCm(x.meters)} cm`:''}${x.orderCode?` <span style="font-size:11.5px;">(đơn ${escHtml(x.orderCode)})</span>`:''}</div>`).join('') + `</div>`;
 }
 function prScheduleSave(){
   const msg = document.getElementById('prMsg'); if(msg){ msg.style.color='var(--ink-soft)'; msg.textContent = 'Đang lưu…'; }
@@ -5894,7 +5895,8 @@ function prUpdateMeterTotal(){
   const t = document.getElementById('prMeterTotal');
   if(t) t.innerHTML = `Tổng mét in: <b style="font-size:16px;">${fmtMeters(tot)} m</b>${tot && qty ? ` <span style="color:var(--ink-soft); font-size:12.5px;">· ${fmtMeters(qty/tot)} hình/m</span>` : ''}`;
 }
-function fmtMeters(v){ return (Math.round((Number(v)||0)*10)/10).toLocaleString('vi-VN'); }
+function fmtMeters(v){ return (Math.round((Number(v)||0)*100)/100).toLocaleString('vi-VN'); }
+function fmtCm(m){ return Math.round((Number(m)||0)*100).toLocaleString('vi-VN'); }
 function poSetMeters(orderId, val){
   const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
   const u = currentUser();
@@ -5911,7 +5913,7 @@ function prSave(submit){
   const items = prCollect();
   const existing = prMyReport(date);
   const rec = {id: date+'_'+u.id, userId:u.id, userName:u.name, date, items, total: items.reduce((t,x)=>t+x.qty,0),
-    meters: Math.round(items.reduce((t,x)=>t+(x.meters||0),0)*10)/10,
+    meters: Math.round(items.reduce((t,x)=>t+(x.meters||0),0)*100)/100,
     log: prLog.slice(-500), note: (document.getElementById('pr_note').value||'').trim(),
     submitted: submit ? true : !!(existing && existing.submitted),
     submittedAt: submit ? Date.now() : (existing && existing.submittedAt) || null,
