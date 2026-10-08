@@ -160,6 +160,7 @@
   #hamburgerBtn{ display:flex; } /* luôn hiện nút thu gọn/mở sidebar, kể cả trên máy tính */
   @media (min-width:721px){
     .sidebar.collapsed-desktop{ display:none; }
+  @media (min-width: 721px){ .sidebar{ position:sticky; top:0; max-height:100vh; overflow-y:auto; } }
   }
   .sidebar-backdrop{display:none;}
 
@@ -185,13 +186,20 @@
     .main{padding-left:16px; padding-right:16px; padding-top: calc(64px + var(--safe-top));}
     .hamburger-btn{display:flex;}
     .sidebar{
-      position:fixed; top:0; left:0; height:100vh; z-index:70;
+      position:fixed; top:0; left:0; height:100vh; height:100dvh; z-index:70;
       transform:translateX(-100%); transition:transform .2s ease;
       box-shadow:2px 0 16px rgba(0,0,0,.25);
+      /* Menu dài hơn màn hình (VD Quản lý chung) → cho VUỐT LÊN/XUỐNG trong khung menu */
+      overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; touch-action:pan-y;
+      padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
     }
+    .sidebar .nav-item{ flex-shrink:0; }
+    .sidebar-foot{ margin-top:16px; }
     .sidebar.open{transform:translateX(0);}
     .sidebar-backdrop{display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:65;}
     .sidebar-backdrop.show{display:block;}
+    body.sb-open #hamburgerBtn{ left:auto !important; right:14px; }
+    body.sb-open #refreshBtn{ display:none; }
   }
 
   table{width:auto; border-collapse:collapse; font-size:11.5px;}
@@ -351,6 +359,38 @@
     .po-rep-table .po-hide-sm{ display:none; }
     .po-rep-table th, .po-rep-table td{ padding-left:6px !important; padding-right:6px !important; font-size:12.5px; }
     .po-rep-table{ width:100%; }
+  }
+  /* Báo cáo MKT (Quản lý): khung chi tiết tự xuống dòng, KHÔNG kéo bảng rộng ra */
+  tr.mra-detail > td{ white-space:normal !important; padding:6px 10px 14px 24px !important; background:rgba(79,140,255,0.04); }
+  .mra-box{ display:flex; flex-direction:column; gap:10px; max-width:100%; min-width:0; }
+  .mra-issues{ display:flex; flex-direction:column; gap:4px; }
+  .mra-issue{ font-size:13px; padding:6px 10px; border-radius:8px; line-height:1.45; overflow-wrap:anywhere; }
+  .mra-issue.lvl3{ background:rgba(255,107,107,0.10); color:#FF8A8A; }
+  .mra-issue.lvl2{ background:rgba(240,166,58,0.10); color:#F0A63A; }
+  .mra-stats{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; color:var(--ink-soft); }
+  .mra-stats b{ color:var(--ink); }
+  .mra-src{ flex-basis:100%; }
+  .mra-links{ display:flex; flex-direction:column; gap:8px; }
+  .mra-day-h{ font-size:12px; color:var(--ink-soft); margin-bottom:4px; font-weight:600; }
+  .mra-day-l{ display:flex; flex-wrap:wrap; gap:6px; }
+  .mra-day-l details{ flex-basis:100%; }
+  .mra-day-l details summary{ cursor:pointer; font-size:12.5px; color:var(--accent); margin:2px 0 6px; }
+  .mra-day-l details[open]{ display:flex; flex-wrap:wrap; gap:6px; }
+  .mra-link{ display:inline-flex; align-items:center; gap:6px; max-width:280px; min-width:0; padding:4px 10px; border:1px solid var(--line); border-radius:999px; font-size:12px; color:var(--ink); text-decoration:none; }
+  .mra-link:hover{ border-color:var(--accent); }
+  .mra-link.dup{ border-color:#FF6B6B; }
+  .mra-link b{ white-space:nowrap; flex:0 0 auto; }
+  .mra-link-t{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .mra-dup{ flex:0 0 auto; font-size:10.5px; font-weight:700; color:#fff; background:#E5484D; border-radius:999px; padding:0 6px; }
+  .mra-notes{ display:flex; flex-direction:column; gap:3px; font-size:13px; color:var(--ink-soft); }
+  .mra-notes b{ color:var(--ink); margin-right:6px; }
+  @media (max-width:600px){
+    .mra-link{ max-width:100%; } tr.mra-detail > td{ padding-left:10px !important; }
+    .mra-table .mra-hide-sm{ display:none; }
+    .mra-table{ width:100%; }
+    .mra-table th, .mra-table td{ padding-left:6px !important; padding-right:6px !important; white-space:normal !important; overflow-wrap:anywhere; }
+    .mra-table{ table-layout:fixed; min-width:0 !important; width:100% !important; }
+    .mra-table th:nth-child(2), .mra-table td:nth-child(2){ width:64px; }
   }
   .po-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
   .po-tabs::-webkit-scrollbar{ display:none; }
@@ -5398,7 +5438,7 @@ function mraPersonSummary(u, dates, linkIdx){
       const found = line.match(/(https?:\/\/[^\s,]+|(?:www\.|m\.|vt\.|vm\.)?(?:tiktok\.com|facebook\.com|fb\.watch|fb\.com|fb\.me|zalo\.me)\/[^\s,]*)/gi) || [];
       found.forEach(l=>{
         const ch = mrLinkChannel(l); if(!ch) return;
-        const others = (linkIdx.get(mrNormLink(l))||[]).filter(o=>!(o.userId===u.id && o.date===r.date));
+        const others = (linkIdx.get(mrNormLink(l))||[]).filter(o=>o.date < r.date || (o.date===r.date && o.userId!==u.id)); // chỉ đánh dấu lần dùng LẠI (bài đã báo cáo trước đó)
         const dupWith = others.length ? others.sort((a,b)=>a.date.localeCompare(b.date))[0] : null;
         links.push({link:l, ch, date:r.date, dupWith});
       });
@@ -5420,8 +5460,14 @@ function mraPersonSummary(u, dates, linkIdx){
   const weeklyMissing = !mrWeekRecord(u.id, wk.start);
   const issues = [];
   if(missing.length) issues.push({lvl:4, text: dates.length===1 ? 'Chưa nộp' : `Thiếu ${missing.length} ngày`, detail: `Chưa nộp báo cáo: ${missing.slice(0,8).map(fmtDate).join(', ')}${missing.length>8?'…':''}`});
-  if(dupLinks.length) issues.push({lvl:3, text:`${dupLinks.length} link trùng`, detail: dupLinks.slice(0,5).map(x=>`Link trùng với báo cáo của ${x.dupWith.userName||'—'} ngày ${fmtDate(x.dupWith.date)}`).join(' · ')});
-  if(warns.length) issues.push({lvl:2, text:'Thiếu link', detail: warns.slice(0,5).join(' · ')});
+  if(dupLinks.length){
+    // Gom lại: "3 link trùng — 2 với báo cáo ngày 03/10 của chính mình · 1 với Vũ Bích MKT (05/10)"
+    const grp = {};
+    dupLinks.forEach(x=>{ const self = x.dupWith.userId===u.id; const k = (self?'__self':x.dupWith.userName||'—') + '|' + x.dupWith.date; (grp[k] = grp[k] || {self, name:x.dupWith.userName||'—', date:x.dupWith.date, n:0}).n++; });
+    const parts = Object.values(grp).sort((a,b)=>b.n-a.n).map(g=>`${g.n} với ${g.self ? 'báo cáo ngày '+fmtDate(g.date).slice(0,5)+' của chính mình' : g.name+' ('+fmtDate(g.date).slice(0,5)+')'}`);
+    issues.push({lvl:3, text:`${dupLinks.length} link trùng`, detail:`${dupLinks.length} link trùng — ${parts.slice(0,4).join(' · ')}${parts.length>4?' …':''}`});
+  }
+  if(warns.length) issues.push({lvl:2, text:'Thiếu link', detail: `Thiếu link ${warns.length} lần — ` + warns.slice(0,3).join(' · ') + (warns.length>3?' …':'')});
   if(highOutside) issues.push({lvl:2, text:`Ngoài app cao (${Math.round(share*100)}%)`, detail:`Data ngoài app ${outside}/${totalData} (${Math.round(share*100)}%) — ` + ((baseOut+baseApp) ? `30 ngày trước thường khoảng ${Math.round(baseShare*100)}%` : 'chưa có số liệu 30 ngày trước để so, ngưỡng mặc định 15%')});
   if(weeklyMissing) issues.push({lvl:1, text:`Chưa cập nhật tiếp cận tuần ${wk.week}`, detail:`Chưa cập nhật lượt tiếp cận tuần ${wk.week} (${fmtDate(wk.start)} – ${fmtDate(wk.end)})`});
   issues.sort((a,b)=>b.lvl-a.lvl);
@@ -5462,7 +5508,7 @@ function renderMktReportsAdmin(){
     <div class="stat-box"><div class="stat-label">Data: trên app + ngoài app</div><div class="stat-value">${appTotal} + ${outTotal}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Trên app hệ thống tự đếm · ngoài app MKT tự khai</div></div>
     <div class="stat-box" style="cursor:pointer; ${needCheck?'border-color:#FF6B6B;':''}" onclick="mraSet('only', ${!mraOnlyIssues})"><div class="stat-label">Cần xem</div><div class="stat-value" style="color:${needCheck?'var(--danger)':'var(--success)'};">${needCheck} người</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${mraOnlyIssues?'Đang lọc — bấm để hiện tất cả':'Bấm để chỉ hiện những người này'}</div></div>
   </div>`;
-  const tabs = `<div style="display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:6px;">${[['people','Theo người'],['days','Theo ngày'],['weeks','Theo tuần (tiếp cận)']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${mraTab===k?'var(--accent)':'transparent'}; font-weight:${mraTab===k?700:500}; color:${mraTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="mraSet('tab','${k}')">${v}</button>`).join('')}</div>`;
+  const tabs = `<div class="po-tabs">${[['people','Theo người'],['days','Theo ngày'],['weeks','Theo tuần (tiếp cận)']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${mraTab===k?'var(--accent)':'transparent'}; font-weight:${mraTab===k?700:500}; color:${mraTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="mraSet('tab','${k}')">${v}</button>`).join('')}</div>`;
   let content = '';
   const statusHtml = issues => {
     if(!issues.length) return `<span style="color:var(--success); font-weight:700;">● Ổn</span>`;
@@ -5474,30 +5520,42 @@ function renderMktReportsAdmin(){
     if(mraOnlyIssues) rows = rows.filter(x=>x.issues.some(i=>i.lvl>=2));
     const chCol = {tiktok:'#FF4D7E', facebook:'#4F8CFF', zalo:'#2ECCB5'}, chName = {tiktok:'TikTok', facebook:'Facebook', zalo:'Zalo'};
     content = !rows.length ? '<div class="empty-note">Không có ai cần xem trong khoảng này 🎉</div>' :
-      `<div class="table-wrap"><table class="rtable"><thead><tr><th>MKT</th><th class="num">Bài đăng</th><th class="num">Data (app + ngoài app)</th><th class="num">Lời cảm ơn</th><th>Tình trạng</th></tr></thead><tbody>` +
+      `<div class="table-wrap"><table class="rtable mra-table"><thead><tr><th>MKT</th><th class="num">Bài đăng</th><th class="num mra-hide-sm">Data (app + ngoài app)</th><th class="num mra-hide-sm">Lời cảm ơn</th><th>Tình trạng</th></tr></thead><tbody>` +
       rows.map(x=>{
         const open = mraOpen===x.u.id;
         const postsTotal = x.posts.tiktok+x.posts.facebook+x.posts.zalo;
         let html = `<tr style="cursor:pointer; ${open?'background:rgba(79,140,255,0.08);':''}" onclick="mraSet('open','${x.u.id}')">
           <td data-label="MKT"><b>${open?'▾':'▸'} ${escHtml(x.u.name)}</b>${!isTeamMgr && !mraTeam ? ` <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(teamName(x.u.mktBranchId))}</span>`:''}</td>
           <td class="num" data-label="Bài đăng">${x.reps.length?postsTotal:'—'}</td>
-          <td class="num" data-label="Data">${x.app.total} + ${x.reps.length?x.outside:'—'}</td>
-          <td class="num" data-label="Lời cảm ơn">${x.reps.length?x.thanks:'—'}</td>
+          <td class="num mra-hide-sm" data-label="Data">${x.app.total} + ${x.reps.length?x.outside:'—'}</td>
+          <td class="num mra-hide-sm" data-label="Lời cảm ơn">${x.reps.length?x.thanks:'—'}</td>
           <td data-label="Tình trạng">${statusHtml(x.issues)}</td></tr>`;
         if(open){
           const srcNames = Array.from(new Set(Object.keys(x.app.bySrc).concat(Object.keys(x.outBySrc))));
-          html += `<tr><td colspan="5" style="padding:10px 16px 16px 32px !important; background:rgba(79,140,255,0.04);">
-            ${x.issues.length ? x.issues.map(i=>`<div style="font-size:13px; color:${i.lvl>=3?'var(--danger)':'#F0A63A'}; margin-bottom:3px;">• ${escHtml(i.detail)}</div>`).join('') : '<div style="font-size:13px; color:var(--success);">✓ Không có vấn đề</div>'}
-            <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:10px 0;">
-              ${['tiktok','facebook','zalo'].map(k=>`<span><b style="color:${chCol[k]};">${chName[k]}</b> ${x.posts[k]} bài</span>`).join('')}
-              <span>Video mới quay: <b style="color:var(--ink);">${x.videos}</b></span><span>Lời cảm ơn: <b style="color:var(--ink);">${x.thanks}</b></span>
+          // Link gom theo NGÀY; mỗi ngày tối đa 6 link hiện ngay, còn lại thu gọn
+          const byDay = {}; x.links.forEach(l=>{ (byDay[l.date] = byDay[l.date] || []).push(l); });
+          // Nhãn ngắn mà VẪN PHÂN BIỆT được: "@tài_khoản · …6 số cuối video" / Facebook: "…mã cuối"
+          const linkLabel = url => { const t = String(url).replace(/^https?:\/\//i,'').replace(/^(www\.|m\.|vt\.|vm\.)/i,'').split('?')[0].replace(/\/+$/,'');
+            const vid = t.match(/@([^/]+)\/video\/(\d+)/); if(vid) return '@' + vid[1] + ' · …' + vid[2].slice(-6);
+            const parts = t.split('/'); const last = parts[parts.length-1] || t; return (parts[0]||'') + ' · …' + last.slice(-10); };
+          const linkChip = l => `<a href="${escHtml(/^https?:/i.test(l.link)?l.link:'https://'+l.link)}" target="_blank" rel="noopener" class="mra-link${l.dupWith?' dup':''}" onclick="event.stopPropagation()" title="${escHtml(l.link)}${l.dupWith?' — trùng với '+escHtml(l.dupWith.userId===x.u.id?'báo cáo của chính mình':(l.dupWith.userName||''))+' ngày '+fmtDate(l.dupWith.date):''}"><b style="color:${chCol[l.ch]};">${chName[l.ch]}</b><span class="mra-link-t">${escHtml(linkLabel(l.link))}</span>${l.dupWith?'<span class="mra-dup">trùng</span>':''}</a>`;
+          const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
+          html += `<tr class="mra-detail"><td colspan="5">
+            <div class="mra-box">
+              ${x.issues.length ? `<div class="mra-issues">${x.issues.map(i=>`<div class="mra-issue lvl${i.lvl>=3?'3':'2'}">${escHtml(i.detail)}</div>`).join('')}</div>` : '<div style="font-size:13px; color:var(--success);">✓ Không có vấn đề</div>'}
+              <div class="mra-stats">
+                ${['tiktok','facebook','zalo'].map(k=>`<span><b style="color:${chCol[k]};">${chName[k]}</b> ${x.posts[k]} bài</span>`).join('')}
+                <span>Video quay <b>${x.videos}</b></span><span>Lời cảm ơn <b>${x.thanks}</b></span>
+                ${srcNames.length ? `<span class="mra-src">Data: ${srcNames.map(n=>`<b>${escHtml(n)}</b> ${x.app.bySrc[n]||0}+${x.outBySrc[n]||0}`).join(' · ')}</span>` : ''}
+              </div>
+              ${days.length ? `<div class="mra-links">${days.map(d=>{ const ls = byDay[d]; const dupN = ls.filter(l=>l.dupWith).length;
+                return `<div class="mra-day"><div class="mra-day-h">${fmtDate(d).slice(0,5)} · ${ls.length} link${dupN?` · <span style="color:#FF6B6B;">${dupN} trùng</span>`:''}</div><div class="mra-day-l">${ls.slice(0,6).map(linkChip).join('')}${ls.length>6?`<details onclick="event.stopPropagation()"><summary>+${ls.length-6} link nữa</summary>${ls.slice(6).map(linkChip).join('')}</details>`:''}</div></div>`; }).join('')}</div>` : '<div style="font-size:13px; color:var(--ink-soft);">Không có link</div>'}
+              ${x.notes.length ? `<div class="mra-notes"><div style="font-weight:600; color:var(--ink);">📝 Ghi chú</div>${x.notes.slice(-5).map(n=>`<span><b>${fmtDate(n.date).slice(0,5)}</b> ${escHtml(n.note)}</span>`).join('')}</div>` : ''}
+              <div><button class="btn-ghost btn-small" onclick="event.stopPropagation(); openMktPersonRevenue('${x.u.id}')">Xem doanh thu Nguồn →</button></div>
             </div>
-            ${srcNames.length ? `<div style="font-size:13px; margin-bottom:10px;">Data theo Nguồn: ${srcNames.map(n=>`<b>${escHtml(n)}</b> ${x.app.bySrc[n]||0} + ${x.outBySrc[n]||0}`).join(' · ')}</div>` : ''}
-            <div style="margin-bottom:8px;">${x.links.length ? x.links.map(l=>`<a href="${escHtml(/^https?:/i.test(l.link)?l.link:'https://'+l.link)}" target="_blank" rel="noopener" class="mr-linkchip" style="text-decoration:none; color:var(--ink); ${l.dupWith?'border-color:#FF6B6B;':''}" onclick="event.stopPropagation()"><b style="color:${chCol[l.ch]};">${chName[l.ch]}</b> ${escHtml(shortFbLink(l.link).slice(0,38))}${shortFbLink(l.link).length>38?'…':''} ↗${l.dupWith?` <span style="color:#FF6B6B; font-weight:700;">trùng · ${escHtml(l.dupWith.userName||'')} ${fmtDate(l.dupWith.date)}</span>`:''}</a>`).join('') : '<span style="font-size:13px; color:var(--ink-soft);">Không có link</span>'}</div>
-            ${x.notes.length ? `<div style="font-size:13px; color:var(--ink-soft);">Ghi chú: ${x.notes.slice(-5).map(n=>`<span style="color:var(--ink);">${fmtDate(n.date)}: ${escHtml(n.note)}</span>`).join(' · ')}</div>` : ''}
-            <div style="margin-top:10px;"><button class="btn-ghost btn-small" onclick="event.stopPropagation(); openMktPersonRevenue('${x.u.id}')">Xem doanh thu Nguồn →</button></div>
           </td></tr>`;
         }
+
         return html;
       }).join('') + `</tbody></table></div>`;
   }
@@ -8806,10 +8864,18 @@ function toggleSidebar(){
   document.querySelector('.sidebar').classList.toggle('open');
   document.querySelector('.sidebar').classList.toggle('collapsed-desktop');
   document.getElementById('sidebarBackdrop').classList.toggle('show');
+  syncSidebarButton();
 }
 function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebarBackdrop').classList.remove('show');
+  syncSidebarButton();
+}
+// Điện thoại: khi menu mở, nút ☰ chuyển sang góc phải thành ✕ (không đè lên các mục menu khi cuộn)
+function syncSidebarButton(){
+  const open = window.matchMedia('(max-width:720px)').matches && document.querySelector('.sidebar').classList.contains('open');
+  document.body.classList.toggle('sb-open', open);
+  const b = document.getElementById('hamburgerBtn'); if(b) b.textContent = open ? '✕' : '☰';
 }
 function toggleNavPersonalGroup(){
   const body = document.getElementById('navPersonalItems');
@@ -8878,7 +8944,8 @@ function goPage(pageId){
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktReportsAdmin' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
-  closeSidebar();
+  // Chỉ đóng menu khi NGƯỜI DÙNG chuyển trang — lúc app tự làm mới (có dữ liệu mới) thì giữ nguyên menu đang mở/đang cuộn
+  if(!isAutoRefreshing) closeSidebar();
   document.querySelectorAll('.page').forEach(p=>p.style.display='none');
   document.getElementById('page-'+pageId).style.display='block';
   if(pageId!=='mktRevenue') mktRevenueViewUserId = null;
