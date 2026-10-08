@@ -329,6 +329,9 @@
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
   /* Báo cáo in hình */
   .pr-prod{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .pr-meter-box{ border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-top:12px; }
+  .po-meter{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); font-size:13px; }
+  .po-meter input{ width:110px; text-align:right; min-height:36px !important; height:36px; }
   .po-card{ border:1px solid #F0A63A; border-radius:14px; padding:14px; margin-bottom:12px; background:rgba(240,166,58,0.05); }
   .po-card.done{ border-color:var(--line); background:transparent; opacity:0.85; }
   .po-item{ display:flex; align-items:center; gap:10px; padding:6px 0; border-top:1px dashed var(--line); flex-wrap:wrap; }
@@ -1366,6 +1369,14 @@
           <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">In xong mẻ nào bấm <b style="color:#3DD68C;">+1 / +5 / +10</b> ngay ở hình đó (hoặc gõ số) — app <b>tự lưu</b> từng lần bấm, cuối ngày chỉ cần bấm <b>Chốt báo cáo</b>.</div>
           <div id="prProducts"></div>
           <div id="prLogBox"></div>
+          <div class="pr-meter-box">
+            <div style="font-weight:700; margin-bottom:6px;">📏 Số mét in (xem trên phần mềm máy in)</div>
+            <div id="prMeterOrders" style="font-size:13px; margin-bottom:8px;"></div>
+            <div class="toolbar" style="gap:10px; align-items:flex-end; margin:0;">
+              <div class="field" style="max-width:220px; margin:0;"><label>Số mét in ngoài đơn</label><input type="number" min="0" step="0.1" id="pr_extraMeters" placeholder="0" oninput="prUpdateMeterTotal(); prScheduleSave()"></div>
+              <div id="prMeterTotal" style="font-size:14px; padding-bottom:10px;"></div>
+            </div>
+          </div>
           <div class="field" style="margin-top:12px;"><label>Ghi chú (hình lỗi, thiếu mực, cần in thêm…)</label><textarea id="pr_note" rows="3" placeholder="Không bắt buộc" oninput="prScheduleSave()"></textarea></div>
           <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px;">
             <div id="prTotal" style="font-size:15px;"></div>
@@ -5560,6 +5571,8 @@ function poOrderCardHtml(o, forPrinter){
         <span class="po-count" style="color:${full?'var(--success)':'var(--ink)'};">${pr}/${q}</span>
         ${canEdit ? `<div class="pr-ctl"><button type="button" class="pr-btn" onclick="poBump('${o.id}',${idx},-1)">−</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},1)">+1</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},5)">+5</button><button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},10)">+10</button>${full?'<button type="button" class="pr-btn" style="visibility:hidden;" tabindex="-1">Xong</button>':`<button type="button" class="pr-btn add" onclick="poBump('${o.id}',${idx},${q-pr})">Xong</button>`}</div>` : ''}
       </div>`; }).join('')}</div>
+    ${forPrinter ? `<div class="po-meter"><span>📏 Số mét in đơn này:</span><input type="number" min="0" step="0.1" placeholder="0" value="${o.meters||''}" onchange="poSetMeters('${o.id}', this.value)"><span>m</span>${o.meters?`<span style="color:var(--ink-soft); font-size:12px;">· ${(()=>{ const pg=poOrderProgress(o); return pg.done && o.meters ? fmtMeters(pg.done/o.meters)+' hình/m' : ''; })()}</span>`:''}</div>`
+      : (o.meters ? `<div class="po-meter"><span>📏 Đã in <b>${fmtMeters(o.meters)} m</b>${o.metersByName?` · ${escHtml(o.metersByName)}`:''}</span></div>` : '')}
     ${canEdit ? `<div style="text-align:right; margin-top:8px;"><button class="btn-ghost btn-small" onclick="poMarkDone('${o.id}')">✓ Đánh dấu đơn đã xong</button></div>` : ''}
   </div>`;
 }
@@ -5573,7 +5586,7 @@ function renderPrintOrdersForPrinter(){
   // Luôn hiện khung "Đơn cần in" (kể cả khi chưa có đơn) để nhân viên in biết chỗ nhận đơn
   box.innerHTML = `<div class="card"><h2 style="margin-top:0;">📥 Đơn cần in ${open.length?`<span class="mr-pill warn">${open.length} đơn</span>`:''}</h2>
     ${open.length ? open.map(o=>poOrderCardHtml(o,true)).join('') : '<div class="empty-note">Chưa có đơn nào cần in — khi Quản lý gửi đơn, đơn sẽ hiện ở đây kèm tiếng "ting".</div>'}
-    ${doneToday.length ? `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:13px; color:var(--ink-soft);">Đã xong hôm nay (${doneToday.length})</summary>${doneToday.map(o=>poOrderCardHtml(o,false)).join('')}</details>` : ''}
+    ${doneToday.length ? `<details style="margin-top:6px;"><summary style="cursor:pointer; font-size:13px; color:var(--ink-soft);">Đã xong hôm nay (${doneToday.length})</summary>${doneToday.map(o=>poOrderCardHtml(o,true)).join('')}</details>` : ''}
   </div>`;
 }
 // Cộng vào báo cáo in trong ngày (dùng chung với nút +1/+5/+10 bên dưới) — tự lưu
@@ -5682,23 +5695,24 @@ function renderPoList(){
   const box = document.getElementById('poList'); if(!box) return;
   const me = currentUser();
   let list = (state.printOrders||[]).filter(o=>o.status===poTab);
-  if(me && me.role!=='general_manager') list = list.filter(o=>o.createdBy===me.id); // người đặt đơn chỉ thấy đơn mình gửi
+  if(me && !['general_manager','warehouse'].includes(me.role)) list = list.filter(o=>o.createdBy===me.id); // người được giao đặt đơn chỉ thấy đơn mình gửi; Kho & Quản lý chung thấy tất cả
   list.sort((a,b)=>b.createdAt-a.createdAt);
   if(poTab==='done') list = list.slice(0,30);
   // Mỗi đơn 1 DÒNG gọn: mã · hình × số lượng · tiến độ · người gửi · hạn · trạng thái
   const fmtT = t => new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
   box.innerHTML = !list.length ? `<div class="empty-note">${poTab==='open'?'Không có đơn nào đang in.':'Chưa có đơn nào xong.'}</div>` :
-    `<div class="table-wrap"><table class="rtable po-table"><thead><tr><th>Đơn</th><th>Hình × số lượng</th><th>Tiến độ</th><th>Người gửi</th><th>Hạn</th><th>${poTab==='open'?'':'Xong lúc'}</th></tr></thead><tbody>` +
+    `<div class="table-wrap"><table class="rtable po-table"><thead><tr><th>Đơn</th><th>Hình × số lượng</th><th>Tiến độ</th><th class="num">Mét in</th><th>Người gửi</th><th>Hạn</th><th>${poTab==='open'?'':'Xong lúc'}</th></tr></thead><tbody>` +
     list.map(o=>{
       const pg = poOrderProgress(o);
       const itemsTxt = (o.items||[]).map(it=>`${it.design.split(' - ')[0]} ×${it.qty}`).join(', ');
       const itemsFull = (o.items||[]).map(it=>`${it.design}: ${Math.min(Number(it.printed)||0, it.qty)}/${it.qty}`).join('\n');
       const late = o.status==='open' && o.dueDate && o.dueDate < todayStr();
-      const canDel = o.status==='open' && (me.role==='general_manager' || o.createdBy===me.id);
+      const canDel = o.status==='open' && (me.role==='general_manager' || me.role==='warehouse' || o.createdBy===me.id);
       return `<tr>
         <td data-label="Đơn"><b>${escHtml(o.code||'')}</b>${o.note?` <span title="${escHtml(o.note)}" style="cursor:help;">📝</span>`:''}</td>
         <td data-label="Hình"><span class="po-items" title="${escHtml(itemsFull)}">${escHtml(itemsTxt)}</span></td>
         <td data-label="Tiến độ"><div style="display:flex; align-items:center; gap:8px;"><div class="po-bar" style="flex:0 0 90px;"><i style="width:${pg.pct}%;"></i></div><b style="color:${o.status==='done'?'var(--success)':'var(--ink)'}; white-space:nowrap;">${pg.done}/${pg.need}</b></div></td>
+        <td class="num" data-label="Mét in" style="white-space:nowrap;">${o.meters ? `<b>${fmtMeters(o.meters)}</b> m` : '<span style="color:var(--ink-soft);">—</span>'}</td>
         <td data-label="Người gửi" style="white-space:nowrap;">${escHtml(o.createdByName||'')}${o.assignedToName?` <span style="font-size:11.5px; color:var(--ink-soft);">→ ${escHtml(o.assignedToName)}</span>`:''}</td>
         <td data-label="Hạn" style="white-space:nowrap; ${late?'color:var(--danger); font-weight:700;':''}">${o.dueDate?fmtDate(o.dueDate).slice(0,5):'—'}${late?' ⚠️':''}</td>
         <td style="white-space:nowrap; text-align:right;">${o.status==='done' ? `<span style="color:var(--success); font-size:12.5px;">✓ ${o.doneAt?fmtT(o.doneAt):''}</span>` : (canDel ? `<button class="btn-ghost btn-small" onclick="poDelete('${o.id}')" title="Huỷ đơn">🗑️</button>` : '')}</td>
@@ -5809,6 +5823,7 @@ function prLoadForDate(){
         </div></div>`; }).join('') +
       `</div></div>`).join('');
   document.getElementById('pr_note').value = r ? (r.note||'') : '';
+  { const em = document.getElementById('pr_extraMeters'); if(em) em.value = r && r.extraMeters ? r.extraMeters : ''; }
   prLog = (r && Array.isArray(r.log)) ? r.log.slice() : [];
   document.getElementById('prDateSub').textContent = r
     ? (r.submitted ? `Đã chốt báo cáo lúc ${new Date(r.submittedAt||r.updatedAt).toLocaleString('vi-VN')} — vẫn bấm thêm/sửa được, app tự lưu.` : `Đang in — app tự lưu, lần lưu gần nhất ${new Date(r.updatedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}.`)
@@ -5816,7 +5831,7 @@ function prLoadForDate(){
   document.getElementById('prSubmitBtn').textContent = r && r.submitted ? '✅ Chốt lại báo cáo' : '✅ Chốt báo cáo cuối ngày';
   document.getElementById('prMsg').textContent = '';
   prRenderStatus(); renderPrLog();
-  prFilterRows(); prUpdateTotal();
+  prFilterRows(); prUpdateTotal(); prUpdateMeterTotal();
 }
 // ---- Thao tác trong ngày: mỗi lần in xong bấm +1/+5/+10 → cộng dồn, ghi nhật ký, TỰ LƯU ----
 let prLog = [];            // nhật ký thao tác của ngày đang xem: [{t, code, design, qty}]
@@ -5857,13 +5872,42 @@ function prScheduleSave(){
   prSaveTimer = setTimeout(()=>prSave(false), 700);
 }
 // Lưu báo cáo (tự động khi thao tác, hoặc khi bấm Chốt) — submitted: đã chốt cuối ngày hay chưa
+// ---- Số mét in: nhập THEO TỪNG ĐƠN IN (trong thẻ đơn) + phần in ngoài đơn trong ngày ----
+function prOrderMetersFor(userId, date){
+  return (state.printOrders||[]).filter(o=>o.metersBy===userId && o.metersAt && toLocalDateStr(new Date(o.metersAt))===date && Number(o.meters)>0)
+    .map(o=>({orderId:o.id, code:o.code||'', meters:Number(o.meters)||0}));
+}
+function prUpdateMeterTotal(){
+  const u = currentUser(); if(!u) return;
+  const date = (document.getElementById('pr_date')||{}).value || todayStr();
+  const ords = prOrderMetersFor(u.id, date);
+  const extra = Math.max(0, Number((document.getElementById('pr_extraMeters')||{}).value)||0);
+  const sumO = ords.reduce((t,x)=>t+x.meters,0);
+  const box = document.getElementById('prMeterOrders');
+  if(box) box.innerHTML = ords.length ? 'Theo đơn: ' + ords.map(x=>`<span class="mr-linkchip"><b>${escHtml(x.code)}</b>&nbsp;${fmtMeters(x.meters)} m</span>`).join('') : '<span style="color:var(--ink-soft);">Chưa nhập số mét cho đơn nào hôm nay — nhập ngay trong thẻ đơn in phía trên.</span>';
+  const tot = document.getElementById('prMeterTotal');
+  if(tot) tot.innerHTML = `Tổng mét in: <b style="font-size:16px;">${fmtMeters(sumO+extra)} m</b>`;
+}
+function fmtMeters(v){ return (Math.round((Number(v)||0)*10)/10).toLocaleString('vi-VN'); }
+function poSetMeters(orderId, val){
+  const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
+  const u = currentUser();
+  const m = Math.max(0, Math.round((Number(val)||0)*10)/10);
+  o.meters = m; o.metersBy = u ? u.id : ''; o.metersByName = u ? u.name : ''; o.metersAt = Date.now();
+  fbPrintOrders.child(o.id).update({meters:m, metersBy:o.metersBy, metersByName:o.metersByName, metersAt:o.metersAt}).catch(()=>showToast('Lưu số mét thất bại — kiểm tra mạng.'));
+  prUpdateMeterTotal(); prScheduleSave();
+  showToast(`Đã lưu ${fmtMeters(m)} m cho đơn ${o.code||''}`);
+}
 function prSave(submit){
   const u = currentUser(); if(!u) return null;
   const date = document.getElementById('pr_date').value || todayStr();
   if(date > todayStr()){ showToast('Không thể báo cáo cho ngày trong tương lai.'); return null; }
   const items = prCollect();
   const existing = prMyReport(date);
+  const orderMeters = prOrderMetersFor(u.id, date);
+  const extraMeters = Math.max(0, Number((document.getElementById('pr_extraMeters')||{}).value)||0);
   const rec = {id: date+'_'+u.id, userId:u.id, userName:u.name, date, items, total: items.reduce((t,x)=>t+x.qty,0),
+    orderMeters, extraMeters, meters: Math.round((orderMeters.reduce((t,x)=>t+x.meters,0) + extraMeters)*10)/10,
     log: prLog.slice(-500), note: (document.getElementById('pr_note').value||'').trim(),
     submitted: submit ? true : !!(existing && existing.submitted),
     submittedAt: submit ? Date.now() : (existing && existing.submittedAt) || null,
@@ -5899,6 +5943,10 @@ function prUpdateTotal(el){
 function prSubmit(){
   const items = prCollect();
   if(!items.length){ showToast('Chưa có hình nào được in.'); return; }
+  { const u = currentUser(); const date = document.getElementById('pr_date').value || todayStr();
+    const m = prOrderMetersFor(u.id, date).reduce((t,x)=>t+x.meters,0) + (Number(document.getElementById('pr_extraMeters').value)||0);
+    if(!m && !prSubmit._warned){ prSubmit._warned = true; showToast('Chưa nhập số mét in — nhập theo từng đơn (trong thẻ đơn) hoặc ô "ngoài đơn". Bấm Chốt lần nữa nếu thật sự không có.'); return; } }
+  prSubmit._warned = false;
   clearTimeout(prSaveTimer);
   const rec = prSave(true); if(!rec) return;
   showToast(`Đã chốt báo cáo in ngày ${fmtDate(rec.date)}: ${rec.total} hình · ${rec.items.length} mẫu`);
@@ -5909,8 +5957,8 @@ function renderPrHistory(){
   const mine = state.printReports.filter(r=>r.userId===u.id).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
   const t = document.getElementById('prHistoryTable');
   t.innerHTML = !mine.length ? '<tbody><tr><td class="empty-note">Chưa có báo cáo nào.</td></tr></tbody>' :
-    `<thead><tr><th>Ngày</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mẫu</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
-    mine.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td>
+    `<thead><tr><th>Ngày</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mét</th><th class="num">Số mẫu</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
+    mine.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${r.meters ? fmtMeters(r.meters)+' m' : '—'}</td><td class="num">${(r.items||[]).length}</td><td style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td>
       <td><button class="btn-ghost btn-small" onclick="document.getElementById('pr_date').value='${r.date}'; prLoadForDate(); window.scrollTo({top:0, behavior:'smooth'});">Sửa</button></td></tr>`).join('') + '</tbody>';
 }
 // ---- Quản lý chung: đã in vs cần in ----
@@ -5978,6 +6026,7 @@ function renderPrintOverview(){
   const th = (label,c,num) => `<th class="sortable${num?' num':''}" style="cursor:pointer; user-select:none;" onclick="poSet('sort','${c}')">${label}${arrow(c)}</th>`;
   const reps = (state.printReports||[]).filter(r=>inRange(r.date));
   const printers = {}; reps.forEach(r=>{ const k = r.userName||r.userId; printers[k] = (printers[k]||0) + (r.total||0); });
+  const totalMeters = reps.reduce((t,r)=>t+(Number(r.meters)||0),0);
   const filters = `<div class="card">
       <div class="chip-row" style="margin-bottom:10px;">${presets.map(([k,v])=>`<div class="chip${sel(k)?' selected':''}" onclick="poSet('preset','${k}')">${v}</div>`).join('')}</div>
       <div class="toolbar" style="gap:10px; align-items:flex-end; margin:0;">
@@ -5988,7 +6037,7 @@ function renderPrintOverview(){
       </div></div>`;
   const stats = `<div class="grid-3" style="grid-template-columns:repeat(3,minmax(0,1fr)); margin-bottom:16px;">
       <div class="stat-box"><div class="stat-label">Cần in (đơn đã cọc)</div><div class="stat-value">${T.need}</div></div>
-      <div class="stat-box"><div class="stat-label">Đã in (báo cáo thợ in)</div><div class="stat-value" style="color:var(--success);">${T.printed}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${Object.entries(printers).map(([n,v])=>`${escHtml(n)}: ${v}`).join(' · ') || 'Chưa có báo cáo in'}</div></div>
+      <div class="stat-box"><div class="stat-label">Đã in (báo cáo thợ in)</div><div class="stat-value" style="color:var(--success);">${T.printed}</div><div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${Object.entries(printers).map(([n,v])=>`${escHtml(n)}: ${v}`).join(' · ') || 'Chưa có báo cáo in'}${totalMeters?` · 📏 <b style="color:var(--ink);">${fmtMeters(totalMeters)} m</b>`:''}</div></div>
       <div class="stat-box"><div class="stat-label">Còn thiếu</div><div class="stat-value" style="color:${T.remain?'var(--danger)':'var(--success)'};">${T.remain}</div>${T.remain?`<button class="btn-primary btn-small" style="margin-top:8px;" onclick="poOrderFromShortage()">📝 Đặt đơn in theo số còn thiếu</button>`:''}</div>
     </div>`;
   const tabs = `<div class="po-tabs">${[['need','Cần in / Đã in / Còn thiếu'],['best','🔥 Mẫu bán chạy'],['orders','Đơn đã cọc / đã chốt'],['reports','Báo cáo thợ in']].map(([k,v])=>`<button class="btn-ghost" style="border:none; border-radius:0; border-bottom:2px solid ${poViewTab===k?'var(--accent)':'transparent'}; font-weight:${poViewTab===k?700:500}; color:${poViewTab===k?'var(--ink)':'var(--ink-soft)'};" onclick="poSet('tab','${k}')">${v}</button>`).join('')}</div>`;
@@ -6069,13 +6118,14 @@ function renderPrintOverview(){
     const days = []; { const d = new Date(poFrom+'T00:00:00'); const e = new Date(poTo+'T00:00:00'); let g=0; while(d<=e && g++<60){ days.push(toLocalDateStr(d)); d.setDate(d.getDate()+1); } }
     const missing = []; days.forEach(dd=>printerUsers.forEach(u=>{ if(dd<=todayStr() && !reps.some(r=>r.userId===u.id && r.date===dd)) missing.push(`${u.name} (${fmtDate(dd).slice(0,5)})`); }));
     content = (missing.length ? `<div style="font-size:13px; color:#F0A63A; margin:4px 0 10px;">⚠️ Chưa có báo cáo in: ${missing.slice(0,12).map(escHtml).join(', ')}${missing.length>12?'…':''}</div>` : '') +
-      `<div class="table-wrap"><table class="rtable po-rep-table"><thead><tr><th>Ngày</th><th>Thợ in</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num po-hide-sm">Số mẫu</th><th class="po-hide-sm">Ghi chú</th></tr></thead><tbody>` +
+      `<div class="table-wrap"><table class="rtable po-rep-table"><thead><tr><th>Ngày</th><th>Thợ in</th><th>Trạng thái</th><th class="num">Tổng hình</th><th class="num">Số mét</th><th class="num po-hide-sm">Số mẫu</th><th class="po-hide-sm">Ghi chú</th></tr></thead><tbody>` +
       (sorted.length ? sorted.map(r=>{ const open = poOpenRep===r.id;
-        return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num po-hide-sm">${(r.items||[]).length}</td><td class="po-hide-sm" style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
-          (open ? `<tr><td colspan="6" style="padding:8px 12px 12px 28px !important; background:rgba(79,140,255,0.04); font-size:13px; white-space:normal !important;">
+        return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${r.meters ? `<b>${fmtMeters(r.meters)}</b> m` : '<span style="color:var(--ink-soft);">—</span>'}</td><td class="num po-hide-sm">${(r.items||[]).length}</td><td class="po-hide-sm" style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
+          (open ? `<tr><td colspan="7" style="padding:8px 12px 12px 28px !important; background:rgba(79,140,255,0.04); font-size:13px; white-space:normal !important;">
             <div class="po-rep-items">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="po-rep-chip"><span>${escHtml(it.design)}</span><b>${it.qty}</b></span>`).join('')}</div>
-            <div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Tổng ${r.total||0} hình · ${(r.items||[]).length} mẫu${r.note?` · 📝 ${escHtml(r.note)}`:''}</div></td></tr>` : ''); }).join('')
-      : '<tr><td colspan="6" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
+            <div style="font-size:12.5px; margin-top:8px;">📏 <b>${fmtMeters(r.meters||0)} m</b>${(r.orderMeters||[]).length ? ' — theo đơn: ' + r.orderMeters.map(x=>`${escHtml(x.code)} ${fmtMeters(x.meters)} m`).join(' · ') : ''}${r.extraMeters ? ` · ngoài đơn ${fmtMeters(r.extraMeters)} m` : ''}${r.meters && r.total ? ` · <span style="color:var(--ink-soft);">${fmtMeters(r.total/r.meters)} hình/m</span>` : ''}</div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Tổng ${r.total||0} hình · ${(r.items||[]).length} mẫu${r.note?` · 📝 ${escHtml(r.note)}`:''}</div></td></tr>` : ''); }).join('')
+      : '<tr><td colspan="7" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
   }
   box.innerHTML = filters + stats + `<div class="card">${tabs}${content}</div>`;
 }
@@ -8637,7 +8687,7 @@ function setupRoleScopedListeners(user){
     if(r==='printer' && printOrdersLoadedOnce && fresh.length){ try{ playTingSound(); }catch(e){} showToast(`📥 Có ${fresh.length} đơn in mới!`); }
     printOrdersLoadedOnce = true;
     updatePrintOrdersBadge();
-    if(currentPageId==='printReport') renderPrintOrdersForPrinter();
+    if(currentPageId==='printReport'){ renderPrintOrdersForPrinter(); prUpdateMeterTotal(); }
     if(currentPageId==='printOrders') renderPrintOrdersPage();
   }, false);
 
