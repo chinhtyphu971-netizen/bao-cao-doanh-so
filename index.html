@@ -2280,7 +2280,10 @@ const LocalDB = {
   };
 })();
 let printOrdersLoadedOnce = false;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null;
+// Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
+const REPORT_WINDOW_DAYS = 70;
+function reportWindowStart(){ const d = new Date(); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
 // KHOÁ NHẬP DATA khi MKT chưa nộp báo cáo của HÔM TRƯỚC. Chỉ áp dụng cho các ngày từ mốc này trở đi
 // (tránh khoá oan ngày đầu mới có tính năng báo cáo MKT).
 const MKT_REPORT_LOCK_FROM = '2026-10-01';
@@ -2385,6 +2388,7 @@ function startFirebaseListeners(){
   fbMktReports = db.ref('mktReports');
   fbMktWeekly = db.ref('mktWeekly');
   fbPrintReports = db.ref('printReports');
+  fbPrintLogs = db.ref('printLogs'); // nhật ký từng mẻ in — tách riêng, chỉ thợ in tải đúng ngày đang xem
   fbPrintOrders = db.ref('printOrders');
   fbInvoiceItems = db.ref('invoiceItems');
   fbInvoiceCounter = db.ref('system/invoiceCounter');
@@ -5876,7 +5880,19 @@ function prLoadForDate(){
         </div></div>`; }).join('') +
       `</div></div>`).join('');
   document.getElementById('pr_note').value = r ? (r.note||'') : '';
-  prLog = (r && Array.isArray(r.log)) ? r.log.slice() : [];
+  prLog = (r && Array.isArray(r.log)) ? r.log.slice() : []; // báo cáo cũ còn log bên trong
+  prLogDirty = false; prLogLoadedFor = null;
+  if(r && !Array.isArray(r.log) && fbPrintLogs){
+    const rid = r.id;
+    fbPrintLogs.child(rid).once('value').then(sn=>{
+      const cur = (document.getElementById('pr_date')||{}).value || todayStr();
+      if(!prMyReport(cur) || prMyReport(cur).id!==rid) return; // đã đổi sang ngày khác
+      const saved = Array.isArray(sn.val()) ? sn.val() : Object.values(sn.val()||{});
+      const maxT = saved.reduce((m,x)=>Math.max(m, x.t||0), 0);
+      prLog = saved.concat(prLog.filter(x=>(x.t||0) > maxT)); // giữ các mẻ vừa nhập trong lúc đang tải
+      prLogLoadedFor = rid; renderPrLog();
+    }).catch(()=>{});
+  }
   document.getElementById('prDateSub').textContent = r
     ? (r.submitted ? `Đã chốt báo cáo lúc ${new Date(r.submittedAt||r.updatedAt).toLocaleString('vi-VN')} — vẫn bấm thêm/sửa được, app tự lưu.` : `Đang in — app tự lưu, lần lưu gần nhất ${new Date(r.updatedAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}.`)
     : (date===todayStr() ? 'Chưa in hình nào hôm nay.' : `Ngày ${fmtDate(date)} chưa có báo cáo.`);
@@ -5886,7 +5902,8 @@ function prLoadForDate(){
   prFilterRows(); prUpdateTotal(); prUpdateMeterTotal();
 }
 // ---- Thao tác trong ngày: mỗi lần in xong bấm +1/+5/+10 → cộng dồn, ghi nhật ký, TỰ LƯU ----
-let prLog = [];            // nhật ký thao tác của ngày đang xem: [{t, code, design, qty}]
+let prLog = [];
+let prLogDirty = false, prLogLoadedFor = null;            // nhật ký thao tác của ngày đang xem: [{t, code, design, qty}]
 let prSaveTimer = null;
 // Ghi 1 MẺ IN: số lượng + số mét → cộng dồn vào hình đó, ghi nhật ký, tự lưu
 function prApplyBatch(code, design, qty, meters, extra){
@@ -5898,7 +5915,7 @@ function prApplyBatch(code, design, qty, meters, extra){
   row.classList.toggle('has', q>0);
   row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(q,m)} hình/m</span>`:''}` : '';
   row.classList.remove('pr-flash'); void row.offsetWidth; row.classList.add('pr-flash');
-  prLog.push(Object.assign({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty, meters}, extra||{}));
+  prLog.push(Object.assign({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty, meters}, extra||{})); prLogDirty = true;
   prUpdateTotal(); renderPrLog(); prUpdateMeterTotal(); prScheduleSave();
   return true;
 }
@@ -5914,7 +5931,7 @@ function prAddBatch(el){
 }
 function prUndoLast(){
   const last = prLog[prLog.length-1]; if(!last) return;
-  prLog.pop();
+  prLog.pop(); prLogDirty = true;
   const inp = Array.from(document.querySelectorAll('#prProducts input[data-design]')).find(i=>i.dataset.code===last.code && i.dataset.design===last.design);
   if(inp){
     const q = Math.max(0, (Number(inp.value)||0) - (Number(last.qty)||0)), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) - (Number(last.meters)||0))*100)/100);
@@ -5965,6 +5982,17 @@ function poSetMeters(orderId, val){
   prUpdateMeterTotal(); prScheduleSave();
   showToast(`Đã lưu ${fmtMeters(m)} m cho đơn ${o.code||''}`);
 }
+// Báo cáo in CŨ còn chứa nhật ký bên trong → máy Quản lý chung chuyển nhật ký sang nhánh printLogs (1 lần), báo cáo nhẹ đi nhiều
+let printLogsMigrated = false;
+function migratePrintLogsOut(arr){
+  if(printLogsMigrated || !fbPrintLogs) return;
+  const heavy = (arr||[]).filter(r=>Array.isArray(r.log) && r.log.length);
+  if(!heavy.length){ printLogsMigrated = true; return; }
+  printLogsMigrated = true;
+  const logUpd = {}, repUpd = {};
+  heavy.forEach(r=>{ logUpd[r.id] = r.log; repUpd[r.id + '/log'] = null; repUpd[r.id + '/batchCount'] = r.log.length; });
+  fbPrintLogs.update(logUpd).then(()=>fbPrintReports.update(repUpd)).catch(e=>console.error('migrate print logs', e));
+}
 function prSave(submit){
   const u = currentUser(); if(!u) return null;
   const date = document.getElementById('pr_date').value || todayStr();
@@ -5973,11 +6001,12 @@ function prSave(submit){
   const existing = prMyReport(date);
   const rec = {id: date+'_'+u.id, userId:u.id, userName:u.name, date, items, total: items.reduce((t,x)=>t+x.qty,0),
     meters: Math.round(items.reduce((t,x)=>t+(x.meters||0),0)*100)/100,
-    log: prLog.slice(-500), note: (document.getElementById('pr_note').value||'').trim(),
+    batchCount: prLog.length, note: (document.getElementById('pr_note').value||'').trim(),
     submitted: submit ? true : !!(existing && existing.submitted),
     submittedAt: submit ? Date.now() : (existing && existing.submittedAt) || null,
     createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
   state.printReports = state.printReports.filter(x=>x.id!==rec.id).concat([rec]);
+  if(prLogDirty || prLogLoadedFor===rec.id){ fbPrintLogs.child(rec.id).set(prLog.slice(-500)).catch(()=>{}); prLogDirty = false; }
   fbPrintReports.child(rec.id).set(rec).then(()=>{
     const msg = document.getElementById('prMsg');
     if(msg){ msg.style.color='var(--success)'; msg.textContent = (submit ? '✓ Đã chốt báo cáo' : '✓ Đã tự lưu') + ' lúc ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); }
@@ -6195,7 +6224,7 @@ function renderPrintOverview(){
         return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${r.meters ? `<b>${fmtMeters(r.meters)}</b> m` : '<span style="color:var(--ink-soft);">—</span>'}</td><td class="num po-hide-sm">${(r.items||[]).length}</td><td class="po-hide-sm" style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
           (open ? `<tr><td colspan="7" style="padding:8px 12px 12px 28px !important; background:rgba(79,140,255,0.04); font-size:13px; white-space:normal !important;">
             <div class="po-rep-items">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="po-rep-chip"><span>${escHtml(it.design)}</span><b>${it.qty}${it.meters?` <span style="font-weight:400; color:var(--ink-soft); font-size:12px;">· ${fmtMeters(it.meters)} m · <span style="color:#8DB4FF;">${perMeter(it.qty, it.meters)} hình/m</span></span>`:''}</b></span>`).join('')}</div>
-            <div style="font-size:12.5px; margin-top:8px;">📏 <b>${fmtMeters(r.meters||0)} m</b>${(r.log||[]).length ? ` · ${(r.log||[]).length} mẻ in` : ''}${r.meters && r.total ? ` · <span style="color:var(--ink-soft);">${fmtMeters(r.total/r.meters)} hình/m</span>` : ''}</div>
+            <div style="font-size:12.5px; margin-top:8px;">📏 <b>${fmtMeters(r.meters||0)} m</b>${(r.batchCount || (r.log||[]).length) ? ` · ${r.batchCount || (r.log||[]).length} mẻ in` : ''}${r.meters && r.total ? ` · <span style="color:var(--ink-soft);">${fmtMeters(r.total/r.meters)} hình/m</span>` : ''}</div>
             <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Tổng ${r.total||0} hình · ${(r.items||[]).length} mẫu${r.note?` · 📝 ${escHtml(r.note)}`:''}</div></td></tr>` : ''); }).join('')
       : '<tr><td colspan="7" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
   }
@@ -8725,8 +8754,9 @@ function setupRoleScopedListeners(user){
 
   // Báo cáo MKT (ngày + tuần): MKT chỉ tải của mình; Quản lý MKT / Quản lý chung tải hết
   const mrKey = !user ? 'none' : (r==='mkt' ? 'mine:'+user.id : ((r==='mkt_manager' || r==='general_manager') ? 'all' : 'none'));
-  attachScoped('mktReports', mrKey,
-    mrKey==='none' ? null : (mrKey==='all' ? fbMktReports : fbMktReports.orderByChild('userId').equalTo(user.id)),
+  const winStart = reportWindowStart();
+  attachScoped('mktReports', mrKey==='all' ? 'all:'+winStart : mrKey,
+    mrKey==='none' ? null : (mrKey==='all' ? fbMktReports.orderByChild('date').startAt(winStart) : fbMktReports.orderByChild('userId').equalTo(user.id)),
     (arr)=>{ state.mktReports = arr; mktReportsLoaded = true; onDataChanged(); if(currentPageId==='mktInput') renderMktInputLock(); }, false);
   attachScoped('mktWeekly', mrKey,
     mrKey==='none' ? null : (mrKey==='all' ? fbMktWeekly : fbMktWeekly.orderByChild('userId').equalTo(user.id)),
@@ -8734,9 +8764,10 @@ function setupRoleScopedListeners(user){
 
   // Báo cáo in hình: Nhân viên in chỉ tải của mình; Quản lý chung tải hết
   const prKey = !user ? 'none' : (r==='printer' ? 'mine:'+user.id : ((r==='general_manager' || r==='warehouse') ? 'all' : 'none'));
-  attachScoped('printReports', prKey,
-    prKey==='none' ? null : (prKey==='all' ? fbPrintReports : fbPrintReports.orderByChild('userId').equalTo(user.id)),
-    setAndRender('printReports'), false);
+  // Thợ in cũng chỉ tải 70 ngày gần nhất (rồi lọc báo cáo của mình) — không tải cả lịch sử từ ngày đầu
+  attachScoped('printReports', prKey==='none' ? 'none' : (prKey==='all' ? 'all:' : prKey+':') + winStart,
+    prKey==='none' ? null : fbPrintReports.orderByChild('date').startAt(winStart),
+    (arr)=>{ state.printReports = prKey==='all' ? arr : arr.filter(x=>x.userId===user.id); onDataChanged(); if(r==='general_manager') migratePrintLogsOut(arr); }, false);
 
   // Bản rút gọn hoá đơn: Nhân viên in (xem tổng hợp mẫu cần in) + Quản lý chung (đồng bộ)
   const iiKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
