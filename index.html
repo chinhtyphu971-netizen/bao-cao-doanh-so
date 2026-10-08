@@ -5809,7 +5809,7 @@ function prLoadForDate(){
   box.innerHTML = !cat.length ? '<div class="empty-note">Chưa có danh sách hình — nhờ Quản lý cập nhật cột "Mẫu in" trong Danh mục sản phẩm.</div>' :
     cat.map(p=>`<div class="pr-prod"><h3>${escHtml(p.code)} · ${escHtml(p.name)}</h3><div class="pr-grid">` +
       p.designs.map(ds=>{ const k = prKey(p.code, ds); const v = saved[k]||0, m = savedM[k]||0; return `<div class="pr-row${v?' has':''}" data-search="${escHtml((p.code+' '+ds).toLowerCase())}">
-        <div class="pr-name">${escHtml(ds)}<div class="pr-done">${v?`Đã in <b>${v}</b> · ${fmtMeters(m)} m`:''}</div></div>
+        <div class="pr-name">${escHtml(ds)}<div class="pr-done">${v?`Đã in <b>${v}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(v,m)} hình/m</span>`:''}`:''}</div></div>
         <input type="hidden" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" value="${v||''}" data-meters="${m||0}">
         <div class="pr-ctl">
           <input type="number" min="1" class="pr-in-qty" placeholder="SL" inputmode="numeric">
@@ -5838,7 +5838,7 @@ function prApplyBatch(code, design, qty, meters, extra){
   inp.value = q || ''; inp.dataset.meters = m;
   const row = inp.closest('.pr-row');
   row.classList.toggle('has', q>0);
-  row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m` : '';
+  row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(q,m)} hình/m</span>`:''}` : '';
   row.classList.remove('pr-flash'); void row.offsetWidth; row.classList.add('pr-flash');
   prLog.push(Object.assign({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty, meters}, extra||{}));
   prUpdateTotal(); renderPrLog(); prUpdateMeterTotal(); prScheduleSave();
@@ -5861,7 +5861,7 @@ function prUndoLast(){
   if(inp){
     const q = Math.max(0, (Number(inp.value)||0) - (Number(last.qty)||0)), m = Math.max(0, Math.round(((Number(inp.dataset.meters)||0) - (Number(last.meters)||0))*100)/100);
     inp.value = q || ''; inp.dataset.meters = m;
-    const row = inp.closest('.pr-row'); row.classList.toggle('has', q>0); row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m` : '';
+    const row = inp.closest('.pr-row'); row.classList.toggle('has', q>0); row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(q,m)} hình/m</span>`:''}` : '';
   }
   // Mẻ in thuộc đơn in → trả lại tiến độ đơn
   if(last.orderId){ const o = (state.printOrders||[]).find(x=>x.id===last.orderId); const it = o && o.items[last.itemIdx];
@@ -5891,11 +5891,12 @@ function prUpdateMeterTotal(){
   const tot = items.reduce((t,x)=>t+(x.meters||0),0);
   const qty = items.reduce((t,x)=>t+x.qty,0);
   const box = document.getElementById('prMeterOrders');
-  if(box) box.innerHTML = items.length ? items.filter(x=>x.meters).sort((a,b)=>b.meters-a.meters).map(x=>`<span class="mr-linkchip"><b>${escHtml(x.design.split(' - ')[0])}</b>&nbsp;${fmtMeters(x.meters)} m</span>`).join('') : '<span style="color:var(--ink-soft);">Chưa có mẻ in nào hôm nay.</span>';
+  if(box) box.innerHTML = items.length ? items.filter(x=>x.meters).sort((a,b)=>b.meters-a.meters).map(x=>`<span class="mr-linkchip"><b>${escHtml(x.design.split(' - ')[0])}</b>&nbsp;${fmtMeters(x.meters)} m · ${perMeter(x.qty, x.meters)} hình/m</span>`).join('') : '<span style="color:var(--ink-soft);">Chưa có mẻ in nào hôm nay.</span>';
   const t = document.getElementById('prMeterTotal');
   if(t) t.innerHTML = `Tổng mét in: <b style="font-size:16px;">${fmtMeters(tot)} m</b>${tot && qty ? ` <span style="color:var(--ink-soft); font-size:12.5px;">· ${fmtMeters(qty/tot)} hình/m</span>` : ''}`;
 }
 function fmtMeters(v){ return (Math.round((Number(v)||0)*100)/100).toLocaleString('vi-VN'); }
+function perMeter(q, m){ return (Number(m)>0 && Number(q)>0) ? fmtMeters(Number(q)/Number(m)) : ''; } // số hình trung bình trên 1 mét
 function fmtCm(m){ return Math.round((Number(m)||0)*100).toLocaleString('vi-VN'); }
 function poSetMeters(orderId, val){
   const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
@@ -5995,8 +5996,13 @@ function poComputeRows(){
     if(!inRange(d)) return;
     (r.items||[]).forEach(it=>{ if(!it.design) return; const g = get(it.code, it.design, it.name); g.need += it.qty; g.colors[it.color||'—'] = (g.colors[it.color||'—']||0) + it.qty; });
   });
-  (state.printReports||[]).forEach(r=>{ if(!inRange(r.date)) return; (r.items||[]).forEach(it=>{ get(it.code, it.design).printed += Number(it.qty)||0; }); });
-  return Object.values(rows).map(r=>Object.assign(r, {remain: Math.max(0, r.need - r.printed)}));
+  (state.printReports||[]).forEach(r=>{ if(!inRange(r.date)) return; (r.items||[]).forEach(it=>{ const g = get(it.code, it.design); g.printed += Number(it.qty)||0; g.meters = (g.meters||0) + (Number(it.meters)||0); g.mQty = (g.mQty||0) + (Number(it.meters)>0 ? Number(it.qty)||0 : 0); }); });
+  // Trung bình hình/mét của từng hình: lấy theo 30 ngày gần nhất (đủ mẫu để ước tính), không chỉ khoảng đang xem
+  const avg = {}; const d30 = toLocalDateStr(new Date(Date.now()-30*86400000));
+  (state.printReports||[]).forEach(r=>{ if(!r.date || r.date<d30) return; (r.items||[]).forEach(it=>{ if(!(Number(it.meters)>0)) return; const k = prKey(it.code, it.design); const a = avg[k] || (avg[k] = {q:0, m:0}); a.q += Number(it.qty)||0; a.m += Number(it.meters)||0; }); });
+  return Object.values(rows).map(r=>{ const a = avg[prKey(r.code, r.design)]; const per = a && a.m ? a.q/a.m : 0;
+    const remain = Math.max(0, r.need - r.printed);
+    return Object.assign(r, {remain, perM: per, needM: per ? remain/per : 0}); });
 }
 function poOrderFromShortage(){
   const list = poLastRows.filter(r=>r.remain>0);
@@ -6110,14 +6116,16 @@ function renderPrintOverview(){
       : '<tr><td colspan="5" class="empty-note">Không có đơn đã cọc nào trong khoảng này.</td></tr>') + `</tbody></table></div>
       <div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Chỉ hiện Số HĐ và tên Sale — không có tên, SĐT khách và giá tiền. Cần thông tin khách để gửi hàng thì hỏi Sale theo Số HĐ.</div>`;
   } else if(poViewTab==='need'){
-    content = `<div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th>${th('Hình','design')}<th>Màu (cần in)</th>${th('Cần in','need',true)}${th('Đã in','printed',true)}${th('Còn thiếu','remain',true)}</tr></thead><tbody>` +
+    content = `<div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th>${th('Hình','design')}<th>Màu (cần in)</th>${th('Cần in','need',true)}${th('Đã in','printed',true)}${th('Còn thiếu','remain',true)}${th('TB hình/m','perM',true)}${th('Ước tính mét','needM',true)}</tr></thead><tbody>` +
       (list.length ? list.map(r=>`<tr><td>${escHtml(r.code)}</td><td><b>${escHtml(r.design)}</b></td>
         <td style="font-size:12.5px; color:var(--ink-soft);">${Object.entries(r.colors).sort((a,b)=>b[1]-a[1]).map(([c,q])=>`${escHtml(c)} <b style="color:var(--ink);">${q}</b>`).join(' · ') || '—'}</td>
         <td class="num">${r.need}</td><td class="num">${r.printed}</td>
-        <td class="num">${r.remain ? `<b style="color:var(--danger);">${r.remain}</b>` : (r.printed>r.need ? `<span style="color:#F0A63A;">dư ${r.printed-r.need}</span>` : '<span style="color:var(--success); font-weight:700;">đủ</span>')}</td></tr>`).join('') +
-        `<tr class="total-row"><td colspan="3">TỔNG CỘNG (${list.length} hình)</td><td class="num">${T.need}</td><td class="num">${T.printed}</td><td class="num">${T.remain}</td></tr>`
-      : '<tr><td colspan="6" class="empty-note">Không có dữ liệu trong khoảng này.</td></tr>') +
-      `</tbody></table></div><div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Cần in tính theo hoá đơn <b>đã cọc / đã chốt</b>, theo ngày Sale bấm xác nhận cọc. Đã in lấy từ báo cáo của thợ in trong cùng khoảng ngày.</div>`;
+        <td class="num">${r.remain ? `<b style="color:var(--danger);">${r.remain}</b>` : (r.printed>r.need ? `<span style="color:#F0A63A;">dư ${r.printed-r.need}</span>` : '<span style="color:var(--success); font-weight:700;">đủ</span>')}</td>
+        <td class="num" style="color:#8DB4FF;">${r.perM ? fmtMeters(r.perM) : '<span style="color:var(--ink-soft);">—</span>'}</td>
+        <td class="num">${r.remain && r.needM ? `<b>${fmtMeters(r.needM)}</b> m` : '<span style="color:var(--ink-soft);">—</span>'}</td></tr>`).join('') +
+        `<tr class="total-row"><td colspan="3">TỔNG CỘNG (${list.length} hình)</td><td class="num">${T.need}</td><td class="num">${T.printed}</td><td class="num">${T.remain}</td><td class="num"></td><td class="num">${fmtMeters(list.reduce((t,r)=>t+(r.remain?r.needM:0),0))} m</td></tr>`
+      : '<tr><td colspan="8" class="empty-note">Không có dữ liệu trong khoảng này.</td></tr>') +
+      `</tbody></table></div><div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Cần in tính theo hoá đơn <b>đã cọc / đã chốt</b>, theo ngày Sale bấm xác nhận cọc. Đã in lấy từ báo cáo của thợ in trong cùng khoảng ngày. <b>TB hình/m</b> = trung bình số hình in được trên 1 mét của từng hình (30 ngày gần nhất); <b>Ước tính mét</b> = số còn thiếu ÷ TB hình/m — để dự trù giấy/màng in.</div>`;
   } else {
     const sorted = reps.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (a.userName||'').localeCompare(b.userName||'','vi'));
     const printerUsers = state.users.filter(u=>u.role==='printer');
@@ -6128,7 +6136,7 @@ function renderPrintOverview(){
       (sorted.length ? sorted.map(r=>{ const open = poOpenRep===r.id;
         return `<tr style="cursor:pointer;" onclick="poSet('openrep','${r.id}')"><td>${open?'▾':'▸'} ${fmtDate(r.date)}</td><td><b>${escHtml(r.userName||'')}</b></td><td>${r.submitted?'<span style="color:var(--success);">✓ Đã chốt</span>':'<span style="color:#F0A63A;">Chưa chốt</span>'}</td><td class="num"><b>${r.total||0}</b></td><td class="num">${r.meters ? `<b>${fmtMeters(r.meters)}</b> m` : '<span style="color:var(--ink-soft);">—</span>'}</td><td class="num po-hide-sm">${(r.items||[]).length}</td><td class="po-hide-sm" style="font-size:12.5px; color:var(--ink-soft);">${escHtml(r.note||'')}</td></tr>` +
           (open ? `<tr><td colspan="7" style="padding:8px 12px 12px 28px !important; background:rgba(79,140,255,0.04); font-size:13px; white-space:normal !important;">
-            <div class="po-rep-items">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="po-rep-chip"><span>${escHtml(it.design)}</span><b>${it.qty}${it.meters?` <span style="font-weight:400; color:var(--ink-soft); font-size:12px;">· ${fmtMeters(it.meters)} m</span>`:''}</b></span>`).join('')}</div>
+            <div class="po-rep-items">${(r.items||[]).slice().sort((a,b)=>b.qty-a.qty).map(it=>`<span class="po-rep-chip"><span>${escHtml(it.design)}</span><b>${it.qty}${it.meters?` <span style="font-weight:400; color:var(--ink-soft); font-size:12px;">· ${fmtMeters(it.meters)} m · <span style="color:#8DB4FF;">${perMeter(it.qty, it.meters)} hình/m</span></span>`:''}</b></span>`).join('')}</div>
             <div style="font-size:12.5px; margin-top:8px;">📏 <b>${fmtMeters(r.meters||0)} m</b>${(r.log||[]).length ? ` · ${(r.log||[]).length} mẻ in` : ''}${r.meters && r.total ? ` · <span style="color:var(--ink-soft);">${fmtMeters(r.total/r.meters)} hình/m</span>` : ''}</div>
             <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Tổng ${r.total||0} hình · ${(r.items||[]).length} mẫu${r.note?` · 📝 ${escHtml(r.note)}`:''}</div></td></tr>` : ''); }).join('')
       : '<tr><td colspan="7" class="empty-note">Chưa có báo cáo in trong khoảng này.</td></tr>') + `</tbody></table></div>`;
