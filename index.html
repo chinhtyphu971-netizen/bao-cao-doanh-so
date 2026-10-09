@@ -573,6 +573,7 @@
   /* Ô chọn Mẫu in (mã in theo hình như A55) — nằm dưới ô Màu */
   #invoicePrintArea select.inv-design-select{ display:block; margin-top:3px; min-width:0; max-width:220px; color:#4a148c !important; font-weight:700 !important; font-style:italic; }
   #invoicePrintArea select.inv-design-select.inv-design-empty{ font-weight:400 !important; }
+  #invoicePrintArea select.inv-design-select.inv-design-required{ border:1.5px solid #E5484D !important; border-radius:6px; background:rgba(229,72,77,0.06) !important; }
   /* Tên mẫu in cạnh mã (ô sản phẩm trên điện thoại + bản in): nghiêng, đậm, tím đậm để nhận biết là mẫu in */
   #invoicePrintArea .inv-design-label{ font-style:italic; font-weight:700; color:#4a148c; }
   #invoicePrintArea select.inv-design-select.inv-design-empty{ color:#999 !important; }
@@ -3770,6 +3771,10 @@ function invPhoneBlur(el){
 }
 
 // Kiểm tra hoá đơn đủ thông tin để lưu chưa — trả về lý do thiếu, hoặc '' nếu hợp lệ
+function productHasDesigns(code){
+  const p = (state.products||[]).find(x=>String(x.code||'').trim().toUpperCase()===String(code||'').trim().toUpperCase());
+  return !!(p && String(p.designs||'').split(/[,;\n]+/).some(x=>x.trim()));
+}
 function validateInvoiceDraft(d){
   if(!d.customerName) return 'Vui lòng nhập tên khách hàng.';
   const ph = cleanPhone(d.customerPhone);
@@ -3778,6 +3783,8 @@ function validateInvoiceDraft(d){
   if(!d.productGroups || d.productGroups.length===0) return 'Vui lòng thêm ít nhất 1 sản phẩm.';
   for(const g of d.productGroups){
     if(!g.productCode) return 'Vui lòng chọn đầy đủ Sản phẩm cho từng dòng.';
+    // Mã có danh sách hình in (VD A55) → BẮT BUỘC chọn mẫu in, để thợ in / kho biết in hình gì
+    if(!g.design && productHasDesigns(g.productCode)) return `Mã ${String(g.productCode).toUpperCase()} là áo in hình — vui lòng chọn MẪU IN (H1, H2…) cho dòng này.`;
     for(const l of g.colorLines){
       if(!l.qty || l.qty<=0) return 'Số lượng phải lớn hơn 0.';
     }
@@ -4230,7 +4237,7 @@ function renderInvoiceEditor(){
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
         rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${product.code} - <i class="inv-design-label">${g.design}</i>` : (product.code + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
-          (designOptions.length>0 || g.design) ? `<select class="inv-design-select ${g.design?'':'inv-design-empty'}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">— Chọn mẫu in —</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select>` : ''
+          (designOptions.length>0 || g.design) ? `<select class="inv-design-select ${g.design?'':'inv-design-empty'}${(!g.design && designOptions.length>0)?' inv-design-required':''}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">${designOptions.length>0 ? '⚠ Bắt buộc chọn mẫu in' : '— Chọn mẫu in —'}</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select>` : ''
         }</td>`;
       }
       rowsHtml += `<td>`;
