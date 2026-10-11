@@ -1570,9 +1570,9 @@
             <div class="chip" id="mktRevenuePreset_today" onclick="applyMktRevenueDatePreset('today')">Hôm nay</div>
             <div class="chip" id="mktRevenuePreset_yesterday" onclick="applyMktRevenueDatePreset('yesterday')">Hôm qua</div>
             <div class="chip" id="mktRevenuePreset_week" onclick="applyMktRevenueDatePreset('week')">Tuần qua</div>
-            <div class="chip" id="mktRevenuePreset_thismonth" onclick="applyMktRevenueDatePreset('thismonth')">Tháng này</div>
+            <div class="chip selected" id="mktRevenuePreset_thismonth" onclick="applyMktRevenueDatePreset('thismonth')">Tháng này</div>
             <div class="chip" id="mktRevenuePreset_lastmonth" onclick="applyMktRevenueDatePreset('lastmonth')">Tháng trước</div>
-            <div class="chip selected" id="mktRevenuePreset_all" onclick="applyMktRevenueDatePreset('all')">Toàn thời gian</div>
+            <div class="chip" id="mktRevenuePreset_all" onclick="applyMktRevenueDatePreset('all')">Toàn thời gian</div>
           </div>
           <div class="toolbar" style="margin-bottom:14px;">
             <div class="field" style="max-width:170px;"><label>Từ ngày (theo Ngày chốt)</label><input type="date" id="mktRevenueFrom" onchange="applyMktRevenueCustomRange()"></div>
@@ -9035,7 +9035,11 @@ function goPage(pageId){
   if(pageId==='mgrSettings') renderMgrSettings();
   if(pageId==='mktInput') renderMktInputPage();
   if(pageId==='mktMyLeadsList') renderMktMyLeadsList();
-  if(pageId==='mktRevenue') renderMktRevenuePage();
+  if(pageId==='mktRevenue'){
+    // Mặc định xem THÁNG NÀY (lần đầu mở trang trong phiên); sau đó giữ bộ lọc người dùng đã chọn
+    if(!mktRevenueRangeInited){ mktRevenueRangeInited = true; applyMktRevenueDatePreset('thismonth'); }
+    else renderMktRevenuePage();
+  }
   if(pageId==='videoShoots') renderVideoShootsPage();
   if(pageId==='videoShootsOverview') renderVideoShootsOverviewPage();
   if(pageId==='mktManagerStats') renderMktManagerStats();
@@ -9360,7 +9364,7 @@ function renderMktPersonDetail(){
     </tr>`).join('') + moreRowsHtml('mktPerson', mine.length, 6) + `</tbody>`;
 }
 /* =========================== MKT: Doanh thu theo Nguồn mình phụ trách =========================== */
-let mktRevenueDateFrom = null, mktRevenueDateTo = null;
+let mktRevenueDateFrom = null, mktRevenueDateTo = null, mktRevenueRangeInited = false;
 const MKT_REVENUE_PRESET_IDS = ['today','yesterday','week','thismonth','lastmonth','all'];
 // "Tháng này" / "Tháng trước" tính theo ĐÚNG mốc lịch (ngày 1 tới hôm nay / cả tháng trước đó),
 // khác với "Tuần qua" (7 ngày gần nhất) — phù hợp hơn khi cần xem doanh thu theo tháng dương lịch.
