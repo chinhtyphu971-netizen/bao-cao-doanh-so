@@ -335,6 +335,15 @@
   @media (max-width:900px){ .mr-grid5{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; } }
   .mr-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  /* Dải nhắc nộp báo cáo Sale (hạn 22:00 cùng ngày) */
+  .rdl-bar{ position:sticky; top:0; z-index:40; margin:0 0 14px; padding:10px 16px; border-radius:12px; cursor:pointer; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+  .rdl-bar.warn{ background:#F0A63A; color:#1b1200; }
+  .rdl-bar.urgent{ background:#E5484D; color:#fff; animation:rdlPulse 1.6s ease-in-out infinite; }
+  .rdl-bar.late{ background:#7a1c1f; color:#fff; }
+  .rdl-bar .rdl-go{ flex:0 0 auto; padding:6px 12px; border-radius:999px; background:rgba(0,0,0,.18); font-size:13px; white-space:nowrap; }
+  @keyframes rdlPulse{ 0%,100%{ box-shadow:0 4px 14px rgba(229,72,77,.35); } 50%{ box-shadow:0 4px 22px rgba(229,72,77,.75); } }
+  @media (max-width:720px){ .rdl-bar{ margin-top:52px; font-size:13px; } }
+  .rem-late{ background:rgba(240,166,58,0.16); color:#F0A63A; }
   /* Báo cáo in hình */
   .pr-prod{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
   .pr-meter-box{ border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-top:12px; }
@@ -1037,6 +1046,7 @@
     </div>
 
     <div class="main">
+    <div id="reportDeadlineBar" class="rdl-bar" style="display:none;" onclick="goSubmitTodayReport()"></div>
       <!-- ---------- STAFF: nộp báo cáo ---------- -->
       <div id="page-staffReport" class="page">
         <div class="page-head">
@@ -1174,16 +1184,25 @@
             <div class="field" style="max-width:200px;"><label>Xem theo ngày</label><input type="date" id="reminderDate" onchange="onReminderDateChange()"></div>
             <button class="btn-ghost" onclick="resetReminderDate()">Hôm nay</button>
           </div>
-          <div class="grid-2" style="margin-top:14px; align-items:start;">
+          <div class="grid-3" style="margin-top:14px; align-items:start; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
             <div>
               <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Chưa nộp <span id="notSubmittedCount" style="color:var(--danger);"></span></div>
               <div id="mgrReminderList"></div>
             </div>
             <div>
-              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Đã nộp <span id="submittedCount" style="color:var(--success);"></span></div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Nộp muộn <span style="font-weight:400; font-size:12px; color:var(--ink-soft);">(sau 22:00)</span> <span id="lateCount" style="color:#F0A63A;"></span></div>
+              <div id="mgrLateList"></div>
+            </div>
+            <div>
+              <div style="font-weight:700; font-size:13.5px; margin-bottom:8px;">Đúng giờ <span id="submittedCount" style="color:var(--success);"></span></div>
               <div id="mgrSubmittedList"></div>
             </div>
           </div>
+        </div>
+
+        <div class="card" id="mgrDeadlineCard">
+          <h2 style="margin-top:0;">⏰ Thống kê nộp báo cáo (hạn 22:00)</h2>
+          <div id="mgrDeadlineStats"></div>
         </div>
 
         <div class="card" id="mgrTotalsCard">
@@ -8996,6 +9015,7 @@ function goPage(pageId){
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
   if(pageId==='reportDiff') renderReportDiff();
+  try{ updateReportDeadlineBar(); }catch(e){}
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='printOrders') renderPrintOrdersPage();
@@ -9843,6 +9863,87 @@ function staffUsersInBranch(branchId){
   return state.users.filter(u=>u.role==='staff' && (!branchId || u.branchId===branchId));
 }
 // Nhân viên + Quản lý team (cả 2 vai trò đều tự nộp báo cáo hằng ngày) — dùng cho nhắc nhở "chưa nộp"
+
+// =========================== HẠN NỘP BÁO CÁO SALE: 22:00 CÙNG NGÀY ===========================
+const REPORT_DEADLINE_HOUR = 22;
+function reportDeadlineTs(dateStr){ return new Date(dateStr + 'T' + String(REPORT_DEADLINE_HOUR).padStart(2,'0') + ':00:00').getTime(); }
+// Báo cáo nộp lần đầu trước 22:00 của chính ngày đó = đúng giờ
+function reportSubmitTs(r){ return Number(r && (r.submittedAt || r.createdAt || r.updatedAt)) || 0; }
+function reportIsLate(r){ const t = reportSubmitTs(r); return !!(r && t && t > reportDeadlineTs(r.date)); }
+function fmtSubmitTime(r){ const t = reportSubmitTs(r); if(!t) return ''; const d = new Date(t); const hm = d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); return toLocalDateStr(d)===r.date ? hm : `${hm} ${fmtDate(toLocalDateStr(d)).slice(0,5)}`; }
+
+// ---- (1) Dải nhắc: 20:00 cam · 21:30 đỏ + đếm ngược + "ting" · quá 22:00 vẫn nhắc (sẽ tính nộp muộn) ----
+let rdlTingDone = '';
+function goSubmitTodayReport(){
+  goPage('staffReport');
+  const el = document.getElementById('f_date'); if(el && el.value!==todayStr()){ el.value = todayStr(); try{ loadReportForDate(); }catch(e){} }
+}
+function updateReportDeadlineBar(){
+  const bar = document.getElementById('reportDeadlineBar'); if(!bar) return;
+  const u = currentUser();
+  const hide = ()=>{ bar.style.display = 'none'; };
+  if(!u || !['staff','team_manager'].includes(u.role)) return hide();
+  const today = todayStr();
+  if(myReportForDate(u.id, today)) return hide();        // đã nộp → không nhắc nữa
+  if(currentPageId==='staffReport') return hide();         // đang ở trang nộp báo cáo
+  const now = new Date(), mins = now.getHours()*60 + now.getMinutes();
+  if(mins < 20*60) return hide();                          // trước 20:00 chưa nhắc
+  const left = reportDeadlineTs(today) - now.getTime();
+  const lh = Math.floor(left/3600000), lm = Math.ceil((left%3600000)/60000);
+  let cls, text;
+  if(left <= 0){ cls = 'late'; text = '⛔ Đã quá 22:00 — bạn chưa nộp báo cáo hôm nay. Nộp ngay (sẽ tính nộp muộn)'; }
+  else if(mins >= 21*60+30){
+    cls = 'urgent'; const totalMin = Math.ceil(left/60000);
+    text = `🔴 Còn ${totalMin} phút để nộp báo cáo hôm nay (hạn 22:00)`;
+    if(rdlTingDone!==today){ rdlTingDone = today; try{ playTingSound(); }catch(e){} }
+  } else { cls = 'warn'; text = `⏰ Còn ${lh>0?lh+' tiếng ':''}${lm===60?'':(lm+' phút ')}để nộp báo cáo hôm nay (hạn 22:00)`.replace(/\s+/g,' '); }
+  bar.className = 'rdl-bar ' + cls;
+  bar.innerHTML = `<span>${text}</span><span class="rdl-go">Nộp báo cáo →</span>`;
+  bar.style.display = 'flex';
+}
+setInterval(()=>{ try{ updateReportDeadlineBar(); }catch(e){} }, 20000);
+
+// ---- (3) Thống kê nộp báo cáo theo tháng: đúng giờ / muộn / chưa nộp ----
+let rdlStatsMonth = null;
+function renderReportDeadlineStats(scope){
+  const box = document.getElementById('mgrDeadlineStats'); if(!box) return;
+  if(!rdlStatsMonth) rdlStatsMonth = todayStr().slice(0,7);
+  const [y, mo] = rdlStatsMonth.split('-').map(Number);
+  const first = `${rdlStatsMonth}-01`;
+  const lastDay = new Date(y, mo, 0).getDate();
+  const nowPastDeadline = Date.now() > reportDeadlineTs(todayStr());
+  // Chỉ tính các ngày ĐÃ QUA HẠN: hết hôm nay nếu đã quá 22:00, còn không thì tới hôm qua
+  let end = `${rdlStatsMonth}-${String(lastDay).padStart(2,'0')}`;
+  const capEnd = nowPastDeadline ? todayStr() : toLocalDateStr(new Date(Date.now()-86400000));
+  if(end > capEnd) end = capEnd;
+  const users = reportableUsersInBranch(scope);
+  const rows = users.map(u=>{
+    let start = first; if(u.createdAt){ const c = toLocalDateStr(new Date(u.createdAt)); if(c > start) start = c; }
+    let ok = 0, late = 0, miss = 0; const lateDays = [], missDays = [];
+    if(start <= end){
+      const d = new Date(start+'T00:00:00'); let g = 0;
+      while(toLocalDateStr(d) <= end && g++ < 40){
+        const ds = toLocalDateStr(d); const r = myReportForDate(u.id, ds);
+        if(!r){ miss++; missDays.push(ds); } else if(reportIsLate(r)){ late++; lateDays.push(ds); } else ok++;
+        d.setDate(d.getDate()+1);
+      }
+    }
+    return {u, ok, late, miss, lateDays, missDays, total: ok+late+miss};
+  }).sort((a,b)=> (b.miss*2+b.late) - (a.miss*2+a.late) || a.u.name.localeCompare(b.u.name,'vi'));
+  const T = rows.reduce((t,r)=>({ok:t.ok+r.ok, late:t.late+r.late, miss:t.miss+r.miss}), {ok:0,late:0,miss:0});
+  const pctOk = (r)=> r.total ? Math.round(r.ok*100/r.total) + '%' : '—';
+  box.innerHTML = `<div class="toolbar" style="gap:10px; align-items:flex-end; margin:4px 0 10px;">
+      <div class="field" style="max-width:180px; margin:0;"><label>Tháng</label><input type="month" value="${rdlStatsMonth}" onchange="rdlStatsMonth=this.value||null; renderMgrDashboard();"></div>
+      <div style="font-size:12.5px; color:var(--ink-soft); padding-bottom:10px;">Tính tới ${fmtDate(end)} · hạn nộp <b>22:00 cùng ngày</b> · ${T.ok} đúng giờ · <span style="color:#F0A63A;">${T.late} muộn</span> · <span style="color:var(--danger);">${T.miss} chưa nộp</span></div>
+    </div>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th>Sale</th><th>Team</th><th class="num">Đúng giờ</th><th class="num">Nộp muộn</th><th class="num">Chưa nộp</th><th class="num">Tỉ lệ đúng giờ</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(r=>`<tr><td><b>${escHtml(r.u.name)}</b>${r.u.role==='team_manager'?' <span style="font-size:11.5px; color:var(--ink-soft);">QL team</span>':''}</td><td>${escHtml(branchName(r.u.branchId))}</td>
+      <td class="num" style="color:var(--success);">${r.ok}</td>
+      <td class="num" title="${r.lateDays.map(fmtDate).join(', ')}">${r.late ? `<b style="color:#F0A63A;">${r.late}</b>` : '0'}</td>
+      <td class="num" title="${r.missDays.map(fmtDate).join(', ')}">${r.miss ? `<b style="color:var(--danger);">${r.miss}</b>` : '0'}</td>
+      <td class="num"><b>${pctOk(r)}</b></td></tr>`).join('') : '<tr><td colspan="6" class="empty-note">Chưa có ai.</td></tr>') +
+    `</tbody></table></div><div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Rê chuột vào số Muộn / Chưa nộp để xem là những ngày nào.</div>`;
+}
 function reportableUsersInBranch(branchId){
   return state.users.filter(u=>(u.role==='staff' || u.role==='team_manager') && (!branchId || u.branchId===branchId));
 }
@@ -9958,7 +10059,8 @@ function renderMgrDashboard(){
     : `Ngày ${fmtDate(reminderDate)} còn ai chưa nộp báo cáo?`;
   const staff=reportableUsersInBranch(scope);
   const notSubmitted = staff.filter(u=>!myReportForDate(u.id, reminderDate));
-  const submitted = staff.filter(u=>myReportForDate(u.id, reminderDate));
+  const lateUsers = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && reportIsLate(r); });
+  const submitted = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && !reportIsLate(r); });
   const listEl=document.getElementById('mgrReminderList');
   const submittedEl=document.getElementById('mgrSubmittedList');
 
@@ -9974,18 +10076,22 @@ function renderMgrDashboard(){
     return branchKeys.map(bId=>`
       <div style="margin-bottom:10px;">
         <div style="font-weight:600; font-size:13px; color:var(--ink-soft); margin-bottom:6px;">${branchName(bId)}</div>
-        <div>${byBranchGroup[bId].map(u=>`<span class="badge ${badgeClass}" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}</span>`).join('')}</div>
+        <div>${byBranchGroup[bId].map(u=>{ const r = badgeClass!=='badge-warn' ? myReportForDate(u.id, reminderDate) : null; return `<span class="badge ${badgeClass}" style="margin:0 6px 6px 0;">${u.name}${u.role==='team_manager'?' (QL team)':''}${r?` <span style="opacity:.75; font-weight:400;">· ${fmtSubmitTime(r)}</span>`:''}</span>`; }).join('')}</div>
       </div>`).join('');
   }
 
   document.getElementById('notSubmittedCount').textContent = `(${notSubmitted.length})`;
   document.getElementById('submittedCount').textContent = `(${submitted.length})`;
+  document.getElementById('lateCount').textContent = `(${lateUsers.length})`;
+  { const lateEl = document.getElementById('mgrLateList');
+    lateEl.innerHTML = staff.length===0 ? '' : renderGrouped(lateUsers, 'rem-late', isReminderToday && Date.now() < reportDeadlineTs(reminderDate) ? 'Chưa tới 22:00' : 'Không ai nộp muộn 👍'); }
+  try{ renderReportDeadlineStats(scope); }catch(e){ console.error(e); }
   if(staff.length===0){
     listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
     submittedEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
   } else {
     listEl.innerHTML = renderGrouped(notSubmitted, 'badge-warn', `Mọi người đã nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)} 🎉`);
-    submittedEl.innerHTML = renderGrouped(submitted, 'badge-ok', `Chưa có ai nộp báo cáo ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}`);
+    submittedEl.innerHTML = renderGrouped(submitted, 'badge-ok', `Chưa có ai nộp đúng giờ ${isReminderToday?'hôm nay':'ngày '+fmtDate(reminderDate)}`);
   }
 
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
