@@ -9869,7 +9869,10 @@ const REPORT_DEADLINE_HOUR = 22;
 function reportDeadlineTs(dateStr){ return new Date(dateStr + 'T' + String(REPORT_DEADLINE_HOUR).padStart(2,'0') + ':00:00').getTime(); }
 // Báo cáo nộp lần đầu trước 22:00 của chính ngày đó = đúng giờ
 function reportSubmitTs(r){ return Number(r && (r.submittedAt || r.createdAt || r.updatedAt)) || 0; }
-function reportIsLate(r){ const t = reportSubmitTs(r); return !!(r && t && t > reportDeadlineTs(r.date)); }
+// Hạn HIỂN THỊ cho mọi người là 22:00. Nhưng chỉ tính "NỘP MUỘN" khi nộp từ 00:00 ngày hôm sau trở đi
+// (nộp 22:00–23:59 vẫn tính đúng giờ). Mốc 00:00 này KHÔNG hiển thị ở đâu trong app.
+function reportLateCutoffTs(dateStr){ const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate()+1); return d.getTime(); }
+function reportIsLate(r){ const t = reportSubmitTs(r); return !!(r && t && t >= reportLateCutoffTs(r.date)); }
 function fmtSubmitTime(r){ const t = reportSubmitTs(r); if(!t) return ''; const d = new Date(t); const hm = d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); return toLocalDateStr(d)===r.date ? hm : `${hm} ${fmtDate(toLocalDateStr(d)).slice(0,5)}`; }
 
 // ---- (1) Dải nhắc: 20:00 cam · 21:30 đỏ + đếm ngược + "ting" · quá 22:00 vẫn nhắc (sẽ tính nộp muộn) ----
@@ -9914,7 +9917,7 @@ function renderReportDeadlineStats(scope){
   const [y, mo] = rdlStatsMonth.split('-').map(Number);
   const first = `${rdlStatsMonth}-01`;
   const lastDay = new Date(y, mo, 0).getDate();
-  const nowPastDeadline = Date.now() > reportDeadlineTs(todayStr());
+  const nowPastDeadline = Date.now() >= reportLateCutoffTs(todayStr()); // (luôn false trong ngày) → chỉ tính tới hôm qua
   // Chỉ tính các ngày ĐÃ QUA HẠN: hết hôm nay nếu đã quá 22:00, còn không thì tới hôm qua
   let end = `${rdlStatsMonth}-${String(lastDay).padStart(2,'0')}`;
   const capEnd = nowPastDeadline ? todayStr() : toLocalDateStr(new Date(Date.now()-86400000));
@@ -10087,7 +10090,7 @@ function renderMgrDashboard(){
   document.getElementById('submittedCount').textContent = `(${submitted.length})`;
   document.getElementById('lateCount').textContent = `(${lateUsers.length})`;
   { const lateEl = document.getElementById('mgrLateList');
-    lateEl.innerHTML = staff.length===0 ? '' : renderGrouped(lateUsers, 'rem-late', isReminderToday && Date.now() < reportDeadlineTs(reminderDate) ? 'Chưa tới 22:00' : 'Không ai nộp muộn 👍'); }
+    lateEl.innerHTML = staff.length===0 ? '' : renderGrouped(lateUsers, 'rem-late', isReminderToday ? 'Chưa có ai nộp muộn' : 'Không ai nộp muộn 👍'); }
   try{ renderReportDeadlineStats(scope); }catch(e){ console.error(e); }
   if(staff.length===0){
     listEl.innerHTML='<div class="empty-note">Chưa có ai trong đội đăng ký.</div>';
