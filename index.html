@@ -1201,8 +1201,8 @@
         </div>
 
         <div class="card" id="mgrDeadlineCard">
-          <h2 style="margin-top:0;">⏰ Thống kê nộp báo cáo (hạn 22:00)</h2>
-          <div id="mgrDeadlineStats"></div>
+          <h2 style="margin:0; cursor:pointer; user-select:none;" onclick="rdlStatsOpen=!rdlStatsOpen; renderReportDeadlineStats(scopeBranchId());">⏰ Thống kê nộp báo cáo (hạn 22:00) <span id="rdlStatsToggle" style="font-size:14px; color:var(--ink-soft); font-weight:500;">▸ bấm để xem</span></h2>
+          <div id="mgrDeadlineStats" style="display:none; margin-top:10px;"></div>
         </div>
 
         <div class="card" id="mgrTotalsCard">
@@ -9904,9 +9904,12 @@ function updateReportDeadlineBar(){
 setInterval(()=>{ try{ updateReportDeadlineBar(); }catch(e){} }, 20000);
 
 // ---- (3) Thống kê nộp báo cáo theo tháng: đúng giờ / muộn / chưa nộp ----
-let rdlStatsMonth = null;
+let rdlStatsMonth = null, rdlStatsOpen = false; // mặc định THU GỌN — bấm tiêu đề mới hiện
 function renderReportDeadlineStats(scope){
   const box = document.getElementById('mgrDeadlineStats'); if(!box) return;
+  const tg = document.getElementById('rdlStatsToggle'); if(tg) tg.textContent = rdlStatsOpen ? '▾ thu gọn' : '▸ bấm để xem';
+  box.style.display = rdlStatsOpen ? 'block' : 'none';
+  if(!rdlStatsOpen) return; // không tính khi đang ẩn — đỡ nặng trang Tổng quan
   if(!rdlStatsMonth) rdlStatsMonth = todayStr().slice(0,7);
   const [y, mo] = rdlStatsMonth.split('-').map(Number);
   const first = `${rdlStatsMonth}-01`;
