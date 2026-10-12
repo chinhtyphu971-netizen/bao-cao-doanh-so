@@ -1800,6 +1800,11 @@
               <button class="btn-ghost btn-small" onclick="shiftMyInvoicesDate(1)" title="Ngày sau">›</button>
               <button class="btn-ghost btn-small" onclick="document.getElementById('myInvoicesDate').value=todayStr(); pagerPages.myInvoices=1; renderInvoicesPage()">Hôm nay</button>
               <button class="btn-ghost btn-small" onclick="document.getElementById('myInvoicesDate').value=''; pagerPages.myInvoices=1; renderInvoicesPage()">Tất cả ngày</button>
+              <select id="myInvoicesDep" onchange="pagerPages.myInvoices=1; renderInvoicesPage()" style="max-width:190px;" title="Lọc theo trạng thái cọc">
+                <option value="">Tất cả trạng thái</option>
+                <option value="pending">⏳ Chờ cọc</option>
+                <option value="done">✅ Đã cọc / đã chốt</option>
+              </select>
               <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm tên khách, SĐT, số HĐ (mọi ngày)..." oninput="clearTimeout(window.__myInvSearchT); window.__myInvSearchT=setTimeout(()=>{pagerPages.myInvoices=1; renderInvoicesPage();}, 250)" style="max-width:320px; flex:1;">
             </div>
             <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
@@ -4171,18 +4176,28 @@ function renderInvoicesPage(){
   // Chọn 1 ngày ở ô ngày thì chỉ hiện ngày đó. Đang gõ tìm kiếm thì tìm trên mọi ngày.
   const dateEl = document.getElementById('myInvoicesDate');
   const day = dateEl ? dateEl.value : '';
-  const mine = q.trim()
+  const base = q.trim()
     ? mineAll.filter(inv=>invoiceMatchesSearch(inv, q))
     : mineAll.filter(inv=>!day || inv.invoiceDate===day);
+  // Lọc theo trạng thái cọc: Chờ cọc = chưa bấm Xác nhận cọc / Chốt đơn
+  const depSel = document.getElementById('myInvoicesDep');
+  const dep = depSel ? depSel.value : '';
+  if(depSel){
+    const nPend = base.filter(inv=>!inv.depositLink).length, nDone = base.length - nPend;
+    depSel.options[1].textContent = `⏳ Chờ cọc (${nPend})`;
+    depSel.options[2].textContent = `✅ Đã cọc / đã chốt (${nDone})`;
+  }
+  const mine = dep==='pending' ? base.filter(inv=>!inv.depositLink) : (dep==='done' ? base.filter(inv=>inv.depositLink) : base);
+  const depTxt = dep==='pending' ? ' · chờ cọc' : (dep==='done' ? ' · đã cọc/chốt' : '');
   document.getElementById('myInvoicesCount').textContent = q.trim()
-    ? `(tìm thấy ${mine.length} trên mọi ngày)`
-    : (day ? `(${mine.length} hoá đơn ngày ${fmtDate(day)})` : `(${mine.length} hoá đơn · tất cả các ngày)`);
+    ? `(tìm thấy ${mine.length} trên mọi ngày${depTxt})`
+    : (day ? `(${mine.length} hoá đơn ngày ${fmtDate(day)}${depTxt})` : `(${mine.length} hoá đơn · tất cả các ngày${depTxt})`);
   const table = document.getElementById('myInvoicesTable');
   const pagerEl = document.getElementById('myInvoicesPager');
   if(mine.length===0){
     table.innerHTML = q.trim()
       ? '<tr><td class="empty-note">Không tìm thấy hoá đơn nào khớp.</td></tr>'
-      : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>');
+      : (dep==='pending' ? '<tr><td class="empty-note">Không còn hoá đơn nào chờ cọc 🎉</td></tr>' : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>'));
     if(pagerEl) pagerEl.innerHTML = '';
     return;
   }
