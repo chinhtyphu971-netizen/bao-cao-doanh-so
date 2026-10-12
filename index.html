@@ -7357,7 +7357,10 @@ function renderLeadStats(){
     return true;
   });
   const noStatusCount = inRange.filter(l=>!l.status).length;
-  const noNameCount = inRange.filter(l=>l.status && l.status!=='Không liên lạc được' && l.status!=='không tìm thấy tk' && !l.customerName).length;
+  // Thiếu Tên khách: đã có tình trạng nhưng chưa có tên — TRỪ "k liên lạc được" / "k tìm thấy tk" (không thể có tên).
+  // (Trước đây so sai chữ "Không liên lạc được"/"không tìm thấy tk" nên 2 trạng thái này vẫn bị đếm nhầm.)
+  const NO_NAME_EXEMPT = ['k liên lạc được','k tìm thấy tk'];
+  const noNameCount = inRange.filter(l=>l.status && !NO_NAME_EXEMPT.includes(l.status) && !String(l.customerName||'').trim()).length;
   document.getElementById('leadStatTotal').textContent = inRange.length;
   document.getElementById('leadStatNoStatus').textContent = noStatusCount;
   document.getElementById('leadStatNoName').textContent = noNameCount;
