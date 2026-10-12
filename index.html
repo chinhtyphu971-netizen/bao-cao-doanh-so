@@ -4458,6 +4458,9 @@ function renderInvoicesOverviewPage(){
   // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
   // Đổi bộ lọc (ngày / tài khoản / tìm kiếm) → quay về trang 1
   const depFilter = (document.getElementById('invOverviewDepositFilter')||{}).value || '';
+  // Mặc định lọc sẵn các MÃ IN HÌNH (VD A55) — lần đầu, khi danh mục đã tải; người dùng xoá đi thì xem tất cả mã
+  { const ce = document.getElementById('invByProductCode');
+    if(ce && !ce.dataset.inited){ const pc = printCodes(); if(pc.length){ ce.dataset.inited = '1'; if(!ce.value) ce.value = pc.join(', '); } } }
   const codeFilterRaw = ((document.getElementById('invByProductCode')||{}).value || '').trim();
   const filterKey = [invOverviewDateFrom, invOverviewDateTo,
     (document.getElementById('invOverviewSaleFilter')||{}).value, (document.getElementById('invOverviewSearch')||{}).value, depFilter].join('|');
