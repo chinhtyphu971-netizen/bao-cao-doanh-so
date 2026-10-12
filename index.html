@@ -6769,24 +6769,26 @@ function togglePersonLeadsStatsByDay(){
   btn.textContent = isOpen ? 'Xem thống kê theo ngày ▸' : 'Ẩn thống kê theo ngày ▾';
   if(!isOpen) renderPersonLeadsPage();
 }
-function renderLeadsStatsByDayInto(containerId, allLeadsForPerson){
+function renderLeadsStatsByDayInto(containerId, allLeadsForPerson, userId){
   const byDay = {};
+  const recalled = userId ? ((state.users.find(u=>u.id===userId)||{}).recallByDay || {}) : {};
   allLeadsForPerson.forEach(l=>{
     const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || l.importedAt || 0));
     byDay[d] = byDay[d] || {total:0, unprocessed:0};
     byDay[d].total++;
     if(isLeadUnprocessed(l)) byDay[d].unprocessed++;
   });
+  Object.keys(recalled).forEach(d=>{ if(Number(recalled[d])>0) byDay[d] = byDay[d] || {total:0, unprocessed:0}; }); // ngày mà data đã bị thu hồi HẾT vẫn hiện
   const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a));
   const body = document.getElementById(containerId);
   if(days.length===0){ body.innerHTML='<div class="empty-note">Chưa có data nào.</div>'; return; }
   body.innerHTML = days.map(d=>{
-    const b = byDay[d];
-    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+    const b = byDay[d]; const rc = Number(recalled[d])||0;
+    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span>${rc?` · <span style="color:#F0A63A; font-weight:700;">${rc} bị thu hồi</span>`:''}</span></div>`;
   }).join('');
 }
-function renderMyLeadsStatsByDay(allMyLeads){ renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads); }
-function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson); }
+function renderMyLeadsStatsByDay(allMyLeads){ const u = currentUser(); renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads, u && u.id); }
+function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson, viewingPersonId); }
 let myLeadsActiveTab = 'assigned';
 function switchMyLeadsTab(tab){
   myLeadsActiveTab = tab;
@@ -7396,11 +7398,13 @@ function isLeadRecallable(l){
 function recallableLeadsOf(userId){ return state.leads.filter(l=>l.assignedTo===userId && isLeadRecallable(l)); }
 function recallLeads(ids, onDone){
   const me = currentUser(); if(!canRecallRole(me)) { showToast('Bạn không có quyền thu hồi data.'); return; }
-  const now = Date.now(); const upd = {}; const byPerson = {};
+  const now = Date.now(); const upd = {}; const byPerson = {}; const byPersonDay = {};
   ids.forEach(id=>{
     const l = state.leads.find(x=>x.id===id);
     if(!isLeadRecallable(l)) return; // kiểm tra lại lần cuối: Sale vừa cập nhật thì BỎ QUA
     const from = l.assignedTo, fromName = l.assignedToName || ((state.users.find(u=>u.id===from)||{}).name) || '';
+    const recvDay = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || now)); // ngày Sale NHẬN data này
+    (byPersonDay[from] = byPersonDay[from] || {})[recvDay] = ((byPersonDay[from]||{})[recvDay]||0) + 1;
     const recalledFrom = Array.from(new Set((Array.isArray(l.recalledFrom)?l.recalledFrom:[]).concat([from])));
     const log = (Array.isArray(l.recallLog)?l.recallLog:[]).concat([{from, fromName, assignedAt: l.assignedAt||null, at: now, by: me.name}]).slice(-10);
     Object.assign(upd, {[id+'/assignedTo']: null, [id+'/assignedToName']: null, [id+'/assignedAt']: null, [id+'/distributedDate']: null, [id+'/recalledFrom']: recalledFrom, [id+'/recallLog']: log});
@@ -7416,7 +7420,12 @@ function recallLeads(ids, onDone){
       const prev = (u.recallToday && u.recallToday.date===today) ? (Number(u.recallToday.n)||0) : 0;
       const recallToday = {date: today, n: prev + c, at: now, by: me.name};
       u.recallToday = recallToday;
-      fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}, recallToday});
+      // Số bị thu hồi theo NGÀY NHẬN (Sale không còn giữ data bị thu hồi nên phải lưu số đếm trên tài khoản) — giữ 70 ngày
+      const cut = toLocalDateStr(new Date(now - 70*86400000));
+      const recallByDay = {}; Object.entries(u.recallByDay||{}).forEach(([d,v])=>{ if(d>=cut) recallByDay[d] = v; });
+      Object.entries(byPersonDay[uid]||{}).forEach(([d,v])=>{ recallByDay[d] = (Number(recallByDay[d])||0) + v; });
+      u.recallByDay = recallByDay;
+      fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}, recallToday, recallByDay});
     });
     showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
     runDistributionWithLock(()=>{ try{ renderMgrLeads(); }catch(e){} });
