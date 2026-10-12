@@ -336,6 +336,9 @@
   .mr-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
   /* Thu hồi data */
+  .recall-banner{ align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border-radius:10px; background:rgba(229,72,77,0.12); border:1px solid rgba(229,72,77,0.45); color:#FF8A8A; font-size:13.5px; line-height:1.5; }
+  .recall-banner b{ color:#FF6B6B; }
+  .recall-banner .recall-meta{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
   .rc-btn{ margin-left:8px; padding:2px 10px !important; min-height:28px !important; font-size:12.5px !important; border-color:#F0A63A !important; color:#F0A63A !important; }
   .rc-overlay{ position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:16px; }
   .rc-overlay.show{ display:flex; }
@@ -1120,6 +1123,7 @@
 
         <div id="myLeadsSectionAssigned">
           <div class="grid-2" style="margin-bottom:16px; align-items:stretch;">
+            <div id="myRecallBanner" class="recall-banner" style="display:none;"></div>
             <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
 
             <div class="card" id="checkinCard" style="margin-bottom:0;">
@@ -6804,6 +6808,15 @@ function renderMyLeads(){
   const user=currentUser();
   const today=todayStr();
 
+  // Dải cố định: số data bị THU HỒI hôm nay (hiện tới hết ngày, không tự tắt)
+  { const rb = document.getElementById('myRecallBanner');
+    const rt = user.recallToday;
+    if(rb){
+      if(rt && rt.date===today && Number(rt.n)>0){
+        rb.style.display = 'flex';
+        rb.innerHTML = `<span>⚠️ <b>Hôm nay bạn bị thu hồi ${rt.n} data</b> do quá ${RECALL_MIN_HOURS} giờ chưa cập nhật tên &amp; tình trạng. Hãy xử lý data ngay khi nhận để không bị thu hồi.</span><span class="recall-meta">Lần gần nhất ${new Date(rt.at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}${rt.by?' · '+escHtml(rt.by):''}</span>`;
+      } else rb.style.display = 'none';
+    } }
   const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && isLeadUnprocessed(l)).length;
   const bannerEl = document.getElementById('myUnprocessedBanner');
   if(unprocessedCount>0){
@@ -7394,7 +7407,14 @@ function recallLeads(ids, onDone){
   const n = Object.values(byPerson).reduce((t,x)=>t+x,0);
   if(!n){ showToast('Không còn data nào đủ điều kiện thu hồi (có thể Sale vừa cập nhật).'); if(onDone) onDone(); return; }
   fbLeads.update(upd).then(()=>{
-    Object.entries(byPerson).forEach(([uid,c])=>fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}}));
+    const today = todayStr();
+    Object.entries(byPerson).forEach(([uid,c])=>{
+      const u = state.users.find(x=>x.id===uid) || {};
+      const prev = (u.recallToday && u.recallToday.date===today) ? (Number(u.recallToday.n)||0) : 0;
+      const recallToday = {date: today, n: prev + c, at: now, by: me.name};
+      u.recallToday = recallToday;
+      fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}, recallToday});
+    });
     showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
     runDistributionWithLock(()=>{ try{ renderMgrLeads(); }catch(e){} });
     if(onDone) onDone();
