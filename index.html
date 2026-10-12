@@ -335,6 +335,20 @@
   @media (max-width:900px){ .mr-grid5{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; } }
   .mr-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  /* Thu hồi data */
+  .rc-btn{ margin-left:8px; padding:2px 10px !important; min-height:28px !important; font-size:12.5px !important; border-color:#F0A63A !important; color:#F0A63A !important; }
+  .rc-overlay{ position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:16px; }
+  .rc-overlay.show{ display:flex; }
+  .rc-box{ background:var(--panel, #131C2E); border:1px solid var(--line); border-radius:14px; width:min(560px,100%); max-height:86vh; display:flex; flex-direction:column; padding:14px 16px; gap:8px; }
+  .rc-head{ display:flex; justify-content:space-between; align-items:center; font-size:16px; }
+  .rc-sub{ font-size:13px; color:var(--ink-soft); line-height:1.5; }
+  .rc-all{ display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 0; border-bottom:1px solid var(--line); }
+  .rc-list{ overflow:auto; flex:1 1 auto; }
+  .rc-row{ display:flex; align-items:center; gap:10px; padding:6px 2px; border-bottom:1px dashed var(--line); font-size:13px; cursor:pointer; }
+  .rc-row input, .rc-all input{ width:16px; height:16px; min-height:0; margin:0; }
+  .rc-phone{ font-weight:700; min-width:96px; } .rc-src{ flex:1; color:var(--ink-soft); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rc-who{ font-size:12px; color:#8DB4FF; } .rc-ago{ font-size:12px; color:#F0A63A; white-space:nowrap; }
+  .rc-foot{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding-top:6px; }
   /* Dải nhắc nộp báo cáo Sale (hạn 22:00 cùng ngày) */
   .rdl-bar{ position:sticky; top:0; z-index:40; margin:0 0 14px; padding:10px 16px; border-radius:12px; cursor:pointer; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 4px 14px rgba(0,0,0,.25); }
   .rdl-bar.warn{ background:#F0A63A; color:#1b1200; }
@@ -2446,7 +2460,7 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); });
+  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ checkRecallNotice(); }catch(e){} });
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -4898,12 +4912,10 @@ function isValidVNPhone(phone){
 }
 function priorAssigneesForPhone(lead){
   const phoneNorm = normalizePhone(leadPhone(lead));
-  if(!phoneNorm) return new Set();
-  return new Set(
-    state.leads
-      .filter(l=>l.id!==lead.id && l.assignedTo && normalizePhone(leadPhone(l))===phoneNorm)
-      .map(l=>l.assignedTo)
-  );
+  const set = new Set(Array.isArray(lead.recalledFrom) ? lead.recalledFrom : []); // người đã bị THU HỒI data này → không chia lại cho họ
+  if(!phoneNorm) return set;
+  state.leads.filter(l=>l.id!==lead.id && l.assignedTo && normalizePhone(leadPhone(l))===phoneNorm).forEach(l=>set.add(l.assignedTo));
+  return set;
 }
 function runDistribution(){
   const today=todayStr();
@@ -6436,7 +6448,7 @@ function submitMktBulk(){
       createdBy: u ? u.id : null,
       createdByName: u ? u.name : '',
     };
-    if(r.name && r.name.trim()) lead.customerName = r.name.trim();
+    if(r.name && r.name.trim()){ lead.customerName = r.name.trim(); lead.mktName = lead.customerName; } // tên MKT nhập sẵn
     updates[lead.id] = lead;
     addedCount++;
   });
@@ -7350,6 +7362,86 @@ function toggleLeadStatsDetail(){
   btn.textContent = isOpen ? 'Xem chi tiết theo người ▸' : 'Ẩn chi tiết theo người ▾';
   if(!isOpen) renderLeadStats(); // vừa mở ra -> tính lại chi tiết ngay
 }
+
+// =========================== THU HỒI DATA CHƯA XỬ LÝ VỀ KHO ===========================
+// Chỉ Quản lý chung / Quản lý Data. Data đủ điều kiện: đã chia cho Sale QUÁ 3 GIỜ, Sale CHƯA chọn Tình trạng
+// và CHƯA cập nhật Tên khách (tên do MKT nhập sẵn không tính), chưa lên hoá đơn / chưa chốt.
+// Thu hồi → trả về KHO CHƯA CHIA, hệ thống tự chia lại như data mới (không chia lại cho người bị thu hồi).
+const RECALL_MIN_HOURS = 3;
+function canRecallRole(u){ return !!(u && ['general_manager','data_manager'].includes(u.role)); }
+function isLeadRecallable(l){
+  if(!l || !l.assignedTo || l.manualEntry || l.invoiceId) return false;
+  if(l.status) return false;                                   // đã chọn tình trạng → đang chăm sóc
+  const nameByMkt = l.mktName && String(l.customerName||'').trim()===String(l.mktName).trim();
+  if(l.customerName && !nameByMkt) return false;               // Sale đã điền tên
+  if(!l.assignedAt || Date.now() - Number(l.assignedAt) < RECALL_MIN_HOURS*3600000) return false;
+  return true;
+}
+function recallableLeadsOf(userId){ return state.leads.filter(l=>l.assignedTo===userId && isLeadRecallable(l)); }
+function recallLeads(ids, onDone){
+  const me = currentUser(); if(!canRecallRole(me)) { showToast('Bạn không có quyền thu hồi data.'); return; }
+  const now = Date.now(); const upd = {}; const byPerson = {};
+  ids.forEach(id=>{
+    const l = state.leads.find(x=>x.id===id);
+    if(!isLeadRecallable(l)) return; // kiểm tra lại lần cuối: Sale vừa cập nhật thì BỎ QUA
+    const from = l.assignedTo, fromName = l.assignedToName || ((state.users.find(u=>u.id===from)||{}).name) || '';
+    const recalledFrom = Array.from(new Set((Array.isArray(l.recalledFrom)?l.recalledFrom:[]).concat([from])));
+    const log = (Array.isArray(l.recallLog)?l.recallLog:[]).concat([{from, fromName, assignedAt: l.assignedAt||null, at: now, by: me.name}]).slice(-10);
+    Object.assign(upd, {[id+'/assignedTo']: null, [id+'/assignedToName']: null, [id+'/assignedAt']: null, [id+'/distributedDate']: null, [id+'/recalledFrom']: recalledFrom, [id+'/recallLog']: log});
+    l.assignedTo = null; l.assignedToName = null; l.assignedAt = null; l.distributedDate = null; l.recalledFrom = recalledFrom; l.recallLog = log;
+    byPerson[from] = (byPerson[from]||0) + 1;
+  });
+  const n = Object.values(byPerson).reduce((t,x)=>t+x,0);
+  if(!n){ showToast('Không còn data nào đủ điều kiện thu hồi (có thể Sale vừa cập nhật).'); if(onDone) onDone(); return; }
+  fbLeads.update(upd).then(()=>{
+    Object.entries(byPerson).forEach(([uid,c])=>fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}}));
+    showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
+    runDistributionWithLock(()=>{ try{ renderMgrLeads(); }catch(e){} });
+    if(onDone) onDone();
+  }).catch(e=>{ console.error(e); showToast('Thu hồi thất bại — kiểm tra mạng rồi thử lại.'); });
+  onDataChanged();
+}
+// Khung xác nhận: danh sách data (tick sẵn), bỏ tick số muốn giữ lại
+function openRecallModal(userIds){
+  const me = currentUser(); if(!canRecallRole(me)) return;
+  const list = [];
+  userIds.forEach(uid=>recallableLeadsOf(uid).forEach(l=>list.push(l)));
+  if(!list.length){ showToast('Không có data nào đủ điều kiện thu hồi.'); return; }
+  list.sort((a,b)=>(a.assignedTo||'').localeCompare(b.assignedTo||'') || (a.assignedAt||0)-(b.assignedAt||0));
+  const nameOf = id => ((state.users.find(u=>u.id===id)||{}).name) || '—';
+  const ago = t => { const h = (Date.now()-t)/3600000; return h>=24 ? Math.floor(h/24)+' ngày' : Math.floor(h)+' giờ'; };
+  let el = document.getElementById('recallModal');
+  if(!el){ el = document.createElement('div'); el.id = 'recallModal'; el.className = 'rc-overlay'; document.body.appendChild(el); }
+  const persons = Array.from(new Set(list.map(l=>l.assignedTo)));
+  el.innerHTML = `<div class="rc-box" role="dialog" aria-modal="true">
+    <div class="rc-head"><b>↩ Thu hồi data về kho</b><button type="button" class="btn-ghost btn-small" onclick="closeRecallModal()">✕</button></div>
+    <div class="rc-sub">${persons.length===1 ? `Của <b>${escHtml(nameOf(persons[0]))}</b>` : `Của <b>${persons.length} người</b>`} · data đã chia quá ${RECALL_MIN_HOURS} giờ, chưa cập nhật <b>Tên</b> và <b>Tình trạng</b>. Bỏ tick số muốn để lại cho Sale.</div>
+    <label class="rc-all"><input type="checkbox" checked onchange="document.querySelectorAll('#recallModal input[data-rc]').forEach(c=>c.checked=this.checked); rcCount();"> Chọn tất cả</label>
+    <div class="rc-list">${list.map(l=>`<label class="rc-row"><input type="checkbox" data-rc="${l.id}" checked onchange="rcCount()">
+      <span class="rc-phone">${escHtml(maskPhone(leadPhone(l)))}</span><span class="rc-src">${escHtml(leadSource(l))}</span>
+      ${persons.length>1?`<span class="rc-who">${escHtml(nameOf(l.assignedTo))}</span>`:''}<span class="rc-ago">${ago(l.assignedAt)}</span></label>`).join('')}</div>
+    <div class="rc-foot"><span style="font-size:12.5px; color:var(--ink-soft);">Data trả về kho chưa chia và được hệ thống <b>chia lại tự động</b> (không chia lại cho người cũ).</span>
+      <button type="button" class="btn-primary" id="rcGo" onclick="rcConfirm()">Thu hồi</button></div>
+  </div>`;
+  el.onclick = e=>{ if(e.target===el) closeRecallModal(); };
+  el.classList.add('show'); rcCount();
+}
+function rcCount(){ const n = document.querySelectorAll('#recallModal input[data-rc]:checked').length; const b = document.getElementById('rcGo'); if(b){ b.textContent = `↩ Thu hồi ${n} data`; b.disabled = !n; } }
+function closeRecallModal(){ const el = document.getElementById('recallModal'); if(el) el.classList.remove('show'); }
+function rcConfirm(){
+  const ids = Array.from(document.querySelectorAll('#recallModal input[data-rc]:checked')).map(c=>c.dataset.rc);
+  if(!ids.length) return;
+  closeRecallModal(); recallLeads(ids);
+}
+// Sale bị thu hồi → báo khi mở app
+function checkRecallNotice(){
+  const u = currentUser(); if(!u || !u.recallNotice || !u.recallNotice.at) return;
+  const key = 'recallSeen_' + u.id;
+  let seen = 0; try{ seen = Number(localStorage.getItem(key))||0; }catch(e){}
+  if(u.recallNotice.at <= seen) return;
+  try{ localStorage.setItem(key, String(u.recallNotice.at)); }catch(e){}
+  showToast(`⚠️ ${u.recallNotice.by||'Quản lý'} đã thu hồi ${u.recallNotice.n} data chưa xử lý của bạn (quá ${RECALL_MIN_HOURS} giờ chưa cập nhật tên & tình trạng).`);
+}
 function renderLeadStatsDetail(inRange){
   const byPerson = {};
   inRange.forEach(l=>{
@@ -7359,19 +7451,29 @@ function renderLeadStatsDetail(inRange){
     if(isLeadUnprocessed(l)) byPerson[l.assignedTo].unprocessed++;
   });
   const ids = Object.keys(byPerson).sort((a,b)=>byPerson[b].unprocessed-byPerson[a].unprocessed);
+  const meRc = currentUser(); const canRc = canRecallRole(meRc);
+  // Số lần BỊ THU HỒI trong khoảng ngày đang xem (theo nhật ký thu hồi trên từng data)
+  const recalledCnt = {};
+  state.leads.forEach(l=>(l.recallLog||[]).forEach(r=>{ const d = toLocalDateStr(new Date(r.at)); if((leadStatsDateFrom && d<leadStatsDateFrom) || (leadStatsDateTo && d>leadStatsDateTo)) return; recalledCnt[r.from] = (recalledCnt[r.from]||0)+1; }));
+  const rcOf = {}; ids.forEach(id=>{ rcOf[id] = recallableLeadsOf(id).length; });
+  const rcTotal = Object.values(rcOf).reduce((t,x)=>t+x,0);
   const btn = document.getElementById('leadStatsDetailToggle');
   if(btn) btn.textContent = `Ẩn chi tiết theo người (${ids.length} người) ▾`;
   const body = document.getElementById('leadStatsDetailBody');
   if(ids.length===0){ body.innerHTML='<div class="empty-note">Chưa có ai nhận data trong khoảng này.</div>'; return; }
   const scope = scopeBranchId();
-  body.innerHTML = ids.map((id,idx)=>{
+  body.innerHTML = (canRc && rcTotal ? `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0 10px; border-bottom:1px solid var(--line); margin-bottom:4px;">
+      <span style="font-size:13px; color:var(--ink-soft);"><b style="color:var(--danger);">${rcTotal}</b> data chưa cập nhật tên & trạng thái quá ${RECALL_MIN_HOURS} giờ</span>
+      <button class="btn-primary btn-small" onclick="event.stopPropagation(); openRecallModal(${JSON.stringify(ids.filter(i=>rcOf[i])).replace(/"/g,"'")})">↩ Thu hồi tất cả (${rcTotal})</button></div>` : '') + ids.map((id,idx)=>{
     const u = state.users.find(x=>x.id===id);
     const b = byPerson[id];
     const nameHtml = scope
       ? `<span class="k">${idx+1}. ${u?u.name:'(đã xoá)'}</span>`
       : `<span class="k" style="color:var(--accent); text-decoration:underline;">${idx+1}. ${u?u.name:'(đã xoá)'} ›</span>`;
     const rowAttrs = scope ? '' : `style="cursor:pointer;" onclick="openPersonLeadsModal('${id}')" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background=''"`;
-    return `<div class="detail-row" ${rowAttrs}>${nameHtml}<span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+    const extra = (recalledCnt[id] ? ` · <span style="color:#F0A63A;">${recalledCnt[id]} bị thu hồi</span>` : '')
+      + (canRc && rcOf[id] ? ` <button class="btn-ghost btn-small rc-btn" onclick="event.stopPropagation(); openRecallModal(['${id}'])" title="Thu hồi data đã chia quá ${RECALL_MIN_HOURS} giờ chưa cập nhật tên & trạng thái">↩ Thu hồi ${rcOf[id]}</button>` : '');
+    return `<div class="detail-row" ${rowAttrs}>${nameHtml}<span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span>${extra}</span></div>`;
   }).join('');
 }
 let viewingPersonId = null;
