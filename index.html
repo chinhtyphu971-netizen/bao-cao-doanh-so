@@ -2323,6 +2323,7 @@ const LocalDB = {
   };
 })();
 let printOrdersLoadedOnce = false;
+let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
 let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
@@ -2450,6 +2451,9 @@ function startFirebaseListeners(){
   fbDailyRotation = db.ref('dailyRotation');
   fbManagerConfirms = db.ref('managerConfirms');
   fbDistributionLock = db.ref('system/distributionLock');
+  fbAutoRecall = db.ref('system/autoRecall');
+  fbLeadsArchive = db.ref('leadsArchive');   // KHO LƯU TRỮ: data "chết" cũ hơn 90 ngày — chỉ tải khi xem khoảng ngày cũ
+  fbRoot = db.ref(); // đánh dấu đã chạy thu hồi tự động của từng ngày (chỉ 1 máy chạy)
   fbEnforceUnprocessedLock = db.ref('system/enforceUnprocessedLock');
 
   fbBranches.on('value', snap=>{ state.branches = Object.values(snap.val()||{}); markLoaded('branches'); onDataChanged(); });
@@ -4807,8 +4811,8 @@ function fbSetReport(r){ fbReports.child(r.id).set(r); }
 function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
-function fbSetLead(l){ const pn = normalizePhone(leadPhone(l)); if(pn && pn!=='—') l.phoneNorm = pn; fbLeads.child(l.id).set(l); }
-function fbDeleteLead(id){ fbLeads.child(id).remove(); }
+function fbSetLead(l){ const pn = normalizePhone(leadPhone(l)); if(pn && pn!=='—') l.phoneNorm = pn; const ref = leadRefFor(l.id); const v = Object.assign({}, l); delete v.archived; ref.child(l.id).set(v); }
+function fbDeleteLead(id){ leadRefFor(id).child(id).remove(); }
 function fbSetSelfLead(l){ fbSelfLeads.child(l.id).set(l); }
 function fbDeleteSelfLead(id){ fbSelfLeads.child(id).remove(); }
 function fbSetCheckin(date, userId, value){ fbCheckins.child(date).child(userId).set(value===undefined?true:value); }
@@ -5071,7 +5075,8 @@ function leadPhone(lead){
   }
   return lead.phone || '—';
 }
-function fbUpdateLead(id, patch){ if(patch && Object.prototype.hasOwnProperty.call(patch,'phone')) patch.phoneNorm = normalizePhone(patch.phone) || null; fbLeads.child(id).update(patch); }
+function leadRefFor(id){ const l = state.leads.find(x=>x.id===id); return (l && l.archived && fbLeadsArchive) ? fbLeadsArchive : fbLeads; } // data lưu trữ → ghi vào kho lưu trữ
+function fbUpdateLead(id, patch){ if(patch && Object.prototype.hasOwnProperty.call(patch,'phone')) patch.phoneNorm = normalizePhone(patch.phone) || null; leadRefFor(id).child(id).update(patch); }
 function updateLeadField(leadId, field, value){
   const lead = state.leads.find(l=>l.id===leadId);
   if(!lead) return;
@@ -6348,18 +6353,31 @@ function leadsWithPhone(phoneDigits){
 }
 async function prefetchPhonesForMkt(digitsList){
   mktPhoneLookup = null;
-  if(leadsSubKey==='all') return; // đã có cả kho trên máy
   const uniq = Array.from(new Set(digitsList.filter(Boolean)));
+  if(leadsSubKey==='all'){
+    // Máy đã có cả kho đang hoạt động → chỉ cần tra thêm KHO LƯU TRỮ (nếu chưa tải) để không lọt số trùng cũ
+    if(leadsArchiveState==='loaded' || !fbLeadsArchive) return;
+    const lookup = {};
+    await Promise.all(uniq.map(async d=>{
+      const found = {};
+      state.leads.forEach(l=>{ if(normalizePhone(leadPhone(l))===d) found[l.id] = l; });
+      try{ const sn = await fbLeadsArchive.orderByChild('phoneNorm').equalTo(d).once('value'); Object.entries(sn.val()||{}).forEach(([k,v])=>{ found[k] = Object.assign({id:k}, v); }); }catch(e){}
+      lookup[d] = Object.values(found);
+    }));
+    mktPhoneLookup = lookup;
+    return;
+  }
   const lookup = {};
   await Promise.all(uniq.map(async d=>{
     const found = {};
     const addSnap = snap=>{ const v = snap.val()||{}; Object.keys(v).forEach(k=>{ found[k] = Object.assign({id:k}, v[k]); }); };
     try{
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
         fbLeads.orderByChild('phoneNorm').equalTo(d).once('value'),
         fbLeads.orderByChild('phone').equalTo('0'+d).once('value'), // data cũ chưa có phoneNorm
+        fbLeadsArchive ? fbLeadsArchive.orderByChild('phoneNorm').equalTo(d).once('value') : Promise.resolve({val:()=>null}), // + kho lưu trữ
       ]);
-      addSnap(a); addSnap(b);
+      addSnap(a); addSnap(b); addSnap(c);
     }catch(e){ console.error('tra SĐT:', e); }
     lookup[d] = Object.values(found);
   }));
@@ -7438,8 +7456,12 @@ function isLeadRecallable(l){
   return true;
 }
 function recallableLeadsOf(userId){ return state.leads.filter(l=>l.assignedTo===userId && isLeadRecallable(l)); }
-function recallLeads(ids, onDone){
-  const me = currentUser(); if(!canRecallRole(me)) { showToast('Bạn không có quyền thu hồi data.'); return; }
+function recallLeads(ids, onDone, opts){
+  opts = opts || {};
+  const me = currentUser();
+  // Thu hồi tay: chỉ Quản lý chung / Quản lý Data. Thu hồi TỰ ĐỘNG (opts.system) là việc của hệ thống.
+  if(!opts.system && !canRecallRole(me)) { showToast('Bạn không có quyền thu hồi data.'); return; }
+  const byName = opts.system ? 'Tự động (1h sáng)' : me.name;
   const now = Date.now(); const upd = {}; const byPerson = {}; const byPersonDay = {};
   ids.forEach(id=>{
     const l = state.leads.find(x=>x.id===id);
@@ -7448,33 +7470,160 @@ function recallLeads(ids, onDone){
     const recvDay = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || now)); // ngày Sale NHẬN data này
     (byPersonDay[from] = byPersonDay[from] || {})[recvDay] = ((byPersonDay[from]||{})[recvDay]||0) + 1;
     const recalledFrom = Array.from(new Set((Array.isArray(l.recalledFrom)?l.recalledFrom:[]).concat([from])));
-    const log = (Array.isArray(l.recallLog)?l.recallLog:[]).concat([{from, fromName, assignedAt: l.assignedAt||null, at: now, by: me.name}]).slice(-10);
+    const log = (Array.isArray(l.recallLog)?l.recallLog:[]).concat([{from, fromName, assignedAt: l.assignedAt||null, at: now, by: byName, auto: !!opts.system}]).slice(-10);
     Object.assign(upd, {[id+'/assignedTo']: null, [id+'/assignedToName']: null, [id+'/assignedAt']: null, [id+'/distributedDate']: null, [id+'/recalledFrom']: recalledFrom, [id+'/recallLog']: log});
     l.assignedTo = null; l.assignedToName = null; l.assignedAt = null; l.distributedDate = null; l.recalledFrom = recalledFrom; l.recallLog = log;
     byPerson[from] = (byPerson[from]||0) + 1;
   });
   const n = Object.values(byPerson).reduce((t,x)=>t+x,0);
-  if(!n){ showToast('Không còn data nào đủ điều kiện thu hồi (có thể Sale vừa cập nhật).'); if(onDone) onDone(); return; }
+  if(!n){ if(!opts.silent) showToast('Không còn data nào đủ điều kiện thu hồi (có thể Sale vừa cập nhật).'); if(onDone) onDone(n); return; }
   fbLeads.update(upd).then(()=>{
     const today = todayStr();
     Object.entries(byPerson).forEach(([uid,c])=>{
       const u = state.users.find(x=>x.id===uid) || {};
       const prev = (u.recallToday && u.recallToday.date===today) ? (Number(u.recallToday.n)||0) : 0;
-      const recallToday = {date: today, n: prev + c, at: now, by: me.name};
-      u.recallToday = recallToday;
+      const recallToday = {date: today, n: prev + c, at: now, by: byName};
+      if(!opts.silent) u.recallToday = recallToday;
       // Số bị thu hồi theo NGÀY NHẬN (Sale không còn giữ data bị thu hồi nên phải lưu số đếm trên tài khoản) — giữ 70 ngày
       const cut = toLocalDateStr(new Date(now - 70*86400000));
       const recallByDay = {}; Object.entries(u.recallByDay||{}).forEach(([d,v])=>{ if(d>=cut) recallByDay[d] = v; });
       Object.entries(byPersonDay[uid]||{}).forEach(([d,v])=>{ recallByDay[d] = (Number(recallByDay[d])||0) + v; });
       u.recallByDay = recallByDay;
-      fbUpdateUser(uid, {recallNotice:{n:c, at:now, by:me.name}, recallToday, recallByDay});
+      // Tự động (silent): KHÔNG báo Sale (không popup, không dải đỏ) — chỉ cộng số "bị thu hồi" theo ngày
+      fbUpdateUser(uid, opts.silent ? {recallByDay} : {recallNotice:{n:c, at:now, by:byName}, recallToday, recallByDay});
     });
-    showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
+    if(!opts.silent) showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
     runDistributionWithLock(()=>{ try{ renderMgrLeads(); }catch(e){} });
-    if(onDone) onDone();
+    if(onDone) onDone(n);
   }).catch(e=>{ console.error(e); showToast('Thu hồi thất bại — kiểm tra mạng rồi thử lại.'); });
   onDataChanged();
 }
+
+
+// =========================== KHO LƯU TRỮ DATA CŨ ===========================
+// Data "chết" (Không có nhu cầu / k liên lạc được / k tìm thấy tk) không động tới quá 90 ngày, không có hoá đơn
+// → chuyển sang nhánh leadsArchive. Data ĐÃ CHỐT KHÔNG BAO GIỜ lưu trữ (doanh thu, khách cũ không đổi).
+// Kho lưu trữ chỉ được tải khi người dùng xem khoảng ngày cũ hơn 90 ngày / "Toàn thời gian".
+const LEAD_ARCHIVE_DAYS = 90;
+const LEAD_ARCHIVE_STATUSES = ['Không có nhu cầu','k liên lạc được','k tìm thấy tk'];
+let leadsArchiveList = [], leadsArchiveState = 'none'; // none | loading | loaded
+function leadArchiveCutoffStr(){ return toLocalDateStr(new Date(Date.now() - LEAD_ARCHIVE_DAYS*86400000)); }
+function leadLastActivityTs(l){ return Math.max(Number(l.assignedAt)||0, Number(l.importedAt)||0, Number(l.closedAt)||0, Number(l.statusAt)||0, Number(l.updatedAt)||0); }
+function isLeadArchivable(l){
+  if(!l || l.archived || l.invoiceId || l.manualEntry) return false;
+  if(!LEAD_ARCHIVE_STATUSES.includes(l.status)) return false;
+  const t = leadLastActivityTs(l);
+  return t > 0 && t < Date.now() - LEAD_ARCHIVE_DAYS*86400000;
+}
+// Máy Quản lý chung chạy 1 lần/ngày (khoá theo ngày trên Firebase), mỗi lượt tối đa 1500 data
+let leadArchiveTriedDay = '';
+function archiveOldLeadsIfDue(){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || !fbRoot || !leadsDataReady) return;
+  const today = todayStr(); if(leadArchiveTriedDay===today) return; leadArchiveTriedDay = today;
+  fbRoot.child('system/leadArchive/'+today).transaction(cur=>{ if(cur && cur.done) return; return {done:true, at:Date.now(), by:me.name}; }, (err, committed)=>{
+    if(err || !committed) return;
+    const list = state.leads.filter(isLeadArchivable).slice(0, 1500);
+    if(!list.length){ fbRoot.child('system/leadArchive/'+today).update({count:0}); return; }
+    const chunks = []; for(let i=0;i<list.length;i+=300) chunks.push(list.slice(i,i+300));
+    let moved = 0;
+    const next = ()=>{
+      const c = chunks.shift(); if(!c){ fbRoot.child('system/leadArchive/'+today).update({count:moved}); return; }
+      const upd = {}; c.forEach(l=>{ const v = Object.assign({}, l, {archivedAt: Date.now()}); delete v.archived; upd['leadsArchive/'+l.id] = v; upd['leads/'+l.id] = null; });
+      fbRoot.update(upd).then(()=>{ moved += c.length; next(); }).catch(e=>console.error('archive leads', e));
+    };
+    next();
+  });
+}
+// Tải kho lưu trữ khi cần (Toàn thời gian / khoảng ngày cũ hơn 90 ngày). Quản lý: cả kho; MKT: data mình (team) nhập.
+function ensureLeadsArchive(){
+  if(leadsArchiveState!=='none' || !fbLeadsArchive) return;
+  const me = currentUser(); if(!me) return;
+  let queries;
+  if(['general_manager','data_manager','team_manager'].includes(me.role)) queries = [fbLeadsArchive];
+  else if(me.role==='mkt') queries = [fbLeadsArchive.orderByChild('createdBy').equalTo(me.id)];
+  else if(me.role==='mkt_manager'){
+    const ids = state.users.filter(x=>x.mktBranchId && x.mktBranchId===me.mktBranchId && ['mkt','mkt_manager'].includes(x.role)).map(x=>x.id);
+    if(!ids.includes(me.id)) ids.push(me.id);
+    queries = ids.map(id=>fbLeadsArchive.orderByChild('createdBy').equalTo(id));
+  } else return;
+  leadsArchiveState = 'loading';
+  showToast('Đang tải data lưu trữ (cũ hơn 90 ngày)…');
+  Promise.all(queries.map(q=>q.once('value'))).then(snaps=>{
+    const map = {}; snaps.forEach(sn=>Object.entries(sn.val()||{}).forEach(([k,v])=>{ map[k] = Object.assign({id:k}, v, {archived:true}); }));
+    leadsArchiveList = Object.values(map); leadsArchiveState = 'loaded';
+    const have = new Set(state.leads.map(l=>l.id));
+    state.leads = state.leads.concat(leadsArchiveList.filter(a=>!have.has(a.id)));
+    if(leadsArchiveList.length) showToast(`Đã tải thêm ${leadsArchiveList.length} data lưu trữ`);
+    onDataChanged();
+  }).catch(e=>{ console.error(e); leadsArchiveState = 'none'; });
+}
+// Báo cáo Sale: Quản lý chỉ tải 70 ngày gần nhất; xem cũ hơn thì tải phần cũ khi cần
+let oldReportsList = [], oldReportsState = 'none';
+function ensureOldReports(){
+  if(oldReportsState!=='none' || !fbReports) return;
+  const me = currentUser(); if(!me || !['general_manager','data_manager','team_manager'].includes(me.role)) return;
+  oldReportsState = 'loading';
+  fbReports.once('value').then(sn=>{
+    const ws = reportWindowStart();
+    oldReportsList = Object.values(sn.val()||{}).filter(r=>r && r.date && r.date < ws);
+    oldReportsState = 'loaded';
+    const have = new Set(state.reports.map(r=>r.id));
+    state.reports = state.reports.concat(oldReportsList.filter(r=>!have.has(r.id)));
+    onDataChanged();
+  }).catch(e=>{ console.error(e); oldReportsState = 'none'; });
+}
+// Trang nào đang xem khoảng ngày cũ → tải phần cũ tương ứng
+const LEAD_RANGE_OF_PAGE = { mgrLeads:()=>leadStatsDateFrom, mgrLeadsList:()=>mgrLeadsListDateFrom, mktMyLeadsList:()=>mktLeadsDateFrom,
+  mktManagerStats:()=>mktMgrStatsDateFrom, mktOverview:()=>mktOverviewDateFrom, mktRevenue:()=>mktRevenueDateFrom };
+const REPORT_RANGE_OF_PAGE = { mgrDashboard:()=>dashDateFrom, mgrReports:()=>((document.getElementById('filterFrom')||{}).value||null), reportDiff:()=>rdFrom };
+function checkOldDataForPage(){
+  const pid = currentPageId;
+  if(LEAD_RANGE_OF_PAGE[pid]){ const f = LEAD_RANGE_OF_PAGE[pid](); if(!f || f < leadArchiveCutoffStr()) ensureLeadsArchive(); }
+  if(REPORT_RANGE_OF_PAGE[pid]){ const f = REPORT_RANGE_OF_PAGE[pid](); if(!f || f < reportWindowStart()) ensureOldReports(); }
+  if(pid==='mgrDashboard' && rdlStatsOpen && rdlStatsMonth && (rdlStatsMonth+'-01') < reportWindowStart()) ensureOldReports();
+}
+// Gắn kiểm tra vào mọi bộ lọc ngày của các trang trên
+['applyLeadStatsPreset','applyLeadStatsCustomRange','applyMgrLeadsListDatePreset','applyMgrLeadsListCustomRange','applyMktLeadsDatePreset','applyMktLeadsCustomRange',
+ 'applyMktMgrStatsDatePreset','applyMktMgrStatsCustomRange','applyMktOverviewDatePreset','applyMktOverviewCustomRange','applyMktRevenueDatePreset','applyMktRevenueCustomRange',
+ 'applyDashboardPreset','applyDashboardCustomRange','applyReportsDatePreset'].forEach(name=>{
+  try{ const orig = eval(name); if(typeof orig!=='function') return;
+    eval(name + ' = function(){ const r = orig.apply(this, arguments); try{ checkOldDataForPage(); }catch(e){} return r; }'); }catch(e){ console.error('wrap', name, e); }
+});
+
+// =========================== THU HỒI TỰ ĐỘNG LÚC 1H SÁNG ===========================
+// Từ 1:00 sáng, máy ĐẦU TIÊN của Quản lý chung / Quản lý Data / Trưởng team đang mở app sẽ tự thu hồi toàn bộ data
+// NHẬN TỪ HÔM QUA TRỞ VỀ TRƯỚC mà Sale chưa cập nhật tên & tình trạng → trả về kho để sáng chia lại.
+// Khoá theo ngày trên Firebase (system/autoRecall/{ngày}) → chỉ 1 máy chạy, không chạy trùng. KHÔNG báo cho Sale.
+const AUTO_RECALL_HOUR = 1;
+let autoRecallTriedDay = '';
+function autoRecallCandidates(){
+  const today = todayStr();
+  return state.leads.filter(l=>{
+    if(!isLeadRecallable(l)) return false;
+    const recvDay = l.distributedDate || toLocalDateStr(new Date(Number(l.assignedAt)||0));
+    return recvDay < today; // data của hôm qua (và trước nữa)
+  });
+}
+function runAutoRecallIfDue(){
+  const me = currentUser();
+  if(!me || !['general_manager','data_manager','team_manager'].includes(me.role)) return; // máy có đủ kho data
+  if(!leadsDataReady || !fbAutoRecall) return;
+  if(new Date().getHours() < AUTO_RECALL_HOUR) return;
+  const today = todayStr();
+  if(autoRecallTriedDay===today) return;
+  autoRecallTriedDay = today;
+  fbAutoRecall.child(today).transaction(cur=>{
+    if(cur && cur.done) return; // ngày này đã có máy khác chạy rồi
+    return {done:true, startedAt: Date.now(), by: me.name};
+  }, (err, committed)=>{
+    if(err || !committed) return;
+    const ids = autoRecallCandidates().map(l=>l.id);
+    if(!ids.length){ fbAutoRecall.child(today).update({count:0, finishedAt:Date.now()}); return; }
+    recallLeads(ids, n=>{ fbAutoRecall.child(today).update({count:n||0, finishedAt:Date.now()}); }, {system:true, silent:true});
+  });
+}
+setInterval(()=>{ try{ runAutoRecallIfDue(); }catch(e){ console.error(e); } }, 5*60*1000);
+
 // Khung xác nhận: danh sách data (tick sẵn), bỏ tick số muốn giữ lại
 function openRecallModal(userIds){
   const me = currentUser(); if(!canRecallRole(me)) return;
@@ -8879,6 +9028,7 @@ function subscribeLeadsForUser(user){
   if(key===leadsSubKey) return;
   leadsSubQueries.forEach(q=>{ try{ q.off(); }catch(e){} });
   leadsSubQueries = []; leadsSubKey = key; leadsDataReady = false; state.leads = [];
+  leadsArchiveList = []; leadsArchiveState = 'none';
   if(key==='none'){ onDataChanged(); return; }
   const queries = key==='all'
     ? [fbLeads]
@@ -8892,7 +9042,7 @@ function subscribeLeadsForUser(user){
     if(!ready || leadsSubKey!==myKey) return;
     const merged = {};
     for(let i=maps.length-1;i>=0;i--) Object.assign(merged, maps[i]); // data của chính mình ưu tiên (bản mới nhất)
-    state.leads = Object.values(merged);
+    state.leads = Object.values(merged).concat(leadsArchiveList.filter(a=>!merged[a.id])); // + kho lưu trữ (nếu đã tải)
     onDataChanged();
   };
   queries.forEach((q, qi)=>{
@@ -8907,6 +9057,7 @@ function subscribeLeadsForUser(user){
     sync();
     tryAutoDistribute();
     if(key==='all') backfillLeadPhoneNorm();
+    if(key==='all') setTimeout(()=>{ try{ archiveOldLeadsIfDue(); }catch(e){ console.error(e); } }, 4000);
   }).catch(err=>{
     console.error('Lỗi tải kho data:', err);
     ready = true; leadsDataReady = true; sync();
@@ -8943,9 +9094,10 @@ function setupRoleScopedListeners(user){
 
   // Báo cáo Sale
   const repKey = !user || isMkt ? 'none' : (isSaleMgr ? 'all' : 'mine:'+user.id);
-  attachScoped('reports', repKey,
-    repKey==='none' ? null : (repKey==='all' ? fbReports : fbReports.orderByChild('userId').equalTo(user.id)),
-    setAndRender('reports'), true,
+  const repWin = reportWindowStart();
+  attachScoped('reports', repKey==='all' ? 'all:'+repWin : repKey,
+    repKey==='none' ? null : (repKey==='all' ? fbReports.orderByChild('date').startAt(repWin) : fbReports.orderByChild('userId').equalTo(user.id)),
+    (arr)=>{ const ids = new Set(arr.map(r=>r.id)); state.reports = arr.concat(oldReportsList.filter(r=>!ids.has(r.id))); onDataChanged(); }, true,
     ()=>{ // lần tải đầu xong: trang Nộp báo cáo không tự vẽ lại → vẽ lại 1 lần cho đúng trạng thái đã nộp
       if(currentPageId==='staffReport' && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) goPage('staffReport');
     });
@@ -9201,6 +9353,8 @@ function goPage(pageId){
   if(pageId==='mgrLeads') renderMgrLeads();
   if(pageId==='mgrLeadsList') renderMgrLeadsList();
   if(pageId==='reportDiff') renderReportDiff();
+  try{ runAutoRecallIfDue(); }catch(e){}
+  setTimeout(()=>{ try{ checkOldDataForPage(); }catch(e){} }, 0); // chạy SAU khi trang đã áp bộ lọc mặc định (VD "Tháng này")
   try{ updateReportDeadlineBar(); }catch(e){}
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
@@ -10247,6 +10401,7 @@ function thUserSort(label, col){ return `<th class="num sortable" onclick="sortU
 function thBranchSort(label, col){ return `<th class="num sortable" onclick="sortBranchBy('${col}')">${label}${sortArrow(branchSort,col)}</th>`; }
 
 function renderMgrDashboard(){
+  try{ checkOldDataForPage(); }catch(e){} // khoảng ngày cũ hơn 70 ngày → tải thêm báo cáo cũ khi cần
   const scope=scopeBranchId();
   document.getElementById('mgrBranchSummaryCard').style.display = scope ? 'none' : 'block';
 
@@ -10660,6 +10815,7 @@ function exportReportsToExcel(){
   showToast('Đã xuất file '+fileName);
 }
 function renderMgrReports(){
+  try{ checkOldDataForPage(); }catch(e){} // khoảng ngày cũ hơn 70 ngày → tải thêm báo cáo cũ khi cần
   const {rows, branchId, userId} = getFilteredReportRows();
   renderNotesList('mgrReportsNotesList', rows, true);
 
@@ -11325,6 +11481,7 @@ function rdSet(field, value){
 function rdToggleUser(uid){ rdOpenUser = rdOpenUser===uid ? null : uid; rdOpenDay = null; renderReportDiff(); }
 function rdToggleDay(key){ rdOpenDay = rdOpenDay===key ? null : key; renderReportDiff(); }
 function renderReportDiff(){
+  try{ checkOldDataForPage(); }catch(e){} // khoảng ngày cũ hơn 70 ngày → tải thêm báo cáo cũ khi cần
   const box = document.getElementById('reportDiffBox');
   if(!box) return;
   rdDefaultRange();
