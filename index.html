@@ -5694,7 +5694,7 @@ function poOrderCardHtml(o, forPrinter){
       <div style="text-align:right;"><div style="font-size:20px; font-weight:800; color:${o.status==='done'?'var(--success)':'#F0A63A'};">${pg.done}/${pg.need}</div><div style="font-size:12px; color:var(--ink-soft);">${o.status==='done'?'✓ Đã xong'+(o.doneAt?' '+new Date(o.doneAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):''):pg.pct+'%'}</div></div>
     </div>
     <div style="margin-top:8px;">${(o.items||[]).map((it,idx)=>{ const pr = Number(it.printed)||0, q = Number(it.qty)||0; const full = pr>=q;
-      return `<div class="po-item"><span class="po-name"><b>${escHtml(it.design)}</b> <span style="font-size:11.5px; color:var(--ink-soft);">${escHtml(it.code)}</span></span>
+      return `<div class="po-item"><span class="po-name"><b>${escHtml(it.design)}</b></span>
         <div class="po-bar"><i style="width:${q?Math.min(100,Math.round(pr*100/q)):0}%;"></i></div>
         <span class="po-count" style="color:${full?'var(--success)':'var(--ink)'};">${pr}/${q}</span>
         ${canEdit ? `<div class="pr-ctl"><input type="number" min="1" class="pr-in-qty" placeholder="SL" value="${full?'':''}" inputmode="numeric"><input type="number" min="1" step="1" class="pr-in-m" placeholder="cm" inputmode="numeric" title="Số cm in (xem trên phần mềm máy in) — app tự đổi ra mét" onkeydown="if(event.key==='Enter') poAddBatch(this,'${o.id}',${idx})"><button type="button" class="pr-btn add" onclick="poAddBatch(this,'${o.id}',${idx})">＋ Thêm</button></div>` : ''}
@@ -5756,10 +5756,10 @@ function renderPrintOrdersPage(){
     sel.innerHTML = '<option value="">Tất cả nhân viên in</option>' + printers.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join(''); sel.value = cur; }
   const list = document.getElementById('poDesignList');
   if(list && !list.querySelector('input')){
-    const cat = prDesignCatalog();
-    list.innerHTML = !cat.length ? '<div class="empty-note">Chưa có danh sách hình — cập nhật cột "Mẫu in" trong Danh mục sản phẩm (Cài đặt).</div>' :
-      cat.map(p=>`<div class="pr-prod"><h3>${escHtml(p.code)} · ${escHtml(p.name)}</h3><div class="pr-grid">` +
-        p.designs.map(ds=>`<div class="pr-row" data-search="${escHtml((p.code+' '+ds).toLowerCase())}"><span class="pr-name">${escHtml(ds)}</span><div class="pr-ctl"><input type="number" min="0" placeholder="0" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" oninput="poFormTotal(this)"></div></div>`).join('') + `</div></div>`).join('');
+    const merged = prDesignListMerged(); // 1 danh sách hình chung, không chia theo mã áo
+    list.innerHTML = !merged.length ? '<div class="empty-note">Chưa có danh sách hình — cập nhật cột "Mẫu in" trong Danh mục sản phẩm (Cài đặt).</div>' :
+      `<div class="pr-prod"><h3>Danh sách hình <span style="font-weight:400; font-size:12.5px; color:var(--ink-soft);">(${merged.length} hình)</span></h3><div class="pr-grid">` +
+        merged.map(it=>`<div class="pr-row" data-search="${escHtml(it.design.toLowerCase())}"><span class="pr-name">${escHtml(it.design)}</span><div class="pr-ctl"><input type="number" min="0" placeholder="0" data-code="${escHtml(it.codes[0])}" data-design="${escHtml(it.design)}" oninput="poFormTotal(this)"></div></div>`).join('') + `</div></div>`;
   }
   poFormTotal(); renderPoList();
   const me = currentUser();
@@ -5856,7 +5856,18 @@ function prDesignCatalog(){
 }
 // Các mã CÓ IN HÌNH = mã có danh sách "Mẫu in" trong Danh mục sản phẩm (hiện tại: A55)
 function printCodes(){ return prDesignCatalog().map(p=>p.code); }
-function prKey(code, design){ return String(code).toUpperCase() + '|' + cleanSourceName(design).toLowerCase(); }
+// Hình in là CHUNG cho mọi mã áo (H1 in cho A55 hay A57 đều là 1 hình) → khoá theo TÊN HÌNH, không theo mã
+function prKey(code, design){ return 'D|' + cleanSourceName(design).toLowerCase(); }
+// Danh sách hình GỘP từ mọi mã có "Mẫu in" — mỗi hình 1 dòng, sắp H1, H2, … H10
+function prDesignListMerged(){
+  const map = new Map();
+  prDesignCatalog().forEach(p=>p.designs.forEach(ds=>{
+    const k = prKey(p.code, ds);
+    if(!map.has(k)) map.set(k, {design: ds, codes: [p.code]});
+    else if(!map.get(k).codes.includes(p.code)) map.get(k).codes.push(p.code);
+  }));
+  return Array.from(map.values()).sort((a,b)=>a.design.localeCompare(b.design,'vi',{numeric:true}));
+}
 function prMyReport(date){ const u = currentUser(); return state.printReports.find(r=>u && r.userId===u.id && r.date===date); }
 
 // ---- Nhân viên in: Tổng hợp mẫu cần in (từ bản rút gọn hoá đơn — không có thông tin khách) ----
@@ -5933,11 +5944,12 @@ function prLoadForDate(){
   const saved = {}, savedM = {}; ((r && r.items) || []).forEach(it=>{ saved[prKey(it.code, it.design)] = it.qty; savedM[prKey(it.code, it.design)] = Number(it.meters)||0; });
   const cat = prDesignCatalog();
   const box = document.getElementById('prProducts');
-  box.innerHTML = !cat.length ? '<div class="empty-note">Chưa có danh sách hình — nhờ Quản lý cập nhật cột "Mẫu in" trong Danh mục sản phẩm.</div>' :
-    cat.map(p=>`<div class="pr-prod"><h3>${escHtml(p.code)} · ${escHtml(p.name)}</h3><div class="pr-grid">` +
-      p.designs.map(ds=>{ const k = prKey(p.code, ds); const v = saved[k]||0, m = savedM[k]||0; return `<div class="pr-row${v?' has':''}" data-search="${escHtml((p.code+' '+ds).toLowerCase())}">
+  const merged = prDesignListMerged();
+  box.innerHTML = !merged.length ? '<div class="empty-note">Chưa có danh sách hình — nhờ Quản lý cập nhật cột "Mẫu in" trong Danh mục sản phẩm.</div>' :
+    [{code: merged.length ? merged[0].codes[0] : '', list: merged}].map(p=>`<div class="pr-prod"><h3>Danh sách hình <span style="font-weight:400; font-size:12.5px; color:var(--ink-soft);">(${merged.length} hình)</span></h3><div class="pr-grid">` +
+      p.list.map(it=>{ const ds = it.design; const pcode = it.codes[0]; const k = prKey(pcode, ds); const v = saved[k]||0, m = savedM[k]||0; return `<div class="pr-row${v?' has':''}" data-search="${escHtml(ds.toLowerCase())}">
         <div class="pr-name">${escHtml(ds)}<div class="pr-done">${v?`Đã in <b>${v}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(v,m)} hình/m</span>`:''}`:''}</div></div>
-        <input type="hidden" data-code="${escHtml(p.code)}" data-design="${escHtml(ds)}" value="${v||''}" data-meters="${m||0}">
+        <input type="hidden" data-code="${escHtml(pcode)}" data-design="${escHtml(ds)}" value="${v||''}" data-meters="${m||0}">
         <div class="pr-ctl">
           <input type="number" min="1" class="pr-in-qty" placeholder="SL" inputmode="numeric">
           <input type="number" min="1" step="1" class="pr-in-m" placeholder="cm" inputmode="numeric" title="Số cm in (xem trên phần mềm máy in) — app tự đổi ra mét" onkeydown="if(event.key==='Enter') prAddBatch(this)">
@@ -6141,7 +6153,8 @@ function poCodeMatch(code){
 function poComputeRows(){
   const inRange = d => d && d>=poFrom && d<=poTo;
   const rows = {};
-  const get = (code, design, name)=>{ const k = prKey(code, design); return rows[k] || (rows[k] = {code:String(code).toUpperCase(), name:name||'', design:cleanSourceName(design), need:0, printed:0, colors:{}}); };
+  const get = (code, design, name)=>{ const k = prKey(code, design); const g = rows[k] || (rows[k] = {code:String(code).toUpperCase(), codes:[], name:name||'', design:cleanSourceName(design), need:0, printed:0, colors:{}});
+    const cu = String(code||'').toUpperCase(); if(cu && !g.codes.includes(cu)) g.codes.push(cu); return g; };
   (state.invoiceItems||[]).forEach(r=>{
     if(!r.deposited) return;
     const d = r.depositAt ? toLocalDateStr(new Date(r.depositAt)) : r.invoiceDate;
@@ -6177,7 +6190,7 @@ function renderPrintOverview(){
   const inRange = d => d && d>=poFrom && d<=poTo;
   const all = poComputeRows();
   const codes = Array.from(new Set(all.map(r=>r.code).concat(...(state.invoiceItems||[]).map(r=>(r.items||[]).map(it=>it.code))))).filter(Boolean).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
-  let list = all.filter(r=>poCodeMatch(r.code));
+  let list = all.filter(r=>(r.codes && r.codes.length ? r.codes : [r.code]).some(poCodeMatch));
   if(poOnlyGap) list = list.filter(r=>r.remain>0);
   const sd = poSortDir==='asc' ? 1 : -1;
   list.sort((a,b)=> poSortCol==='design' ? sd*(a.code.localeCompare(b.code,'vi',{numeric:true}) || a.design.localeCompare(b.design,'vi',{numeric:true}))
@@ -6269,7 +6282,7 @@ function renderPrintOverview(){
       <div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Chỉ hiện Số HĐ và tên Sale — không có tên, SĐT khách và giá tiền. Cần thông tin khách để gửi hàng thì hỏi Sale theo Số HĐ.</div>`;
   } else if(poViewTab==='need'){
     content = `<div class="table-wrap"><table class="rtable"><thead><tr><th>Mã</th>${th('Hình','design')}<th>Màu (cần in)</th>${th('Cần in','need',true)}${th('Đã in','printed',true)}${th('Còn thiếu','remain',true)}${th('TB hình/m','perM',true)}${th('Ước tính mét','needM',true)}</tr></thead><tbody>` +
-      (list.length ? list.map(r=>`<tr><td>${escHtml(r.code)}</td><td><b>${escHtml(r.design)}</b></td>
+      (list.length ? list.map(r=>`<tr><td>${escHtml((r.codes&&r.codes.length?r.codes:[r.code]).join(', '))}</td><td><b>${escHtml(r.design)}</b></td>
         <td style="font-size:12.5px; color:var(--ink-soft);">${Object.entries(r.colors).sort((a,b)=>b[1]-a[1]).map(([c,q])=>`${escHtml(c)} <b style="color:var(--ink);">${q}</b>`).join(' · ') || '—'}</td>
         <td class="num">${r.need}</td><td class="num">${r.printed}</td>
         <td class="num">${r.remain ? `<b style="color:var(--danger);">${r.remain}</b>` : (r.printed>r.need ? `<span style="color:#F0A63A;">dư ${r.printed-r.need}</span>` : '<span style="color:var(--success); font-weight:700;">đủ</span>')}</td>
