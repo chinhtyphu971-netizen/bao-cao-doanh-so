@@ -337,7 +337,17 @@
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
   #invoicePrintArea .inv-design-line{ display:block; }
   #invoicePrintArea .inv-badge-line{ display:block; margin-top:3px; }
-  .pcode-sym{ font-weight:900; font-style:normal; font-size:1.2em; line-height:1; }
+  /* Máy tính: hiện "Mã (ký hiệu) - Tên" bằng chữ thường (kiểm soát được cỡ ký hiệu), ô chọn trong suốt phủ lên — bấm vẫn mở danh sách */
+  @media screen and (min-width:721px){
+    #invoicePrintArea .inv-prod-wrap{ position:relative; display:block; }
+    #invoicePrintArea .inv-prod-face{ display:block; max-width:150px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:4px 2px; color:#000; cursor:pointer; border-bottom:1px dashed transparent; }
+    #invoicePrintArea .inv-prod-wrap:hover .inv-prod-face{ border-bottom-color:#bbb; }
+    #invoicePrintArea .inv-prod-face ~ select.inv-prod-select{ position:absolute; left:0; top:0; width:100%; height:26px; opacity:0; cursor:pointer; }
+  }
+  .inv-prod-face{ display:none; }
+  @media screen and (min-width:721px){ #invoicePrintArea .inv-prod-face{ display:block; } }
+  .pcode-sym{ font-style:normal; line-height:1; display:inline-block; font-size:1.15em; vertical-align:-1px; }
+  .pcode-sym-0{ font-size:1.05em; vertical-align:-1px; } /* ⬤ cho to ngang bằng ▲ */
   @media print{ .pcode-sym{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
   .pcode-badge{ display:inline-block; padding:0 7px; margin-right:4px; border:1.5px solid var(--pc); border-radius:6px; color:var(--pc); font-weight:800; font-style:normal; font-size:12.5px; line-height:1.55; white-space:nowrap; background:#fff; letter-spacing:.2px; }
   @media print{ .pcode-badge{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
@@ -4298,7 +4308,7 @@ function renderInvoiceEditor(){
       rowsHtml += `<tr class="${g.productCode ? '' : 'inv-row-empty'} ${ci===0 ? 'inv-group-start' : ''}">`;
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${codeWithMarkHtml(product.code)} - <i class="inv-design-label">${g.design}</i>` : (codeWithMarkHtml(product.code) + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
+        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap">${product ? `<span class="inv-prod-face">${codeWithMarkHtml(product.code)} - ${escHtml(product.name||'')}</span>` : ''}<span class="inv-prod-code">${product ? (g.design ? `${codeWithMarkHtml(product.code)} - <i class="inv-design-label">${g.design}</i>` : (codeWithMarkHtml(product.code) + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
           (designOptions.length>0 || g.design) ? `<span class="inv-design-line"><select class="inv-design-select ${g.design?'':'inv-design-empty'}${(!g.design && designOptions.length>0)?' inv-design-required':''}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">${designOptions.length>0 ? '⚠ Bắt buộc chọn mẫu in' : '— Chọn mẫu in —'}</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select></span>` : ''
         }</td>`;
       }
@@ -5862,7 +5872,7 @@ function prDesignCatalog(){
 }
 // Ký hiệu riêng cho từng MÃ IN HÌNH (tự gán, không cần cài đặt): ● A55, ▲ A57, ■ …  — để Kho nhìn hình in vẫn biết là áo nào.
 // Dùng HÌNH DẠNG (in đen trắng vẫn phân biệt được) + màu. Mã không in hình → không có ký hiệu.
-const PRINT_CODE_SYMBOLS = ['●','▲','■','◆','★','✚'];
+const PRINT_CODE_SYMBOLS = ['⬤','▲','■','◆','★','✚']; // ⬤ (tròn lớn) và ▲ có cỡ gần bằng nhau — cân đối hơn ● nhỏ
 const PRINT_CODE_COLORS = ['#1c5fa8','#d35400','#2e7d32','#8e24aa','#c62828','#00838f'];
 // Mã kèm ký hiệu ngay cạnh: A55 → "A55 ●" (tròn phía sau), A57 → "▲ A57" (tam giác phía trước). Mã khác → giữ nguyên.
 function printCodeIdx(code){ const c = String(code||'').trim().toUpperCase(); const list = printCodes().slice().sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})); return list.indexOf(c); }
@@ -5873,7 +5883,7 @@ function codeWithMark(code){
 }
 function codeWithMarkHtml(code){
   const c = String(code||'').trim(); const i = printCodeIdx(c); if(i<0) return escHtml(c);
-  const sym = `<span class="pcode-sym" style="color:${PRINT_CODE_COLORS[i%PRINT_CODE_COLORS.length]};">${PRINT_CODE_SYMBOLS[i%PRINT_CODE_SYMBOLS.length]}</span>`;
+  const sym = `<span class="pcode-sym pcode-sym-${i}" style="color:${PRINT_CODE_COLORS[i%PRINT_CODE_COLORS.length]};">${PRINT_CODE_SYMBOLS[i%PRINT_CODE_SYMBOLS.length]}</span>`;
   return i===0 ? `${escHtml(c)} ${sym}` : `${sym} ${escHtml(c)}`;
 }
 function printCodeBadge(code){
