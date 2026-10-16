@@ -352,6 +352,8 @@
   .pcode-badge{ display:inline-block; padding:0 7px; margin-right:4px; border:1.5px solid var(--pc); border-radius:6px; color:var(--pc); font-weight:800; font-style:normal; font-size:12.5px; line-height:1.55; white-space:nowrap; background:#fff; letter-spacing:.2px; }
   @media print{ .pcode-badge{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
   /* Thu hồi data */
+  .badge.recall-sum{ background:rgba(240,166,58,0.14); color:#F0A63A; font-weight:600; margin-left:6px; white-space:normal; }
+  .badge.recall-sum b{ color:#FFB454; }
   .recall-banner{ align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border-radius:10px; background:rgba(229,72,77,0.12); border:1px solid rgba(229,72,77,0.45); color:#FF8A8A; font-size:13.5px; line-height:1.5; }
   .recall-banner b{ color:#FF6B6B; }
   .recall-banner .recall-meta{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
@@ -6901,6 +6903,21 @@ function renderLeadsStatsByDayInto(containerId, allLeadsForPerson, userId){
     return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span>${rc?` · <span style="color:#F0A63A; font-weight:700;">${rc} bị thu hồi</span>`:''}</span></div>`;
   }).join('');
 }
+// Ô nhỏ cạnh "Hôm nay: x/50": số data BỊ THU HỒI (theo ngày nhận) — Sale thấy ngay, không cần mở thống kê theo ngày
+function recallSummaryBadge(userId){
+  const u = state.users.find(x=>x.id===userId); const by = (u && u.recallByDay) || {};
+  const today = todayStr(), y = toLocalDateStr(new Date(Date.now()-86400000));
+  const d7 = toLocalDateStr(new Date(Date.now()-6*86400000)), m1 = today.slice(0,7)+'-01';
+  let n7 = 0, nM = 0; Object.entries(by).forEach(([d,v])=>{ const n = Number(v)||0; if(d>=d7) n7 += n; if(d>=m1) nM += n; });
+  const nT = Number(by[today])||0, nY = Number(by[y])||0;
+  if(!nT && !nY && !n7 && !nM) return '';
+  const parts = [];
+  if(nT) parts.push(`hôm nay <b>${nT}</b>`);
+  if(nY) parts.push(`hôm qua <b>${nY}</b>`);
+  parts.push(`7 ngày <b>${n7}</b>`);
+  parts.push(`tháng này <b>${nM}</b>`);
+  return ` <span class="badge recall-sum" title="Số data bị thu hồi do quá hạn chưa cập nhật tên & tình trạng (tính theo ngày nhận data)">↩ Bị thu hồi: ${parts.join(' · ')}</span>`;
+}
 function renderMyLeadsStatsByDay(allMyLeads){ const u = currentUser(); renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads, u && u.id); }
 function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson, viewingPersonId); }
 let myLeadsActiveTab = 'assigned';
@@ -6955,7 +6972,7 @@ function renderMyLeads(){
   let allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
 
   document.getElementById('myLeadsQuota').innerHTML =
-    `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>`;
+    `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>` + recallSummaryBadge(user.id);
 
   if(document.getElementById('myLeadsStatsByDay').style.display !== 'none'){
     renderMyLeadsStatsByDay(allMyLeads);
@@ -7768,7 +7785,7 @@ function renderPersonLeadsPage(){
   const allPersonLeads = state.leads.filter(l=>l.assignedTo===userId);
   const todayLeads = allPersonLeads.filter(l=>l.distributedDate===today);
   document.getElementById('personLeadsQuota').innerHTML =
-    `<span class="badge ${todayLeads.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${todayLeads.length}/${DAILY_LEAD_CAP}</span>`;
+    `<span class="badge ${todayLeads.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${todayLeads.length}/${DAILY_LEAD_CAP}</span>` + recallSummaryBadge(userId);
   if(document.getElementById('personLeadsStatsByDay').style.display !== 'none'){
     renderPersonLeadsStatsByDay(allPersonLeads);
   }
