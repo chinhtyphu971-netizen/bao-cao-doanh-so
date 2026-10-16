@@ -354,6 +354,8 @@
   /* Thu hồi data */
   .badge.recall-sum{ background:rgba(240,166,58,0.14); color:#F0A63A; font-weight:600; margin-left:6px; white-space:normal; }
   .badge.recall-sum b{ color:#FFB454; }
+  .badge.recall-sum.recall-auto{ background:rgba(141,180,255,0.14); color:#8DB4FF; }
+  .badge.recall-sum.recall-auto b{ color:#B5CCFF; }
   .recall-banner{ align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:10px; border-radius:10px; background:rgba(229,72,77,0.12); border:1px solid rgba(229,72,77,0.45); color:#FF8A8A; font-size:13.5px; line-height:1.5; }
   .recall-banner b{ color:#FF6B6B; }
   .recall-banner .recall-meta{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
@@ -6887,7 +6889,8 @@ function togglePersonLeadsStatsByDay(){
 }
 function renderLeadsStatsByDayInto(containerId, allLeadsForPerson, userId){
   const byDay = {};
-  const recalled = userId ? ((state.users.find(u=>u.id===userId)||{}).recallByDay || {}) : {};
+  const ru = userId ? (state.users.find(u=>u.id===userId)||{}) : {};
+  const recalled = ru.recallByDay || {}, recalledAuto = ru.recallAutoByDay || {};
   allLeadsForPerson.forEach(l=>{
     const d = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || l.importedAt || 0));
     byDay[d] = byDay[d] || {total:0, unprocessed:0};
@@ -6899,24 +6902,26 @@ function renderLeadsStatsByDayInto(containerId, allLeadsForPerson, userId){
   const body = document.getElementById(containerId);
   if(days.length===0){ body.innerHTML='<div class="empty-note">Chưa có data nào.</div>'; return; }
   body.innerHTML = days.map(d=>{
-    const b = byDay[d]; const rc = Number(recalled[d])||0;
-    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span>${rc?` · <span style="color:#F0A63A; font-weight:700;">${rc} bị thu hồi</span>`:''}</span></div>`;
+    const b = byDay[d]; const rc = Number(recalled[d])||0; const ra = Math.min(rc, Number(recalledAuto[d])||0), rm = rc - ra;
+    const rcTxt = rc ? ` · <span style="color:#F0A63A; font-weight:700;">${rc} bị thu hồi</span> <span style="color:var(--ink-soft); font-size:12px;">(${[rm?`✋ tay ${rm}`:'', ra?`⏰ tự động ${ra}`:''].filter(Boolean).join(' · ')})</span>` : '';
+    return `<div class="detail-row"><span class="k">${fmtDate(d)}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span>${rcTxt}</span></div>`;
   }).join('');
 }
 // Ô nhỏ cạnh "Hôm nay: x/50": số data BỊ THU HỒI (theo ngày nhận) — Sale thấy ngay, không cần mở thống kê theo ngày
 function recallSummaryBadge(userId){
-  const u = state.users.find(x=>x.id===userId); const by = (u && u.recallByDay) || {};
+  const u = state.users.find(x=>x.id===userId); if(!u) return '';
+  const total = u.recallByDay || {}, auto = u.recallAutoByDay || {};
   const today = todayStr(), y = toLocalDateStr(new Date(Date.now()-86400000));
   const d7 = toLocalDateStr(new Date(Date.now()-6*86400000)), m1 = today.slice(0,7)+'-01';
-  let n7 = 0, nM = 0; Object.entries(by).forEach(([d,v])=>{ const n = Number(v)||0; if(d>=d7) n7 += n; if(d>=m1) nM += n; });
-  const nT = Number(by[today])||0, nY = Number(by[y])||0;
-  if(!nT && !nY && !n7 && !nM) return '';
-  const parts = [];
-  if(nT) parts.push(`hôm nay <b>${nT}</b>`);
-  if(nY) parts.push(`hôm qua <b>${nY}</b>`);
-  parts.push(`7 ngày <b>${n7}</b>`);
-  parts.push(`tháng này <b>${nM}</b>`);
-  return ` <span class="badge recall-sum" title="Số data bị thu hồi do quá hạn chưa cập nhật tên & tình trạng (tính theo ngày nhận data)">↩ Bị thu hồi: ${parts.join(' · ')}</span>`;
+  const sum = (map, from, to)=>Object.entries(map).reduce((t,[d,v])=>t + ((d>=from && d<=to) ? (Number(v)||0) : 0), 0);
+  const calc = map=>({t: sum(map,today,today), y: sum(map,y,y), w: sum(map,d7,today), m: sum(map,m1,today)});
+  const A = calc(auto), T = calc(total);
+  const M = {t:T.t-A.t, y:T.y-A.y, w:T.w-A.w, m:T.m-A.m}; // thu hồi tay = tổng − tự động
+  const fmt = x=>{ const p = []; if(x.t) p.push(`hôm nay <b>${x.t}</b>`); if(x.y) p.push(`hôm qua <b>${x.y}</b>`); p.push(`7 ngày <b>${x.w}</b>`); p.push(`tháng này <b>${x.m}</b>`); return p.join(' · '); };
+  let html = '';
+  if(M.t || M.y || M.w || M.m) html += ` <span class="badge recall-sum" title="Quản lý thu hồi bằng tay: data quá 3 giờ chưa cập nhật tên & tình trạng (tính theo ngày nhận data)">✋ Thu hồi tay: ${fmt(M)}</span>`;
+  if(A.t || A.y || A.w || A.m) html += ` <span class="badge recall-sum recall-auto" title="Hệ thống tự thu hồi lúc 1h sáng: data hôm trước chưa cập nhật tên & tình trạng (tính theo ngày nhận data)">⏰ Thu hồi tự động: ${fmt(A)}</span>`;
+  return html;
 }
 function renderMyLeadsStatsByDay(allMyLeads){ const u = currentUser(); renderLeadsStatsByDayInto('myLeadsStatsByDay', allMyLeads, u && u.id); }
 function renderPersonLeadsStatsByDay(allLeadsForPerson){ renderLeadsStatsByDayInto('personLeadsStatsByDay', allLeadsForPerson, viewingPersonId); }
@@ -7560,8 +7565,12 @@ function recallLeads(ids, onDone, opts){
       const recallByDay = {}; Object.entries(u.recallByDay||{}).forEach(([d,v])=>{ if(d>=cut) recallByDay[d] = v; });
       Object.entries(byPersonDay[uid]||{}).forEach(([d,v])=>{ recallByDay[d] = (Number(recallByDay[d])||0) + v; });
       u.recallByDay = recallByDay;
+      // Tách riêng số thu hồi TỰ ĐỘNG (1h sáng) → thu hồi TAY = tổng − tự động
+      const recallAutoByDay = {}; Object.entries(u.recallAutoByDay||{}).forEach(([d,v])=>{ if(d>=cut) recallAutoByDay[d] = v; });
+      if(opts.system) Object.entries(byPersonDay[uid]||{}).forEach(([d,v])=>{ recallAutoByDay[d] = (Number(recallAutoByDay[d])||0) + v; });
+      u.recallAutoByDay = recallAutoByDay;
       // Tự động (silent): KHÔNG báo Sale (không popup, không dải đỏ) — chỉ cộng số "bị thu hồi" theo ngày
-      fbUpdateUser(uid, opts.silent ? {recallByDay} : {recallNotice:{n:c, at:now, by:byName}, recallToday, recallByDay});
+      fbUpdateUser(uid, opts.silent ? {recallByDay, recallAutoByDay} : {recallNotice:{n:c, at:now, by:byName}, recallToday, recallByDay, recallAutoByDay});
     });
     if(!opts.silent) showToast(`Đã thu hồi ${n} data về kho — hệ thống đang chia lại.`);
     runDistributionWithLock(()=>{ try{ renderMgrLeads(); }catch(e){} });
