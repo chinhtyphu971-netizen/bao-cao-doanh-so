@@ -2097,7 +2097,7 @@
             </div>
           </div>
           <div class="card">
-            <h2>Người dùng đã đăng ký</h2>
+            <h2>Người dùng đã đăng ký <span id="settingsUserCount" style="font-size:14px; font-weight:500; color:var(--ink-soft);"></span></h2>
             <div class="table-wrap"><table id="settingsUserTable" class="rtable"></table></div>
           </div>
         </div>
@@ -11837,10 +11837,15 @@ function renderMgrSettings(){
   const usersToShow = (scope ? state.users.filter(u=>u.branchId===scope) : state.users)
     .slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const table=document.getElementById('settingsUserTable');
+  // Tổng số người + chia theo vai trò
+  { const cEl = document.getElementById('settingsUserCount');
+    if(cEl){ const byRole = {}; usersToShow.forEach(u=>{ const k = roleLabel(u.role); byRole[k] = (byRole[k]||0)+1; });
+      cEl.innerHTML = usersToShow.length ? `— <b style="color:var(--ink);">${usersToShow.length} người</b> · ` + Object.entries(byRole).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`${escHtml(k)} ${n}`).join(' · ') : ''; } }
   if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
   else {
-    table.innerHTML = `<tr><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
-      usersToShow.map(u=>`<tr>
+    table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
+      usersToShow.map((u,idx)=>`<tr>
+        <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
         <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
