@@ -337,6 +337,8 @@
   .mr-pill{ padding:6px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
   #invoicePrintArea .inv-design-line{ display:block; }
   #invoicePrintArea .inv-badge-line{ display:block; margin-top:3px; }
+  .pcode-sym{ font-weight:900; font-style:normal; font-size:1.2em; line-height:1; }
+  @media print{ .pcode-sym{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
   .pcode-badge{ display:inline-block; padding:0 7px; margin-right:4px; border:1.5px solid var(--pc); border-radius:6px; color:var(--pc); font-weight:800; font-style:normal; font-size:12.5px; line-height:1.55; white-space:nowrap; background:#fff; letter-spacing:.2px; }
   @media print{ .pcode-badge{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
   /* Thu hồi data */
@@ -4274,7 +4276,7 @@ function invoiceMatchesSearch(inv, q){
 function productOptionsHtmlFor(selectedCode){
   return '<option value="">— Chọn sản phẩm —</option>' +
     state.products.slice().sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}))
-      .map(p=>`<option value="${p.code}" ${p.code===selectedCode?'selected':''}>${p.code} - ${p.name}</option>`).join('');
+      .map(p=>`<option value="${p.code}" ${p.code===selectedCode?'selected':''}>${codeWithMark(p.code)} - ${p.name}</option>`).join('');
 }
 function renderInvoiceEditor(){
   const d = currentInvoiceDraft;
@@ -4296,8 +4298,8 @@ function renderInvoiceEditor(){
       rowsHtml += `<tr class="${g.productCode ? '' : 'inv-row-empty'} ${ci===0 ? 'inv-group-start' : ''}">`;
       if(ci===0){
         rowsHtml += `<td rowspan="${rowspan}" class="inv-stt">${gi+1}</td>`;
-        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${product.code} - <i class="inv-design-label">${g.design}</i>` : (product.code + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
-          (designOptions.length>0 || g.design) ? `<span class="inv-design-line"><select class="inv-design-select ${g.design?'':'inv-design-empty'}${(!g.design && designOptions.length>0)?' inv-design-required':''}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">${designOptions.length>0 ? '⚠ Bắt buộc chọn mẫu in' : '— Chọn mẫu in —'}</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select>${printCodeBadge(g.productCode) ? `<span class="inv-badge-line">${printCodeBadge(g.productCode)}</span>` : ''}</span>` : ''
+        rowsHtml += `<td rowspan="${rowspan}"><span class="inv-prod-wrap"><span class="inv-prod-code">${product ? (g.design ? `${codeWithMarkHtml(product.code)} - <i class="inv-design-label">${g.design}</i>` : (codeWithMarkHtml(product.code) + ' - ' + (product.name||''))) : (g.productCode||'Chọn SP')}</span><select class="inv-prod-select" onchange="updateDraftProductGroup(${gi}, this.value)">${productOptionsHtmlFor(g.productCode)}</select></span>${
+          (designOptions.length>0 || g.design) ? `<span class="inv-design-line"><select class="inv-design-select ${g.design?'':'inv-design-empty'}${(!g.design && designOptions.length>0)?' inv-design-required':''}" title="Chọn mẫu in" onchange="updateDraftGroupDesign(${gi}, this.value)"><option value="">${designOptions.length>0 ? '⚠ Bắt buộc chọn mẫu in' : '— Chọn mẫu in —'}</option>${(designOptions.includes(g.design)||!g.design ? designOptions : [g.design].concat(designOptions)).map(x=>`<option value="${x.replace(/"/g,'&quot;')}" ${g.design===x?'selected':''}>${x}</option>`).join('')}</select></span>` : ''
         }</td>`;
       }
       rowsHtml += `<td>`;
@@ -4633,7 +4635,7 @@ function viewInvoiceReadonly(invoiceId){
     const rs = lines.length;
     lines.forEach((l,i)=>{
       rows += i===0 ? '<tr class="iv-group-start">' : '<tr>';
-      if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${printCodeBadge(g.productCode) || (esc(g.productCode) + ' -')} ${g.design ? `<i class="iv-design">${esc(g.design)}</i>` : esc(g.productName||'')}</td>`;
+      if(i===0) rows += `<td rowspan="${rs}" class="iv-stt">${stt}</td><td rowspan="${rs}" class="iv-prod">${codeWithMarkHtml(g.productCode)} - ${g.design ? `<i class="iv-design">${esc(g.design)}</i>` : esc(g.productName||'')}</td>`;
       rows += `<td>${esc(l.color)||'—'}</td><td>${esc(l.size)}</td><td class="num">${Number(l.qty)||0}</td>`;
       if(i===0) rows += `<td rowspan="${rs}" class="num iv-gqty">${gQty}</td><td rowspan="${rs}" class="num">${g.priceText ? esc(g.priceText) : fmtMoney(unit)}</td><td rowspan="${rs}" class="num iv-money">${fmtMoney(unit*gQty)}đ</td>`;
       rows += '</tr>';
@@ -5862,6 +5864,18 @@ function prDesignCatalog(){
 // Dùng HÌNH DẠNG (in đen trắng vẫn phân biệt được) + màu. Mã không in hình → không có ký hiệu.
 const PRINT_CODE_SYMBOLS = ['●','▲','■','◆','★','✚'];
 const PRINT_CODE_COLORS = ['#1c5fa8','#d35400','#2e7d32','#8e24aa','#c62828','#00838f'];
+// Mã kèm ký hiệu ngay cạnh: A55 → "A55 ●" (tròn phía sau), A57 → "▲ A57" (tam giác phía trước). Mã khác → giữ nguyên.
+function printCodeIdx(code){ const c = String(code||'').trim().toUpperCase(); const list = printCodes().slice().sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})); return list.indexOf(c); }
+function codeWithMark(code){
+  const c = String(code||'').trim(); const i = printCodeIdx(c); if(i<0) return c;
+  const sym = PRINT_CODE_SYMBOLS[i%PRINT_CODE_SYMBOLS.length];
+  return i===0 ? `${c} ${sym}` : `${sym} ${c}`;
+}
+function codeWithMarkHtml(code){
+  const c = String(code||'').trim(); const i = printCodeIdx(c); if(i<0) return escHtml(c);
+  const sym = `<span class="pcode-sym" style="color:${PRINT_CODE_COLORS[i%PRINT_CODE_COLORS.length]};">${PRINT_CODE_SYMBOLS[i%PRINT_CODE_SYMBOLS.length]}</span>`;
+  return i===0 ? `${escHtml(c)} ${sym}` : `${sym} ${escHtml(c)}`;
+}
 function printCodeBadge(code){
   const c = String(code||'').trim().toUpperCase();
   const list = printCodes().slice().sort((a,b)=>a.localeCompare(b,'vi',{numeric:true}));
@@ -6293,7 +6307,7 @@ function renderPrintOverview(){
         return `<tr><td><b>${escHtml(r.invoiceNumber||'—')}</b>${r.oldCustomer?' <span style="font-size:11px; color:#C9A0FF;">khách cũ</span>':''}</td>
           <td style="white-space:nowrap;">${r.depositAt ? new Date(r.depositAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) : fmtDate(r.invoiceDate)}</td>
           <td>${escHtml(r.saleName||'—')}</td>
-          <td style="font-size:12.5px;">${Object.values(g).map(x=>`<div>${printCodeBadge(x.code) || `<b>${escHtml(x.code)}</b>`}<b>${x.design?' '+escHtml(x.design):''}</b>: <span style="color:var(--ink-soft);">${x.cs.join(' · ')}</span></div>`).join('')}</td>
+          <td style="font-size:12.5px;">${Object.values(g).map(x=>`<div><b>${codeWithMarkHtml(x.code)}${x.design?' · '+escHtml(x.design):''}</b>: <span style="color:var(--ink-soft);">${x.cs.join(' · ')}</span></div>`).join('')}</td>
           <td class="num"><b>${q}</b></td></tr>`; }).join('') + `<tr class="total-row"><td colspan="4">TỔNG CỘNG (${ords.length} đơn)</td><td class="num">${totQ}</td></tr>`
       : '<tr><td colspan="5" class="empty-note">Không có đơn đã cọc nào trong khoảng này.</td></tr>') + `</tbody></table></div>
       <div style="font-size:12.5px; color:var(--ink-soft); margin-top:8px;">Chỉ hiện Số HĐ và tên Sale — không có tên, SĐT khách và giá tiền. Cần thông tin khách để gửi hàng thì hỏi Sale theo Số HĐ.</div>`;
