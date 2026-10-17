@@ -1582,7 +1582,7 @@
             <div class="field" style="max-width:180px;"><label>Đến ngày</label><input type="date" id="mktLeadsTo" onchange="applyMktLeadsCustomRange()"></div>
           </div>
           <div class="toolbar" style="margin-bottom:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedRenderMktMyLeadsList()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktMyLeadsSearch" placeholder="Gõ số điện thoại hoặc tên (mọi ngày)…" oninput="debouncedRenderMktMyLeadsList()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mktMyLeadsStatusFilter" onchange="renderMktMyLeadsList()"></select></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktMyLeadsSourceFilter" onchange="renderMktMyLeadsList()"></select></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo Người nhận</label><select id="mktMyLeadsAssigneeFilter" onchange="renderMktMyLeadsList()"></select></div>
@@ -1617,7 +1617,7 @@
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mktRevenueTo" onchange="applyMktRevenueCustomRange()"></div>
             <div class="field" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mktRevenueSourceFilter" onchange="renderMktRevenuePage()"></select></div>
             <div class="field" style="max-width:200px;"><label>Lọc theo Sale chốt</label><select id="mktRevenueSaleFilter" onchange="renderMktRevenuePage()"></select></div>
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktRevenueSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMktRevenuePage()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mktRevenueSearch" placeholder="Gõ để tìm (mọi ngày)…" oninput="debouncedRenderMktRevenuePage()"></div>
           </div>
           <div id="mktRevenuePersonalStatsBoxes" class="grid-4" style="margin-bottom:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
             <div class="stat-box"><div class="stat-label">Tổng data đã gửi (theo ngày nhập)</div><div class="stat-value" id="mktRevenuePersonalTotal">0</div></div>
@@ -1730,7 +1730,7 @@
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mgrLeadsListTo" onchange="applyMgrLeadsListCustomRange()"></div>
           </div>
           <div class="toolbar" style="margin-bottom:14px;">
-            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên..." oninput="debouncedOnMgrLeadsListFilterChange()"></div>
+            <div class="field" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrLeadsListSearch" placeholder="Gõ số điện thoại hoặc tên (mọi ngày)…" oninput="debouncedOnMgrLeadsListFilterChange()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Tình trạng</label><select id="mgrLeadsListStatusFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người nhận</label><select id="mgrLeadsListPersonFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo Nguồn</label><select id="mgrLeadsListSourceFilter" onchange="onMgrLeadsListFilterChange()"></select></div>
@@ -1796,7 +1796,7 @@
             <div class="field" style="max-width:170px;"><label>Đến ngày</label><input type="date" id="mgrClosedTo" onchange="applyMgrClosedCustomRange()"></div>
             <div class="field" style="max-width:220px;"><label>Lọc theo người chốt</label><select id="mgrClosedPersonFilter" onchange="renderMgrClosedLeads()"></select></div>
             <div class="field" id="mgrClosedSourceFilterWrap" style="max-width:180px;"><label>Lọc theo Nguồn</label><select id="mgrClosedSourceFilter" onchange="renderMgrClosedLeads()"></select></div>
-            <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm..." oninput="debouncedRenderMgrClosedLeads()"></div>
+            <div class="field" id="mgrClosedSearchWrap" style="max-width:260px;"><label>Tìm theo SĐT hoặc tên khách</label><input id="mgrClosedSearch" placeholder="Gõ để tìm (mọi ngày)…" oninput="debouncedRenderMgrClosedLeads()"></div>
           </div>
           <div id="mgrClosedSummary" style="color:var(--ink-soft); font-size:14px; font-weight:600; margin-bottom:6px;"></div>
           <button class="btn-ghost btn-small" style="margin-bottom:10px;" onclick="exportMgrClosedLeads()">⬇️ Xuất Excel (đúng danh sách đang lọc)</button>
@@ -1856,7 +1856,7 @@
               <option value="done">✅ Đã cọc / đã chốt</option>
               <option value="pending">⏳ Chưa cọc</option>
             </select></div>
-            <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ" oninput="clearTimeout(window.__invSearchT); window.__invSearchT=setTimeout(renderInvoicesOverviewPage, 250)"></div>
+            <div class="field" style="max-width:280px;"><label>Tìm hoá đơn</label><input id="invOverviewSearch" type="search" placeholder="🔍 Tên khách, SĐT hoặc số HĐ (mọi ngày)…" oninput="clearTimeout(window.__invSearchT); window.__invSearchT=setTimeout(renderInvoicesOverviewPage, 250)"></div>
           </div>
           <div class="grid-3" style="margin-bottom:14px;">
             <div class="stat-box"><div class="stat-label">Số hoá đơn</div><div class="stat-value" id="invOverviewStatCount">0</div></div>
@@ -2493,7 +2493,7 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ checkRecallNotice(); }catch(e){} });
+  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -4510,7 +4510,7 @@ function renderInvoicesOverviewPage(){
   }
 
   let invoices = state.invoices.slice();
-  if(invOverviewDateFrom || invOverviewDateTo){
+  if((invOverviewDateFrom || invOverviewDateTo) && !searchQ('invOverviewSearch')){
     invoices = invoices.filter(inv=>{
       const d = inv.invoiceDate || '';
       if(invOverviewDateFrom && d < invOverviewDateFrom) return false;
@@ -6699,7 +6699,8 @@ function renderMktMyLeadsList(){
 
   let leads = state.leads.filter(l=>l.createdBy===u.id).sort((a,b)=>(b.importedAt||b.assignedAt||0)-(a.importedAt||a.assignedAt||0));
 
-  if(mktLeadsDateFrom || mktLeadsDateTo){
+  if(searchQ('mktMyLeadsSearch')) ensureLeadsArchive();
+  if((mktLeadsDateFrom || mktLeadsDateTo) && !searchQ('mktMyLeadsSearch')){
     leads = leads.filter(l=>{
       const dateStr = toLocalDateStr(new Date(l.importedAt||l.assignedAt||0));
       if(mktLeadsDateFrom && dateStr < mktLeadsDateFrom) return false;
@@ -6908,6 +6909,21 @@ function renderLeadsStatsByDayInto(containerId, allLeadsForPerson, userId){
   }).join('');
 }
 // Ô nhỏ cạnh "Hôm nay: x/50": số data BỊ THU HỒI (theo ngày nhận) — Sale thấy ngay, không cần mở thống kê theo ngày
+// MỘT LẦN: mọi lần thu hồi TỪ TRƯỚC TỚI NAY (trước khi tách tay / tự động) được tính là THU HỒI TỰ ĐỘNG.
+// Máy Quản lý chung chạy, đánh dấu recallSplitDone trên từng tài khoản → không chạy lại.
+let recallSplitMigrated = false;
+function migrateRecallSplit(){
+  const me = currentUser(); if(recallSplitMigrated || !me || me.role!=='general_manager') return;
+  recallSplitMigrated = true;
+  state.users.forEach(u=>{
+    if(u.recallSplitDone || !u.recallByDay || !Object.keys(u.recallByDay).length) return;
+    const auto = Object.assign({}, u.recallByDay); // toàn bộ số cũ → tự động
+    u.recallAutoByDay = auto; u.recallSplitDone = true;
+    fbUpdateUser(u.id, {recallAutoByDay: auto, recallSplitDone: true});
+  });
+  // tài khoản chưa từng bị thu hồi: đánh dấu luôn để các lần thu hồi TAY về sau không bị tính nhầm
+  state.users.forEach(u=>{ if(!u.recallSplitDone && (!u.recallByDay || !Object.keys(u.recallByDay).length)){ u.recallSplitDone = true; fbUpdateUser(u.id, {recallSplitDone: true}); } });
+}
 function recallSummaryBadge(userId){
   const u = state.users.find(x=>x.id===userId); if(!u) return '';
   const total = u.recallByDay || {}, auto = u.recallAutoByDay || {};
@@ -7892,6 +7908,9 @@ function applyMgrLeadsListCustomRange(){
   MGR_LEADS_PRESETS.forEach(p=>document.getElementById('mgrLeadsListPreset_'+p).classList.toggle('selected', p==='all' && !mgrLeadsListDateFrom && !mgrLeadsListDateTo));
   onMgrLeadsListFilterChange();
 }
+// Có gõ tìm (SĐT / tên / số HĐ) → tìm trên TOÀN BỘ thời gian, bỏ qua khoảng ngày đang chọn (đỡ bỏ sót)
+function searchQ(id){ const el = document.getElementById(id); return el ? String(el.value||'').trim() : ''; }
+function searchAllTimeNote(q){ return q ? ' · <span style="color:#8DB4FF;">🔎 đang tìm trên toàn bộ thời gian</span>' : ''; }
 function renderMgrLeadsList(){
   const scope = scopeBranchId();
   ensureStatusFilterPopulated('mgrLeadsListStatusFilter');
@@ -7921,7 +7940,8 @@ function renderMgrLeadsList(){
     return true;
   }).sort((a,b)=>(b.assignedAt||b.importedAt||0)-(a.assignedAt||a.importedAt||0));
 
-  if(mgrLeadsListDateFrom || mgrLeadsListDateTo){
+  if(searchQ('mgrLeadsListSearch')) ensureLeadsArchive(); // tìm cả data đã lưu trữ
+  if((mgrLeadsListDateFrom || mgrLeadsListDateTo) && !searchQ('mgrLeadsListSearch')){
     leads = leads.filter(l=>{
       const dateStr = toLocalDateStr(new Date(l.assignedAt||l.importedAt||0));
       if(mgrLeadsListDateFrom && dateStr < mgrLeadsListDateFrom) return false;
@@ -8104,7 +8124,7 @@ function renderMgrClosedLeads(){
     return true;
   }).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||'') || closedSortTime(b)-closedSortTime(a));
 
-  if(mgrClosedDateFrom || mgrClosedDateTo){
+  if((mgrClosedDateFrom || mgrClosedDateTo) && !searchQ('mgrClosedSearch')){
     leads = leads.filter(l=>{
       const d = l.closedDate || '';
       if(mgrClosedDateFrom && d < mgrClosedDateFrom) return false;
@@ -9969,7 +9989,10 @@ function renderMktRevenuePage(){
   if(saleNames.includes(prevSaleVal)) saleSel.value = prevSaleVal;
 
   // Áp 2 bộ lọc Nguồn/Sale + tìm kiếm — chỉ ảnh hưởng bảng chi tiết bên dưới, không đụng tới 3 hộp tổng quan ở trên.
-  let filteredLeads = closedLeads;
+  // Đang tìm → bảng chi tiết tìm trên MỌI ngày (không giới hạn khoảng ngày đang chọn)
+  let filteredLeads = searchQ('mktRevenueSearch')
+    ? state.leads.filter(l=>l.status==='Đã chốt' && mySources.includes(leadSource(l))).sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''))
+    : closedLeads;
   const sourceFilter = sourceSel.value;
   if(sourceFilter) filteredLeads = filteredLeads.filter(l=>leadSource(l)===sourceFilter);
   const saleFilter = saleSel.value;
