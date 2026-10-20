@@ -6480,7 +6480,7 @@ function analyzeMktBulkLines(source){
     if(!check.allowed){
       const text = check.reason==='same_source'
         ? `Đã nhập từ đúng Nguồn "${source}" rồi`
-        : `Đã đạt tối đa 3 lần (${check.sources.join(', ')})`;
+        : `Đã đạt tối đa 3 lần`; // không hiện tên Nguồn khác (thông tin của MKT khác)
       return {line, phone, name, digits, status:check.reason, text};
     }
     stagedSourcesByPhone[digits] = (stagedSourcesByPhone[digits]||[]).concat(source);
