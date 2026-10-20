@@ -6397,8 +6397,8 @@ function populateMktSourceList(){
     if(submitBtn) submitBtn.setAttribute('disabled','');
   }
 }
-// QUY TẮC: 1 SĐT được nhập tối đa 3 lần vào hệ thống, và mỗi lần PHẢI từ 1 Nguồn khác nhau — không
-// được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 3 Nguồn khác nhau.
+// QUY TẮC: 1 SĐT được nhập tối đa PHONE_MAX_ENTRIES (4) lần vào hệ thống, và mỗi lần PHẢI từ 1 Nguồn khác nhau — không
+// được nhập trùng 2 lần cùng 1 Nguồn cho cùng 1 số, và không được vượt quá 4 Nguồn khác nhau.
 // extraSources: các Nguồn đã "tạm ghi nhận" ngay trong cùng 1 lượt xử lý (dùng cho nhập hàng loạt,
 // vì các dòng cùng batch chưa kịp nằm trong state.leads để tự kiểm tra chéo nhau).
 // Kết quả tra SĐT trên toàn kho (dành cho MKT — máy MKT không tải cả kho): digits -> [data...]
@@ -6441,6 +6441,8 @@ async function prefetchPhonesForMkt(digitsList){
   }));
   mktPhoneLookup = lookup;
 }
+// Số lần tối đa 1 SĐT được nhập vào hệ thống (mỗi lần từ 1 Nguồn khác nhau). Đổi ở đây là áp dụng mọi nơi.
+const PHONE_MAX_ENTRIES = 4;
 function checkPhoneEntryRule(phoneDigits, source, extraSources){
   // Quy về đúng "nguồn gốc" của cả nhóm trước khi so sánh — 2 kênh khác tên nhưng đã gộp nhóm
   // (cùng 1 người/nguồn thật) sẽ được tính là CÙNG 1 nguồn, không bị đếm nhầm thành 2 nguồn khác nhau.
@@ -6453,7 +6455,7 @@ function checkPhoneEntryRule(phoneDigits, source, extraSources){
   if(allSources.some(s=>norm(s)===srcNorm)){
     return {allowed:false, reason:'same_source', sources:allSources};
   }
-  if(allSources.length >= 3){
+  if(allSources.length >= PHONE_MAX_ENTRIES){
     return {allowed:false, reason:'max_reached', sources:allSources};
   }
   return {allowed:true, sources:allSources};
@@ -6480,11 +6482,11 @@ function analyzeMktBulkLines(source){
     if(!check.allowed){
       const text = check.reason==='same_source'
         ? `Đã nhập từ đúng Nguồn "${source}" rồi`
-        : `Đã đạt tối đa 3 lần`; // không hiện tên Nguồn khác (thông tin của MKT khác)
+        : `Đã đạt tối đa ${PHONE_MAX_ENTRIES} lần`; // không hiện tên Nguồn khác (thông tin của MKT khác)
       return {line, phone, name, digits, status:check.reason, text};
     }
     stagedSourcesByPhone[digits] = (stagedSourcesByPhone[digits]||[]).concat(source);
-    return {line, phone, name, digits, status:'valid', text: check.sources.length>0 ? `Hợp lệ — lần ${check.sources.length+1}/3` : 'Hợp lệ'};
+    return {line, phone, name, digits, status:'valid', text: 'Hợp lệ'}; // không báo số lần đã nhập (không để lộ số đã có người khác nhập)
   });
 }
 async function previewMktBulk(){
