@@ -1115,7 +1115,7 @@
             <div class="stat-box"><div class="stat-label">Tỷ lệ khách quay lại (quay lại / đơn chốt)</div><div class="stat-value" id="previewReturnRate">—</div></div>
           </div>
           <div class="field"><label>Ghi chú( các mã hàng bán chạy mà thiếu nhiều, các vấn đề cần khắc phục)</label><input id="f_note" placeholder="Ghi chú thêm (không bắt buộc)"></div>
-          <button class="btn-primary" onclick="submitReport()">Lưu báo cáo hôm nay</button>
+          <button class="btn-primary" id="reportSubmitBtn" onclick="submitReport()">Lưu báo cáo hôm nay</button>
           <span class="login-error" id="staffReportMsg"></span>
         </div>
       </div>
@@ -10187,6 +10187,7 @@ function onReportDateChange(){
   loadReportForDate();
 }
 function loadReportForDate(){
+  setTimeout(()=>{ try{ updateReportSubmitLock(); }catch(e){} }, 0);
   const user=currentUser();
   const date=document.getElementById('f_date').value;
   const isToday = date===todayStr();
@@ -10207,10 +10208,27 @@ function keyFor(f){
     returning:'returningCustomers', loyal:'loyalCustomerCount', note:'note'
   }[f];
 }
+// Báo cáo Sale của HÔM NAY chỉ mở từ 16:58 (tránh nộp sớm / nộp nhầm). Không thông báo — chỉ khoá nút.
+// Nộp bù các ngày TRƯỚC thì không bị khoá.
+const REPORT_OPEN_MINUTES = 16*60 + 58;
+function reportSubmitLockedFor(date){
+  if(!date || date!==todayStr()) return false;
+  const n = new Date(); return (n.getHours()*60 + n.getMinutes()) < REPORT_OPEN_MINUTES;
+}
+function updateReportSubmitLock(){
+  const btn = document.getElementById('reportSubmitBtn'); if(!btn) return;
+  const date = (document.getElementById('f_date')||{}).value;
+  const locked = reportSubmitLockedFor(date);
+  btn.disabled = locked;
+  btn.style.opacity = locked ? '0.45' : '';
+  btn.style.cursor = locked ? 'not-allowed' : '';
+}
+setInterval(()=>{ try{ if(currentPageId==='staffReport') updateReportSubmitLock(); }catch(e){} }, 20000);
 function submitReport(){
  try{
   const user=currentUser();
   const date=document.getElementById('f_date').value;
+  if(reportSubmitLockedFor(date)){ updateReportSubmitLock(); return; } // chưa tới 16:58 → không cho nộp
   const msgEl=document.getElementById('staffReportMsg');
   msgEl.style.color='var(--danger)';
   if(!date){ msgEl.textContent='Vui lòng chọn ngày báo cáo.'; return; }
