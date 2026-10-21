@@ -1085,6 +1085,52 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pimg-up{ cursor:pointer; }
   .pack-x-btn{ color:#FF8A8D !important; }
   @media (max-width:720px){ .pack-pimg{ width:44px; height:44px; } .pack-pick{ min-width:38px; height:38px; } }
+  .pack-l-meta{ display:none; }
+  @media (max-width:720px){
+    /* Điện thoại: mỗi dòng hàng gọn 1 khối — ảnh · mã + mẫu in (dài cũng được) · dòng dưới: màu · size · SL */
+    #packPanelModal{ padding: calc(env(safe-area-inset-top, 0px) + 6px) 6px calc(env(safe-area-inset-bottom, 0px) + 6px) !important; align-items:stretch; }
+    .modal.pack-panel-modal{ max-height:100% !important; padding:12px !important; border-radius:14px; }
+    .pack-panel-top{ top:-12px !important; }
+    .pack-p-num{ font-size:22px !important; }
+    .pack-p-meta{ font-size:12.5px; }
+    table.pack-lines thead{ display:none; }
+    table.pack-lines .pack-l-col{ display:none; }
+    table.pack-lines td{ padding:7px 3px !important; border-left:none !important; border-right:none !important; }
+    .pack-l-meta{ display:block; font-size:12.5px; color:var(--ink-soft); font-style:normal; margin-top:2px; }
+    .pack-l-sl{ color:var(--ink); font-size:14px; }
+    .pack-l-txt{ font-size:13.5px; line-height:1.35; }
+    .pack-l-txt .iv-design{ font-size:13.5px; }
+    .pack-pimg{ width:46px !important; height:46px !important; }
+    .pack-pick{ min-width:36px !important; height:36px !important; font-size:12px; }
+    .pack-pick.done{ font-size:17px; }
+    .pack-pick-cell{ width:42px; }
+    .pack-l-miss .pack-step{ width:30px; height:30px; font-size:16px; }
+    .pack-progress{ height:30px; margin:8px 0 6px; }
+    .pack-progress span{ line-height:30px; font-size:12.5px; }
+    .pack-banner{ font-size:13px; padding:8px 10px; }
+    .pack-big-btn{ font-size:16px !important; padding:12px 14px !important; }
+    .pack-p-sec{ margin-top:10px; padding:8px; }
+  }
+  /* Nhóm cùng mã + mẫu, nhiều màu */
+  tr.pack-grp-head td{ background:rgba(255,255,255,0.035); border-top:2px solid var(--line) !important; }
+  .pack-grp-sum{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .pack-grp-all{ white-space:nowrap; flex:0 0 auto; }
+  .pack-grp-all-short{ display:none; }
+  tr.pack-grp-head .pack-l-txt{ min-width:0; }
+  tr.pack-sub-row td{ border-top:1px dashed rgba(255,255,255,0.06) !important; }
+  .pack-sub-cell{ padding-left:20px !important; }
+  .pack-sub-arrow{ color:var(--ink-soft); margin-right:6px; }
+  .pack-sub-meta{ display:none; }
+  .pack-sub-color{ font-size:14.5px; letter-spacing:.02em; }
+  @media (max-width:720px){
+    .pack-sub-cell{ padding-left:4px !important; }
+    .pack-sub-meta{ display:inline; font-size:13px; color:var(--ink-soft); }
+    .pack-sub-color{ color:var(--ink); }
+    tr.pack-grp-head td{ padding:8px 4px !important; }
+    .pack-grp-all{ padding:4px 8px !important; font-size:12px !important; }
+    .pack-grp-all-long{ display:none; }
+    .pack-grp-all-short{ display:inline; }
+  }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -5547,19 +5593,42 @@ function renderPackPanel(){
   const prevMiss = {}; if(ps && (ps.state==='short' || ps.state==='partial')) (ps.shortItems||[]).forEach(x=>{ if(x.key) prevMiss[x.key] = Number(x.missing)||0; });
   const tickMode = canAct && !short;
   const prog = packPickProgress(lines, ps);
-  const rows = lines.map(l=>{
+  // Gom các dòng CÙNG mã + mẫu in (khác màu / size) thành 1 nhóm: ảnh + tên mẫu hiện 1 lần, bên dưới là từng màu để tick
+  const extraCol = short || Object.keys(prevMiss).length > 0;
+  const nCols = (tickMode ? 1 : 0) + 4 + (extraCol ? 1 : 0);
+  const lineRow = (l, inGroup)=>{
     const miss = short ? (packPanel.miss[l.key]||0) : (prevMiss[l.key]||0);
     const tgt = prog.t[l.key] || 0, got = Math.min(tgt, (packPanel.picked||{})[l.key]||0), done = tgt>0 && got>=tgt;
     const pickCell = tickMode ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
       : `<td class="pack-pick-cell"><span class="pack-pick sent" title="Đã gửi ở lần trước">✓</span></td>`) : '';
-    return `<tr class="${miss ? 'pack-line-miss' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
+    const meta = `${[l.color, l.size].filter(Boolean).map(escHtml).join(' · ') || '—'} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}`;
+    const prodCell = inGroup
+      ? `<td class="pack-l-prod pack-sub-cell"><span class="pack-sub-arrow">↳</span><span class="pack-sub-meta"><b class="pack-sub-color">${escHtml(l.color)||'—'}</b>${l.size ? ' · ' + escHtml(l.size) : ''} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}</span></td>`
+      : `<td class="pack-l-prod"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l.code, l.design), 'pack-pimg')}<div class="pack-l-txt"><span class="pack-l-code">${codeWithMarkHtml(l.code)}</span>${l.design ? ` <i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? ' <span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}
+        <div class="pack-l-meta">${meta}</div></div></div></td>`;
+    return `<tr class="${miss ? 'pack-line-miss' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}${inGroup ? ' pack-sub-row' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
       ${pickCell}
-      <td class="pack-l-prod"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l.code, l.design), 'pack-pimg')}<div>${codeWithMarkHtml(l.code)}${l.design ? `<br><i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? '<br><span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}</div></div></td>
-      <td>${escHtml(l.color)||'—'}</td><td>${escHtml(l.size)||'—'}</td>
-      <td class="num pack-l-qty">${l.qty}</td>
+      ${prodCell}
+      <td class="pack-l-col">${escHtml(l.color)||'—'}</td><td class="pack-l-col">${escHtml(l.size)||'—'}</td>
+      <td class="num pack-l-qty pack-l-col">${l.qty}</td>
       ${short ? `<td class="pack-l-miss"><button class="pack-step" onclick="packMissStep('${l.key}',-1,${l.qty})">−</button><b>${miss}</b><button class="pack-step" onclick="packMissStep('${l.key}',1,${l.qty})">+</button></td>`
-        : (Object.keys(prevMiss).length ? `<td class="num" style="color:#F0A63A; font-weight:700;">${miss ? 'thiếu ' + miss : ''}</td>` : '')}
+        : (Object.keys(prevMiss).length ? `<td class="num pack-l-col" style="color:#F0A63A; font-weight:700;">${miss ? 'thiếu ' + miss : ''}</td>` : '')}
     </tr>`;
+  };
+  const groups = [];
+  lines.forEach(l=>{ const gk = l.code + '|' + normalizeSearchText(l.design); let g = groups.find(x=>x.gk===gk); if(!g){ g = {gk, items:[]}; groups.push(g); } g.items.push(l); });
+  const rows = groups.map(g=>{
+    if(g.items.length===1) return lineRow(g.items[0], false);
+    const l0 = g.items[0];
+    const qty = g.items.reduce((a,l)=>a+l.qty, 0);
+    const need = g.items.reduce((a,l)=>a+(prog.t[l.key]||0), 0);
+    const got = g.items.reduce((a,l)=>a+Math.min(prog.t[l.key]||0, (packPanel.picked||{})[l.key]||0), 0);
+    const keys = g.items.map(l=>l.key).join(',');
+    return `<tr class="pack-grp-head${tickMode && need && got>=need ? ' pack-picked' : ''}"><td colspan="${nCols}"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l0.code, l0.design), 'pack-pimg')}
+      <div class="pack-l-txt" style="flex:1;"><span class="pack-l-code">${codeWithMarkHtml(l0.code)}</span>${l0.design ? ` <i class="iv-design">${escHtml(l0.design)}</i>` : (l0.name ? ' <span class="pack-sub">' + escHtml(l0.name) + '</span>' : '')}
+        <div class="pack-grp-sum">${g.items.length} màu/size · tổng <b>${qty}</b> cái${tickMode && need ? ` · đã nhặt <b>${got}/${need}</b>` : ''}</div></div>
+      ${tickMode && need && got<need ? `<button class="btn-ghost btn-small pack-grp-all" onclick="event.stopPropagation(); packPickGroup('${keys}')">✓ <span class="pack-grp-all-long">Đủ cả nhóm</span><span class="pack-grp-all-short">Đủ hết</span></button>` : ''}</div></td></tr>` +
+      g.items.map(l=>lineRow(l, true)).join('');
   }).join('');
   const present = packPresentStaff();
   const staffList = present.length ? present : packActiveStaff();
@@ -5590,7 +5659,7 @@ function renderPackPanel(){
     ${banner}
     ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở những dòng bị thiếu (số cái thiếu), rồi bấm "Gửi báo thiếu cho Sale".</div>' : ''}
     ${tickMode && prog.need ? `<div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Chạm dòng khi nhặt · đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>` : ''}
-    <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
+    <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th class="pack-l-col">Màu</th><th class="pack-l-col">Size</th><th class="num pack-l-col">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th class="pack-l-col"></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
     ${canAct ? (packPanel.lockedMe && !packPanel.showAll
       ? `<div class="pack-p-sec"><div class="pack-p-label">👤 Người đóng: <span class="pack-me-name">${escHtml(packStaffName(packPanel.staffId))}</span></div></div>`
       : `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>`) : ''}
@@ -5742,6 +5811,14 @@ function packPickTap(key, d){
   packPanel.picked[key] = nv; packPickSave();
   if(nv===max && (d||1)>0) packBeep(true);
   renderPackPanel();
+}
+// Nhặt đủ cả nhóm (cùng mã + mẫu, nhiều màu) bằng 1 chạm
+function packPickGroup(keysCsv){
+  if(!packPanel) return;
+  const inv = (state.invoices||[]).find(x=>x.id===packPanel.invId); if(!inv) return;
+  const t = packPickTargets(packInvLines(inv), packStatusMap()[inv.id]);
+  keysCsv.split(',').forEach(k=>{ if(t[k]) packPanel.picked[k] = t[k]; });
+  packPickSave(); packBeep(true); renderPackPanel();
 }
 function packPickProgress(lines, ps){
   const t = packPickTargets(lines, ps); let need = 0, got = 0;
