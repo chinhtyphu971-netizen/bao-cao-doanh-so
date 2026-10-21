@@ -935,6 +935,30 @@
     body.printing-inv-view .inv-view-modal{ max-width:none !important; max-height:none !important; overflow:visible !important; padding:0 !important; box-shadow:none !important; }
     body.printing-inv-view .inv-view{ padding:0 !important; }
   }
+
+  /* ===== In hoá đơn đóng hàng (Kho) ===== */
+  .pack-toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .pack-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .pack-note{ color:var(--ink-soft); font-size:13px; }
+  .pack-cb{ width:18px; height:18px; min-height:0 !important; cursor:pointer; }
+  #packTable tr.pack-row-sel td{ background:var(--accent-soft) !important; }
+  .pack-items{ font-size:12.5px; line-height:1.5; min-width:180px; }
+  .pack-sep{ color:var(--ink-soft); }
+  .pack-badge{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .pack-new{ background:rgba(79,140,255,0.16); color:#8DB4FF; }
+  .pack-done{ background:rgba(46,160,90,0.16); color:var(--success); }
+  .pack-changed{ background:rgba(240,166,58,0.18); color:#F0A63A; }
+  .pack-sub{ font-size:11px; color:var(--ink-soft); margin-top:2px; font-weight:400; }
+  .pack-warn{ border:1.5px solid #E5484D; background:rgba(229,72,77,0.08); border-radius:10px; padding:10px 12px; margin-bottom:12px; color:#FF8A8D; font-size:13px; }
+  .pack-warn-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:6px; color:var(--ink); flex-wrap:wrap; }
+  #packPrintArea{ display:none; }
+  @media print{
+    body.printing-pack > *:not(#packPrintArea){ display:none !important; }
+    body.printing-pack #packPrintArea{ display:block !important; }
+    #packPrintArea .pack-sheet{ padding:0 !important; break-after:page; page-break-after:always; }
+    #packPrintArea .pack-sheet:last-child{ break-after:auto; page-break-after:auto; }
+    #packPrintArea .inv-view tr{ page-break-inside:avoid; }
+  }
 </style>
 </head>
 <body>
@@ -1026,6 +1050,7 @@
       </div>
       <div id="navWarehouse" style="display:none;">
         <div class="nav-item" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">📦 Hàng cần in</span></div>
+        <div class="nav-item" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">🧾 In hoá đơn đóng hàng</span></div>
       </div>
       <div id="navPrintOrder" style="display:none;">
         <div class="nav-item" data-page="printOrders" onclick="goPage('printOrders')"><span class="label">📝 Đặt đơn in hình</span></div>
@@ -1064,6 +1089,7 @@
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_printOverview" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">🖨️ Báo cáo in hình</span></div>
+        <div class="nav-item" id="navItem_packInvoices" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">🧾 In hoá đơn đóng hàng</span></div>
         <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
         <div class="nav-item" id="navItem_mktOverview" data-page="mktOverview" onclick="goPage('mktOverview')"><span class="label">📊 Thống kê MKT</span></div>
@@ -1522,6 +1548,34 @@
       <div id="page-printOverview" class="page" style="display:none;">
         <div class="page-head"><div><h1>Hàng cần in &amp; báo cáo in</h1><p>Cần in (hoá đơn đã cọc) · Đã in (báo cáo thợ in) · Còn thiếu — theo từng hình</p></div></div>
         <div id="poBox"></div>
+      </div>
+
+      <div id="page-packInvoices" class="page" style="display:none;">
+        <div class="page-head"><div><h1>In hoá đơn đóng hàng</h1><p>Hoá đơn đã cọc / đã chốt · in đúng mẫu hoá đơn Sale đã lên, mỗi hoá đơn 1 trang A4</p></div></div>
+        <div class="card">
+          <div class="pack-toolbar">
+            <select id="packStatusSel" onchange="packSelected.clear(); renderPackInvoicesPage()">
+              <option value="new">🆕 Chưa in</option>
+              <option value="changed">⚠ Đã sửa sau khi in</option>
+              <option value="done">✅ Đã in</option>
+              <option value="all">Tất cả</option>
+            </select>
+            <select id="packRangeSel" onchange="packSelected.clear(); renderPackInvoicesPage()">
+              <option value="all">Cọc: mọi ngày (30 ngày)</option>
+              <option value="today">Cọc hôm nay</option>
+              <option value="yesterday">Cọc hôm qua</option>
+              <option value="7d">Cọc 7 ngày gần đây</option>
+            </select>
+            <input id="packSearch" type="search" placeholder="🔍 Số HĐ / tên khách / Sale" oninput="renderPackInvoicesPage()" style="flex:1; min-width:180px;">
+          </div>
+          <div class="pack-actions">
+            <button class="btn-ghost btn-small" onclick="packToggleAll()" id="packToggleAllBtn">☑ Chọn tất cả</button>
+            <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
+            <span id="packCountNote" class="pack-note"></span>
+          </div>
+          <div id="packWarnBox"></div>
+          <div class="table-wrap"><table id="packTable"></table></div>
+        </div>
       </div>
 
       <div id="page-mktReportsAdmin" class="page" style="display:none;">
@@ -1994,7 +2048,7 @@
                 <option value="mkt">MKT (chỉ nhập data)</option>
                 <option value="mkt_manager">Quản lý team MKT</option>
                 <option value="printer">Nhân viên in hình (chỉ báo cáo in)</option>
-                <option value="warehouse">Kho / Đặt in (xem hàng cần in, đặt đơn in)</option>
+                <option value="warehouse">Kho / Đặt in (hàng cần in, đặt đơn in, in hoá đơn đóng hàng)</option>
               </select>
             </div>
             <div class="field" id="newAccBranchField">
@@ -2344,7 +2398,7 @@ const LocalDB = {
 })();
 let printOrdersLoadedOnce = false;
 let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
 function reportWindowStart(){ const d = new Date(); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
@@ -2455,6 +2509,7 @@ function startFirebaseListeners(){
   fbPrintLogs = db.ref('printLogs'); // nhật ký từng mẻ in — tách riêng, chỉ thợ in tải đúng ngày đang xem
   fbPrintOrders = db.ref('printOrders');
   fbInvoiceItems = db.ref('invoiceItems');
+  fbPackPrints = db.ref('packPrints'); // Kho: hoá đơn đóng hàng đã in lúc nào, lần thứ mấy, bản in khớp nội dung nào
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
@@ -4647,6 +4702,11 @@ function renderInvoicesOverviewPage(){
 function viewInvoiceReadonly(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
+  document.getElementById('invViewBody').innerHTML = invoiceReadonlyHtml(inv);
+  document.getElementById('invViewModal').classList.add('show');
+}
+// Nội dung hoá đơn (chỉ xem / in) — đúng mẫu Sale đã lên. Dùng chung cho "Xem hoá đơn" và "In hoá đơn đóng hàng".
+function invoiceReadonlyHtml(inv){
   const st = state.invoiceSettings || {};
   const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const qrUrl = (st.bankName && st.bankNumber)
@@ -4667,7 +4727,7 @@ function viewInvoiceReadonly(invoiceId){
       rows += '</tr>';
     });
   });
-  document.getElementById('invViewBody').innerHTML = `
+  return `
     <div class="iv-title">HÓA ĐƠN BÁN HÀNG${st.shopName ? ' · '+esc(st.shopName) : ''}</div>
     <div class="iv-head">
       ${st.address ? `<div>ĐC: ${esc(st.address)}</div>` : ''}
@@ -4699,7 +4759,6 @@ function viewInvoiceReadonly(invoiceId){
         <div class="iv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(inv.finalAmount||0)}đ</span></div>
       </div>
     </div>`;
-  document.getElementById('invViewModal').classList.add('show');
 }
 function closeInvoiceView(){ document.getElementById('invViewModal').classList.remove('show'); }
 function printInvoiceView(){
@@ -4707,6 +4766,198 @@ function printInvoiceView(){
   const done = ()=>{ document.body.classList.remove('printing-inv-view'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   window.print();
+}
+
+// ===================== IN HOÁ ĐƠN ĐÓNG HÀNG (Kho / Đặt in + Quản lý chung) =====================
+// - Danh sách hoá đơn ĐÃ CỌC / ĐÃ CHỐT (khách cũ), cọc trước xếp trước.
+// - In đúng mẫu hoá đơn Sale đã lên (cùng hàm invoiceReadonlyHtml), nhiều hoá đơn 1 lần, mỗi hoá đơn 1 trang A4.
+// - In xong hỏi "Đã in được chưa?" → đánh dấu Đã in (giờ in, người in, lần thứ mấy) vào nhánh packPrints.
+// - Lưu "dấu vân tay" nội dung lúc in: Sale sửa hoá đơn sau đó → hiện "⚠ Đã sửa sau khi in" để In lại.
+// - Sale huỷ cọc sau khi Kho đã in → báo đỏ để Kho rút phiếu ra.
+let packSelected = new Set();
+let packPrintsLoaded = false, packInvoicesLoaded = false, packCleanupDone = false;
+function packSig(inv){
+  const s = JSON.stringify([inv.invoiceNumber||'', inv.invoiceDate||'', inv.customerName||'', cleanPhone(inv.customerPhone||''),
+    inv.saleName||'', inv.teamName||'', inv.leadSource||'', Number(inv.deposit)||0, Number(inv.totalAmount)||0, Number(inv.finalAmount)||0,
+    (inv.productGroups||[]).map(g=>[g.productCode||'', g.design||'', Number(g.unitPrice)||0, g.priceText||'',
+      (g.colorLines||[]).map(l=>[l.color||'', l.size||'', Number(l.qty)||0])])]);
+  let h = 5381; for(let i=0;i<s.length;i++){ h = ((h<<5) + h + s.charCodeAt(i)) | 0; }
+  return (h>>>0).toString(36);
+}
+function packPrintMap(){ const m = {}; (state.packPrints||[]).forEach(p=>{ if(p && p.id) m[p.id] = p; }); return m; }
+function packDepositMs(inv){ return Number(inv.depositLink && inv.depositLink.markedAt) || invoiceCreatedMs(inv); }
+function packStatusOf(inv, pp){ if(!pp) return 'new'; return pp.sig===packSig(inv) ? 'done' : 'changed'; }
+function packTimeStr(ms){
+  if(!ms) return '—';
+  const d = new Date(Number(ms)); const p = n=>String(n).padStart(2,'0');
+  const day = toLocalDateStr(d);
+  const dd = day===todayStr() ? 'hôm nay' : `${p(d.getDate())}/${p(d.getMonth()+1)}`;
+  return `${p(d.getHours())}:${p(d.getMinutes())} ${dd}`;
+}
+// Dọn dấu "Đã in" của hoá đơn đã bị xoá (hết 30 ngày / Quản lý xoá) — 1 lần mỗi phiên, khi đã tải đủ cả 2 nhánh
+function cleanupPackPrints(){
+  if(packCleanupDone || !packPrintsLoaded || !packInvoicesLoaded || !fbPackPrints) return;
+  if(!state.invoices || !state.invoices.length) return; // chưa có hoá đơn nào thì không dọn vội
+  packCleanupDone = true;
+  const ids = new Set(state.invoices.map(i=>i.id));
+  const upd = {};
+  (state.packPrints||[]).forEach(p=>{ if(p && p.id && !ids.has(p.id)) upd[p.id] = null; });
+  if(Object.keys(upd).length) fbPackPrints.update(upd).catch(()=>{});
+}
+function packItemsSummaryHtml(inv){
+  const parts = [];
+  (inv.productGroups||[]).forEach(g=>{
+    if(!g.productCode) return;
+    const q = (g.colorLines||[]).reduce((a,l)=>a+(Number(l.qty)||0),0);
+    if(!q) return;
+    parts.push(`${codeWithMarkHtml(g.productCode)}${g.design ? ` <i class="iv-design" style="color:#B48CFF;">${escHtml(g.design)}</i>` : ''} <b>×${q}</b>`);
+  });
+  return parts.join('<span class="pack-sep"> · </span>') || '<span style="color:var(--ink-soft);">—</span>';
+}
+function packCurrentList(){
+  const map = packPrintMap();
+  const statusSel = document.getElementById('packStatusSel');
+  const rangeSel = document.getElementById('packRangeSel');
+  const searchEl = document.getElementById('packSearch');
+  const status = statusSel ? statusSel.value : 'new';
+  const range = rangeSel ? rangeSel.value : 'all';
+  const q = searchEl ? searchEl.value : '';
+  const today = todayStr();
+  const yd = new Date(); yd.setDate(yd.getDate()-1); const yesterday = toLocalDateStr(yd);
+  const d7 = new Date(); d7.setHours(0,0,0,0); d7.setDate(d7.getDate()-6); const from7 = d7.getTime();
+  let base = (state.invoices||[]).filter(inv=>inv && inv.depositLink);
+  base = base.filter(inv=>{
+    const ms = packDepositMs(inv); const day = toLocalDateStr(new Date(ms));
+    if(range==='today') return day===today;
+    if(range==='yesterday') return day===yesterday;
+    if(range==='7d') return ms >= from7;
+    return true;
+  });
+  if(q.trim()) base = base.filter(inv=>invoiceMatchesSearch(inv, q));
+  const counts = {new:0, changed:0, done:0, all:base.length};
+  base.forEach(inv=>{ counts[packStatusOf(inv, map[inv.id])]++; });
+  const list = status==='all' ? base : base.filter(inv=>packStatusOf(inv, map[inv.id])===status);
+  list.sort((a,b)=>packDepositMs(a)-packDepositMs(b)); // cọc trước → in trước
+  return {list, counts, map, status};
+}
+function renderPackInvoicesPage(){
+  const table = document.getElementById('packTable');
+  if(!table) return;
+  const me = currentUser();
+  if(!me || !['general_manager','warehouse'].includes(me.role)) return;
+  if(!packInvoicesLoaded){ table.innerHTML = '<tr><td class="empty-note">Đang tải hoá đơn…</td></tr>'; return; }
+  const {list, counts, map, status} = packCurrentList();
+  const statusSel = document.getElementById('packStatusSel');
+  if(statusSel){
+    statusSel.options[0].textContent = `🆕 Chưa in (${counts.new})`;
+    statusSel.options[1].textContent = `⚠ Đã sửa sau khi in (${counts.changed})`;
+    statusSel.options[2].textContent = `✅ Đã in (${counts.done})`;
+    statusSel.options[3].textContent = `Tất cả (${counts.all})`;
+  }
+  // Bỏ chọn các hoá đơn không còn trong danh sách đang lọc
+  const visibleIds = new Set(list.map(i=>i.id));
+  Array.from(packSelected).forEach(id=>{ if(!visibleIds.has(id)) packSelected.delete(id); });
+
+  // Cảnh báo: Sale huỷ cọc SAU KHI Kho đã in → rút phiếu ra, đừng đóng
+  const warnBox = document.getElementById('packWarnBox');
+  const cancelled = (state.invoices||[]).filter(inv=>inv && !inv.depositLink && map[inv.id]);
+  warnBox.innerHTML = cancelled.length ? `<div class="pack-warn">
+      <b>⛔ ${cancelled.length} hoá đơn đã in nhưng Sale vừa HUỶ CỌC — rút phiếu ra, KHÔNG đóng hàng:</b>
+      ${cancelled.map(inv=>`<div class="pack-warn-row"><span><b>${escHtml(inv.invoiceNumber)}</b> · ${escHtml(inv.customerName||'')} · Sale ${escHtml(inv.saleName || userName(inv.saleId))} · in lúc ${packTimeStr(map[inv.id].at)}</span>
+        <button class="btn-ghost btn-small" onclick="packDismissCancelled('${inv.id}')">Đã rút phiếu</button></div>`).join('')}
+    </div>` : '';
+
+  const note = document.getElementById('packCountNote');
+  if(note) note.textContent = packSelected.size ? `Đã chọn ${packSelected.size} hoá đơn` : `${list.length} hoá đơn`;
+  const printBtn = document.getElementById('packPrintBtn');
+  if(printBtn) printBtn.textContent = packSelected.size ? `🖨️ In ${packSelected.size} hoá đơn đã chọn` : '🖨️ In hoá đơn đã chọn';
+  const allBtn = document.getElementById('packToggleAllBtn');
+  if(allBtn) allBtn.textContent = (list.length && list.every(i=>packSelected.has(i.id))) ? '☐ Bỏ chọn tất cả' : `☑ Chọn tất cả (${list.length})`;
+
+  if(!list.length){
+    table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : 'Không có hoá đơn nào phù hợp.')}</td></tr>`;
+    return;
+  }
+  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th>Số HĐ</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sale</th><th>Sản phẩm</th><th class="num">SL</th><th>Trạng thái in</th><th></th></tr></thead><tbody>` +
+    list.map(inv=>{
+      const pp = map[inv.id]; const stt = packStatusOf(inv, pp);
+      const stHtml = stt==='new' ? '<span class="pack-badge pack-new">Chưa in</span>'
+        : (stt==='changed'
+          ? `<span class="pack-badge pack-changed">⚠ Đã sửa sau khi in</span><div class="pack-sub">in lúc ${packTimeStr(pp.at)}${pp.n>1 ? ` · lần ${pp.n}` : ''}</div>`
+          : `<span class="pack-badge pack-done">✅ Đã in</span><div class="pack-sub">${packTimeStr(pp.at)}${pp.n>1 ? ` · lần ${pp.n}` : ''}${pp.byName ? ` · ${escHtml(pp.byName)}` : ''}</div>`);
+      return `<tr class="${packSelected.has(inv.id) ? 'pack-row-sel' : ''}">
+        <td><input type="checkbox" class="pack-cb" ${packSelected.has(inv.id)?'checked':''} onchange="packToggleOne('${inv.id}', this.checked)"></td>
+        <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
+        <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
+        <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
+        <td data-label="Sale">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
+        <td data-label="Sản phẩm" class="pack-items">${packItemsSummaryHtml(inv)}</td>
+        <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
+        <td data-label="Trạng thái in">${stHtml}</td>
+        <td class="inv-actions" style="white-space:nowrap;">
+          <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
+          <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
+        </td>
+      </tr>`;
+    }).join('') + '</tbody>';
+}
+function packToggleOne(id, on){ if(on) packSelected.add(id); else packSelected.delete(id); renderPackInvoicesPage(); }
+function packToggleAll(){
+  const {list} = packCurrentList();
+  const allOn = list.length && list.every(i=>packSelected.has(i.id));
+  if(allOn) list.forEach(i=>packSelected.delete(i.id)); else list.forEach(i=>packSelected.add(i.id));
+  renderPackInvoicesPage();
+}
+function packPrintSelected(){
+  if(!packSelected.size){ showToast('Tick chọn hoá đơn cần in trước (hoặc bấm ☑ Chọn tất cả).'); return; }
+  packPrintInvoices(Array.from(packSelected));
+}
+function packDismissCancelled(id){ if(fbPackPrints) fbPackPrints.child(id).remove().catch(()=>{}); }
+function packWaitImages(root, maxMs){
+  const imgs = Array.from(root.querySelectorAll('img')).filter(im=>!im.complete);
+  if(!imgs.length) return Promise.resolve();
+  return Promise.race([
+    Promise.all(imgs.map(im=>new Promise(res=>{ im.addEventListener('load', res, {once:true}); im.addEventListener('error', res, {once:true}); }))),
+    new Promise(res=>setTimeout(res, maxMs))
+  ]);
+}
+function packPrintInvoices(ids){
+  const invs = (ids||[]).map(id=>(state.invoices||[]).find(x=>x.id===id)).filter(inv=>inv && inv.depositLink)
+    .sort((a,b)=>packDepositMs(a)-packDepositMs(b));
+  if(!invs.length){ showToast('Không có hoá đơn đã cọc nào để in.'); return; }
+  let area = document.getElementById('packPrintArea');
+  if(!area){ area = document.createElement('div'); area.id = 'packPrintArea'; document.body.appendChild(area); }
+  area.innerHTML = invs.map(inv=>`<div class="inv-view pack-sheet">${invoiceReadonlyHtml(inv)}</div>`).join('');
+  showToast(`Đang chuẩn bị in ${invs.length} hoá đơn…`);
+  packWaitImages(area, 4000).then(()=>{
+    let finished = false;
+    const done = ()=>{
+      if(finished) return; finished = true;
+      window.removeEventListener('afterprint', done);
+      document.body.classList.remove('printing-pack');
+      setTimeout(()=>{
+        askConfirm('Đã in được chưa?', `Nếu ${invs.length===1 ? 'hoá đơn ' + invs[0].invoiceNumber : invs.length + ' hoá đơn'} đã in ra giấy, bấm "Xác nhận" để đánh dấu ✅ Đã in. Bấm "Huỷ" nếu máy in lỗi / bạn đã huỷ in.`,
+          ()=>{ packMarkPrinted(invs); closeConfirm(); });
+      }, 250);
+    };
+    document.body.classList.add('printing-pack');
+    window.addEventListener('afterprint', done);
+    window.print();
+  });
+}
+function packMarkPrinted(invs){
+  if(!fbPackPrints) return;
+  const me = currentUser() || {};
+  const map = packPrintMap(); const now = Date.now(); const upd = {};
+  invs.forEach(inv=>{
+    const old = map[inv.id];
+    upd[inv.id] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', sig: packSig(inv), at: now, first: (old && old.first) || now,
+      n: ((old && Number(old.n)) || 0) + 1, by: me.id || '', byName: me.name || ''};
+  });
+  fbPackPrints.update(upd).then(()=>{
+    invs.forEach(inv=>packSelected.delete(inv.id));
+    showToast(`✅ Đã đánh dấu in ${invs.length} hoá đơn`);
+  }).catch(e=>{ console.error(e); showToast('Lỗi lưu trạng thái in — kiểm tra mạng rồi thử lại.'); });
 }
 function exportInvoicesByProduct(){
   // Gom theo hình (mã + mẫu in) — xuất đúng kiểu đang xem: từng màu kèm dòng tổng mỗi hình, hoặc chỉ tổng theo hình
@@ -9283,10 +9534,23 @@ function setupRoleScopedListeners(user){
   }, false);
 
   // Hoá đơn
-  const invKey = !user || isMkt ? 'none' : (r==='general_manager' ? 'all' : 'mine:'+user.id);
+  // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
+  const invKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id));
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
-    (arr)=>{ state.invoices = purgeExpiredInvoices(arr); onDataChanged(); if(r==='general_manager') backfillInvoiceItems(); }, false);
+    (arr)=>{
+      if(isWarehouse){ const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
+      else state.invoices = purgeExpiredInvoices(arr);
+      packInvoicesLoaded = invKey==='all'; cleanupPackPrints();
+      onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
+    }, false);
+
+  // Đánh dấu "Đã in" hoá đơn đóng hàng (nhánh packPrints, mỗi hoá đơn 1 dòng): Kho + Quản lý chung
+  const ppKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
+  attachScoped('packPrints', ppKey, ppKey==='on' ? fbPackPrints : null, (arr)=>{
+    state.packPrints = arr; packPrintsLoaded = ppKey==='on'; cleanupPackPrints();
+    if(currentPageId==='packInvoices' && !isUserActivelyEditing()) renderPackInvoicesPage();
+  }, false);
 
   // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
   const saleSide = user && !isMkt ? 'on' : 'none';
@@ -9302,7 +9566,8 @@ function setupRoleScopedListeners(user){
   }, false);
   attachScoped('productSheetUrl', saleSide, saleSide==='on' ? fbProductSheetUrl : null,
     (arr, raw)=>{ state.productSheetUrl = (typeof raw==='string') ? raw : ''; onDataChanged(); }, false);
-  attachScoped('invoiceSettings', saleSide, saleSide==='on' ? fbInvoiceSettings : null,
+  const invSetKey = (saleSide==='on' || isWarehouse) ? 'on' : 'none'; // Kho cần tên cửa hàng / STK / QR để in hoá đơn đóng hàng
+  attachScoped('invoiceSettings', invSetKey, invSetKey==='on' ? fbInvoiceSettings : null,
     (arr, raw)=>{ state.invoiceSettings = (raw && typeof raw==='object') ? raw : {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); }, false);
   attachScoped('selfLeads', saleSide, saleSide==='on' ? fbSelfLeads : null, setAndRender('selfLeads'), false);
 
@@ -9365,6 +9630,7 @@ function enterApp(){
   document.getElementById('navItem_videoShootsOverview').style.display = (user.role==='team_manager') ? 'none' : 'flex';
   if(user.role==='team_manager') document.getElementById('navItem_mgrTrash').style.display = 'none'; // Trưởng team không dùng Thùng rác — chỉ Quản lý chung
   document.getElementById('navItem_invoicesOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none';
+  document.getElementById('navItem_packInvoices').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // In hoá đơn đóng hàng: Quản lý chung (+ Kho ở menu riêng)
   document.getElementById('navItem_printOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // Tổng hợp hoá đơn: CHỈ Quản lý chung được xem
   document.getElementById('navSectionLabel_mkt').style.display = (user.role==='team_manager') ? 'none' : 'block';
   document.getElementById('navSectionLabel_system').style.display = isDataManager ? 'none' : 'block';
@@ -9464,7 +9730,8 @@ function goPage(pageId){
   // Nhân viên in hình: CHỈ trang Báo cáo in hình + Nội quy
   if(u && u.role==='printer' && pageId!=='printReport' && pageId!=='companyRules'){ pageId = 'printReport'; }
   // Kho / Đặt in: CHỈ Hàng cần in + Đặt đơn in + Nội quy
-  if(u && u.role==='warehouse' && !['printOverview','printOrders','companyRules'].includes(pageId)){ pageId = 'printOverview'; }
+  if(u && u.role==='warehouse' && !['printOverview','packInvoices','printOrders','companyRules'].includes(pageId)){ pageId = 'printOverview'; }
+  if(pageId==='packInvoices' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = homePageForMe(); }
   if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.role==='warehouse' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : 'companyRules'; }
   if(pageId==='printOverview' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
@@ -9490,6 +9757,7 @@ function goPage(pageId){
   try{ updateReportDeadlineBar(); }catch(e){}
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
+  if(pageId==='packInvoices') renderPackInvoicesPage();
   if(pageId==='printOrders') renderPrintOrdersPage();
   if(pageId==='mktReport') renderMktReportPage();
   if(pageId==='mktReportsAdmin'){
