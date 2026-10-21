@@ -5391,6 +5391,7 @@ function mrUpdateStats(){
     box('Lời cảm ơn đã gửi', mrNum('mr_thanks'), ''));
 }
 function mrLoadForDate(){
+  setTimeout(()=>{ try{ updateMktReportSubmitLock(); }catch(e){} }, 0);
   const u = currentUser(); if(!u) return;
   const dateEl = document.getElementById('mr_date');
   if(!dateEl.value) dateEl.value = todayStr();
@@ -5411,9 +5412,24 @@ function mrLoadForDate(){
   document.getElementById('mrMsg').textContent = '';
   renderMrSourceTable(false);
 }
+// Báo cáo MKT của HÔM NAY chỉ mở từ 16:30 (tránh nộp sớm / nộp nhầm). Không thông báo — chỉ khoá nút.
+// Nộp bù các ngày TRƯỚC không bị khoá.
+const MKT_REPORT_OPEN_MINUTES = 16*60 + 30;
+function mktReportSubmitLockedFor(date){
+  if(!date || date!==todayStr()) return false;
+  const n = new Date(); return (n.getHours()*60 + n.getMinutes()) < MKT_REPORT_OPEN_MINUTES;
+}
+function updateMktReportSubmitLock(){
+  const btn = document.getElementById('mrSubmitBtn'); if(!btn) return;
+  const date = (document.getElementById('mr_date')||{}).value || todayStr();
+  const locked = mktReportSubmitLockedFor(date);
+  btn.disabled = locked; btn.style.opacity = locked ? '0.45' : ''; btn.style.cursor = locked ? 'not-allowed' : '';
+}
+setInterval(()=>{ try{ if(currentPageId==='mktReport') updateMktReportSubmitLock(); }catch(e){} }, 20000);
 function mrSubmit(){
   const u = currentUser(); if(!u) return;
   const date = document.getElementById('mr_date').value || todayStr();
+  if(mktReportSubmitLockedFor(date)){ updateMktReportSubmitLock(); return; } // chưa tới 16:30 → không cho nộp
   if(date > todayStr()){ showToast('Không thể nộp báo cáo cho ngày trong tương lai.'); return; }
   const parsedLinks = mrParseLinks();
   const lp = mrLinkProblems(parsedLinks);
