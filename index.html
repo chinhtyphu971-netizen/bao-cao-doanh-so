@@ -1057,6 +1057,34 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-partial-btn{ color:#8DB4FF !important; border-color:rgba(141,180,255,0.6) !important; }
   .pack-partial-btn.hl{ background:rgba(79,140,255,0.18) !important; border-color:var(--accent) !important; }
   #myInvoicesTable td .pack-sale-actions{ white-space:normal; }
+  /* Ảnh mẫu + tick nhặt hàng */
+  .pack-l-prodwrap{ display:flex; align-items:center; gap:8px; }
+  .pack-pimg{ width:54px; height:54px; border-radius:8px; object-fit:cover; background:#fff; flex:0 0 auto; cursor:zoom-in; }
+  .pimg-empty{ display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.05) !important; color:var(--ink-soft); font-size:18px; cursor:default; border:1px dashed var(--line); }
+  .pimg-loading{ background:rgba(255,255,255,0.08) !important; }
+  .pack-pickable{ cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; }
+  .pack-pickable:active td{ background:rgba(79,140,255,0.12) !important; }
+  tr.pack-picked td{ background:rgba(46,160,90,0.10) !important; }
+  .pack-pick-cell{ white-space:nowrap; text-align:center; }
+  .pack-pick{ display:inline-flex; align-items:center; justify-content:center; min-width:42px; height:42px; border-radius:50%; border:2px solid var(--line); font-weight:800; font-size:13px; padding:0 4px; }
+  .pack-pick.part{ border-color:#F0A63A; color:#F0A63A; }
+  .pack-pick.done{ border-color:#2EA05A; background:#2EA05A; color:#fff; font-size:20px; }
+  .pack-pick.sent{ border-color:var(--line); color:var(--ink-soft); }
+  .pack-pick-minus{ display:block; margin:4px auto 0; width:28px; height:22px; min-height:0 !important; padding:0 !important; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); font-size:15px; line-height:1; cursor:pointer; }
+  .pack-progress{ position:relative; height:34px; border-radius:10px; background:rgba(255,255,255,0.06); overflow:hidden; margin:10px 0 8px; }
+  .pack-progress-bar{ position:absolute; inset:0 auto 0 0; background:rgba(240,166,58,0.35); transition:width .2s; }
+  .pack-progress.full .pack-progress-bar{ background:rgba(46,160,90,0.45); }
+  .pack-progress span{ position:relative; display:block; line-height:34px; padding:0 12px; font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pimg-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:10px; }
+  .pimg-item{ display:flex; gap:10px; align-items:center; border:1px solid var(--line); border-radius:10px; padding:8px; }
+  .pimg-item.is-code{ border-style:dashed; }
+  .pimg-thumb{ width:64px; height:64px; border-radius:8px; object-fit:cover; background:#fff; flex:0 0 auto; cursor:zoom-in; }
+  .pimg-info{ flex:1; min-width:0; }
+  .pimg-name{ font-size:13px; margin-bottom:6px; word-break:break-word; }
+  .pimg-acts{ display:flex; gap:6px; flex-wrap:wrap; }
+  .pimg-up{ cursor:pointer; }
+  .pack-x-btn{ color:#FF8A8D !important; }
+  @media (max-width:720px){ .pack-pimg{ width:44px; height:44px; } .pack-pick{ min-width:38px; height:38px; } }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -1787,6 +1815,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <details class="card pack-details" id="packStatsDetails" ontoggle="if(this.open) renderPackStats()">
           <summary>📊 Thống kê đóng hàng</summary>
           <div id="packStatsBox"></div>
+        </details>
+        <details class="card pack-details" id="pimgDetails" ontoggle="if(this.open) renderPimgManager()">
+          <summary>🖼️ Ảnh mẫu sản phẩm (hiện khi nhặt hàng)</summary>
+          <div class="pack-toolbar" style="margin-top:10px;">
+            <input id="pimgSearch" type="search" placeholder="🔍 Mã / tên mẫu (VD: A55, mèo)" oninput="clearTimeout(window.__pimgT); window.__pimgT=setTimeout(()=>{ pagerPages.pimg=1; renderPimgManager(); }, 250)" style="flex:1; min-width:200px;">
+            <label class="pack-note" style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="pimgMissing" onchange="pagerPages.pimg=1; renderPimgManager()" style="width:auto; min-height:0;"> Chỉ hiện mục chưa có ảnh</label>
+          </div>
+          <div id="pimgBox"></div>
         </details>
         <details class="card pack-details" id="packStaffDetails" ontoggle="if(this.open) renderPackStaffBox()">
           <summary>👥 Nhân viên kho &amp; điểm danh hôm nay</summary>
@@ -2703,7 +2739,7 @@ const LocalDB = {
 })();
 let printOrdersLoadedOnce = false;
 let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
 function reportWindowStart(){ const d = new Date(); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
@@ -2818,6 +2854,8 @@ function startFirebaseListeners(){
   fbPackStatus = db.ref('packStatus'); // Đóng hàng: Đã đóng / Thiếu (chờ bù) của từng hoá đơn — có saleId để Sale nhận báo thiếu
   fbPackStaff = db.ref('packStaff');   // Danh sách TÊN nhân viên kho (không tài khoản, không PIN)
   fbPackPresence = db.ref('packPresence'); // Điểm danh theo ngày: packPresence/{ngày}/{mã nhân viên} = true
+  fbProductImages = db.ref('productImages');           // Ảnh mẫu sản phẩm: productImages/{khoá} = {data(JPEG nén ~400–600px), v, code, design}
+  fbProductImagesIndex = db.ref('productImagesIndex'); // Mục lục nhỏ: productImagesIndex/{khoá} = v (phiên bản) — biết ảnh nào có / đã đổi mà không tải ảnh
   fbPackPhotos = db.ref('packPhotos'); // Ảnh đơn hàng lúc đóng / thiếu / bù: packPhotos/{hoáĐơn}/{mãẢnh} = {data(JPEG nén), kind, at, byName} — chỉ tải khi bấm xem
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
@@ -5475,7 +5513,7 @@ function packPanelOpen(invId){
   const present = packPresentStaff();
   const devMe = packDeviceMe(); const isMine = !!devMe && devMe!=='shared';
   packPanel = {invId, staffId: isMine ? devMe : (present.length===1 ? present[0].id : null), lockedMe: isMine, showAll: false,
-    mode:'view', miss:{}, note:'', fromCam: packOpenedByCam, photos:[], showPhotos:false, savedPhotos:null}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
+    mode:'view', miss:{}, note:'', fromCam: packOpenedByCam, photos:[], showPhotos:false, savedPhotos:null, picked: packPickLoad(invId)}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
   packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
@@ -5507,10 +5545,16 @@ function renderPackPanel(){
   else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && ps.state==='partial'){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
   const prevMiss = {}; if(ps && (ps.state==='short' || ps.state==='partial')) (ps.shortItems||[]).forEach(x=>{ if(x.key) prevMiss[x.key] = Number(x.missing)||0; });
+  const tickMode = canAct && !short;
+  const prog = packPickProgress(lines, ps);
   const rows = lines.map(l=>{
     const miss = short ? (packPanel.miss[l.key]||0) : (prevMiss[l.key]||0);
-    return `<tr class="${miss ? 'pack-line-miss' : ''}">
-      <td class="pack-l-prod">${codeWithMarkHtml(l.code)}${l.design ? `<br><i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? '<br><span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}</td>
+    const tgt = prog.t[l.key] || 0, got = Math.min(tgt, (packPanel.picked||{})[l.key]||0), done = tgt>0 && got>=tgt;
+    const pickCell = tickMode ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
+      : `<td class="pack-pick-cell"><span class="pack-pick sent" title="Đã gửi ở lần trước">✓</span></td>`) : '';
+    return `<tr class="${miss ? 'pack-line-miss' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
+      ${pickCell}
+      <td class="pack-l-prod"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l.code, l.design), 'pack-pimg')}<div>${codeWithMarkHtml(l.code)}${l.design ? `<br><i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? '<br><span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}</div></div></td>
       <td>${escHtml(l.color)||'—'}</td><td>${escHtml(l.size)||'—'}</td>
       <td class="num pack-l-qty">${l.qty}</td>
       ${short ? `<td class="pack-l-miss"><button class="pack-step" onclick="packMissStep('${l.key}',-1,${l.qty})">−</button><b>${miss}</b><button class="pack-step" onclick="packMissStep('${l.key}',1,${l.qty})">+</button></td>`
@@ -5545,7 +5589,8 @@ function renderPackPanel(){
     </div>
     ${banner}
     ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở những dòng bị thiếu (số cái thiếu), rồi bấm "Gửi báo thiếu cho Sale".</div>' : ''}
-    <div class="table-wrap"><table class="pack-lines"><thead><tr><th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
+    ${tickMode && prog.need ? `<div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Chạm dòng khi nhặt · đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>` : ''}
+    <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
     ${canAct ? (packPanel.lockedMe && !packPanel.showAll
       ? `<div class="pack-p-sec"><div class="pack-p-label">👤 Người đóng: <span class="pack-me-name">${escHtml(packStaffName(packPanel.staffId))}</span></div></div>`
       : `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>`) : ''}
@@ -5553,15 +5598,156 @@ function renderPackPanel(){
     ${packSavedPhotosHtml(inv.id, ps)}
     <div class="pack-p-actions">${actions}</div>
     <div class="pack-p-msg">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}<span class="pack-note">nhắn Sale ${escHtml(inv.saleName || userName(inv.saleId) || '')} về đơn này</span></div>`;
+  pimgHydrate(body);
 }
 // Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
 function packAfterAction(){
   const fromCam = packPanel && packPanel.fromCam;
+  if(packPanel) packPickClear(packPanel.invId);
   packPanelClose();
   if(fromCam){ packLastCamAt = Date.now(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
   else { const si = document.getElementById(currentPageId==='packDesk' ? 'packDeskScanInput' : 'packScanInput'); if(si && window.matchMedia('(min-width:721px)').matches) si.focus(); }
 }
 
+
+// ===================== ẢNH MẪU SẢN PHẨM =====================
+// Ảnh gắn theo MẪU IN (mã + tên mẫu) — ưu tiên; không có thì dùng ảnh theo MÃ sản phẩm.
+// Mỗi ảnh chỉ tải về mỗi máy 1 LẦN: cất vào bộ nhớ máy (IndexedDB), lần sau lấy ra dùng ngay.
+// Kho trưởng thay ảnh mới → số phiên bản (v) đổi → máy mới tải lại đúng ảnh đó.
+function pimgNorm(x){ return normalizeSearchText(x).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+function pimgKey(code, design){ return 'c_' + pimgNorm(code) + (design ? '__' + pimgNorm(design) : ''); }
+function pimgKeyFor(code, design){
+  const idx = state.pimgIndex || {};
+  if(design){ const k = pimgKey(code, design); if(idx[k]) return k; }
+  const k2 = pimgKey(code, ''); return idx[k2] ? k2 : '';
+}
+let pimgDbP = null; const pimgMem = {}, pimgPending = {};
+function pimgDb(){
+  if(!pimgDbP) pimgDbP = new Promise(res=>{ try{ const r = indexedDB.open('ttk_pimg', 1); r.onupgradeneeded = ()=>r.result.createObjectStore('img'); r.onsuccess = ()=>res(r.result); r.onerror = ()=>res(null); }catch(e){ res(null); } });
+  return pimgDbP;
+}
+async function pimgCacheGet(key){ const db = await pimgDb(); if(!db) return null; return new Promise(res=>{ try{ const q = db.transaction('img','readonly').objectStore('img').get(key); q.onsuccess = ()=>res(q.result||null); q.onerror = ()=>res(null); }catch(e){ res(null); } }); }
+async function pimgCacheSet(key, val){ const db = await pimgDb(); if(!db) return; try{ db.transaction('img','readwrite').objectStore('img').put(val, key); }catch(e){} }
+async function pimgCacheDel(key){ const db = await pimgDb(); if(!db) return; try{ db.transaction('img','readwrite').objectStore('img').delete(key); }catch(e){} }
+function pimgMemGet(key){ const v = (state.pimgIndex||{})[key]; const m = pimgMem[key]; return (v && m && m.v===v) ? m.data : null; }
+async function pimgGet(key){
+  const v = (state.pimgIndex||{})[key]; if(!v) return null;
+  const m = pimgMemGet(key); if(m) return m;
+  const c = await pimgCacheGet(key); if(c && c.v===v){ pimgMem[key] = c; return c.data; }
+  if(pimgPending[key]) return pimgPending[key];
+  pimgPending[key] = fbProductImages.child(key).child('data').once('value').then(snap=>{
+    delete pimgPending[key]; const data = snap.val();
+    if(data){ const rec = {v, data}; pimgMem[key] = rec; pimgCacheSet(key, rec); }
+    return data || null;
+  }).catch(()=>{ delete pimgPending[key]; return null; });
+  return pimgPending[key];
+}
+function pimgImgHtml(key, cls){
+  if(!key) return `<span class="${cls} pimg-empty" title="Chưa có ảnh mẫu">🖼️</span>`;
+  const src = pimgMemGet(key);
+  return src ? `<img class="${cls}" src="${src}" onclick="event.stopPropagation(); packPhotoZoom(this.src)">`
+             : `<img class="${cls} pimg-loading" data-pimg="${key}" alt="" onclick="event.stopPropagation(); if(this.src) packPhotoZoom(this.src)">`;
+}
+function pimgHydrate(root){
+  (root || document).querySelectorAll('img[data-pimg]').forEach(img=>{
+    const key = img.getAttribute('data-pimg'); img.removeAttribute('data-pimg');
+    pimgGet(key).then(src=>{ if(src){ img.src = src; img.classList.remove('pimg-loading'); } });
+  });
+}
+// ----- Quản lý ảnh mẫu (Kho trưởng / Quản lý chung) -----
+function pimgCatalog(){
+  const out = [];
+  (state.products||[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),'vi',{numeric:true})).forEach(p=>{
+    if(!p || !p.code) return;
+    const code = String(p.code).trim().toUpperCase();
+    out.push({key: pimgKey(code, ''), code, design:'', label: `${code} — ${p.name||''}`, isCode:true});
+    parseDesignOptions(p.designs).forEach(d=>out.push({key: pimgKey(code, d), code, design:d, label: d}));
+  });
+  return out;
+}
+function renderPimgManager(){
+  const box = document.getElementById('pimgBox'); if(!box) return;
+  const q = normalizeSearchText((document.getElementById('pimgSearch')||{}).value || '');
+  const onlyMissing = !!(document.getElementById('pimgMissing')||{}).checked;
+  const idx = state.pimgIndex || {};
+  let list = pimgCatalog();
+  const total = list.length, have = list.filter(x=>idx[x.key]).length;
+  if(q) list = list.filter(x=>normalizeSearchText(x.code + ' ' + x.design + ' ' + x.label).includes(q));
+  if(onlyMissing) list = list.filter(x=>!idx[x.key]);
+  const rows = pageSlice('pimg', list, 40);
+  box.innerHTML = `<div class="pack-note" style="margin:6px 0 10px;">Đã có ảnh <b>${have}/${total}</b> mục. Ảnh theo <b>mẫu in</b> được ưu tiên; mẫu chưa có ảnh thì dùng ảnh theo <b>mã</b>.</div>
+    <div class="pimg-grid">${rows.map(x=>`<div class="pimg-item ${x.isCode ? 'is-code' : ''}">
+      ${idx[x.key] ? pimgImgHtml(x.key, 'pimg-thumb') : '<span class="pimg-thumb pimg-empty">🖼️</span>'}
+      <div class="pimg-info"><div class="pimg-name">${x.isCode ? '<b>' + escHtml(x.label) + '</b><div class="pack-sub">ảnh chung của mã</div>' : `${codeWithMarkHtml(x.code)} <i class="iv-design">${escHtml(x.design)}</i>`}</div>
+        <div class="pimg-acts"><label class="btn-ghost btn-small pimg-up">📷 ${idx[x.key] ? 'Đổi ảnh' : 'Tải ảnh'}<input type="file" accept="image/*" style="display:none;" data-key="${x.key}" data-code="${escHtml(x.code)}" data-design="${escHtml(x.design)}" onchange="pimgUpload(this, this.dataset.key, this.dataset.code, this.dataset.design)"></label>
+        ${idx[x.key] ? `<button class="btn-ghost btn-small pack-x-btn" onclick="pimgDelete('${x.key}')">Xoá</button>` : ''}</div></div>
+    </div>`).join('') || '<div class="pack-note">Không có mục nào.</div>'}</div>` + (list.length > 40 ? pagerHtml('pimg', list.length, 40, 'renderPimgManager') : '');
+  pimgHydrate(box);
+}
+function packImageResize(file, max, maxLen){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = ()=>{ try{
+      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth*sc), h = Math.round(img.naturalHeight*sc);
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h); cx.drawImage(img, 0, 0, w, h);
+      let q = 0.78, data = cv.toDataURL('image/jpeg', q);
+      while(data.length > maxLen && q > 0.35){ q -= 0.08; data = cv.toDataURL('image/jpeg', q); }
+      URL.revokeObjectURL(url); resolve(data);
+    }catch(e){ URL.revokeObjectURL(url); reject(e); } };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh')); };
+    img.src = url;
+  });
+}
+async function pimgUpload(input, key, code, design){
+  const f = input.files && input.files[0]; input.value = ''; if(!f) return;
+  const me = currentUser() || {};
+  showToast('⏳ Đang xử lý ảnh…');
+  try{
+    const data = await packImageResize(f, 600, 80000); // ~600px, ≤ ~60KB
+    const v = Date.now();
+    await fbRoot.update({[`productImages/${key}`]: {data, v, code, design: design || '', at: v, by: me.name || ''}, [`productImagesIndex/${key}`]: v});
+    pimgMem[key] = {v, data}; pimgCacheSet(key, {v, data});
+    showToast(`✅ Đã lưu ảnh ${code}${design ? ' · ' + design : ''}`);
+  }catch(e){ console.error(e); showToast('Không lưu được ảnh — thử lại.'); }
+}
+function pimgDelete(key){
+  askConfirm('Xoá ảnh mẫu?', 'Ảnh này sẽ không hiện khi nhặt hàng nữa.', ()=>{
+    fbRoot.update({[`productImages/${key}`]: null, [`productImagesIndex/${key}`]: null}).then(()=>{ delete pimgMem[key]; pimgCacheDel(key); showToast('Đã xoá ảnh'); });
+  });
+}
+// ===================== TICK TỪNG DÒNG ĐÃ NHẶT =====================
+// Chạm vào dòng = nhặt thêm 1 cái (0/3 → 1/3 → … → ✓). Tiến độ giữ trên máy (đóng màn hình mở lại vẫn còn).
+// Bấm "Thiếu" khi chưa nhặt đủ → app tự điền số thiếu = cần − đã nhặt.
+function packPickKey(invId){ return 'pack_pick_' + invId; }
+function packPickLoad(invId){ try{ return JSON.parse(localStorage.getItem(packPickKey(invId)) || '{}') || {}; }catch(e){ return {}; } }
+function packPickSave(){ if(!packPanel) return; try{ localStorage.setItem(packPickKey(packPanel.invId), JSON.stringify(packPanel.picked||{})); }catch(e){} }
+function packPickClear(invId){ try{ localStorage.removeItem(packPickKey(invId)); }catch(e){} }
+// Số cần nhặt của từng dòng: bình thường = SL; đơn "đã gửi 1 phần" = chỉ phần còn nợ
+function packPickTargets(lines, ps){
+  const t = {};
+  if(ps && ps.state==='partial'){ const owed = {}; (ps.shortItems||[]).forEach(x=>{ if(x.key) owed[x.key] = Number(x.missing)||0; }); lines.forEach(l=>{ t[l.key] = owed[l.key] || 0; }); }
+  else lines.forEach(l=>{ t[l.key] = l.qty; });
+  return t;
+}
+function packPickTap(key, d){
+  if(!packPanel) return;
+  const inv = (state.invoices||[]).find(x=>x.id===packPanel.invId); if(!inv) return;
+  const lines = packInvLines(inv); const t = packPickTargets(lines, packStatusMap()[inv.id]);
+  const max = t[key] || 0; if(!max) return;
+  const cur = (packPanel.picked||{})[key] || 0;
+  const nv = Math.max(0, Math.min(max, cur + (d||1)));
+  if(nv===cur && (d||1)>0){ packBeep(false); return; }
+  packPanel.picked[key] = nv; packPickSave();
+  if(nv===max && (d||1)>0) packBeep(true);
+  renderPackPanel();
+}
+function packPickProgress(lines, ps){
+  const t = packPickTargets(lines, ps); let need = 0, got = 0;
+  lines.forEach(l=>{ need += t[l.key]||0; got += Math.min(t[l.key]||0, (packPanel.picked||{})[l.key]||0); });
+  return {need, got, t};
+}
 // ===================== ẢNH ĐƠN HÀNG (lúc đủ / thiếu / bù) =====================
 // Bắt buộc chụp ít nhất 1 ảnh trước khi bấm Đã đóng / Gửi báo thiếu / Đã bù đủ (tối đa 4 ảnh mỗi lần).
 // Ảnh được thu nhỏ (cạnh dài 1280px, JPEG) còn ~100–200KB rồi lưu ở nhánh packPhotos — CHỈ tải khi có người bấm xem,
@@ -5674,6 +5860,7 @@ function packOpenPhotosViewer(invId){
     .catch(()=>{ body.innerHTML = '<div class="pack-note">Không tải được ảnh — kiểm tra mạng.</div>'; });
 }
 function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; renderPackPanel(); } }
+// (ảnh mẫu trong panel được nạp ngay sau mỗi lần vẽ — xem renderPackPanel)
 function packMissStep(key, d, max){ if(!packPanel) return; const v = Math.max(0, Math.min(max, (packPanel.miss[key]||0) + d)); packPanel.miss[key] = v; renderPackPanel(); }
 function packStaffName(id){
   const u = (state.users||[]).find(x=>x.id===id); if(u) return u.name;
@@ -5689,7 +5876,11 @@ function packStartShort(){
   if(!packPanel) return;
   const ps = packStatusMap()[packPanel.invId];
   packPanel.mode = 'short'; packPanel.miss = {}; packPanel.note = (ps && ps.note) || '';
-  if(ps && ps.state==='short') (ps.shortItems||[]).forEach(x=>{ if(x.key) packPanel.miss[x.key] = Number(x.missing)||0; });
+  const inv = (state.invoices||[]).find(x=>x.id===packPanel.invId);
+  const picked = packPanel.picked || {}; const anyPick = Object.values(picked).some(n=>n>0);
+  if(inv && anyPick && !(ps && ps.state==='short')){
+    packInvLines(inv).forEach(l=>{ const m = l.qty - Math.min(l.qty, picked[l.key]||0); if(m>0) packPanel.miss[l.key] = m; }); // tự điền: cần − đã nhặt
+  } else if(ps && ps.state==='short') (ps.shortItems||[]).forEach(x=>{ if(x.key) packPanel.miss[x.key] = Number(x.missing)||0; });
   renderPackPanel();
 }
 function packBaseRecord(inv){
@@ -5699,6 +5890,13 @@ function packBaseRecord(inv){
 }
 function packDoPacked(){
   if(!packPanel || !packNeedStaff()) return;
+  const inv = (state.invoices||[]).find(x=>x.id===packPanel.invId); if(!inv) return;
+  const prog = packPickProgress(packInvLines(inv), packStatusMap()[inv.id]);
+  if(prog.need && prog.got < prog.need){
+    packBeep(false);
+    askConfirm('Chưa tick đủ hàng', `Mới nhặt ${prog.got}/${prog.need} món. Kiểm tra lại từng dòng — nếu thật sự thiếu thì bấm "⚠ Thiếu hàng". Vẫn đóng đơn?`, ()=>packNeedPhotos(packDoPackedSave));
+    return;
+  }
   packNeedPhotos(packDoPackedSave);
 }
 function packDoPackedSave(){
@@ -10746,6 +10944,11 @@ function setupRoleScopedListeners(user){
     onDataChanged();
   }, false);
   const kKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
+  attachScoped('productImagesIndex', kKey, kKey==='on' ? fbProductImagesIndex : null, (arr, raw)=>{
+    state.pimgIndex = (raw && typeof raw==='object') ? raw : {};
+    if(packPanel && document.getElementById('packPanelModal').classList.contains('show')) renderPackPanel();
+    const pd = document.getElementById('pimgDetails'); if(pd && pd.open) renderPimgManager();
+  }, false);
   attachScoped('packStaff', kKey, kKey==='on' ? fbPackStaff : null, (arr)=>{
     state.packStaff = arr; onDataChanged();
     const kd = document.getElementById('packStaffDetails'); if(currentPageId==='packInvoices' && kd && kd.open) renderPackStaffBox(); // vẽ ngay dù con trỏ còn ở ô nhập tên
