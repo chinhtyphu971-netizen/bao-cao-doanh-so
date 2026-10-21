@@ -984,6 +984,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-p-sec.need{ border:1.5px dashed #F0A63A; }
   .pack-p-sec .pack-chip{ font-size:16px; padding:11px 20px; min-height:48px; }
   @media (max-width:720px){ #packDeskScanInput{ font-size:15px !important; } .pack-hero-cam{ font-size:18px !important; } .pack-ready{ display:none; } }
+  .pack-me-card.ask{ border:2px solid var(--accent) !important; }
+  .pack-me-title{ font-size:18px; font-weight:800; margin-bottom:4px; }
+  .pack-me-line{ font-size:14px; margin:0 0 12px; padding:10px 14px; border-radius:10px; background:rgba(79,140,255,0.10); }
+  .pack-staff-item.acc{ border-style:solid; color:var(--ink); }
+  .pack-me-count{ font-size:17px; }
+  .pack-me-line a{ margin-left:8px; font-weight:700; color:#8DB4FF; }
+  .pack-p-sec a, .pack-p-meta a{ color:#8DB4FF; font-weight:700; }
+  .pack-me-name{ display:inline-block; background:#2EA05A; color:#fff; border-radius:999px; padding:4px 12px; font-size:15px; }
+  .pack-shared-on{ border-color:var(--accent) !important; color:var(--accent) !important; }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -1036,6 +1045,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-sale-badge{ font-size:11.5px; font-weight:700; margin-top:2px; white-space:normal; }
   .pack-sale-badge.ok{ color:var(--success); }
   .pack-sale-badge.warn{ color:#F0A63A; }
+  .pack-sale-badge.printed{ color:#8DB4FF; }
   .pack-notice-item{ border-left:3px solid #F0A63A; padding:6px 10px; margin:8px 0; background:rgba(240,166,58,0.08); border-radius:6px; }
   @media (max-width:720px){
     .pack-p-num{ font-size:26px; }
@@ -1711,6 +1721,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
       <div id="page-packDesk" class="page" style="display:none;">
         <div class="page-head"><div><h1>Bàn đóng gói</h1><p>Quét mã QR cuối phiếu → chạm tên mình → bấm Đã đóng hoặc Thiếu</p></div></div>
+        <div id="packDeskMe"></div>
         <div class="card pack-hero">
           <button class="btn-primary pack-hero-cam" onclick="packScanStart()">📷 QUÉT MÃ ĐÓNG HÀNG</button>
           <div class="pack-hero-or">hoặc dùng súng quét / gõ Số HĐ:</div>
@@ -2207,7 +2218,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
                 <option value="mkt_manager">Quản lý team MKT</option>
                 <option value="printer">Nhân viên in hình (chỉ báo cáo in)</option>
                 <option value="warehouse">Kho / Đặt in (hàng cần in, đặt đơn in, in hoá đơn đóng hàng)</option>
-                <option value="packer">Bàn đóng gói (chỉ quét mã &amp; đóng hàng)</option>
+                <option value="packer">Nhân viên đóng gói (mỗi người 1 tài khoản · chỉ quét &amp; đóng hàng)</option>
               </select>
             </div>
             <div class="field" id="newAccBranchField">
@@ -4994,7 +5005,12 @@ function cleanupPackPrints(){
   packCleanupDone = true;
   const ids = new Set(state.invoices.map(i=>i.id));
   const upd = {}, upd2 = {};
-  (state.packPrints||[]).forEach(p=>{ if(p && p.id && !ids.has(p.id)) upd[p.id] = null; });
+  const invById = {}; state.invoices.forEach(i=>{ invById[i.id] = i; });
+  (state.packPrints||[]).forEach(p=>{
+    if(!p || !p.id) return;
+    if(!ids.has(p.id)) upd[p.id] = null;
+    else if(!p.saleId && invById[p.id].saleId) upd[p.id + '/saleId'] = invById[p.id].saleId; // bản in cũ chưa có saleId → bổ sung để Sale thấy
+  });
   (state.packStatus||[]).forEach(p=>{ if(p && p.id && !ids.has(p.id)) upd2[p.id] = null; });
   if(Object.keys(upd).length) fbPackPrints.update(upd).catch(()=>{});
   if(Object.keys(upd2).length && fbPackStatus) fbPackStatus.update(upd2).catch(()=>{});
@@ -5182,7 +5198,15 @@ function packAttachPresence(){
     const kd = document.getElementById('packStaffDetails'); if(currentPageId==='packInvoices' && kd && kd.open) renderPackStaffBox();
   }, false);
 }
-function packActiveStaff(){ return (state.packStaff||[]).filter(x=>x && x.id && x.active!==false).sort((a,b)=>String(a.name).localeCompare(String(b.name),'vi')); }
+// Người đóng hàng = các TÀI KHOẢN "Nhân viên đóng gói" (mã = id tài khoản) + tên Kho trưởng thêm tay cho người chưa có tài khoản.
+// Tên thêm tay trùng tên 1 tài khoản → ẩn tên thêm tay (tránh hiện 2 lần).
+function packAccountStaff(){ return (state.users||[]).filter(u=>u && u.id && u.role==='packer').map(u=>({id:u.id, name:u.name, active:true, isAccount:true})); }
+function packActiveStaff(){
+  const acc = packAccountStaff();
+  const accNames = new Set(acc.map(x=>normalizeSearchText(x.name)));
+  const manual = (state.packStaff||[]).filter(x=>x && x.id && x.active!==false && !accNames.has(normalizeSearchText(x.name)));
+  return acc.concat(manual).sort((a,b)=>String(a.name).localeCompare(String(b.name),'vi'));
+}
 function packPresentStaff(){ const pr = state.packPresence || {}; return packActiveStaff().filter(x=>pr[x.id]); }
 function packTogglePresence(staffId){
   packAttachPresence();
@@ -5199,7 +5223,7 @@ function packStaffAdd(){
   fbPackStaff.child(id).set({id, name, active:true, createdAt:Date.now()}).then(()=>{ el.value = ''; showToast('Đã thêm ' + name); });
 }
 function packStaffRemove(id){
-  const st = (state.packStaff||[]).find(x=>x.id===id); if(!st) return;
+  const st = (state.packStaff||[]).find(x=>x.id===id); if(!st) return; // chỉ tên thêm tay (tài khoản thì xoá ở Chi nhánh & nhân sự)
   askConfirm('Bỏ nhân viên kho?', `Bỏ "${st.name}" khỏi danh sách đóng hàng. Số đơn đã đóng trước đây vẫn giữ nguyên.`, ()=>{
     fbPackStaff.child(id).update({active:false, removedAt:Date.now()});
   });
@@ -5213,8 +5237,10 @@ function packPresenceChipsHtml(){
 function renderPackStaffBox(){
   const box = document.getElementById('packStaffBox'); if(!box) return;
   packAttachPresence();
-  box.innerHTML = `<div class="pack-note" style="margin:8px 0 6px;">Chạm tên để tick người có mặt hôm nay — chỉ người được tick mới hiện ở bước chọn tên khi đóng hàng.</div>` + packPresenceChipsHtml() +
-    (packActiveStaff().length ? `<div class="pack-staff-list">${packActiveStaff().map(x=>`<span class="pack-staff-item">${escHtml(x.name)} <button class="pack-x" title="Bỏ khỏi danh sách" onclick="packStaffRemove('${x.id}')">×</button></span>`).join('')}</div>` : '');
+  const acc = packActiveStaff().filter(x=>x.isAccount), manual = packActiveStaff().filter(x=>!x.isAccount);
+  box.innerHTML = `<div class="pack-note" style="margin:8px 0 6px;">Người có tài khoản <b>Nhân viên đóng gói</b> tự có tên ở đây và <b>tự điểm danh</b> khi mở app. Ô "Thêm" chỉ dùng cho người CHƯA có tài khoản (đóng ở máy chung, Kho trưởng chạm chọn tên giúp).</div>
+    <div class="pack-p-label" style="margin-top:10px;">Có mặt hôm nay <span class="pack-note">(chạm để tick / bỏ tick)</span></div>` + packPresenceChipsHtml() +
+    `<div class="pack-staff-list">${acc.map(x=>`<span class="pack-staff-item acc">👤 ${escHtml(x.name)} <span class="pack-note">tài khoản</span></span>`).join('')}${manual.map(x=>`<span class="pack-staff-item">${escHtml(x.name)} <span class="pack-note">thêm tay</span> <button class="pack-x" title="Bỏ khỏi danh sách" onclick="packStaffRemove('${x.id}')">×</button></span>`).join('')}</div>`;
 }
 // ----- Panel đóng hàng -----
 let packPanel = null; // {invId, staffId, mode:'view'|'short', miss:{key:n}, note, fromCam}
@@ -5223,7 +5249,9 @@ function packPanelOpen(invId){
   const inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv) return;
   packAttachPresence();
   const present = packPresentStaff();
-  packPanel = {invId, staffId: present.length===1 ? present[0].id : null, mode:'view', miss:{}, note:'', fromCam: packOpenedByCam}; // mỗi đơn chạm chọn tên lại; chỉ 1 người có mặt → tự chọn sẵn
+  const devMe = packDeviceMe(); const isMine = !!devMe && devMe!=='shared';
+  packPanel = {invId, staffId: isMine ? devMe : (present.length===1 ? present[0].id : null), lockedMe: isMine, showAll: false,
+    mode:'view', miss:{}, note:'', fromCam: packOpenedByCam}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
   packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
@@ -5287,7 +5315,9 @@ function renderPackPanel(){
     ${banner}
     ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở những dòng bị thiếu (số cái thiếu), rồi bấm "Gửi báo thiếu cho Sale".</div>' : ''}
     <div class="table-wrap"><table class="pack-lines"><thead><tr><th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
-    ${canAct ? `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>` : ''}
+    ${canAct ? (packPanel.lockedMe && !packPanel.showAll
+      ? `<div class="pack-p-sec"><div class="pack-p-label">👤 Người đóng: <span class="pack-me-name">${escHtml(packStaffName(packPanel.staffId))}</span></div></div>`
+      : `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>`) : ''}
     <div class="pack-p-actions">${actions}</div>`;
 }
 // Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
@@ -5299,7 +5329,10 @@ function packAfterAction(){
 }
 function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; renderPackPanel(); } }
 function packMissStep(key, d, max){ if(!packPanel) return; const v = Math.max(0, Math.min(max, (packPanel.miss[key]||0) + d)); packPanel.miss[key] = v; renderPackPanel(); }
-function packStaffName(id){ const x = (state.packStaff||[]).find(s=>s.id===id); return x ? x.name : ''; }
+function packStaffName(id){
+  const u = (state.users||[]).find(x=>x.id===id); if(u) return u.name;
+  const x = (state.packStaff||[]).find(s=>s.id===id); return x ? x.name : '';
+}
 function packNeedStaff(){
   if(packPanel && packPanel.staffId) return true;
   packBeep(false); showToast('👆 Chạm vào TÊN của bạn trước (ai đóng đơn này).');
@@ -5372,9 +5405,37 @@ function packDeskReadyUi(){
   el.className = 'pack-ready ' + (focused ? 'on' : 'off');
   el.innerHTML = focused ? '🟢 Sẵn sàng — bóp súng quét là mở đơn' : '⚪ Súng quét: bấm vào ô trên để sẵn sàng (điện thoại thì bấm nút 📷)';
 }
+
+// ----- Mỗi Nhân viên đóng gói có TÀI KHOẢN RIÊNG -----
+// Đăng nhập tài khoản Nhân viên đóng gói → chính là người đóng: quét xong tự ghi tên mình, mở app là tự điểm danh.
+// Kho trưởng / Quản lý chung mở Bàn đóng gói = máy chung: chạm chọn tên sau mỗi lần quét.
+let packAutoPresentDone = '';
+function packDeviceMe(){ const u = currentUser(); return (u && u.role==='packer') ? u.id : 'shared'; }
+function packAutoPresent(){
+  const me = packDeviceMe(); if(!me || me==='shared' || !fbPackPresence) return;
+  const key = todayStr() + '|' + me; if(packAutoPresentDone===key) return;
+  packAutoPresentDone = key;
+  packAttachPresence();
+  if(!(state.packPresence||{})[me]) fbPackPresence.child(todayStr()).child(me).set(true).catch(()=>{ packAutoPresentDone = ''; });
+}
+function renderPackDeskMe(){
+  const box = document.getElementById('packDeskMe'); if(!box) return;
+  const me = packDeviceMe();
+  const presCard = document.getElementById('packDeskPresenceCard');
+  if(presCard) presCard.style.display = me==='shared' ? '' : 'none'; // nhân viên tự điểm danh → khỏi hiện ô điểm danh
+  if(me==='shared'){
+    box.innerHTML = `<div class="pack-me-line">🖥️ <b>Máy chung</b> — sau mỗi lần quét chạm chọn tên người đóng</div>`;
+    return;
+  }
+  const today = todayStr();
+  const mine = (state.packStatus||[]).filter(p=>p && p.state==='packed' && p.staffId===me && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today).length;
+  box.innerHTML = `<div class="pack-me-line">👤 <b>${escHtml(packStaffName(me))}</b> · hôm nay bạn đã đóng <b class="pack-me-count">${mine}</b> đơn</div>`;
+}
 function renderPackDeskPage(){
   const me = currentUser(); if(!me || !['general_manager','warehouse','packer'].includes(me.role)) return;
   packAttachPresence();
+  packAutoPresent();
+  renderPackDeskMe();
   renderPackDeskPresence();
   packDeskReadyUi();
   const smap = packStatusMap(); const invById = {}; (state.invoices||[]).forEach(i=>{ invById[i.id] = i; });
@@ -5436,7 +5497,12 @@ function packSaleNoticeAck(){
   document.getElementById('packSaleNoticeModal').classList.remove('show');
 }
 function packSaleBadgeHtml(inv){
-  const ps = (state.packStatus||[]).find(p=>p && p.id===inv.id); if(!ps) return '';
+  const ps = (state.packStatus||[]).find(p=>p && p.id===inv.id);
+  if(!ps){
+    const pp = (state.packPrints||[]).find(p=>p && p.id===inv.id); if(!pp) return '';
+    if(pp.sig!==packSig(inv)) return `<div class="pack-sale-badge warn" title="Bạn sửa hoá đơn sau khi Kho đã in phiếu — báo Kho in lại">⚠ Sửa sau khi kho in (${packTimeStr(pp.at)}) — báo Kho in lại</div>`;
+    return `<div class="pack-sale-badge printed" title="Kho đã in phiếu đóng hàng">🖨️ Kho đã in ${packTimeStr(pp.at)}</div>`;
+  }
   if(ps.state==='packed') return `<div class="pack-sale-badge ok" title="Kho đã đóng hàng">📦 Đã đóng ${packTimeStr(ps.packedAt||ps.at)}</div>`;
   if(ps.state==='short') return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu: ${escHtml(packShortText(ps.shortItems))}</div>`;
   return '';
@@ -5614,7 +5680,7 @@ function packMarkPrinted(invs){
   const map = packPrintMap(); const now = Date.now(); const upd = {};
   invs.forEach(inv=>{
     const old = map[inv.id];
-    upd[inv.id] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', sig: packSig(inv), at: now, first: (old && old.first) || now,
+    upd[inv.id] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: now, first: (old && old.first) || now,
       n: ((old && Number(old.n)) || 0) + 1, by: me.id || '', byName: me.name || ''};
   });
   fbPackPrints.update(upd).then(()=>{
@@ -9959,7 +10025,7 @@ function addBranch(){
   input.value='';
   createUserAndLogin(b.id);
 }
-const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung', mkt:'MKT', mkt_manager:'Quản lý team MKT', printer:'Nhân viên in hình', warehouse:'Kho / Đặt in', packer:'Bàn đóng gói'};
+const ROLE_LABELS = {staff:'Nhân viên', team_manager:'Quản lý team', data_manager:'Quản lý Data', general_manager:'Quản lý chung', mkt:'MKT', mkt_manager:'Quản lý team MKT', printer:'Nhân viên in hình', warehouse:'Kho / Đặt in', packer:'Nhân viên đóng gói'};
 function roleLabel(role){ return ROLE_LABELS[role] || role; }
 
 function renderRoleChips(){
@@ -10223,10 +10289,12 @@ function setupRoleScopedListeners(user){
   packAttachPresence();
 
   // Đánh dấu "Đã in" hoá đơn đóng hàng (nhánh packPrints, mỗi hoá đơn 1 dòng): Kho + Quản lý chung
-  const ppKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
-  attachScoped('packPrints', ppKey, ppKey==='on' ? fbPackPrints : null, (arr)=>{
+  // Sale tải "đã in" của hoá đơn mình (theo saleId) để thấy Kho đã in phiếu chưa
+  const ppKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'on' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
+  attachScoped('packPrints', ppKey, ppKey==='none' ? null : (ppKey==='on' ? fbPackPrints : fbPackPrints.orderByChild('saleId').equalTo(user.id)), (arr)=>{
     state.packPrints = arr; packPrintsLoaded = ppKey==='on'; cleanupPackPrints();
     if(currentPageId==='packInvoices' && !isUserActivelyEditing()) renderPackInvoicesPage();
+    if(ppKey.startsWith('mine:')) onDataChanged();
   }, false);
 
   // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
