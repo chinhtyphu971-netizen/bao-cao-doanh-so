@@ -867,6 +867,34 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     #myInvoicesTable td.empty-note::before{ content:none; }
   }
   .phone-full{ font-weight:600; letter-spacing:0.01em; }
+  .inv-list-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .inv-date-pick{ position:relative; display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:10px; padding:0 12px; min-height:36px; font-size:13.5px; font-weight:600; cursor:pointer; background:var(--panel); }
+  .inv-date-pick input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; min-height:0 !important; padding:0 !important; border:none !important; }
+  .inv-chips{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+  .inv-chip{ border:1.5px solid var(--line); background:transparent; color:var(--ink); border-radius:999px; padding:5px 12px; font-size:12.5px; font-weight:600; cursor:pointer; min-height:0 !important; }
+  .inv-chip b{ margin-left:3px; }
+  .inv-chip.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .inv-chip-short:not(.on){ border-color:#F0A63A; color:#F0A63A; }
+  .inv-chip-pending:not(.on){ border-color:rgba(240,166,58,0.5); }
+  .inv-chip-packed:not(.on){ border-color:rgba(46,160,90,0.6); }
+  .inv-flow-pill{ display:none; }
+  .inv-total-sub{ font-size:11px; font-weight:400; color:var(--ink-soft); }
+  .inv-locked-btn{ opacity:0.55; }
+  #myInvoicesTable tr.inv-row-short td{ background:rgba(240,166,58,0.10); }
+  #myInvoicesTable tr.inv-row-short td:first-child{ box-shadow:inset 3px 0 0 #F0A63A; }
+  #myInvoicesTable tr.inv-row-short td.inv-actions{ background:transparent; }
+  #myInvoicesTable tr.inv-pin-row td{ background:rgba(240,166,58,0.22) !important; color:#F6C27A !important; border-top-color:#F0A63A !important; }
+  @media (max-width:760px){
+    /* Thẻ hoá đơn trên điện thoại: Số HĐ + trạng thái to ở đầu thẻ */
+    #myInvoicesTable td.inv-num-cell{ padding-left:0 !important; text-align:left; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    #myInvoicesTable td.inv-num-cell::before{ content:none; }
+    #myInvoicesTable td.inv-num-cell .inv-num{ font-size:17px; font-weight:800; }
+    #myInvoicesTable td.inv-num-cell > div{ flex-basis:100%; text-align:left; }
+    .inv-flow-pill{ display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; border:1.5px solid var(--line); }
+    #myInvoicesTable tr.inv-row-short{ border-color:#F0A63A; background:rgba(240,166,58,0.10); }
+    #myInvoicesTable tr.inv-row-short td{ background:transparent !important; box-shadow:none !important; }
+    .inv-list-head .btn-primary{ width:100%; }
+  }
   .iv-print-mask{ display:none; }
   @media print{ .iv-print-mask{ display:inline !important; } }
 
@@ -2046,23 +2074,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
         <div id="invoicesListWrap">
           <div class="card">
-            <button class="btn-primary" onclick="startNewInvoiceDraft()">+ Tạo hoá đơn mới</button>
-          </div>
-          <div class="card">
-            <h2 style="margin-top:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
-            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+            <div class="inv-list-head">
+              <h2 style="margin:0;">Hoá đơn của tôi <span id="myInvoicesCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
+              <button class="btn-primary" onclick="startNewInvoiceDraft()">+ Tạo hoá đơn mới</button>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
               <button class="btn-ghost btn-small" onclick="shiftMyInvoicesDate(-1)" title="Ngày trước">‹</button>
-              <input id="myInvoicesDate" type="date" onchange="pagerPages.myInvoices=1; renderInvoicesPage()" style="max-width:160px;">
+              <span class="inv-date-pick" title="Chọn ngày">
+                <span id="myInvoicesDateLabel">📅 Chọn ngày</span>
+                <input id="myInvoicesDate" type="date" onchange="pagerPages.myInvoices=1; renderInvoicesPage()" onclick="try{ this.showPicker(); }catch(e){}">
+              </span>
               <button class="btn-ghost btn-small" onclick="shiftMyInvoicesDate(1)" title="Ngày sau">›</button>
               <button class="btn-ghost btn-small" onclick="document.getElementById('myInvoicesDate').value=todayStr(); pagerPages.myInvoices=1; renderInvoicesPage()">Hôm nay</button>
               <button class="btn-ghost btn-small" onclick="document.getElementById('myInvoicesDate').value=''; pagerPages.myInvoices=1; renderInvoicesPage()">Tất cả ngày</button>
-              <select id="myInvoicesDep" onchange="pagerPages.myInvoices=1; renderInvoicesPage()" style="max-width:190px;" title="Lọc theo trạng thái cọc">
-                <option value="">Tất cả trạng thái</option>
-                <option value="pending">⏳ Chờ cọc</option>
-                <option value="done">✅ Đã cọc / đã chốt</option>
-              </select>
               <input id="myInvoicesSearch" type="search" placeholder="🔍 Tìm tên khách, SĐT, số HĐ (mọi ngày)..." oninput="clearTimeout(window.__myInvSearchT); window.__myInvSearchT=setTimeout(()=>{pagerPages.myInvoices=1; renderInvoicesPage();}, 250)" style="max-width:320px; flex:1;">
             </div>
+            <div id="myInvoicesChips" class="inv-chips"></div>
             <div class="table-wrap"><table id="myInvoicesTable" class="rtable"></table></div>
             <div id="myInvoicesPager"></div>
           </div>
@@ -3816,9 +3843,21 @@ function refreshInvoiceEditor(){
 function startNewInvoiceDraftFromEditor(){
   autoSaveInvoiceThen(startNewInvoiceDraft);
 }
-function editInvoiceDraft(invoiceId){
+function editInvoiceDraft(invoiceId, skipKhoCheck){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
+  if(!skipKhoCheck){
+    const ps = (state.packStatus||[]).find(x=>x && x.id===inv.id), pp = (state.packPrints||[]).find(x=>x && x.id===inv.id);
+    if(ps && ps.state==='packed'){
+      if(!canEditPackedInvoice()){ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(ps.packedAt||ps.at)}) — không sửa được nữa. Cần sửa thì nhờ Kho trưởng bấm "Huỷ trạng thái Đã đóng".`); return; }
+      askConfirm('Kho đã đóng hàng đơn này', `Kho đã đóng gói lúc ${packTimeStr(ps.packedAt||ps.at)}. Sửa bây giờ thì gói hàng sẽ KHÔNG khớp hoá đơn. Vẫn sửa?`, ()=>editInvoiceDraft(invoiceId, true));
+      return;
+    }
+    if(pp || (ps && ps.state==='short')){
+      askConfirm('Kho đã in phiếu đơn này', `Kho đã in phiếu đóng hàng${pp ? ' lúc ' + packTimeStr(pp.at) : ''}${ps && ps.state==='short' ? ' và đang chờ bù hàng' : ''}. Sửa xong kho phải IN LẠI phiếu mới mới đóng được — nhớ báo kho nhé. Tiếp tục sửa?`, ()=>editInvoiceDraft(invoiceId, true));
+      return;
+    }
+  }
   currentInvoiceDraft = JSON.parse(JSON.stringify(inv)); // sửa bản sao, không đụng bản gốc tới khi Lưu
   renderInvoicesPage();
   markInvoiceDraftClean(); // chụp trạng thái SAU khi vẽ (vẽ có thể điền màu mặc định) để không bị tính là "đã sửa"
@@ -4395,7 +4434,11 @@ function markInvoiceDeposited(invoiceId){
 function unmarkInvoiceDeposited(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv || !inv.depositLink) return;
-  askConfirm(isOldCustomerInvoice(inv) ? 'Huỷ "Đã chốt"?' : 'Huỷ "Khách đã cọc"?', 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
+  const kps = (state.packStatus||[]).find(x=>x && x.id===inv.id), kpp = (state.packPrints||[]).find(x=>x && x.id===inv.id);
+  if(kps && kps.state==='packed' && !canEditPackedInvoice()){ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(kps.packedAt||kps.at)}) — không huỷ cọc được. Nhờ Kho trưởng / Quản lý chung xử lý.`); return; }
+  const khoWarn = (kps && kps.state==='packed') ? `⚠ KHO ĐÃ ĐÓNG HÀNG lúc ${packTimeStr(kps.packedAt||kps.at)} — báo kho rút gói hàng lại! `
+    : ((kpp || kps) ? `⚠ Kho đã in phiếu${kpp ? ' lúc ' + packTimeStr(kpp.at) : ''} — huỷ cọc thì kho sẽ thấy báo đỏ và KHÔNG đóng đơn này. ` : '');
+  askConfirm(isOldCustomerInvoice(inv) ? 'Huỷ "Đã chốt"?' : 'Huỷ "Khách đã cọc"?', khoWarn + 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
     const link = inv.depositLink;
     const lead = state.leads.find(l=>l.id===link.leadId);
     if(lead){
@@ -4463,7 +4506,7 @@ function saveAndPrintInvoice(){
   saveInvoiceDraft(doPrint); // thiếu thông tin thì saveInvoiceDraft tự báo lỗi và không in
 }
 function printInvoice(invoiceId){
-  editInvoiceDraft(invoiceId);
+  editInvoiceDraft(invoiceId, true); // chỉ mở để in, không phải sửa → không hỏi về kho
   setTimeout(()=>window.print(), 200);
 }
 
@@ -4497,16 +4540,20 @@ function renderInvoicesPage(){
   const base = q.trim()
     ? mineAll.filter(inv=>invoiceMatchesSearch(inv, q))
     : mineAll.filter(inv=>!day || inv.invoiceDate===day);
-  // Lọc theo trạng thái cọc: Chờ cọc = chưa bấm Xác nhận cọc / Chốt đơn
-  const depSel = document.getElementById('myInvoicesDep');
-  const dep = depSel ? depSel.value : '';
-  if(depSel){
-    const nPend = base.filter(inv=>!inv.depositLink).length, nDone = base.length - nPend;
-    depSel.options[1].textContent = `⏳ Chờ cọc (${nPend})`;
-    depSel.options[2].textContent = `✅ Đã cọc / đã chốt (${nDone})`;
-  }
-  const mine = dep==='pending' ? base.filter(inv=>!inv.depositLink) : (dep==='done' ? base.filter(inv=>inv.depositLink) : base);
-  const depTxt = dep==='pending' ? ' · chờ cọc' : (dep==='done' ? ' · đã cọc/chốt' : '');
+  // Ô ngày hiện dd/mm/yyyy (ô chọn ngày gốc của trình duyệt hay hiện mm/dd/yyyy)
+  const dLbl = document.getElementById('myInvoicesDateLabel');
+  if(dLbl) dLbl.textContent = day ? '📅 ' + fmtDate(day) : '📅 Chọn ngày';
+  // Lọc theo trạng thái: cọc + các bước kho (dải đếm bấm được)
+  const flowMaps = invFlowMaps();
+  const counts = {pending:0, deposited:0, printed:0, packed:0, short:0};
+  base.forEach(inv=>{ counts[invSaleFlow(inv, flowMaps)]++; });
+  const dep = myInvFlowFilter;
+  const mine = dep ? base.filter(inv=>invSaleFlow(inv, flowMaps)===dep) : base;
+  const chipsEl = document.getElementById('myInvoicesChips');
+  if(chipsEl) chipsEl.innerHTML = [['', 'Tất cả', base.length]].concat(INV_FLOW_LIST.map(f=>[f[0], f[1], counts[f[0]]]))
+    .filter(c=>c[0]==='' || c[2]>0 || c[0]===dep)
+    .map(c=>`<button class="inv-chip inv-chip-${c[0]||'all'} ${dep===c[0] ? 'on' : ''}" onclick="myInvFlowFilter='${c[0]}'; pagerPages.myInvoices=1; renderInvoicesPage()">${c[1]} <b>${c[2]}</b></button>`).join('');
+  const depTxt = dep ? ' · ' + (INV_FLOW_LIST.find(f=>f[0]===dep) || ['',''])[1].replace(/^\S+\s/, '').toLowerCase() : '';
   document.getElementById('myInvoicesCount').textContent = q.trim()
     ? `(tìm thấy ${mine.length} trên mọi ngày${depTxt})`
     : (day ? `(${mine.length} hoá đơn ngày ${fmtDate(day)}${depTxt})` : `(${mine.length} hoá đơn · tất cả các ngày${depTxt})`);
@@ -4515,13 +4562,16 @@ function renderInvoicesPage(){
   if(mine.length===0){
     table.innerHTML = q.trim()
       ? '<tr><td class="empty-note">Không tìm thấy hoá đơn nào khớp.</td></tr>'
-      : (dep==='pending' ? '<tr><td class="empty-note">Không còn hoá đơn nào chờ cọc 🎉</td></tr>' : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>'));
+      : (dep==='pending' ? '<tr><td class="empty-note">Không còn hoá đơn nào chờ cọc 🎉</td></tr>' : (dep ? '<tr><td class="empty-note">Không có hoá đơn nào ở trạng thái này.</td></tr>' : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>')));
     if(pagerEl) pagerEl.innerHTML = '';
     return;
   }
+  // Đơn KHO BÁO THIẾU: ghim lên đầu (mọi trang) khi đang xem "Tất cả" — tránh trôi giữa nhiều đơn
+  const pinned = dep ? [] : mine.filter(inv=>invSaleFlow(inv, flowMaps)==='short');
+  const rest = pinned.length ? mine.filter(inv=>!pinned.includes(inv)) : mine;
   const PER_PAGE = 30; // 30 hoá đơn / trang
-  const pageRows = pageSlice('myInvoices', mine, PER_PAGE);
-  if(pagerEl) pagerEl.innerHTML = pagerHtml('myInvoices', mine.length, PER_PAGE, 'renderInvoicesPage');
+  const pageRows = pageSlice('myInvoices', rest, PER_PAGE);
+  if(pagerEl) pagerEl.innerHTML = pagerHtml('myInvoices', rest.length, PER_PAGE, 'renderInvoicesPage');
   // Tổng từng ngày tính trên TOÀN BỘ danh sách (không chỉ trang đang xem)
   const dayStats = {};
   mine.forEach(inv=>{
@@ -4531,40 +4581,62 @@ function renderInvoicesPage(){
     if(inv.depositLink) st.deposited++;
   });
   let lastDay = null;
-  const dayHeader = (k)=>{
+  const dayHeader = (k)=>{ // (giữ nguyên)
     const st = dayStats[k] || {count:0, qty:0, amount:0, deposited:0, depositSum:0};
     const label = k ? (k===todayStr() ? `Hôm nay · ${fmtDate(k)}` : fmtDate(k)) : 'Không rõ ngày';
     return `<tr class="inv-day-row"><td colspan="7">📅 <b>${label}</b><span>${st.count} hoá đơn · <b style="color:var(--success);">${fmtMoney(st.amount)} đ</b></span></td></tr>`;
   };
   // Gọn: chỉ Số HĐ · Khách · Tổng tiền · nút. Chi tiết (nguồn, cọc, số lượng...) xem trong hoá đơn / Data đã chốt.
   // Mỗi hoá đơn 1 HÀNG gọn (không xuống dòng) để xem được nhiều hoá đơn trên 1 màn hình
-  table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Khách hàng</th><th>SĐT</th><th>Nguồn</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th><th></th></tr></thead><tbody>` +
-    pageRows.map(inv=>{
-      const k = inv.invoiceDate || '';
-      const head = (k!==lastDay) ? dayHeader(k) : '';
-      lastDay = k;
-      return head + `<tr>
-      <td data-label="Số HĐ" style="font-weight:600;">${inv.invoiceNumber}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
+  const rowHtml = (inv)=>{
+      const flow = invSaleFlow(inv, flowMaps);
+      const ps = flowMaps.ps[inv.id];
+      const locked = flow==='packed' && !canEditPackedInvoice();
+      return `<tr class="${flow==='short' ? 'inv-row-short' : ''}">
+      <td data-label="Số HĐ" class="inv-num-cell" style="font-weight:600;"><span class="inv-num">${inv.invoiceNumber}</span>${invFlowPillHtml(flow)}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
       <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName)}</span>${packSaleBadgeHtml(inv)}</td>
       <td data-label="SĐT">${inv.customerPhone ? (inv.saleId===u.id || canSeeFullPhone()
           ? `<span class="phone-full">${escHtml(cleanPhone(inv.customerPhone))}</span><button class="phone-copy-btn" title="Copy SĐT" onclick="copyPhone('${escHtml(cleanPhone(inv.customerPhone))}', event)">📋</button>`
           : escHtml(maskPhone(inv.customerPhone))) : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td data-label="Nguồn">${inv.leadSource ? invoiceSourceCellHtml(inv) : ''}</td>
-      <td class="num" data-label="Cọc" style="color:${Number(inv.deposit)?'var(--warn)':'var(--ink-soft)'};">${fmtMoney(Number(inv.deposit)||0)} đ</td>
-      <td class="num" data-label="Tổng thanh toán" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ</td>
+      <td class="num" data-label="Cọc" style="color:${Number(inv.deposit)?'var(--warn)':'var(--ink-soft)'};">${Number(inv.deposit) ? fmtMoney(Number(inv.deposit)) + ' đ' : '—'}</td>
+      <td class="num" data-label="Còn phải thu" style="font-weight:600; color:var(--success);" title="Tổng tiền hàng ${fmtMoney(inv.totalAmount||0)} đ${Number(inv.deposit) ? ' − cọc ' + fmtMoney(Number(inv.deposit)) + ' đ' : ''}">${fmtMoney(inv.finalAmount)} đ${Number(inv.deposit) ? `<div class="inv-total-sub">tiền hàng ${fmtMoney(inv.totalAmount||0)} đ</div>` : ''}</td>
       <td class="inv-actions">
         ${inv.depositLink
           ? `<button class="btn-ghost btn-small" style="color:var(--success); border-color:var(--success);" title="Đã vào Data đã chốt — bấm để huỷ" onclick="unmarkInvoiceDeposited('${inv.id}')">${isOldCustomerInvoice(inv) ? '✅ Đã chốt' : '✅ Đã cọc'}</button>`
           : (isOldCustomerInvoice(inv)
             ? `<button class="btn-primary btn-small" style="background:#7C4DCC;" title="Khách cũ — không cần cọc, bấm để đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">🤝 Chốt đơn</button>`
             : `<button class="btn-ghost btn-small inv-await-deposit" title="Khi khách chuyển cọc, bấm để xác nhận → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">⏳ Chờ cọc · Xác nhận</button>`)}
-        <button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>
+        ${locked
+          ? `<button class="btn-ghost btn-small inv-locked-btn" title="Kho đã đóng hàng — không sửa được" onclick="editInvoiceDraft('${inv.id}')">🔒 Sửa</button>`
+          : `<button class="btn-ghost btn-small" onclick="editInvoiceDraft('${inv.id}')">✏️ Sửa</button>`}
         <button class="btn-ghost btn-small" onclick="printInvoice('${inv.id}')">🖨️ In</button>
         ${canDeleteInvoice() ? `<button class="btn-ghost btn-small" onclick="deleteInvoice('${inv.id}')">🗑️</button>` : ''}
       </td>
     </tr>`;
+  };
+  table.innerHTML = `<thead><tr><th>Số HĐ</th><th>Khách hàng</th><th>SĐT</th><th>Nguồn</th><th class="num">Cọc</th><th class="num">Còn phải thu</th><th></th></tr></thead><tbody>` +
+    (pinned.length ? `<tr class="inv-day-row inv-pin-row"><td colspan="7">⚠ <b>Kho báo THIẾU HÀNG — cần báo khách</b><span>${pinned.length} hoá đơn</span></td></tr>` + pinned.map(rowHtml).join('') : '') +
+    pageRows.map(inv=>{
+      const k = inv.invoiceDate || '';
+      const head = (k!==lastDay) ? dayHeader(k) : '';
+      lastDay = k;
+      return head + rowHtml(inv);
     }).join('') + `</tbody>`;
 }
+// ----- Trạng thái hoá đơn của Sale: cọc + các bước kho -----
+let myInvFlowFilter = '';
+const INV_FLOW_LIST = [['pending','⏳ Chờ cọc'], ['deposited','💰 Đã cọc · kho chưa in'], ['printed','🖨️ Kho đã in'], ['short','⚠ Kho báo thiếu'], ['packed','📦 Đã đóng']];
+function invFlowMaps(){ const ps = {}, pp = {}; (state.packStatus||[]).forEach(x=>{ if(x && x.id) ps[x.id] = x; }); (state.packPrints||[]).forEach(x=>{ if(x && x.id) pp[x.id] = x; }); return {ps, pp}; }
+function invSaleFlow(inv, maps){
+  if(!inv.depositLink) return 'pending';
+  const ps = maps.ps[inv.id];
+  if(ps && ps.state==='packed') return 'packed';
+  if(ps && ps.state==='short') return 'short';
+  return maps.pp[inv.id] ? 'printed' : 'deposited';
+}
+function invFlowPillHtml(flow){ const f = INV_FLOW_LIST.find(x=>x[0]===flow); return f ? `<span class="inv-flow-pill inv-chip-${flow}">${f[1]}</span>` : ''; }
+function canEditPackedInvoice(){ const u = currentUser(); return !!(u && u.role==='general_manager'); }
 
 // Tìm hoá đơn theo tên khách / SĐT / số HĐ — không phân biệt hoa thường, có dấu hay không dấu
 function normalizeSearchText(v){
