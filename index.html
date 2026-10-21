@@ -878,6 +878,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-chip-pending:not(.on){ border-color:rgba(240,166,58,0.5); }
   .inv-chip-packed:not(.on){ border-color:rgba(46,160,90,0.6); }
   .inv-flow-pill{ display:none; }
+  .inv-stale-tag{ font-size:11px; font-weight:700; color:#F0A63A; }
+  #myInvoicesTable tr.inv-row-reprint td:first-child{ box-shadow:inset 3px 0 0 #F0A63A; }
+  .inv-chip-todo:not(.on){ border-color:var(--accent); color:var(--accent); }
   .inv-total-sub{ font-size:11px; font-weight:400; color:var(--ink-soft); }
   .inv-locked-btn{ opacity:0.55; }
   #myInvoicesTable tr.inv-row-short td{ background:rgba(240,166,58,0.10); }
@@ -4545,15 +4548,15 @@ function renderInvoicesPage(){
   if(dLbl) dLbl.textContent = day ? '📅 ' + fmtDate(day) : '📅 Chọn ngày';
   // Lọc theo trạng thái: cọc + các bước kho (dải đếm bấm được)
   const flowMaps = invFlowMaps();
-  const counts = {pending:0, deposited:0, printed:0, packed:0, short:0};
-  base.forEach(inv=>{ counts[invSaleFlow(inv, flowMaps)]++; });
+  const counts = {pending:0, deposited:0, printed:0, packed:0, short:0, todo:0};
+  base.forEach(inv=>{ counts[invSaleFlow(inv, flowMaps)]++; if(invIsTodo(inv, flowMaps)) counts.todo++; });
   const dep = myInvFlowFilter;
-  const mine = dep ? base.filter(inv=>invSaleFlow(inv, flowMaps)===dep) : base;
+  const mine = dep==='todo' ? base.filter(inv=>invIsTodo(inv, flowMaps)) : (dep ? base.filter(inv=>invSaleFlow(inv, flowMaps)===dep) : base);
   const chipsEl = document.getElementById('myInvoicesChips');
-  if(chipsEl) chipsEl.innerHTML = [['', 'Tất cả', base.length]].concat(INV_FLOW_LIST.map(f=>[f[0], f[1], counts[f[0]]]))
-    .filter(c=>c[0]==='' || c[2]>0 || c[0]===dep)
+  if(chipsEl) chipsEl.innerHTML = [['todo', '🔔 Cần xử lý', counts.todo], ['', 'Tất cả', base.length]].concat(INV_FLOW_LIST.map(f=>[f[0], f[1], counts[f[0]]]))
+    .filter(c=>c[0]==='' || c[0]==='todo' || c[2]>0 || c[0]===dep)
     .map(c=>`<button class="inv-chip inv-chip-${c[0]||'all'} ${dep===c[0] ? 'on' : ''}" onclick="myInvFlowFilter='${c[0]}'; pagerPages.myInvoices=1; renderInvoicesPage()">${c[1]} <b>${c[2]}</b></button>`).join('');
-  const depTxt = dep ? ' · ' + (INV_FLOW_LIST.find(f=>f[0]===dep) || ['',''])[1].replace(/^\S+\s/, '').toLowerCase() : '';
+  const depTxt = dep==='todo' ? ' · cần xử lý' : (dep ? ' · ' + (INV_FLOW_LIST.find(f=>f[0]===dep) || ['',''])[1].replace(/^\S+\s/, '').toLowerCase() : '');
   document.getElementById('myInvoicesCount').textContent = q.trim()
     ? `(tìm thấy ${mine.length} trên mọi ngày${depTxt})`
     : (day ? `(${mine.length} hoá đơn ngày ${fmtDate(day)}${depTxt})` : `(${mine.length} hoá đơn · tất cả các ngày${depTxt})`);
@@ -4562,12 +4565,12 @@ function renderInvoicesPage(){
   if(mine.length===0){
     table.innerHTML = q.trim()
       ? '<tr><td class="empty-note">Không tìm thấy hoá đơn nào khớp.</td></tr>'
-      : (dep==='pending' ? '<tr><td class="empty-note">Không còn hoá đơn nào chờ cọc 🎉</td></tr>' : (dep ? '<tr><td class="empty-note">Không có hoá đơn nào ở trạng thái này.</td></tr>' : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>')));
+      : (dep==='todo' ? '<tr><td class="empty-note">Không còn việc gì cần xử lý 🎉 — bấm "Tất cả" để xem mọi hoá đơn.</td></tr>' : dep==='pending' ? '<tr><td class="empty-note">Không còn hoá đơn nào chờ cọc 🎉</td></tr>' : (dep ? '<tr><td class="empty-note">Không có hoá đơn nào ở trạng thái này.</td></tr>' : (day ? '<tr><td class="empty-note">Ngày này chưa có hoá đơn nào.</td></tr>' : '<tr><td class="empty-note">Bạn chưa có hoá đơn nào.</td></tr>')));
     if(pagerEl) pagerEl.innerHTML = '';
     return;
   }
   // Đơn KHO BÁO THIẾU: ghim lên đầu (mọi trang) khi đang xem "Tất cả" — tránh trôi giữa nhiều đơn
-  const pinned = dep ? [] : mine.filter(inv=>invSaleFlow(inv, flowMaps)==='short');
+  const pinned = (dep && dep!=='todo') ? [] : mine.filter(inv=>invSaleFlow(inv, flowMaps)==='short');
   const rest = pinned.length ? mine.filter(inv=>!pinned.includes(inv)) : mine;
   const PER_PAGE = 30; // 30 hoá đơn / trang
   const pageRows = pageSlice('myInvoices', rest, PER_PAGE);
@@ -4592,8 +4595,12 @@ function renderInvoicesPage(){
       const flow = invSaleFlow(inv, flowMaps);
       const ps = flowMaps.ps[inv.id];
       const locked = flow==='packed' && !canEditPackedInvoice();
-      return `<tr class="${flow==='short' ? 'inv-row-short' : ''}">
-      <td data-label="Số HĐ" class="inv-num-cell" style="font-weight:600;"><span class="inv-num">${inv.invoiceNumber}</span>${invFlowPillHtml(flow)}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
+      const waitDays = flow==='pending' ? invPendingDays(inv) : 0;
+      const stale = false;
+      const reprint = invNeedsReprint(inv, flowMaps);
+      return `<tr class="${flow==='short' ? 'inv-row-short' : ''}${stale ? ' inv-row-stale' : ''}${reprint ? ' inv-row-reprint' : ''}">
+      <td data-label="Số HĐ" class="inv-num-cell" style="font-weight:600;"><span class="inv-num">${inv.invoiceNumber}</span>${invFlowPillHtml(flow)}${
+        waitDays >= INV_STALE_DAYS ? `<div class="inv-stale-tag">⏳ ${waitDays} ngày chưa cọc · nhắc khách</div>` : ''}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
       <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName)}</span>${packSaleBadgeHtml(inv)}</td>
       <td data-label="SĐT">${inv.customerPhone ? (inv.saleId===u.id || canSeeFullPhone()
           ? `<span class="phone-full">${escHtml(cleanPhone(inv.customerPhone))}</span><button class="phone-copy-btn" title="Copy SĐT" onclick="copyPhone('${escHtml(cleanPhone(inv.customerPhone))}', event)">📋</button>`
@@ -4625,7 +4632,21 @@ function renderInvoicesPage(){
     }).join('') + `</tbody>`;
 }
 // ----- Trạng thái hoá đơn của Sale: cọc + các bước kho -----
-let myInvFlowFilter = '';
+// Mặc định "🔔 Cần xử lý" = Chờ cọc (mọi đơn, bao lâu cũng hiện) + Kho báo thiếu + Sửa sau khi kho in (cần báo kho in lại).
+let myInvFlowFilter = 'todo';
+const INV_STALE_DAYS = 3; // chờ cọc từ 3 ngày → hiện nhãn "x ngày chưa cọc · nhắc khách" (vẫn hiện đầy đủ, không làm mờ)
+function invPendingDays(inv){ return Math.floor((Date.now() - invoiceCreatedMs(inv)) / 86400000); }
+function invNeedsReprint(inv, maps){
+  if(!inv.depositLink) return false;
+  const ps = maps.ps[inv.id], pp = maps.pp[inv.id];
+  return !!(pp && pp.sig!==packSig(inv) && !(ps && ps.state==='packed'));
+}
+function invIsTodo(inv, maps){
+  const f = invSaleFlow(inv, maps);
+  if(f==='pending') return true; // chờ cọc bao lâu cũng vẫn hiện để Sale chăm sóc tiếp
+  if(f==='short') return true;
+  return invNeedsReprint(inv, maps);
+}
 const INV_FLOW_LIST = [['pending','⏳ Chờ cọc'], ['deposited','💰 Đã cọc · kho chưa in'], ['printed','🖨️ Kho đã in'], ['short','⚠ Kho báo thiếu'], ['packed','📦 Đã đóng']];
 function invFlowMaps(){ const ps = {}, pp = {}; (state.packStatus||[]).forEach(x=>{ if(x && x.id) ps[x.id] = x; }); (state.packPrints||[]).forEach(x=>{ if(x && x.id) pp[x.id] = x; }); return {ps, pp}; }
 function invSaleFlow(inv, maps){
@@ -10749,7 +10770,7 @@ function goPage(pageId){
   }
   if(pageId==='mgrSelfLeadsList') renderMgrSelfLeadsList();
   if(pageId==='mgrClosedLeads') renderMgrClosedLeads();
-  if(pageId==='invoices') renderInvoicesPage();
+  if(pageId==='invoices'){ if(!isAutoRefreshing) myInvFlowFilter = 'todo'; renderInvoicesPage(); } // mở trang → mặc định "Cần xử lý"
   if(pageId==='invoicesOverview') renderInvoicesOverviewPage();
   if(pageId==='mgrAllChats') renderMgrAllChats();
   if(pageId==='personLeads') renderPersonLeadsPage();
