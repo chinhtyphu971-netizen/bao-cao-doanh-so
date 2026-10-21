@@ -967,6 +967,23 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-sub{ font-size:11px; color:var(--ink-soft); margin-top:2px; font-weight:400; }
   .pack-warn{ border:1.5px solid #E5484D; background:rgba(229,72,77,0.08); border-radius:10px; padding:10px 12px; margin-bottom:12px; color:#FF8A8D; font-size:13px; }
   .pack-warn-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:6px; color:var(--ink); flex-wrap:wrap; }
+  .pack-hero{ text-align:center; }
+  .pack-hero-cam{ width:100%; max-width:520px; font-size:20px !important; font-weight:800 !important; padding:18px 20px !important; border-radius:14px !important; }
+  .pack-hero-or{ font-size:12.5px; color:var(--ink-soft); margin:12px 0 6px; }
+  #packDeskScanInput{ width:100%; max-width:520px; font-size:17px !important; text-align:center; font-weight:700; }
+  .pack-ready{ font-size:12.5px; margin:6px 0 2px; }
+  .pack-ready.on{ color:#6FD99A; font-weight:700; }
+  .pack-ready.off{ color:var(--ink-soft); }
+  .pack-hero .pack-desk-stats{ justify-content:center; margin-top:14px; }
+  .pack-stat.ok{ background:rgba(46,160,90,0.14); }
+  .pack-presence-card{ padding-top:12px !important; padding-bottom:12px !important; }
+  .pack-presence-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; font-size:14px; }
+  .pack-presence-edit{ color:var(--accent); font-weight:700; white-space:nowrap; font-size:13px; }
+  .pack-presence-warn{ border:1.5px solid #F0A63A !important; }
+  .pack-row-go{ float:right; color:var(--accent); font-weight:700; font-size:13px; }
+  .pack-p-sec.need{ border:1.5px dashed #F0A63A; }
+  .pack-p-sec .pack-chip{ font-size:16px; padding:11px 20px; min-height:48px; }
+  @media (max-width:720px){ #packDeskScanInput{ font-size:15px !important; } .pack-hero-cam{ font-size:18px !important; } .pack-ready{ display:none; } }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -1693,17 +1710,21 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       </div>
 
       <div id="page-packDesk" class="page" style="display:none;">
-        <div class="page-head"><div><h1>Bàn đóng gói</h1><p>Quét mã QR cuối phiếu → chọn tên mình → bấm Đã đóng hoặc Thiếu</p></div></div>
-        <div class="card">
-          <div class="pack-scanbar">
-            <button class="btn-primary pack-cam-btn pack-cam-big" onclick="packScanStart()">📷 Quét mã</button>
-            <input id="packDeskScanInput" type="text" inputmode="numeric" autocomplete="off" placeholder="🔫 Bóp súng quét, hoặc gõ Số HĐ rồi Enter" onkeydown="if(event.key==='Enter'){ event.preventDefault(); packScanSubmit(this); }">
-          </div>
+        <div class="page-head"><div><h1>Bàn đóng gói</h1><p>Quét mã QR cuối phiếu → chạm tên mình → bấm Đã đóng hoặc Thiếu</p></div></div>
+        <div class="card pack-hero">
+          <button class="btn-primary pack-hero-cam" onclick="packScanStart()">📷 QUÉT MÃ ĐÓNG HÀNG</button>
+          <div class="pack-hero-or">hoặc dùng súng quét / gõ Số HĐ:</div>
+          <input id="packDeskScanInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Bóp súng quét, hoặc gõ Số HĐ rồi Enter"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); packScanSubmit(this); }" onfocus="packDeskReadyUi()" onblur="setTimeout(packDeskReadyUi, 50)">
+          <div id="packDeskReady" class="pack-ready"></div>
           <div id="packDeskStats" class="pack-desk-stats"></div>
         </div>
-        <div class="card">
-          <h3 class="pack-h3">👥 Có mặt hôm nay <span class="pack-note">(chạm để tick / bỏ tick)</span></h3>
-          <div id="packDeskPresence"></div>
+        <div class="card pack-presence-card" id="packDeskPresenceCard">
+          <div class="pack-presence-head" onclick="packDeskTogglePresence()">
+            <span id="packDeskPresenceSummary"></span>
+            <span class="pack-presence-edit" id="packDeskPresenceEditBtn">Sửa ▸</span>
+          </div>
+          <div id="packDeskPresence" style="display:none; margin-top:10px;"></div>
         </div>
         <div class="card">
           <h3 class="pack-h3">⚠ Chờ bù hàng</h3>
@@ -5157,7 +5178,7 @@ function packAttachPresence(){
   attachScoped('packPresence', on ? 'day:'+day : 'none', on ? fbPackPresence.child(day) : null, (arr, raw)=>{
     state.packPresence = (raw && typeof raw==='object') ? raw : {};
     onDataChanged();
-    const pres = document.getElementById('packDeskPresence'); if(currentPageId==='packDesk' && pres) pres.innerHTML = packPresenceChipsHtml();
+    if(currentPageId==='packDesk') renderPackDeskPresence();
     const kd = document.getElementById('packStaffDetails'); if(currentPageId==='packInvoices' && kd && kd.open) renderPackStaffBox();
   }, false);
 }
@@ -5165,6 +5186,7 @@ function packActiveStaff(){ return (state.packStaff||[]).filter(x=>x && x.id && 
 function packPresentStaff(){ const pr = state.packPresence || {}; return packActiveStaff().filter(x=>pr[x.id]); }
 function packTogglePresence(staffId){
   packAttachPresence();
+  if(currentPageId==='packDesk' && packDeskPresenceOpen===null) packDeskPresenceOpen = true; // đang điểm danh nhiều người → giữ mở tới khi bấm "Xong"
   const on = !(state.packPresence||{})[staffId];
   fbPackPresence.child(todayStr()).child(staffId).set(on ? true : null).catch(()=>showToast('Lỗi lưu điểm danh — kiểm tra mạng.'));
 }
@@ -5195,11 +5217,14 @@ function renderPackStaffBox(){
     (packActiveStaff().length ? `<div class="pack-staff-list">${packActiveStaff().map(x=>`<span class="pack-staff-item">${escHtml(x.name)} <button class="pack-x" title="Bỏ khỏi danh sách" onclick="packStaffRemove('${x.id}')">×</button></span>`).join('')}</div>` : '');
 }
 // ----- Panel đóng hàng -----
-let packPanel = null; // {invId, staffId, mode:'view'|'short', miss:{key:n}, note}
+let packPanel = null; // {invId, staffId, mode:'view'|'short', miss:{key:n}, note, fromCam}
+let packOpenedByCam = false, packLastCamCode = '', packLastCamAt = 0;
 function packPanelOpen(invId){
   const inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv) return;
   packAttachPresence();
-  packPanel = {invId, staffId: null, mode:'view', miss:{}, note:''}; // mỗi đơn chạm chọn tên lại → ghi đúng người đóng
+  const present = packPresentStaff();
+  packPanel = {invId, staffId: present.length===1 ? present[0].id : null, mode:'view', miss:{}, note:'', fromCam: packOpenedByCam}; // mỗi đơn chạm chọn tên lại; chỉ 1 người có mặt → tự chọn sẵn
+  packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
 }
@@ -5262,8 +5287,15 @@ function renderPackPanel(){
     ${banner}
     ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở những dòng bị thiếu (số cái thiếu), rồi bấm "Gửi báo thiếu cho Sale".</div>' : ''}
     <div class="table-wrap"><table class="pack-lines"><thead><tr><th>Sản phẩm</th><th>Màu</th><th>Size</th><th class="num">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
-    ${canAct ? `<div class="pack-p-sec"><div class="pack-p-label">Ai đóng đơn này? <span class="pack-note">(chạm tên mình)</span></div>${chips}</div>` : ''}
+    ${canAct ? `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>` : ''}
     <div class="pack-p-actions">${actions}</div>`;
+}
+// Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
+function packAfterAction(){
+  const fromCam = packPanel && packPanel.fromCam;
+  packPanelClose();
+  if(fromCam){ packLastCamAt = Date.now(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
+  else { const si = document.getElementById(currentPageId==='packDesk' ? 'packDeskScanInput' : 'packScanInput'); if(si && window.matchMedia('(min-width:721px)').matches) si.focus(); }
 }
 function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; renderPackPanel(); } }
 function packMissStep(key, d, max){ if(!packPanel) return; const v = Math.max(0, Math.min(max, (packPanel.miss[key]||0) + d)); packPanel.miss[key] = v; renderPackPanel(); }
@@ -5293,7 +5325,7 @@ function packDoPacked(){
   const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: Date.now()});
   fbPackStatus.child(inv.id).set(rec).then(()=>{
     packBeep(true); showToast(`✅ ${inv.invoiceNumber} đã đóng · ${rec.staffName}`);
-    packPanelClose();
+    packAfterAction();
   }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
 }
 function packDoShort(){
@@ -5305,7 +5337,7 @@ function packDoShort(){
   const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: Date.now(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null});
   fbPackStatus.child(inv.id).set(rec).then(()=>{
     packBeep(true); showToast(`📣 Đã báo thiếu ${inv.invoiceNumber} cho Sale ${inv.saleName || userName(inv.saleId)}`);
-    packPanelClose();
+    packAfterAction();
   }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
 }
 function packUndoPacked(invId){
@@ -5316,25 +5348,53 @@ function packUndoPacked(invId){
   });
 }
 // ----- Trang Bàn đóng gói -----
+// Điểm danh ở Bàn đóng gói: thu gọn thành 1 dòng "Có mặt: A, B · Sửa". Chưa ai điểm danh thì tự mở ra nhắc.
+let packDeskPresenceOpen = null; // null = tự quyết theo việc đã điểm danh chưa
+function packDeskTogglePresence(){ packDeskPresenceOpen = !packDeskPresenceIsOpen(); renderPackDeskPresence(); }
+function packDeskPresenceIsOpen(){ return packDeskPresenceOpen===null ? (packActiveStaff().length>0 && !packPresentStaff().length) : packDeskPresenceOpen; }
+function renderPackDeskPresence(){
+  const box = document.getElementById('packDeskPresence'), sum = document.getElementById('packDeskPresenceSummary'), btn = document.getElementById('packDeskPresenceEditBtn'), card = document.getElementById('packDeskPresenceCard');
+  if(!box || !sum) return;
+  const present = packPresentStaff(), open = packDeskPresenceIsOpen();
+  if(!packActiveStaff().length) sum.innerHTML = '👥 <b>Chưa có tên nhân viên kho</b> — Kho trưởng thêm ở trang "In hoá đơn đóng hàng" → 👥 Nhân viên kho';
+  else if(!present.length) sum.innerHTML = '👥 <b style="color:#F0A63A;">Đầu buổi: chạm tên những người có mặt hôm nay</b>';
+  else sum.innerHTML = `👥 Có mặt hôm nay: <b>${present.map(x=>escHtml(x.name)).join(', ')}</b>`;
+  card.classList.toggle('pack-presence-warn', packActiveStaff().length>0 && !present.length);
+  btn.textContent = open ? 'Xong ▾' : 'Sửa ▸';
+  btn.style.display = packActiveStaff().length ? '' : 'none';
+  box.style.display = open ? 'block' : 'none';
+  if(open) box.innerHTML = packPresenceChipsHtml() + '<div class="pack-note" style="margin-top:8px;">Tên được tick mới hiện ra để chọn sau khi quét phiếu.</div>';
+}
+function packDeskReadyUi(){
+  const el = document.getElementById('packDeskReady'), inp = document.getElementById('packDeskScanInput');
+  if(!el || !inp) return;
+  const focused = document.activeElement===inp;
+  el.className = 'pack-ready ' + (focused ? 'on' : 'off');
+  el.innerHTML = focused ? '🟢 Sẵn sàng — bóp súng quét là mở đơn' : '⚪ Súng quét: bấm vào ô trên để sẵn sàng (điện thoại thì bấm nút 📷)';
+}
 function renderPackDeskPage(){
   const me = currentUser(); if(!me || !['general_manager','warehouse','packer'].includes(me.role)) return;
   packAttachPresence();
-  const pres = document.getElementById('packDeskPresence'); if(pres) pres.innerHTML = packPresenceChipsHtml();
+  renderPackDeskPresence();
+  packDeskReadyUi();
   const smap = packStatusMap(); const invById = {}; (state.invoices||[]).forEach(i=>{ invById[i.id] = i; });
   const today = todayStr();
   const doneToday = (state.packStatus||[]).filter(p=>p && p.state==='packed' && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today)
     .sort((a,b)=>(b.packedAt||b.at)-(a.packedAt||a.at));
   const shorts = (state.packStatus||[]).filter(p=>p && p.state==='short' && invById[p.id]).sort((a,b)=>(a.shortAt||a.at)-(b.shortAt||b.at));
-  const waiting = (state.invoices||[]).filter(i=>i && i.depositLink && !smap[i.id]).length;
+  // "Phiếu chờ đóng" = phiếu Kho ĐÃ IN, đơn vẫn còn cọc, chưa đóng / chưa báo thiếu (đúng số phiếu đang nằm ở kho)
+  const pmap = packPrintMap();
+  const waiting = (state.invoices||[]).filter(i=>i && i.depositLink && pmap[i.id] && !smap[i.id]).length;
   const st = document.getElementById('packDeskStats');
   if(st) st.innerHTML = packInvoicesLoaded
-    ? `<span class="pack-stat"><b>${doneToday.length}</b> đã đóng hôm nay</span><span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span><span class="pack-stat"><b>${waiting}</b> đơn đã cọc chưa đóng</span>`
+    ? `<span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`
     : '<span class="pack-note">Đang tải hoá đơn…</span>';
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = shorts.length ? shorts.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${escHtml(packShortText(p.shortItems))}</div></div>`).join('') : '<div class="pack-note">Không có đơn nào chờ bù hàng 🎉</div>';
+  if(sh) sh.innerHTML = shorts.length ? shorts.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${escHtml(packShortText(p.shortItems))}</div></div>`).join('') : '<div class="pack-note">Không có đơn nào chờ bù hàng 🎉</div>';
   const dn = document.getElementById('packDeskDone');
-  if(dn) dn.innerHTML = doneToday.length ? doneToday.slice(0, 60).map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.packedAt||p.at)} · ${escHtml(p.staffName||'')}</span></div>`).join('') + (doneToday.length>60 ? `<div class="pack-note">… và ${doneToday.length-60} đơn nữa</div>` : '') : '<div class="pack-note">Chưa đóng đơn nào hôm nay.</div>';
+  if(dn) dn.innerHTML = doneToday.length ? doneToday.slice(0, packDeskDoneLimit).map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.packedAt||p.at)} · ${escHtml(p.staffName||'')}</span></div>`).join('') + (doneToday.length>packDeskDoneLimit ? `<button class="btn-ghost btn-small" style="margin-top:8px;" onclick="packDeskDoneLimit+=30; renderPackDeskPage()">Xem thêm ${Math.min(30, doneToday.length-packDeskDoneLimit)} đơn (còn ${doneToday.length-packDeskDoneLimit})</button>` : '') : '<div class="pack-note">Chưa đóng đơn nào hôm nay.</div>';
 }
+let packDeskDoneLimit = 10;
 // ----- Thống kê cho Kho trưởng -----
 function renderPackStats(){
   const box = document.getElementById('packStatsBox'); if(!box) return;
@@ -5536,7 +5596,9 @@ async function packScanTick(){
       const r = jsQR(cx.getImageData(0, 0, w, h).data, w, h, {inversionAttempts:'dontInvert'});
       if(r && r.data) text = r.data;
     }
-    if(text){ packScanStop(); packOpenInvoiceByCode(text); }
+    // Bỏ qua phiếu VỪA xử lý (phiếu cũ còn nằm trước camera khi camera tự mở lại) trong 6 giây
+    if(text && packParseScan(text)===packLastCamCode && Date.now()-packLastCamAt < 6000){ text = ''; }
+    if(text){ packLastCamCode = packParseScan(text); packLastCamAt = Date.now(); packScanStop(); packOpenedByCam = true; packOpenInvoiceByCode(text); packOpenedByCam = false; }
   }catch(e){ console.error('scan', e); }
   packScanBusy = false;
 }
