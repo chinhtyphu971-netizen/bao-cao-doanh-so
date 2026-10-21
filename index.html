@@ -951,6 +951,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .pack-actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .pack-note{ color:var(--ink-soft); font-size:13px; }
+  .pack-act-cell{ white-space:nowrap; }
+  .pack-act-cell .btn-small{ padding:5px 9px; margin:1px 0; }
+  .inv-view-cell{ white-space:nowrap; }
+  .inv-view-btn{ padding:5px 10px; }
+  @media (max-width:720px){ .pack-act-cell{ white-space:normal; min-width:84px; } .pack-act-cell .btn-small{ display:block; width:100%; margin:3px 0; } }
   .pack-cb{ width:18px; height:18px; min-height:0 !important; cursor:pointer; }
   #packTable tr.pack-row-sel td{ background:var(--accent-soft) !important; }
   .pack-items{ font-size:12.5px; line-height:1.5; min-width:180px; }
@@ -4849,9 +4854,10 @@ function renderInvoicesOverviewPage(){
   }
   const invPageRows = pageSlice('invOverview', invoices, 50); // 50 hoá đơn / trang
   if(invPagerEl) invPagerEl.innerHTML = pagerHtml('invOverview', invoices.length, 50, 'renderInvoicesOverviewPage');
-  invTable.innerHTML = `<thead><tr><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th>Nguồn</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
+  invTable.innerHTML = `<thead><tr><th style="width:1%;"></th><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th>Nguồn</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
     invPageRows.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
-      <td>${inv.invoiceNumber}</td>
+      <td class="inv-view-cell"><button class="btn-primary btn-small inv-view-btn" onclick="event.stopPropagation(); viewInvoiceReadonly('${inv.id}')">👁 Xem</button></td>
+      <td style="font-weight:700;">${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
       <td>${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone)}</td>
       <td style="font-weight:600;">${inv.saleId ? userName(inv.saleId) : '—'}</td>
@@ -5052,24 +5058,24 @@ function renderPackInvoicesPage(){
     table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : (status==='short' ? 'Không có đơn nào chờ bù hàng 🎉' : 'Không có hoá đơn nào phù hợp.'))}</td></tr>`;
     return;
   }
-  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th>Số HĐ</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sale</th><th>Sản phẩm</th><th class="num">SL</th><th>Trạng thái</th><th></th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th>Trạng thái</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sale</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
     list.map(inv=>{
       const pp = map[inv.id]; const stt = packStatusOf(inv, pp);
       const stHtml = packStatusBadgeHtml(inv, pp, smap[inv.id]);
       return `<tr class="${packSelected.has(inv.id) ? 'pack-row-sel' : ''}">
         <td><input type="checkbox" class="pack-cb" ${packSelected.has(inv.id)?'checked':''} onchange="packToggleOne('${inv.id}', this.checked)"></td>
+        <td class="pack-act-cell">
+          <button class="btn-primary btn-small" onclick="packPanelOpen('${inv.id}')">📦 Mở</button>
+          <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
+          <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
+        </td>
         <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
+        <td data-label="Trạng thái">${stHtml}</td>
         <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
         <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
         <td data-label="Sale">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
         <td data-label="Sản phẩm" class="pack-items">${packItemsSummaryHtml(inv)}</td>
         <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
-        <td data-label="Trạng thái">${stHtml}</td>
-        <td class="inv-actions" style="white-space:nowrap;">
-          <button class="btn-ghost btn-small" onclick="packPanelOpen('${inv.id}')">📦 Mở</button>
-          <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
-          <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
-        </td>
       </tr>`;
     }).join('') + '</tbody>';
 }
