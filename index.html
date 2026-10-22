@@ -980,6 +980,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
   /* ===== In hoá đơn đóng hàng (Kho) ===== */
   .pack-toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .pack-acc-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px; }
+  .pack-acc-form input{ flex:1 1 140px; min-width:120px; }
+  .pack-acc-list{ display:flex; flex-direction:column; gap:6px; }
+  .pack-acc-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .pack-acc-row.off{ opacity:0.6; }
+  .pack-acc-row a{ color:#8DB4FF; font-weight:700; }
+  .pack-acc-acts{ display:flex; gap:6px; }
   .pack-toolbar select{ flex:0 1 auto; width:auto; min-width:150px; }
   .pack-range{ align-items:center; gap:6px; }
   .pack-range input{ width:auto; }
@@ -1923,6 +1930,18 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           </div>
           <div id="pimgBox"></div>
         </details>
+        <details class="card pack-details" id="packAccDetails" style="display:none;" ontoggle="if(this.open) renderPackAccounts()">
+          <summary>🔑 Tài khoản nhân viên đóng gói</summary>
+          <div class="pack-note" style="margin:8px 0;">Tạo tài khoản cho từng bạn đóng gói (tên + mã PIN 4 số). Bạn ấy đăng nhập bằng điện thoại của mình, chỉ thấy trang Bàn đóng gói.</div>
+          <div class="pack-acc-form">
+            <input id="packAccName" placeholder="Tên (VD: Thắm)" autocomplete="off">
+            <input id="packAccPin" type="text" inputmode="numeric" maxlength="4" placeholder="PIN 4 số" autocomplete="off">
+            <input id="packAccZalo" type="tel" inputmode="numeric" placeholder="SĐT Zalo (không bắt buộc)" autocomplete="off">
+            <button class="btn-primary btn-small" onclick="packAccCreate()">+ Tạo tài khoản</button>
+          </div>
+          <div id="packAccErr" class="pack-note" style="color:#FF8A8D; min-height:16px;"></div>
+          <div id="packAccBox"></div>
+        </details>
         <details class="card pack-details" id="packStaffDetails" ontoggle="if(this.open) renderPackStaffBox()">
           <summary>👥 Nhân viên kho &amp; điểm danh hôm nay</summary>
           <div class="pack-staff-add">
@@ -2759,6 +2778,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <label>SĐT Zalo (không bắt buộc)</label>
       <input id="editUserZalo" type="tel" inputmode="numeric" placeholder="VD 0912345678 — để Sale / kho bấm mở Zalo nhắn nhau">
     </div>
+    <label class="field" id="editUserCanPackersRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
+      <input type="checkbox" id="editUserCanPackers" style="width:auto; min-height:0;">
+      <span>🔑 Được tạo / quản lý tài khoản <b>Nhân viên đóng gói</b></span>
+    </label>
     <div class="login-error" id="editUserError"></div>
     <div class="actions">
       <button class="btn-ghost" onclick="closeEditUserModal()">Huỷ</button>
@@ -3002,7 +3025,7 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
+  fbUsers.on('value',    snap=>{ state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ const cu = currentUser(); if(cu && cu.loginBlocked){ showToast('Tài khoản đã ngừng hoạt động.'); logout(); } }catch(e){} try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -5572,6 +5595,7 @@ function renderPackInvoicesPage(){
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
   const kd = document.getElementById('packStaffDetails'); if(kd && kd.open) renderPackStaffBox();
+  renderPackAccounts();
   // Bỏ chọn các hoá đơn không còn trong danh sách đang lọc
   const visibleIds = new Set(list.map(i=>i.id));
   Array.from(packSelected).forEach(id=>{ if(!visibleIds.has(id)) packSelected.delete(id); });
@@ -5697,6 +5721,79 @@ function packMarkLegacySelected(){
     }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi thử lại.'); });
   });
 }
+
+// ===================== TÀI KHOẢN NHÂN VIÊN ĐÓNG GÓI =====================
+// Quản lý chung, hoặc người được tick "🔑 Được tạo / quản lý tài khoản Nhân viên đóng gói" (canManagePackers).
+// CHỈ tạo / sửa / cho nghỉ được tài khoản vai trò Nhân viên đóng gói — không đụng được tài khoản khác.
+// "Cho nghỉ" = chặn đăng nhập (loginBlocked), giữ nguyên số đơn đã đóng; mở lại được.
+function canManagePackerAccounts(u){ u = u || currentUser(); return !!(u && (u.role==='general_manager' || u.canManagePackers)); }
+function packAccNameTaken(name, exceptId){ const n = name.trim().normalize('NFC').toLowerCase(); return (state.users||[]).some(x=>x.id!==exceptId && String(x.name||'').trim().normalize('NFC').toLowerCase()===n); }
+function packAccErr(t){ const e = document.getElementById('packAccErr'); if(e) e.textContent = t || ''; }
+function packAccCreate(){
+  if(!canManagePackerAccounts()) return;
+  const name = document.getElementById('packAccName').value.trim().normalize('NFC');
+  const pin = document.getElementById('packAccPin').value.trim();
+  const zalo = cleanPhone(document.getElementById('packAccZalo').value || '');
+  if(!name) return packAccErr('Nhập tên nhân viên.');
+  if(!/^\d{4}$/.test(pin)) return packAccErr('Mã PIN phải gồm đúng 4 số.');
+  if(zalo && !/^0\d{9,10}$/.test(zalo)) return packAccErr('SĐT Zalo chưa đúng (10–11 số, bắt đầu bằng 0).');
+  if(packAccNameTaken(name)) return packAccErr('Đã có người dùng tên này — thêm họ / chữ cái để phân biệt.');
+  packAccErr('');
+  const me = currentUser() || {};
+  const user = {id: uid(), name, pin, role:'packer', branchId:null, mktBranchId:null, assignedSources:[], createdAt: Date.now(), createdBy: me.id || '', createdByName: me.name || ''};
+  if(zalo) user.zaloPhone = zalo;
+  state.users.push(user); fbSetUser(user);
+  ['packAccName','packAccPin','packAccZalo'].forEach(id=>{ document.getElementById(id).value = ''; });
+  showToast(`✅ Đã tạo tài khoản ${name} — đưa tên và PIN "${pin}" cho bạn ấy đăng nhập.`);
+  renderPackAccounts();
+}
+function packAccTarget(id){ const u = (state.users||[]).find(x=>x.id===id); return (u && u.role==='packer' && canManagePackerAccounts()) ? u : null; }
+function packAccEdit(id){
+  const u = packAccTarget(id); if(!u) return;
+  const row = document.getElementById('packAccRow_' + id); if(!row) return;
+  row.innerHTML = `<div class="pack-acc-form" style="margin:0;">
+    <input id="packAccEName_${id}" value="${escHtml(u.name)}" placeholder="Tên">
+    <input id="packAccEPin_${id}" value="${escHtml(u.pin)}" inputmode="numeric" maxlength="4" placeholder="PIN 4 số">
+    <input id="packAccEZalo_${id}" value="${escHtml(u.zaloPhone||'')}" inputmode="numeric" placeholder="SĐT Zalo">
+    <button class="btn-primary btn-small" onclick="packAccSave('${id}')">Lưu</button>
+    <button class="btn-ghost btn-small" onclick="renderPackAccounts()">Huỷ</button></div>`;
+}
+function packAccSave(id){
+  const u = packAccTarget(id); if(!u) return;
+  const name = document.getElementById('packAccEName_' + id).value.trim().normalize('NFC');
+  const pin = document.getElementById('packAccEPin_' + id).value.trim();
+  const zalo = cleanPhone(document.getElementById('packAccEZalo_' + id).value || '');
+  if(!name) return packAccErr('Nhập tên nhân viên.');
+  if(!/^\d{4}$/.test(pin)) return packAccErr('Mã PIN phải gồm đúng 4 số.');
+  if(zalo && !/^0\d{9,10}$/.test(zalo)) return packAccErr('SĐT Zalo chưa đúng (10–11 số, bắt đầu bằng 0).');
+  if(packAccNameTaken(name, id)) return packAccErr('Đã có người dùng tên này.');
+  packAccErr('');
+  u.name = name; u.pin = pin; u.zaloPhone = zalo || '';
+  fbUpdateUser(id, {name, pin, zaloPhone: zalo || null});
+  showToast(`Đã cập nhật ${name}`); renderPackAccounts();
+}
+function packAccToggleBlock(id){
+  const u = packAccTarget(id); if(!u) return;
+  const blocking = !u.loginBlocked;
+  const go = ()=>{ u.loginBlocked = blocking; fbUpdateUser(id, {loginBlocked: blocking || null, blockedAt: blocking ? Date.now() : null}); showToast(blocking ? `${u.name} đã cho nghỉ — không đăng nhập được nữa` : `Đã mở lại tài khoản ${u.name}`); renderPackAccounts(); };
+  if(blocking) askConfirm(`Cho ${u.name} nghỉ?`, 'Tài khoản sẽ bị chặn đăng nhập ngay (máy đang mở cũng tự thoát). Số đơn đã đóng trước đây vẫn giữ nguyên. Mở lại được bất cứ lúc nào.', go);
+  else go();
+}
+let packAccShowPin = {};
+function renderPackAccounts(){
+  const det = document.getElementById('packAccDetails'); if(!det) return;
+  det.style.display = canManagePackerAccounts() ? '' : 'none';
+  const box = document.getElementById('packAccBox'); if(!box || !det.open) return;
+  const list = (state.users||[]).filter(u=>u && u.role==='packer').sort((a,b)=>(!!a.loginBlocked - !!b.loginBlocked) || String(a.name).localeCompare(String(b.name),'vi'));
+  const today = todayStr();
+  const doneToday = {}; (state.packStatus||[]).forEach(p=>{ if(p && p.state==='packed' && !p.legacy && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today && p.staffId) doneToday[p.staffId] = (doneToday[p.staffId]||0) + 1; });
+  box.innerHTML = list.length ? `<div class="pack-acc-list">${list.map(u=>`<div class="pack-acc-row ${u.loginBlocked ? 'off' : ''}" id="packAccRow_${u.id}">
+      <div class="pack-acc-info"><b>${escHtml(u.name)}</b>${u.loginBlocked ? ' <span class="pack-badge pack-changed">Đã nghỉ</span>' : ''}
+        <div class="pack-sub">PIN: <b>${packAccShowPin[u.id] ? escHtml(u.pin) : '••••'}</b> <a href="#" onclick="event.preventDefault(); packAccShowPin['${u.id}']=!packAccShowPin['${u.id}']; renderPackAccounts()">${packAccShowPin[u.id] ? 'ẩn' : 'hiện'}</a>${u.zaloPhone ? ' · Zalo ' + escHtml(u.zaloPhone) : ''} · hôm nay đóng <b>${doneToday[u.id]||0}</b> đơn</div></div>
+      <div class="pack-acc-acts">${u.loginBlocked ? '' : `<button class="btn-ghost btn-small" onclick="packAccEdit('${u.id}')">✏️ Sửa</button>`}
+        <button class="btn-ghost btn-small ${u.loginBlocked ? '' : 'pack-x-btn'}" onclick="packAccToggleBlock('${u.id}')">${u.loginBlocked ? '↩ Mở lại' : '⛔ Cho nghỉ'}</button></div>
+    </div>`).join('')}</div>` : '<div class="pack-note">Chưa có tài khoản nhân viên đóng gói nào.</div>';
+}
 // ===================== ĐÓNG HÀNG (Bàn đóng gói) =====================
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
 //   shortItems:[{code,design,color,size,qty,missing}], shortAt, shortBy, note, packedAt}
@@ -5738,7 +5835,7 @@ function packAttachPresence(){
 }
 // Người đóng hàng = các TÀI KHOẢN "Nhân viên đóng gói" (mã = id tài khoản) + tên Kho trưởng thêm tay cho người chưa có tài khoản.
 // Tên thêm tay trùng tên 1 tài khoản → ẩn tên thêm tay (tránh hiện 2 lần).
-function packAccountStaff(){ return (state.users||[]).filter(u=>u && u.id && u.role==='packer').map(u=>({id:u.id, name:u.name, active:true, isAccount:true})); }
+function packAccountStaff(){ return (state.users||[]).filter(u=>u && u.id && u.role==='packer' && !u.loginBlocked).map(u=>({id:u.id, name:u.name, active:true, isAccount:true})); }
 function packActiveStaff(){
   const acc = packAccountStaff();
   const accNames = new Set(acc.map(x=>normalizeSearchText(x.name)));
@@ -10990,6 +11087,7 @@ function checkNameAndProceed(){
   const existing = state.users.find(u=>u.name.trim().normalize('NFC').toLowerCase()===name.normalize('NFC').toLowerCase());
   if(existing){
     if(existing.pin!==pin){ errEl.textContent='Sai mã PIN cho tên này.'; return; }
+    if(existing.loginBlocked){ errEl.textContent='Tài khoản này đã ngừng hoạt động. Liên hệ Quản lý nếu cần mở lại.'; return; }
     state.session = {userId:existing.id};
     persistSession();
     enterApp();
@@ -14063,6 +14161,9 @@ function openEditUserModal(userId){
   document.getElementById('editUserName').value = u.name;
   document.getElementById('editUserPin').value = u.pin;
   document.getElementById('editUserZalo').value = u.zaloPhone || '';
+  const me0 = currentUser();
+  document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
+  document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
   document.getElementById('editUserError').textContent = '';
   document.getElementById('editUserModal').classList.add('show');
 }
@@ -14086,7 +14187,12 @@ function saveEditUser(){
   u.name = newName;
   u.pin = newPin;
   u.zaloPhone = newZalo || '';
-  fbUpdateUser(u.id, {name:newName, pin:newPin, zaloPhone: newZalo || null});
+  const patch = {name:newName, pin:newPin, zaloPhone: newZalo || null};
+  if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
+    u.canManagePackers = !!document.getElementById('editUserCanPackers').checked;
+    patch.canManagePackers = u.canManagePackers || null;
+  }
+  fbUpdateUser(u.id, patch);
   showToast(`Đã cập nhật thông tin của ${newName}`);
   closeEditUserModal();
   if(isSelf){
