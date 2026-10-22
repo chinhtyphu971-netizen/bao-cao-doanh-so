@@ -1219,6 +1219,32 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .pack-st-actions{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
     .pack-st-actions > *{ max-width:none; width:100%; justify-content:center; }
   }
+  /* ===== Nhân viên đóng gói: tối ưu điện thoại ===== */
+  body.role-packer .sidebar, body.role-packer #hamburgerBtn, body.role-packer #refreshBtn, body.role-packer .sidebar-backdrop{ display:none !important; }
+  .pack-logout{ float:right; font-size:12.5px; color:var(--ink-soft) !important; font-weight:600; margin-left:10px; }
+  .pack-me-personal{ padding:14px 16px !important; }
+  .pack-me-hi{ font-size:14px; }
+  .pack-me-big{ display:flex; align-items:baseline; gap:8px; margin-top:6px; }
+  .pack-me-big .pack-me-count{ font-size:34px; line-height:1; color:#6FD99A; }
+  .pack-me-big span{ font-size:13px; color:var(--ink-soft); }
+  .pack-switch{ font-size:12px; color:#8DB4FF !important; font-weight:700; margin-left:6px; }
+  .pack-fab{ display:none; }
+  .pack-type-link{ display:none; font-size:13px; color:#8DB4FF !important; font-weight:700; margin-top:6px; }
+  @media (max-width:720px){
+    body.role-packer .main{ padding-top: calc(12px + var(--safe-top)) !important; padding-left:12px; padding-right:12px; }
+    #page-packDesk .page-head{ display:none; }
+    #page-packDesk .pack-hero{ padding:0 4px !important; background:none !important; border:none !important; box-shadow:none !important; text-align:right; margin-bottom:8px !important; }
+    #page-packDesk.show-type .pack-hero{ text-align:center; }
+    #page-packDesk .pack-hero-cam, #page-packDesk .pack-hero-or, #page-packDesk .pack-ready{ display:none !important; }
+    #page-packDesk #packDeskScanInput{ display:none; }
+    #page-packDesk.show-type #packDeskScanInput{ display:block; margin-top:8px; }
+    #page-packDesk .pack-type-link{ display:inline-block; }
+    #page-packDesk .pack-desk-stats:empty{ display:none; }
+    #page-packDesk .pack-hero .pack-desk-stats{ margin-top:8px; }
+    #page-packDesk .card{ margin-bottom:12px; padding:14px; }
+    #page-packDesk{ padding-bottom:92px; }
+    body.on-pack-desk .pack-fab{ display:flex; align-items:center; justify-content:center; gap:8px; position:fixed; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); height:60px; z-index:40; border:none; border-radius:16px; background:var(--accent, #4F8CFF); color:#fff; font-size:18px; font-weight:800; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; }
+  }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -1972,6 +1998,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </details>
       </div>
 
+      <button class="pack-fab" id="packFab" onclick="packScanStart()">📷 QUÉT MÃ ĐÓNG HÀNG</button>
+
       <div id="page-packAccounts" class="page" style="display:none;">
         <div class="page-head"><div><h1>Tài khoản nhân viên đóng gói</h1><p>Tạo tài khoản cho từng bạn đóng gói (tên + mã PIN 4 số) — bạn ấy đăng nhập bằng điện thoại của mình, chỉ thấy trang Bàn đóng gói</p></div></div>
         <div class="card">
@@ -2000,6 +2028,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <input id="packDeskScanInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Bóp súng quét, hoặc gõ Số HĐ rồi Enter"
             onkeydown="if(event.key==='Enter'){ event.preventDefault(); packScanSubmit(this); }" onfocus="packDeskReadyUi()" onblur="setTimeout(packDeskReadyUi, 50)">
           <div id="packDeskReady" class="pack-ready"></div>
+          <a href="#" class="pack-type-link" onclick="event.preventDefault(); document.getElementById('page-packDesk').classList.toggle('show-type'); setTimeout(()=>{ const i=document.getElementById('packDeskScanInput'); if(i && document.getElementById('page-packDesk').classList.contains('show-type')) i.focus(); }, 50)">⌨️ Gõ Số HĐ</a>
           <div id="packDeskStats" class="pack-desk-stats"></div>
         </div>
         <div class="card pack-presence-card" id="packDeskPresenceCard">
@@ -2014,7 +2043,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="packDeskShort"></div>
         </div>
         <div class="card">
-          <h3 class="pack-h3">✅ Đã đóng hôm nay</h3>
+          <h3 class="pack-h3" id="packDeskDoneTitle">✅ Đã đóng hôm nay</h3>
           <div id="packDeskDone"></div>
         </div>
       </div>
@@ -3170,6 +3199,7 @@ document.addEventListener('visibilitychange', ()=>{
 function isUserActivelyEditing(){
   const el = document.activeElement;
   if(!el) return false;
+  if(el.id==='packDeskScanInput' || el.id==='packScanInput') return false; // ô chờ súng quét luôn được focus → vẫn cho cập nhật số liệu trang
   return el.tagName==='INPUT' || el.tagName==='SELECT' || el.tagName==='TEXTAREA' || el.isContentEditable;
 }
 let pendingRefreshAfterBlur = false;
@@ -6441,12 +6471,14 @@ function renderPackDeskMe(){
   const presCard = document.getElementById('packDeskPresenceCard');
   if(presCard) presCard.style.display = 'none'; // đã bỏ điểm danh
   if(me==='shared'){
-    box.innerHTML = `<div class="pack-me-line">🖥️ <b>Máy chung</b> — sau mỗi lần quét chạm chọn tên người đóng</div>`;
+    const u0 = currentUser();
+    box.innerHTML = `<div class="pack-me-line">🖥️ <b>${u0 && u0.role==='packer' ? escHtml(u0.name) : 'Máy chung'}</b> — sau mỗi lần quét chạm chọn tên người đóng${u0 && u0.role==='packer' ? '<a href="#" class="pack-logout" onclick="event.preventDefault(); logout()">Đăng xuất</a>' : ''}</div>`;
     return;
   }
   const today = todayStr();
   const mine = (state.packStatus||[]).filter(p=>p && p.state==='packed' && p.staffId===me && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today).length;
-  box.innerHTML = `<div class="pack-me-line">👤 <b>${escHtml(packStaffName(me))}</b> · hôm nay bạn đã đóng <b class="pack-me-count">${mine}</b> đơn</div>`;
+  box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); logout()">Đăng xuất</a></div>
+    <div class="pack-me-big"><b class="pack-me-count">${mine}</b><span>đơn bạn đã đóng hôm nay</span></div></div>`;
 }
 function renderPackDeskPage(){
   const me = currentUser(); if(!me || !['general_manager','warehouse','packer'].includes(me.role)) return;
@@ -6463,16 +6495,24 @@ function renderPackDeskPage(){
   // "Phiếu chờ đóng" = phiếu Kho ĐÃ IN, đơn vẫn còn cọc, chưa đóng / chưa báo thiếu (đúng số phiếu đang nằm ở kho)
   const pmap = packPrintMap();
   const waiting = (state.invoices||[]).filter(i=>i && i.depositLink && pmap[i.id] && !smap[i.id]).length;
+  const devMe = packDeviceMe(); const personal = !!devMe && devMe!=='shared';
   const st = document.getElementById('packDeskStats');
-  if(st) st.innerHTML = packInvoicesLoaded
-    ? `<span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`
-    : '<span class="pack-note">Đang tải hoá đơn…</span>';
+  if(st) st.innerHTML = !packInvoicesLoaded ? '<span class="pack-note">Đang tải hoá đơn…</span>'
+    : (personal
+      ? (shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> đơn chờ bù hàng</span>` : '')
+      : `<span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
   const sh = document.getElementById('packDeskShort');
   if(sh) sh.innerHTML = shorts.length ? shorts.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}</div>`).join('') : '<div class="pack-note">Không có đơn nào chờ bù hàng 🎉</div>';
   const dn = document.getElementById('packDeskDone');
-  if(dn) dn.innerHTML = doneToday.length ? doneToday.slice(0, packDeskDoneLimit).map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.packedAt||p.at)} · ${escHtml(p.staffName||'')}</span></div>`).join('') + (doneToday.length>packDeskDoneLimit ? `<button class="btn-ghost btn-small" style="margin-top:8px;" onclick="packDeskDoneLimit+=30; renderPackDeskPage()">Xem thêm ${Math.min(30, doneToday.length-packDeskDoneLimit)} đơn (còn ${doneToday.length-packDeskDoneLimit})</button>` : '') : '<div class="pack-note">Chưa đóng đơn nào hôm nay.</div>';
+  const showAllDone = !personal || packDeskShowAllDone;
+  const doneList = showAllDone ? doneToday : doneToday.filter(p=>p.staffId===devMe);
+  const dt = document.getElementById('packDeskDoneTitle');
+  if(dt) dt.innerHTML = personal
+    ? `✅ ${showAllDone ? 'Cả kho đã đóng hôm nay' : 'Bạn đã đóng hôm nay'} <span class="pack-note">(${doneList.length})</span> <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllDone=!packDeskShowAllDone; renderPackDeskPage()">${showAllDone ? 'Chỉ của tôi' : 'Xem cả kho'}</a>`
+    : `✅ Đã đóng hôm nay <span class="pack-note">(${doneList.length})</span>`;
+  if(dn) dn.innerHTML = doneList.length ? doneList.slice(0, packDeskDoneLimit).map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.packedAt||p.at)}${showAllDone ? ' · ' + escHtml(p.staffName||'') : ''}</span></div>`).join('') + (doneList.length>packDeskDoneLimit ? `<button class="btn-ghost btn-small" style="margin-top:8px;" onclick="packDeskDoneLimit+=30; renderPackDeskPage()">Xem thêm ${Math.min(30, doneList.length-packDeskDoneLimit)} đơn (còn ${doneList.length-packDeskDoneLimit})</button>` : '') : '<div class="pack-note">Chưa đóng đơn nào hôm nay — bấm 📷 Quét mã để bắt đầu.</div>';
 }
-let packDeskDoneLimit = 10;
+let packDeskDoneLimit = 10, packDeskShowAllDone = false;
 // ----- Thống kê cho Kho trưởng -----
 function renderPackStats(){
   const box = document.getElementById('packStatsBox'); if(!box) return;
@@ -11513,6 +11553,7 @@ function enterApp(){
   document.getElementById('navWarehouse').style.display = isWarehouse ? 'block' : 'none';
   const isPacker = user.role==='packer';
   document.getElementById('navPacker').style.display = isPacker ? 'block' : 'none';
+  document.body.classList.toggle('role-packer', isPacker); // chỉ có 1 trang → ẩn menu trái, nút ☰ / ⟳ cho gọn màn hình điện thoại
   document.getElementById('navCommon').style.display = canSeeCompanyRules(user) ? 'block' : 'none'; // Nội quy: ẩn với Bàn đóng gói / Kho / Thợ in
   document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || isWarehouse || user.canOrderPrint)) ? 'block' : 'none';
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
@@ -11540,7 +11581,7 @@ function enterApp(){
   if(user.role==='team_manager') document.getElementById('navItem_mgrTrash').style.display = 'none'; // Trưởng team không dùng Thùng rác — chỉ Quản lý chung
   document.getElementById('navItem_invoicesOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none';
   document.getElementById('navItem_packInvoices').style.display = (user.role==='general_manager') ? 'flex' : 'none';
-  document.getElementById('navItem_packAccounts').style.display = (user.role==='general_manager') ? 'flex' : 'none';
+  document.getElementById('navItem_packAccounts').style.display = 'none'; // Quản lý chung không cần mục này (đã có Chi nhánh & nhân sự)
   document.getElementById('navItem_packAccountsWh').style.display = (user.role==='warehouse' && user.canManagePackers) ? 'flex' : 'none';
   applySidebarPin(); // In hoá đơn đóng hàng: Quản lý chung (+ Kho ở menu riêng)
   document.getElementById('navItem_printOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // Tổng hợp hoá đơn: CHỈ Quản lý chung được xem
@@ -11700,6 +11741,7 @@ function goPage(pageId){
     if(!isAutoRefreshing && window.matchMedia('(min-width:721px)').matches){ const si = document.getElementById('packScanInput'); if(si) setTimeout(()=>si.focus(), 50); }
   }
   if(pageId==='packAccounts') renderPackAccounts();
+  document.body.classList.toggle('on-pack-desk', pageId==='packDesk');
   if(pageId==='packDesk'){
     renderPackDeskPage();
     if(!isAutoRefreshing && window.matchMedia('(min-width:721px)').matches){ const si = document.getElementById('packDeskScanInput'); if(si) setTimeout(()=>si.focus(), 50); }
