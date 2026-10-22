@@ -993,11 +993,25 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-toolbar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .pack-acc-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px; }
   .pack-acc-form input{ flex:1 1 140px; min-width:120px; }
-  .pack-acc-list{ display:flex; flex-direction:column; gap:6px; }
-  .pack-acc-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
-  .pack-acc-row.off{ opacity:0.6; }
-  .pack-acc-row a{ color:#8DB4FF; font-weight:700; }
-  .pack-acc-acts{ display:flex; gap:6px; }
+  .pack-acc-list{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+  .pack-acc-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:rgba(255,255,255,0.025); }
+  .pack-acc-row.off{ opacity:0.55; }
+  .pack-acc-avatar{ width:42px; height:42px; border-radius:50%; flex:0 0 42px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; color:#fff; background:linear-gradient(135deg,#4F8CFF,#7C4DCC); }
+  .pack-acc-row.off .pack-acc-avatar{ background:#555; }
+  .pack-acc-info{ flex:1; min-width:160px; }
+  .pack-acc-name{ font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .pack-acc-tag{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .pack-acc-tag.on{ background:rgba(46,160,90,0.16); color:#6FD99A; }
+  .pack-acc-tag.off{ background:rgba(240,166,58,0.18); color:#F0A63A; }
+  .pack-acc-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .pack-acc-chip{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--ink-soft); background:rgba(255,255,255,0.05); border:1px solid var(--line); border-radius:8px; padding:3px 8px; min-height:0 !important; line-height:1.4; }
+  .pack-acc-chip b{ color:var(--ink); }
+  .pack-acc-chip.pin{ cursor:pointer; font-family:inherit; }
+  .pack-acc-chip.pin:hover{ border-color:var(--accent); }
+  .pack-acc-chip.good{ color:#6FD99A; border-color:rgba(46,160,90,0.4); }
+  .pack-acc-eye{ font-size:11px; opacity:0.8; }
+  .pack-acc-acts{ display:flex; gap:6px; flex:0 0 100%; justify-content:flex-end; border-top:1px dashed var(--line); padding-top:8px; margin-top:2px; }
+  .pack-acc-chip{ white-space:nowrap; }
   .pack-toolbar select{ flex:0 1 auto; width:auto; min-width:150px; }
   .pack-range{ align-items:center; gap:6px; }
   .pack-range input{ width:auto; }
@@ -5805,12 +5819,21 @@ function renderPackAccounts(){
   const list = (state.users||[]).filter(u=>u && u.role==='packer').sort((a,b)=>(!!a.loginBlocked - !!b.loginBlocked) || String(a.name).localeCompare(String(b.name),'vi'));
   const today = todayStr();
   const doneToday = {}; (state.packStatus||[]).forEach(p=>{ if(p && p.state==='packed' && !p.legacy && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today && p.staffId) doneToday[p.staffId] = (doneToday[p.staffId]||0) + 1; });
+  const initials = n=>String(n||'?').trim().split(/\s+/).slice(-1)[0].charAt(0).toUpperCase();
   box.innerHTML = list.length ? `<div class="pack-acc-list">${list.map(u=>`<div class="pack-acc-row ${u.loginBlocked ? 'off' : ''}" id="packAccRow_${u.id}">
-      <div class="pack-acc-info"><b>${escHtml(u.name)}</b>${u.loginBlocked ? ' <span class="pack-badge pack-changed">Đã nghỉ</span>' : ''}
-        <div class="pack-sub">PIN: <b>${packAccShowPin[u.id] ? escHtml(u.pin) : '••••'}</b> <a href="#" onclick="event.preventDefault(); packAccShowPin['${u.id}']=!packAccShowPin['${u.id}']; renderPackAccounts()">${packAccShowPin[u.id] ? 'ẩn' : 'hiện'}</a>${u.zaloPhone ? ' · Zalo ' + escHtml(u.zaloPhone) : ''} · hôm nay đóng <b>${doneToday[u.id]||0}</b> đơn</div></div>
-      <div class="pack-acc-acts">${u.loginBlocked ? '' : `<button class="btn-ghost btn-small" onclick="packAccEdit('${u.id}')">✏️ Sửa</button>`}
-        <button class="btn-ghost btn-small ${u.loginBlocked ? '' : 'pack-x-btn'}" onclick="packAccToggleBlock('${u.id}')">${u.loginBlocked ? '↩ Mở lại' : '⛔ Cho nghỉ'}</button></div>
-    </div>`).join('')}</div>` : '<div class="pack-note">Chưa có tài khoản nhân viên đóng gói nào.</div>';
+      <div class="pack-acc-avatar">${escHtml(initials(u.name))}</div>
+      <div class="pack-acc-info">
+        <div class="pack-acc-name">${escHtml(u.name)}${u.loginBlocked ? '<span class="pack-acc-tag off">Đã nghỉ</span>' : '<span class="pack-acc-tag on">Đang làm</span>'}</div>
+        <div class="pack-acc-chips">
+          <button class="pack-acc-chip pin" title="${packAccShowPin[u.id] ? 'Ẩn PIN' : 'Hiện PIN'}" onclick="packAccShowPin['${u.id}']=!packAccShowPin['${u.id}']; renderPackAccounts()">🔑 ${packAccShowPin[u.id] ? `<b>${escHtml(u.pin)}</b>` : '••••'} <span class="pack-acc-eye">${packAccShowPin[u.id] ? '🙈' : '👁'}</span></button>
+          ${u.zaloPhone ? `<span class="pack-acc-chip">📱 ${escHtml(u.zaloPhone)}</span>` : ''}
+          <span class="pack-acc-chip ${doneToday[u.id] ? 'good' : ''}">📦 Hôm nay <b>${doneToday[u.id]||0}</b> đơn</span>
+        </div>
+      </div>
+      <div class="pack-acc-acts">${u.loginBlocked
+        ? `<button class="btn-ghost btn-small" onclick="packAccToggleBlock('${u.id}')">↩ Mở lại</button>`
+        : `<button class="btn-ghost btn-small" onclick="packAccEdit('${u.id}')">✏️ Sửa</button><button class="btn-ghost btn-small pack-x-btn" onclick="packAccToggleBlock('${u.id}')">⛔ Cho nghỉ</button>`}</div>
+    </div>`).join('')}</div>` : '<div class="pack-note">Chưa có tài khoản nhân viên đóng gói nào — tạo ở khung phía trên.</div>';
 }
 // ===================== ĐÓNG HÀNG (Bàn đóng gói) =====================
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
