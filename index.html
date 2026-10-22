@@ -1221,7 +1221,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   }
   /* ===== Nhân viên đóng gói: tối ưu điện thoại ===== */
   body.role-packer .sidebar, body.role-packer #hamburgerBtn, body.role-packer #refreshBtn, body.role-packer .sidebar-backdrop{ display:none !important; }
-  .pack-logout{ float:right; font-size:12.5px; color:var(--ink-soft) !important; font-weight:600; margin-left:10px; }
+  .pack-logout{ float:right; width:34px; height:34px; margin:-6px -6px 0 10px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:16px; color:var(--ink-soft) !important; text-decoration:none !important; border:1px solid var(--line); }
   .pack-me-personal{ padding:14px 16px !important; }
   .pack-me-hi{ font-size:14px; }
   .pack-me-big{ display:flex; align-items:baseline; gap:8px; margin-top:6px; }
@@ -1481,7 +1481,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div class="sidebar-foot">
         <div class="who" id="sidebarWho">—</div>
         <div id="sidebarRole">—</div>
-        <span class="logout-link" onclick="logout()">Đăng xuất</span>
+        <span class="logout-link" onclick="confirmLogout()">Đăng xuất</span>
         <div><span class="logout-link sb-pin-link" id="sbPinLink" onclick="toggleSidebarPin()">📌 Ghim menu</span></div>
       </div>
     </div>
@@ -6472,12 +6472,12 @@ function renderPackDeskMe(){
   if(presCard) presCard.style.display = 'none'; // đã bỏ điểm danh
   if(me==='shared'){
     const u0 = currentUser();
-    box.innerHTML = `<div class="pack-me-line">🖥️ <b>${u0 && u0.role==='packer' ? escHtml(u0.name) : 'Máy chung'}</b> — sau mỗi lần quét chạm chọn tên người đóng${u0 && u0.role==='packer' ? '<a href="#" class="pack-logout" onclick="event.preventDefault(); logout()">Đăng xuất</a>' : ''}</div>`;
+    box.innerHTML = `<div class="pack-me-line">🖥️ <b>${u0 && u0.role==='packer' ? escHtml(u0.name) : 'Máy chung'}</b> — sau mỗi lần quét chạm chọn tên người đóng${u0 && u0.role==='packer' ? '<a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a>' : ''}</div>`;
     return;
   }
   const today = todayStr();
   const mine = (state.packStatus||[]).filter(p=>p && p.state==='packed' && p.staffId===me && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today).length;
-  box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); logout()">Đăng xuất</a></div>
+  box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a></div>
     <div class="pack-me-big"><b class="pack-me-count">${mine}</b><span>đơn bạn đã đóng hôm nay</span></div></div>`;
 }
 function renderPackDeskPage(){
@@ -11089,6 +11089,7 @@ function askConfirm(title,text,onOk){
   document.getElementById('confirmTitle').textContent=title;
   document.getElementById('confirmText').textContent=text;
   document.getElementById('confirmModal').classList.add('show');
+  document.getElementById('confirmOkBtn').textContent = 'Xác nhận'; // trả về chữ mặc định (nút Đăng xuất có đổi chữ riêng)
   pendingConfirm=onOk;
 }
 function closeConfirm(){ document.getElementById('confirmModal').classList.remove('show'); pendingConfirm=null; }
@@ -11257,6 +11258,12 @@ function goStep(n){
 }
 function goBackFromBranch(){
   goStep(skippedRoleStep ? 1 : 2);
+}
+// Bấm "Đăng xuất" → hỏi lại trước (tránh chạm nhầm trên điện thoại)
+function confirmLogout(){
+  const u = currentUser();
+  askConfirm('Đăng xuất?', `Thoát khỏi tài khoản ${u ? u.name : ''} trên máy này? Lần sau phải nhập lại tên và mã PIN.`, ()=>logout());
+  const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Đăng xuất';
 }
 function logout(){
   state.session=null; persistSession();
