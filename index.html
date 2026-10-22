@@ -4023,6 +4023,10 @@ function openInvoiceFromLead(leadId, skipCheck){
     currentInvoiceDraft = d;
     goPage('invoices');
     markInvoiceDraftClean();
+    if(d.customerPhone) closedPhoneLookup(d.customerPhone).then(found=>{
+      if(!found || currentInvoiceDraft!==d) return;
+      if(detectInvoiceSource(d.saleId, d.customerPhone, null)===returningSourceName()){ d.leadSource = returningSourceName(); refreshInvoiceSourceBox(); }
+    });
     if(!d.customerName) setTimeout(()=>{ const el = document.getElementById('invEditCustomerName'); if(el) el.focus(); }, 50);
   };
   if(currentInvoiceDraft && invoiceDraftChanged()) autoSaveInvoiceThen(go); else go();
@@ -4258,6 +4262,11 @@ function invPhoneInput(el){
     refreshInvoiceSourceBox();
     applyOldCustomerDeposit();
     autofillInvoiceCustomerName(detectLeadName(sid, cp));
+    closedPhoneLookup(cp).then(found=>{ // SĐT từng được Sale KHÁC chốt → Nguồn "Khách cũ"
+      if(!found || currentInvoiceDraft!==d || cleanPhone(d.customerPhone)!==cp) return;
+      const src2 = detectInvoiceSource(sid, cp, d.id) || '';
+      if(src2 && src2!==d.leadSource){ d.leadSource = src2; d._sourcePicked = false; refreshInvoiceSourceBox(); }
+    });
   }
   const span = el.parentNode.querySelector('.print-only');
   if(span) span.textContent = maskPhone(el.value);
@@ -4641,6 +4650,7 @@ const DEP_PROOF_MAX = 3;
 let depProof = null; // {invId, oldCust, onOk, imgs:[{data}]}
 function depProofOpen(inv, oldCust, msg, onOk){
   depProof = {invId: inv.id, oldCust, onOk, imgs: []};
+  if(inv.customerPhone) closedPhoneLookup(inv.customerPhone); // tra sẵn "khách cũ" để ghi đúng Nguồn khi xác nhận
   document.getElementById('depProofTitle').textContent = oldCust ? '💬 Chốt đơn khách cũ' : '💰 Xác nhận khách đã chuyển cọc';
   document.getElementById('depProofMsg').textContent = msg;
   document.getElementById('depProofLabel').innerHTML = oldCust
@@ -6541,7 +6551,7 @@ function packOpenInvoiceByCode(raw){
   if(!me || !['general_manager','warehouse','packer'].includes(me.role)){ showToast('Mã QR này dành cho Kho — tài khoản của bạn không mở được.'); return false; }
   if(!packInvoicesLoaded){ showToast('Đang tải hoá đơn, chờ vài giây rồi quét lại.'); return false; }
   const inv = packFindInvoice(code);
-  if(!inv){ packBeep(false); showToast(`Không tìm thấy hoá đơn ${code} (có thể đã quá ${INVOICE_KEEP_DAYS} ngày hoặc đã bị xoá).`); return false; }
+  if(!inv){ packBeep(false); showToast(me.role==='packer' ? `⛔ Không tìm thấy hoá đơn ${code} trong các đơn ĐÃ CỌC — đơn chưa cọc / đã huỷ cọc / quá ${INVOICE_KEEP_DAYS} ngày. KHÔNG đóng, đưa phiếu cho Kho trưởng.` : `Không tìm thấy hoá đơn ${code} (có thể đã quá ${INVOICE_KEEP_DAYS} ngày hoặc đã bị xoá).`); return false; }
   closeInvoiceView();
   packPanelOpen(inv.id);
   const ps = packStatusMap()[inv.id], pp = packPrintMap()[inv.id];
@@ -9055,11 +9065,39 @@ function returningSourceName(){
 function isReturningCustomerFor(userId, phone, excludeLeadId, excludeInvoiceId){
   const norm = normalizePhone(phone);
   if(!norm) return false;
-  return state.leads.some(l=>l.id!==excludeLeadId
+  const local = state.leads.some(l=>l.id!==excludeLeadId
     && (userId==null || l.assignedTo===userId)
     && l.status==='Đã chốt'
     && !(excludeInvoiceId && l.invoiceId===excludeInvoiceId)
     && normalizePhone(leadPhone(l))===norm);
+  if(local || !closedPhoneNeedsLookup()) return local;
+  // Máy Sale không còn tải data đã chốt của cả công ty → tra riêng SĐT này (1 truy vấn rất nhỏ, có lưu tạm)
+  const c = closedPhoneCacheGet(norm);
+  if(!c){ closedPhoneLookup(norm).then(found=>{ if(found) onDataChanged(); }); return false; }
+  return c.some(l=>l.id!==excludeLeadId && (userId==null || l.assignedTo===userId) && !(excludeInvoiceId && l.invoiceId===excludeInvoiceId));
+}
+// ===== TRA "KHÁCH CŨ" THEO SĐT (máy Sale) =====
+// Trước đây mỗi máy Sale tải TOÀN BỘ data "Đã chốt" của cả công ty chỉ để biết 1 SĐT có phải khách cũ không
+// → rất tốn dung lượng tải. Giờ chỉ tra đúng SĐT đang nhập (truy vấn theo phoneNorm, đã có chỉ mục), lưu tạm 10 phút.
+const closedPhoneCache = {}, closedPhonePending = {};
+function closedPhoneNeedsLookup(){ return typeof leadsSubKey==='string' && leadsSubKey.startsWith('sale:'); }
+function closedPhoneCacheGet(norm){ const c = closedPhoneCache[norm]; return (c && Date.now()-c.at < 600000) ? c.list : null; }
+function closedPhoneLookup(phoneOrNorm){
+  const norm = normalizePhone(phoneOrNorm);
+  if(!norm || !closedPhoneNeedsLookup() || !fbLeads) return Promise.resolve(false);
+  if(closedPhoneCacheGet(norm)) return Promise.resolve(false);
+  if(closedPhonePending[norm]) return closedPhonePending[norm];
+  closedPhonePending[norm] = Promise.all([
+    fbLeads.orderByChild('phoneNorm').equalTo(norm).once('value'),
+    fbLeads.orderByChild('phone').equalTo('0' + norm).once('value') // data cũ chưa có phoneNorm
+  ]).then(snaps=>{
+    const list = [], seen = new Set();
+    snaps.forEach(snap=>snap.forEach(ch=>{ const v = ch.val() || {}; if(v.status==='Đã chốt' && !seen.has(ch.key)){ seen.add(ch.key); list.push({id: ch.key, assignedTo: v.assignedTo || '', invoiceId: v.invoiceId || null}); } }));
+    closedPhoneCache[norm] = {at: Date.now(), list};
+    delete closedPhonePending[norm];
+    return list.length > 0;
+  }).catch(()=>{ delete closedPhonePending[norm]; return false; });
+  return closedPhonePending[norm];
 }
 // ===== TÊN NGUỒN "GIỐNG HỆT NHAU" NHƯNG MÁY COI LÀ KHÁC =====
 // Nguyên nhân hay gặp: gõ tiếng Việt bằng 2 kiểu bảng mã khác nhau (Unikey "Unicode dựng sẵn" vs
@@ -11116,7 +11154,7 @@ function subscribeLeadsForUser(user){
     ? [fbLeads]
     : (mktIds
       ? mktIds.map(id=>fbLeads.orderByChild('createdBy').equalTo(id)).concat([fbLeads.orderByChild('status').equalTo('Đã chốt')])
-      : [fbLeads.orderByChild('assignedTo').equalTo(user.id), fbLeads.orderByChild('status').equalTo('Đã chốt')]);
+      : [fbLeads.orderByChild('assignedTo').equalTo(user.id)]); // Sale: chỉ data của mình. "Khách cũ" của Sale khác → tra theo SĐT khi cần (closedPhoneLookup)
   const maps = queries.map(()=>({}));
   const myKey = key;
   let ready = false;
@@ -11234,13 +11272,15 @@ function setupRoleScopedListeners(user){
 
   // Hoá đơn
   // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
-  const invKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id));
+  // Nhân viên đóng gói chỉ cần hoá đơn ĐÃ CỌC (30 ngày) → truy vấn theo depositLink/markedAt, bỏ đơn chờ cọc
+  const packerCut = Date.now() - INVOICE_KEEP_DAYS*86400000;
+  const invKey = !user ? 'none' : (r==='packer' ? 'deposited:' + todayStr() : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id)));
   attachScoped('invoices', invKey,
-    invKey==='none' ? null : (invKey==='all' ? fbInvoices : fbInvoices.orderByChild('saleId').equalTo(user.id)),
+    invKey==='none' ? null : (invKey==='all' ? fbInvoices : (invKey.startsWith('deposited:') ? fbInvoices.orderByChild('depositLink/markedAt').startAt(packerCut) : fbInvoices.orderByChild('saleId').equalTo(user.id))),
     (arr)=>{
       if(isWarehouse){ const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
       else state.invoices = purgeExpiredInvoices(arr);
-      packInvoicesLoaded = invKey==='all'; cleanupPackPrints();
+      packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:'); cleanupPackPrints();
       onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
     }, false);
 
