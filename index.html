@@ -1002,6 +1002,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-acc-name{ font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .pack-acc-tag{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
   .pack-acc-tag.on{ background:rgba(46,160,90,0.16); color:#6FD99A; }
+  .pack-acc-tag.shared{ background:rgba(79,140,255,0.16); color:#8DB4FF; }
+  .pack-acc-avatar.shared{ background:linear-gradient(135deg,#2C3E66,#3D5A99); font-size:19px; }
+  .pack-acc-shared{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:6px 0 2px; font-size:13px; cursor:pointer; }
+  .pack-acc-shared input{ width:auto !important; min-height:0 !important; flex:0 0 auto !important; }
   .pack-acc-tag.off{ background:rgba(240,166,58,0.18); color:#F0A63A; }
   .pack-acc-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
   .pack-acc-chip{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--ink-soft); background:rgba(255,255,255,0.05); border:1px solid var(--line); border-radius:8px; padding:3px 8px; min-height:0 !important; line-height:1.4; }
@@ -1959,7 +1963,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="pimgBox"></div>
         </details>
         <details class="card pack-details" id="packStaffDetails" ontoggle="if(this.open) renderPackStaffBox()">
-          <summary>👥 Nhân viên kho &amp; điểm danh hôm nay</summary>
+          <summary>👥 Người đóng chưa có tài khoản (thêm tay)</summary>
           <div class="pack-staff-add">
             <input id="packStaffNewName" placeholder="Tên nhân viên kho (VD: Hùng)" onkeydown="if(event.key==='Enter') packStaffAdd()">
             <button class="btn-primary btn-small" onclick="packStaffAdd()">+ Thêm</button>
@@ -1978,6 +1982,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <input id="packAccZalo" type="tel" inputmode="numeric" placeholder="SĐT Zalo (không bắt buộc)" autocomplete="off">
             <button class="btn-primary btn-small" onclick="packAccCreate()">+ Tạo tài khoản</button>
           </div>
+          <label class="pack-acc-shared"><input type="checkbox" id="packAccShared"> 🖥️ <b>Máy chung ở bàn</b> <span class="pack-note">— nhiều người dùng chung 1 máy: quét xong chạm chọn tên người đóng (không tính là 1 nhân viên)</span></label>
           <div id="packAccErr" class="pack-note" style="color:#FF8A8D; min-height:16px;"></div>
         </div>
         <div class="card">
@@ -5775,6 +5780,8 @@ function packAccCreate(){
   const me = currentUser() || {};
   const user = {id: uid(), name, pin, role:'packer', branchId:null, mktBranchId:null, assignedSources:[], createdAt: Date.now(), createdBy: me.id || '', createdByName: me.name || ''};
   if(zalo) user.zaloPhone = zalo;
+  if(document.getElementById('packAccShared').checked) user.sharedDesk = true;
+  document.getElementById('packAccShared').checked = false;
   state.users.push(user); fbSetUser(user);
   ['packAccName','packAccPin','packAccZalo'].forEach(id=>{ document.getElementById(id).value = ''; });
   showToast(`✅ Đã tạo tài khoản ${name} — đưa tên và PIN "${pin}" cho bạn ấy đăng nhập.`);
@@ -5788,6 +5795,7 @@ function packAccEdit(id){
     <input id="packAccEName_${id}" value="${escHtml(u.name)}" placeholder="Tên">
     <input id="packAccEPin_${id}" value="${escHtml(u.pin)}" inputmode="numeric" maxlength="4" placeholder="PIN 4 số">
     <input id="packAccEZalo_${id}" value="${escHtml(u.zaloPhone||'')}" inputmode="numeric" placeholder="SĐT Zalo">
+    <label class="pack-acc-shared" style="flex:1 1 100%; margin:0;"><input type="checkbox" id="packAccEShared_${id}" ${u.sharedDesk ? 'checked' : ''}> 🖥️ Máy chung ở bàn</label>
     <button class="btn-primary btn-small" onclick="packAccSave('${id}')">Lưu</button>
     <button class="btn-ghost btn-small" onclick="renderPackAccounts()">Huỷ</button></div>`;
 }
@@ -5801,8 +5809,9 @@ function packAccSave(id){
   if(zalo && !/^0\d{9,10}$/.test(zalo)) return packAccErr('SĐT Zalo chưa đúng (10–11 số, bắt đầu bằng 0).');
   if(packAccNameTaken(name, id)) return packAccErr('Đã có người dùng tên này.');
   packAccErr('');
-  u.name = name; u.pin = pin; u.zaloPhone = zalo || '';
-  fbUpdateUser(id, {name, pin, zaloPhone: zalo || null});
+  const shared = !!document.getElementById('packAccEShared_' + id).checked;
+  u.name = name; u.pin = pin; u.zaloPhone = zalo || ''; u.sharedDesk = shared;
+  fbUpdateUser(id, {name, pin, zaloPhone: zalo || null, sharedDesk: shared || null});
   showToast(`Đã cập nhật ${name}`); renderPackAccounts();
 }
 function packAccToggleBlock(id){
@@ -5821,13 +5830,13 @@ function renderPackAccounts(){
   const doneToday = {}; (state.packStatus||[]).forEach(p=>{ if(p && p.state==='packed' && !p.legacy && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today && p.staffId) doneToday[p.staffId] = (doneToday[p.staffId]||0) + 1; });
   const initials = n=>String(n||'?').trim().split(/\s+/).slice(-1)[0].charAt(0).toUpperCase();
   box.innerHTML = list.length ? `<div class="pack-acc-list">${list.map(u=>`<div class="pack-acc-row ${u.loginBlocked ? 'off' : ''}" id="packAccRow_${u.id}">
-      <div class="pack-acc-avatar">${escHtml(initials(u.name))}</div>
+      <div class="pack-acc-avatar ${u.sharedDesk ? 'shared' : ''}">${u.sharedDesk ? '🖥️' : escHtml(initials(u.name))}</div>
       <div class="pack-acc-info">
-        <div class="pack-acc-name">${escHtml(u.name)}${u.loginBlocked ? '<span class="pack-acc-tag off">Đã nghỉ</span>' : '<span class="pack-acc-tag on">Đang làm</span>'}</div>
+        <div class="pack-acc-name">${escHtml(u.name)}${u.loginBlocked ? '<span class="pack-acc-tag off">Đã nghỉ</span>' : (u.sharedDesk ? '<span class="pack-acc-tag shared">🖥️ Máy chung</span>' : '<span class="pack-acc-tag on">Cá nhân</span>')}</div>
         <div class="pack-acc-chips">
           <button class="pack-acc-chip pin" title="${packAccShowPin[u.id] ? 'Ẩn PIN' : 'Hiện PIN'}" onclick="packAccShowPin['${u.id}']=!packAccShowPin['${u.id}']; renderPackAccounts()">🔑 ${packAccShowPin[u.id] ? `<b>${escHtml(u.pin)}</b>` : '••••'} <span class="pack-acc-eye">${packAccShowPin[u.id] ? '🙈' : '👁'}</span></button>
           ${u.zaloPhone ? `<span class="pack-acc-chip">📱 ${escHtml(u.zaloPhone)}</span>` : ''}
-          <span class="pack-acc-chip ${doneToday[u.id] ? 'good' : ''}">📦 Hôm nay <b>${doneToday[u.id]||0}</b> đơn</span>
+          ${u.sharedDesk ? '' : `<span class="pack-acc-chip ${doneToday[u.id] ? 'good' : ''}">📦 Hôm nay <b>${doneToday[u.id]||0}</b> đơn</span>`}
         </div>
       </div>
       <div class="pack-acc-acts">${u.loginBlocked
@@ -5876,7 +5885,7 @@ function packAttachPresence(){
 }
 // Người đóng hàng = các TÀI KHOẢN "Nhân viên đóng gói" (mã = id tài khoản) + tên Kho trưởng thêm tay cho người chưa có tài khoản.
 // Tên thêm tay trùng tên 1 tài khoản → ẩn tên thêm tay (tránh hiện 2 lần).
-function packAccountStaff(){ return (state.users||[]).filter(u=>u && u.id && u.role==='packer' && !u.loginBlocked).map(u=>({id:u.id, name:u.name, active:true, isAccount:true})); }
+function packAccountStaff(){ return (state.users||[]).filter(u=>u && u.id && u.role==='packer' && !u.loginBlocked && !u.sharedDesk).map(u=>({id:u.id, name:u.name, active:true, isAccount:true})); } // máy chung không phải 1 người
 function packActiveStaff(){
   const acc = packAccountStaff();
   const accNames = new Set(acc.map(x=>normalizeSearchText(x.name)));
@@ -5914,8 +5923,7 @@ function renderPackStaffBox(){
   const box = document.getElementById('packStaffBox'); if(!box) return;
   packAttachPresence();
   const acc = packActiveStaff().filter(x=>x.isAccount), manual = packActiveStaff().filter(x=>!x.isAccount);
-  box.innerHTML = `<div class="pack-note" style="margin:8px 0 6px;">Người có tài khoản <b>Nhân viên đóng gói</b> tự có tên ở đây và <b>tự điểm danh</b> khi mở app. Ô "Thêm" chỉ dùng cho người CHƯA có tài khoản (đóng ở máy chung, Kho trưởng chạm chọn tên giúp).</div>
-    <div class="pack-p-label" style="margin-top:10px;">Có mặt hôm nay <span class="pack-note">(chạm để tick / bỏ tick)</span></div>` + packPresenceChipsHtml() +
+  box.innerHTML = `<div class="pack-note" style="margin:8px 0 6px;">Người có tài khoản <b>Nhân viên đóng gói</b> tự có tên ở đây. Ô "Thêm" chỉ dùng cho người CHƯA có tài khoản — tên sẽ hiện để chọn khi đóng ở máy chung.</div>` +
     `<div class="pack-staff-list">${acc.map(x=>`<span class="pack-staff-item acc">👤 ${escHtml(x.name)} <span class="pack-note">tài khoản</span></span>`).join('')}${manual.map(x=>`<span class="pack-staff-item">${escHtml(x.name)} <span class="pack-note">thêm tay</span> <button class="pack-x" title="Bỏ khỏi danh sách" onclick="packStaffRemove('${x.id}')">×</button></span>`).join('')}</div>`;
 }
 // ----- Panel đóng hàng -----
@@ -5924,9 +5932,9 @@ let packOpenedByCam = false, packLastCamCode = '', packLastCamAt = 0;
 function packPanelOpen(invId){
   const inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv) return;
   packAttachPresence();
-  const present = packPresentStaff();
+  const allStaff = packActiveStaff();
   const devMe = packDeviceMe(); const isMine = !!devMe && devMe!=='shared';
-  packPanel = {invId, staffId: isMine ? devMe : (present.length===1 ? present[0].id : null), lockedMe: isMine, showAll: false,
+  packPanel = {invId, staffId: isMine ? devMe : (allStaff.length===1 ? allStaff[0].id : null), lockedMe: isMine, showAll: false,
     mode:'view', miss:{}, note:'', fromCam: packOpenedByCam, photos:[], showPhotos:false, savedPhotos:null, picked: packPickLoad(invId)}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
   packOpenedByCam = false;
   renderPackPanel();
@@ -5998,8 +6006,7 @@ function renderPackPanel(){
       ${tickMode && need && got<need ? `<button class="btn-ghost btn-small pack-grp-all" onclick="event.stopPropagation(); packPickGroup('${keys}')">✓ <span class="pack-grp-all-long">Đủ cả nhóm</span><span class="pack-grp-all-short">Đủ hết</span></button>` : ''}</div></td></tr>` +
       g.items.map(l=>lineRow(l, true)).join('');
   }).join('');
-  const present = packPresentStaff();
-  const staffList = present.length ? present : packActiveStaff();
+  const staffList = packActiveStaff(); // không cần điểm danh: hiện TẤT CẢ người đóng đã đăng ký để chọn
   // ---- Thanh GHIM trên cùng: Số HĐ · người đóng · ảnh · nút hành động — cuộn xuống vẫn thấy ----
   const ph = packPanel.photos || [];
   const kindNow = packPhotoKindNow(ps, short);
@@ -6420,8 +6427,8 @@ function packDeskReadyUi(){
 // Đăng nhập tài khoản Nhân viên đóng gói → chính là người đóng: quét xong tự ghi tên mình, mở app là tự điểm danh.
 // Kho trưởng / Quản lý chung mở Bàn đóng gói = máy chung: chạm chọn tên sau mỗi lần quét.
 let packAutoPresentDone = '';
-function packDeviceMe(){ const u = currentUser(); return (u && u.role==='packer') ? u.id : 'shared'; }
-function packAutoPresent(){
+function packDeviceMe(){ const u = currentUser(); return (u && u.role==='packer' && !u.sharedDesk) ? u.id : 'shared'; } // tài khoản tick "Máy chung" → chọn tên sau mỗi lần quét
+function packAutoPresent(){ return; // đã bỏ điểm danh (giữ hàm để không vỡ chỗ gọi)
   const me = packDeviceMe(); if(!me || me==='shared' || !fbPackPresence) return;
   const key = todayStr() + '|' + me; if(packAutoPresentDone===key) return;
   packAutoPresentDone = key;
@@ -6432,7 +6439,7 @@ function renderPackDeskMe(){
   const box = document.getElementById('packDeskMe'); if(!box) return;
   const me = packDeviceMe();
   const presCard = document.getElementById('packDeskPresenceCard');
-  if(presCard) presCard.style.display = me==='shared' ? '' : 'none'; // nhân viên tự điểm danh → khỏi hiện ô điểm danh
+  if(presCard) presCard.style.display = 'none'; // đã bỏ điểm danh
   if(me==='shared'){
     box.innerHTML = `<div class="pack-me-line">🖥️ <b>Máy chung</b> — sau mỗi lần quét chạm chọn tên người đóng</div>`;
     return;
