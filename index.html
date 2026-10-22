@@ -1889,6 +1889,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <span id="packCustomRange" class="pack-range" style="display:none;">
               <input id="packFrom" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Từ ngày"> → <input id="packTo" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Đến ngày">
             </span>
+            <select id="packTeamSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👥 Tất cả team</option></select>
             <select id="packSaleSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👤 Tất cả Sale</option></select>
             <select id="packSortSel" onchange="pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="asc">↑ Cọc cũ trước</option>
@@ -5514,6 +5515,18 @@ function packCurrentList(){
   });
   if(q.trim()) base = base.filter(inv=>invoiceMatchesSearch(inv, q));
   if(pq) base = base.filter(inv=>(inv.productGroups||[]).some(g=>normalizeSearchText(g.productCode).includes(pq) || normalizeSearchText(g.design).includes(pq) || normalizeSearchText(g.productName).includes(pq)));
+  // Lọc theo TEAM (đếm theo bộ lọc hiện tại, trước khi lọc team / Sale)
+  const teamF = (document.getElementById('packTeamSel')||{}).value || '';
+  const teamKey = inv=>inv.teamId || (inv.teamName ? 'name:' + inv.teamName : '');
+  const teamLabel = k=>!k ? '(Chưa chọn team)' : (k.startsWith('name:') ? k.slice(5) : (branchName(k) || (base.find(i=>i.teamId===k)||{}).teamName || 'Team'));
+  const teamCount = {}; base.forEach(inv=>{ const k = teamKey(inv); teamCount[k] = (teamCount[k]||0) + 1; });
+  const teamSel = document.getElementById('packTeamSel');
+  if(teamSel){
+    const keys = Object.keys(teamCount); if(teamF && !teamCount[teamF]) keys.push(teamF);
+    const opts = keys.map(k=>({k, name: teamLabel(k)})).sort((a,b)=>(a.k==='') - (b.k==='') || a.name.localeCompare(b.name,'vi'));
+    teamSel.innerHTML = `<option value="">👥 Tất cả team</option>` + opts.map(o=>`<option value="${escHtml(o.k||'__none')}" ${(o.k||'__none')===teamF?'selected':''}>${escHtml(o.name)} (${teamCount[o.k]||0})</option>`).join('');
+  }
+  if(teamF) base = base.filter(inv=>(teamKey(inv)||'__none')===teamF);
   // Danh sách Sale (đếm theo bộ lọc hiện tại, trước khi lọc Sale)
   const saleCount = {}; base.forEach(inv=>{ const k = inv.saleId || ''; saleCount[k] = (saleCount[k]||0) + 1; });
   const saleSel = document.getElementById('packSaleSel');
@@ -5651,6 +5664,7 @@ function packResetFilters(){
   const r = document.getElementById('packRangeSel'); if(r) r.value = 'all';
   const cr = document.getElementById('packCustomRange'); if(cr) cr.style.display = 'none';
   const sl = document.getElementById('packSaleSel'); if(sl) sl.value = '';
+  const tl = document.getElementById('packTeamSel'); if(tl) tl.value = '';
   const so = document.getElementById('packSortSel'); if(so) so.value = 'asc';
   packSelected.clear(); pagerPages.packInv = 1; renderPackInvoicesPage();
 }
@@ -11313,6 +11327,7 @@ function enterApp(){
   document.getElementById('navWarehouse').style.display = isWarehouse ? 'block' : 'none';
   const isPacker = user.role==='packer';
   document.getElementById('navPacker').style.display = isPacker ? 'block' : 'none';
+  document.getElementById('navCommon').style.display = canSeeCompanyRules(user) ? 'block' : 'none'; // Nội quy: ẩn với Bàn đóng gói / Kho / Thợ in
   document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || isWarehouse || user.canOrderPrint)) ? 'block' : 'none';
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
   document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
@@ -11397,9 +11412,13 @@ const SUB_PAGE_PARENTS = {
   mktPersonDetail: ['mktOverview','mktReportsAdmin'],
   mktRevenue: ['mktRevenue','mktOverview','mktReportsAdmin'], // Quản lý xem doanh thu Nguồn của 1 người
 };
+// Nội quy & Văn hoá công ty chỉ dành cho bộ phận Sale / MKT / quản lý — KHÔNG hiện cho Bàn đóng gói, Kho / Đặt in, Thợ in
+const NO_RULES_ROLES = ['packer','warehouse','printer'];
+function canSeeCompanyRules(u){ return !!u && !NO_RULES_ROLES.includes(u.role); }
 function pageAllowedForMe(pageId){
   const u = currentUser();
-  if(!u || pageId==='companyRules') return true;
+  if(!u) return true;
+  if(pageId==='companyRules') return canSeeCompanyRules(u);
   const vis = navPagesVisibleForMe();
   if(!vis.size) return true; // menu chưa dựng xong (đang vào app) → không chặn vội
   if(vis.has(pageId)) return true;
@@ -11438,13 +11457,13 @@ function goPage(pageId){
   if(pageId==='videoShootsOverview' && u && u.role==='team_manager'){ pageId='mgrLeads'; }
   if(pageId==='mgrTrash' && u && u.role==='team_manager'){ pageId='mgrDashboard'; }
   // Nhân viên in hình: CHỈ trang Báo cáo in hình + Nội quy
-  if(u && u.role==='printer' && pageId!=='printReport' && pageId!=='companyRules'){ pageId = 'printReport'; }
+  if(u && u.role==='printer' && pageId!=='printReport'){ pageId = 'printReport'; }
   // Kho / Đặt in: CHỈ Hàng cần in + Đặt đơn in + Nội quy
-  if(u && u.role==='warehouse' && !['printOverview','packInvoices','packDesk','printOrders','companyRules'].includes(pageId)){ pageId = 'printOverview'; }
-  if(u && u.role==='packer' && !['packDesk','companyRules'].includes(pageId)){ pageId = 'packDesk'; } // Bàn đóng gói: CHỈ trang đóng hàng + Nội quy
+  if(u && u.role==='warehouse' && !['printOverview','packInvoices','packDesk','printOrders'].includes(pageId)){ pageId = 'printOverview'; }
+  if(u && u.role==='packer' && pageId!=='packDesk'){ pageId = 'packDesk'; } // Nhân viên đóng gói: CHỈ trang Bàn đóng gói
   if(pageId==='packDesk' && u && !['general_manager','warehouse','packer'].includes(u.role)){ pageId = homePageForMe(); }
   if(pageId==='packInvoices' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = homePageForMe(); }
-  if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.role==='warehouse' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : 'companyRules'; }
+  if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.role==='warehouse' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : homePageForMe(); }
   if(pageId==='printOverview' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
