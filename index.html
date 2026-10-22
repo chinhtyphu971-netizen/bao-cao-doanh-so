@@ -1135,6 +1135,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .modal.pack-panel-modal{ padding-top:0 !important; }
   #confirmModal{ z-index:92; }
   #packPhotosModal{ z-index:91; }
+  .dep-thumb{ width:40px; height:40px; object-fit:cover; object-position:top; border-radius:6px; border:1px solid var(--line); background:#fff; cursor:zoom-in; display:block; }
+  .dep-thumb-none{ background:rgba(255,255,255,0.08); }
+  .inv-view-cell{ vertical-align:middle; }
   .dep-proof-link{ font-size:11.5px; font-weight:700; color:#8DB4FF !important; white-space:nowrap; }
   .dep-proof-view{ display:flex; flex-direction:column; gap:10px; align-items:center; }
   .dep-proof-view img{ max-width:100%; border-radius:8px; cursor:zoom-in; }
@@ -4702,9 +4705,10 @@ function depProofSave(inv, kind){
   const meta = {n: depProof.imgs.length, kind, at};
   upd[`invoices/${inv.id}/depositProof`] = meta;
   inv.depositProof = meta;
-  fbRoot.update(upd).catch(()=>showToast('⚠ Lỗi lưu ảnh — kiểm tra mạng.'));
+  const firstData = depProof.imgs[0].data;
+  depMakeThumb(firstData).then(t=>{ if(t) upd[`depositThumbs/${inv.id}`] = t; fbRoot.update(upd).catch(()=>showToast('⚠ Lỗi lưu ảnh — kiểm tra mạng.')); });
 }
-function depProofRemove(invId){ fbRoot.update({[`depositProofs/${invId}`]: null, [`invoices/${invId}/depositProof`]: null}).catch(()=>{}); }
+function depProofRemove(invId){ fbRoot.update({[`depositProofs/${invId}`]: null, [`depositThumbs/${invId}`]: null, [`invoices/${invId}/depositProof`]: null}).catch(()=>{}); }
 function depProofLinkHtml(inv){
   const m = inv && inv.depositProof; if(!m || !m.n) return '';
   return `<a href="#" class="dep-proof-link" onclick="event.preventDefault(); event.stopPropagation(); depProofView('${inv.id}')">${m.kind==='chat' ? '💬 ảnh chat' : '🧾 ảnh CK'}${m.n>1 ? ' (' + m.n + ')' : ''}</a>`;
@@ -4721,6 +4725,50 @@ function depProofView(invId){
   }).catch(()=>{ body.innerHTML = '<div class="pack-note">Không tải được ảnh — kiểm tra mạng.</div>'; });
 }
 function db_ref(path){ return fbRoot.child(path); }
+// ----- Ảnh NHỎ XÍU (~2–4KB) của ảnh cọc: hiện thay nút Xem ở Tổng hợp hoá đơn -----
+// Lưu riêng ở depositThumbs/{hoáĐơn}; mỗi máy chỉ tải 1 lần rồi cất trong máy. Ảnh cọc cũ chưa có ảnh nhỏ
+// → lần đầu xem sẽ tự tạo từ ảnh gốc rồi lưu lại (các máy sau khỏi tạo lại).
+function depMakeThumb(dataUrl){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{ try{
+      const h = 120, w = Math.max(1, Math.round(img.naturalWidth * h / img.naturalHeight));
+      const cv = document.createElement('canvas'); cv.width = Math.min(w, 160); cv.height = h;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0,0,cv.width,h); cx.drawImage(img, 0, 0, w, h);
+      let d = cv.toDataURL('image/webp', 0.55); if(!d.startsWith('data:image/webp')) d = cv.toDataURL('image/jpeg', 0.55);
+      res(d);
+    }catch(e){ res(null); } };
+    img.onerror = ()=>res(null); img.src = dataUrl;
+  });
+}
+const depThumbPending = {};
+async function depThumbGet(inv){
+  const v = inv.depositProof && inv.depositProof.at; if(!v) return null;
+  const key = 'dt_' + inv.id;
+  if(pimgMem[key] && pimgMem[key].v===v) return pimgMem[key].data;
+  const c = await pimgCacheGet(key); if(c && c.v===v){ pimgMem[key] = c; return c.data; }
+  if(depThumbPending[key]) return depThumbPending[key];
+  depThumbPending[key] = (async ()=>{
+    try{
+      let d = (await fbRoot.child('depositThumbs/' + inv.id).once('value')).val();
+      if(!d){ // ảnh cọc cũ: tạo ảnh nhỏ từ ảnh gốc rồi lưu lại
+        const all = (await fbRoot.child('depositProofs/' + inv.id).once('value')).val() || {};
+        const first = Object.values(all).filter(p=>p && p.data).sort((a,b)=>a.at-b.at)[0];
+        if(first){ d = await depMakeThumb(first.data); if(d) fbRoot.child('depositThumbs/' + inv.id).set(d).catch(()=>{}); }
+      }
+      if(d){ const rec = {v, data:d}; pimgMem[key] = rec; pimgCacheSet(key, rec); }
+      return d || null;
+    }catch(e){ return null; } finally { delete depThumbPending[key]; }
+  })();
+  return depThumbPending[key];
+}
+function depThumbHydrate(root){
+  (root || document).querySelectorAll('img[data-dthumb]').forEach(img=>{
+    const id = img.getAttribute('data-dthumb'); img.removeAttribute('data-dthumb');
+    const inv = (state.invoices||[]).find(i=>i.id===id); if(!inv) return;
+    depThumbGet(inv).then(src=>{ if(src) img.src = src; else img.classList.add('dep-thumb-none'); });
+  });
+}
 function unmarkInvoiceDeposited(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv || !inv.depositLink) return;
@@ -4770,7 +4818,7 @@ function purgeExpiredInvoices(list){
     if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
       fbInvoices.child(inv.id).remove().catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại
       removeInvoiceItems(inv.id);
-      if(inv.depositProof && fbRoot) fbRoot.child('depositProofs/' + inv.id).remove().catch(()=>{});
+      if(inv.depositProof && fbRoot) fbRoot.update({[`depositProofs/${inv.id}`]: null, [`depositThumbs/${inv.id}`]: null}).catch(()=>{});
     } else keep.push(inv);
   });
   return keep;
@@ -4785,7 +4833,7 @@ function deleteInvoice(invoiceId){
     state.invoices = state.invoices.filter(x=>x.id!==invoiceId);
     fbInvoices.child(invoiceId).remove();
     removeInvoiceItems(invoiceId);
-    if(fbRoot) fbRoot.child('depositProofs/' + invoiceId).remove().catch(()=>{});
+    if(fbRoot) fbRoot.update({[`depositProofs/${invoiceId}`]: null, [`depositThumbs/${invoiceId}`]: null}).catch(()=>{});
     renderInvoicesPage();
   });
 }
@@ -5297,7 +5345,9 @@ function renderInvoicesOverviewPage(){
   if(invPagerEl) invPagerEl.innerHTML = pagerHtml('invOverview', invoices.length, 50, 'renderInvoicesOverviewPage');
   invTable.innerHTML = `<thead><tr><th style="width:1%;"></th><th>Số HĐ</th><th>Ngày</th><th>Khách hàng</th><th>Tài khoản</th><th>Nhân viên ghi</th><th>Team</th><th>Nguồn</th><th class="num">SL</th><th class="num">Cọc</th><th class="num">Tổng thanh toán</th></tr></thead><tbody>` +
     invPageRows.map(inv=>`<tr class="inv-overview-row" onclick="viewInvoiceReadonly('${inv.id}')" title="Bấm để xem hoá đơn">
-      <td class="inv-view-cell"><button class="btn-primary btn-small inv-view-btn" onclick="event.stopPropagation(); viewInvoiceReadonly('${inv.id}')">👁 Xem</button></td>
+      <td class="inv-view-cell">${inv.depositProof && inv.depositProof.n
+        ? `<img class="dep-thumb" data-dthumb="${inv.id}" alt="" title="${inv.depositProof.kind==='chat' ? 'Ảnh đoạn chat' : 'Ảnh chuyển khoản'} — bấm để xem" onclick="event.stopPropagation(); depProofView('${inv.id}')">`
+        : `<button class="btn-primary btn-small inv-view-btn" onclick="event.stopPropagation(); viewInvoiceReadonly('${inv.id}')">👁 Xem</button>`}</td>
       <td style="font-weight:700;">${inv.invoiceNumber}</td>
       <td>${fmtDate(inv.invoiceDate)}</td>
       <td>${inv.customerName}${invoicePhoneCellHtml(inv.customerPhone)}</td>
@@ -5309,6 +5359,7 @@ function renderInvoicesOverviewPage(){
       <td class="num">${Number(inv.deposit) ? fmtMoney(inv.deposit)+' đ' : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td class="num" style="font-weight:600; color:var(--success);">${fmtMoney(inv.finalAmount)} đ${inv.depositLink ? `<div style="font-size:11px; font-weight:600;">${isOldCustomerInvoice(inv) ? '✅ Đã chốt (khách cũ)' : '✅ Đã cọc'}</div>` : '<div style="font-size:11px; font-weight:600; color:#F0A63A;">⏳ Chưa cọc</div>'}</td>
     </tr>`).join('') + `</tbody>`;
+  depThumbHydrate(invTable); // ảnh cọc nhỏ xíu (tải 1 lần mỗi máy)
 }
 // Quản lý bấm 1 dòng ở "Danh sách hoá đơn" → mở đúng hoá đơn Sale đã lên (chỉ xem, có nút In)
 function viewInvoiceReadonly(invoiceId){
