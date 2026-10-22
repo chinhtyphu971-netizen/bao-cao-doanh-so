@@ -319,7 +319,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .toast{
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
     background:var(--brand); color:#fff; padding:11px 18px; border-radius:999px;
-    font-size:13.5px; box-shadow:0 6px 20px rgba(0,0,0,.18); z-index:90; /* trên cửa sổ nổi để thấy cảnh báo khi đang xem hoá đơn */
+    font-size:13.5px; box-shadow:0 6px 20px rgba(0,0,0,.18); z-index:100; /* trên cửa sổ nổi để thấy cảnh báo khi đang xem hoá đơn */
     opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
@@ -1130,6 +1130,55 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .pack-grp-all{ padding:4px 8px !important; font-size:12px !important; }
     .pack-grp-all-long{ display:none; }
     .pack-grp-all-short{ display:inline; }
+  }
+  /* ===== Màn hình đóng hàng: thanh ghim trên cùng ===== */
+  .modal.pack-panel-modal{ padding-top:0 !important; }
+  #confirmModal{ z-index:92; }
+  #packPhotosModal{ z-index:91; }
+  .dep-proof-link{ font-size:11.5px; font-weight:700; color:#8DB4FF !important; white-space:nowrap; }
+  .dep-proof-view{ display:flex; flex-direction:column; gap:10px; align-items:center; }
+  .dep-proof-view img{ max-width:100%; border-radius:8px; cursor:zoom-in; }
+  #depProofThumbs .pack-photo-add.need{ border-color:#F0A63A; color:#F0A63A; } /* hộp xác nhận luôn nằm TRÊN màn hình đóng hàng / các cửa sổ khác */
+  .pack-sticky{ position:sticky; top:0; z-index:6; background:var(--panel); margin:0 -22px 8px; padding:12px 22px 8px; border-bottom:1px solid var(--line); box-shadow:0 6px 12px -8px rgba(0,0,0,0.5); }
+  .pack-st-row1{ display:flex; align-items:center; gap:10px; }
+  .pack-st-num{ font-size:24px; font-weight:800; letter-spacing:.02em; flex:0 0 auto; }
+  .pack-st-meta{ flex:1; min-width:0; font-size:12.5px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pack-st-meta b{ color:var(--ink); }
+  .pack-st-meta a{ color:#8DB4FF; font-weight:700; }
+  .pack-st-tools{ display:flex; gap:6px; flex:0 0 auto; align-items:center; }
+  .pack-st-tools .pack-chat-btn{ min-height:34px !important; padding:4px 10px !important; }
+  .pack-st-icon{ width:36px; height:34px; min-height:0 !important; padding:0 !important; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:16px; cursor:pointer; }
+  .pack-st-actions{ display:flex; gap:6px; flex-wrap:wrap; align-items:stretch; margin-top:8px; }
+  .pack-st-staff, .pack-st-photo{ display:inline-flex; align-items:center; gap:4px; height:40px; padding:0 12px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; border:1.5px solid var(--line); background:transparent; color:var(--ink); white-space:nowrap; min-height:0 !important; max-width:46%; overflow:hidden; text-overflow:ellipsis; }
+  .pack-st-staff.on{ border-color:#2EA05A; color:#6FD99A; }
+  .pack-st-staff.need, .pack-st-photo.need{ border-color:#F0A63A; color:#F0A63A; border-style:dashed; }
+  .pack-st-photo.on{ border-color:#2EA05A; color:#6FD99A; }
+  .pack-st-btn{ flex:1 1 auto; height:40px; min-height:0 !important; padding:0 12px !important; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; border:1.5px solid transparent; white-space:nowrap; }
+  .pack-st-btn.green{ background:#2EA05A; color:#fff; }
+  .pack-st-btn.orange{ background:transparent; color:#F0A63A; border-color:#F0A63A; flex:0 1 auto; }
+  .pack-st-btn.solid-orange{ background:#E08A1E; color:#fff; }
+  .pack-st-btn.blue{ background:transparent; color:#8DB4FF; border-color:rgba(141,180,255,0.6); }
+  .pack-st-btn.blue.hl{ background:rgba(79,140,255,0.22); border-color:var(--accent); }
+  .pack-st-btn.ghost{ background:transparent; color:var(--ink); border-color:var(--line); flex:0 1 auto; }
+  .pack-st-picker{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding:6px; border-radius:10px; border:1.5px dashed #F0A63A; }
+  .pack-st-picker .pack-chip{ min-height:36px; padding:6px 14px; font-size:14px; }
+  .pack-st-thumbs{ display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .pack-thumb.sm{ width:44px; height:44px; border-radius:8px; }
+  .pack-thumb.sm .pack-thumb-x{ width:20px; height:20px; font-size:13px; top:1px; right:1px; }
+  .pack-st-note{ width:100%; margin-top:8px; }
+  .pack-sticky .pack-progress{ margin:8px 0 0; height:28px; }
+  .pack-sticky .pack-progress span{ line-height:28px; }
+  .pack-st-staff.pack-flash, .pack-st-photo.pack-flash, .pack-st-picker.pack-flash{ animation:packFlash 0.9s ease 2; }
+  @media (max-width:720px){
+    .pack-sticky{ margin:0 -12px 6px; padding:8px 12px 6px; }
+    .pack-st-num{ font-size:19px; }
+    .pack-st-meta{ font-size:11.5px; }
+    .pack-st-tools .pack-chat-btn{ padding:4px 8px !important; font-size:12px !important; }
+    .pack-st-btn{ font-size:14px; padding:0 10px !important; height:38px; }
+    .pack-st-staff, .pack-st-photo{ height:38px; font-size:13px; padding:0 10px; }
+    /* 2 cột: [người đóng][ảnh] / [Đã đóng][Thiếu] */
+    .pack-st-actions{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .pack-st-actions > *{ max-width:none; width:100%; justify-content:center; }
   }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
@@ -2576,11 +2625,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <!-- Đóng hàng: mở ra sau khi quét 1 phiếu -->
 <div class="modal-backdrop" id="packPanelModal" onclick="if(event.target===this) packPanelClose()">
   <div class="modal pack-panel-modal">
-    <div class="pack-panel-top">
-      <button class="btn-ghost btn-small" onclick="packPanelClose(); packScanStart()">📷 Quét đơn khác</button>
-      <button class="btn-ghost btn-small" onclick="packPanelClose()">✕ Đóng</button>
-    </div>
     <div id="packPanelBody"></div>
+  </div>
+</div>
+<!-- Xác nhận cọc / chốt đơn khách cũ: bắt buộc ảnh bằng chứng -->
+<div class="modal-backdrop" id="depProofModal">
+  <div class="modal" style="max-width:460px;">
+    <h2 id="depProofTitle"></h2>
+    <p id="depProofMsg"></p>
+    <div class="pack-p-label" id="depProofLabel" style="margin-top:10px;"></div>
+    <div class="pack-thumbs" id="depProofThumbs" style="margin-top:8px;"></div>
+    <div class="pack-note" id="depProofBusy" style="display:none; margin-top:6px;">⏳ Đang nén ảnh…</div>
+    <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
+    <div class="actions"><button class="btn-ghost" onclick="depProofClose()">Huỷ</button><button class="btn-primary" id="depProofOk" onclick="depProofSubmit()">Xác nhận</button></div>
   </div>
 </div>
 <!-- Ảnh đơn hàng (xem) -->
@@ -4442,6 +4499,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
+  if(prevInv && prevInv.depositProof) finalInvoice.depositProof = prevInv.depositProof; // giữ ảnh chuyển khoản / ảnh chat khi sửa hoá đơn
   const syncedCount = syncLeadsForInvoice(finalInvoice);
   finalInvoice.leadStatusSynced = true;
   if(syncedCount) setTimeout(()=>showToast(`Đã chuyển ${syncedCount} data trùng SĐT sang "${INVOICED_STATUS}".`), 1800);
@@ -4527,7 +4585,7 @@ function markInvoiceDeposited(invoiceId){
     ? `Khách "${inv.customerName}" đang có trong data của bạn (${existing.status||'chưa cập nhật'}). Data đó sẽ được chuyển sang "Đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`
     : `Thêm khách "${inv.customerName}" vào "Data đã chốt" hôm nay với số tiền ${fmtMoney(amount)} đ.`;
   const oldCust = isOldCustomerInvoice(inv);
-  askConfirm(oldCust ? 'Chốt đơn khách cũ?' : 'Xác nhận khách đã chuyển cọc?', (oldCust ? 'Khách cũ — không cần cọc. ' : '') + msg, ()=>{
+  depProofOpen(inv, oldCust, (oldCust ? 'Khách cũ — không cần cọc. ' : '') + msg, ()=>{
     const today = todayStr();
     let link;
     if(existing){
@@ -4565,11 +4623,104 @@ function markInvoiceDeposited(invoiceId){
     }
     inv.depositLink = link;
     fbInvoices.child(inv.id).update({depositLink: link});
+    depProofSave(inv, oldCust ? 'chat' : 'transfer'); // lưu ảnh chuyển khoản / ảnh đoạn chat kèm theo
     syncInvoiceItems(inv);
     showToast('Đã đưa khách vào "Data đã chốt" ✅');
     renderInvoicesPage();
   });
 }
+// ===================== ẢNH BẰNG CHỨNG CỌC =====================
+// Bấm "Xác nhận cọc" → BẮT BUỘC tải ảnh chuyển khoản. Khách cũ "Chốt đơn" → BẮT BUỘC ảnh đoạn chat với khách.
+// Ảnh nén mạnh (rộng ≤ 720px, cao ≤ 1600px, WebP/JPEG) còn ~40–150KB — chữ trong ảnh chụp màn hình vẫn đọc rõ.
+// Lưu ở depositProofs/{hoáĐơn}/{mãẢnh}; trên hoá đơn chỉ ghi số ảnh (depositProof) — ảnh chỉ tải khi bấm xem.
+const DEP_PROOF_MAX = 3;
+let depProof = null; // {invId, oldCust, onOk, imgs:[{data}]}
+function depProofOpen(inv, oldCust, msg, onOk){
+  depProof = {invId: inv.id, oldCust, onOk, imgs: []};
+  document.getElementById('depProofTitle').textContent = oldCust ? '💬 Chốt đơn khách cũ' : '💰 Xác nhận khách đã chuyển cọc';
+  document.getElementById('depProofMsg').textContent = msg;
+  document.getElementById('depProofLabel').innerHTML = oldCust
+    ? '📎 Tải <b>ảnh chụp đoạn chat</b> khách đồng ý đặt hàng <span class="pack-note">— bắt buộc, tối đa 3 ảnh</span>'
+    : '📎 Tải <b>ảnh chuyển khoản</b> của khách <span class="pack-note">— bắt buộc, tối đa 3 ảnh</span>';
+  depProofRender();
+  document.getElementById('depProofModal').classList.add('show');
+}
+function depProofClose(){ depProof = null; document.getElementById('depProofModal').classList.remove('show'); }
+function depProofRender(){
+  if(!depProof) return;
+  const n = depProof.imgs.length;
+  document.getElementById('depProofThumbs').innerHTML = depProof.imgs.map((p,i)=>`<div class="pack-thumb"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="depProof.imgs.splice(${i},1); depProofRender()">×</button></div>`).join('') +
+    (n < DEP_PROOF_MAX ? `<label class="pack-photo-add ${n ? '' : 'need'}">📎<span>${n ? 'Thêm ảnh' : 'Chọn ảnh'}</span><input type="file" accept="image/*" multiple onchange="depProofPicked(this.files); this.value=''" style="display:none;"></label>` : '');
+  const ok = document.getElementById('depProofOk');
+  ok.disabled = !n; ok.style.opacity = n ? '1' : '0.45';
+  ok.textContent = n ? (depProof.oldCust ? '✅ Chốt đơn' : '✅ Xác nhận đã cọc') : 'Chọn ảnh trước';
+}
+function depProofCompress(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = ()=>{ try{
+      const sc = Math.min(1, 720 / img.naturalWidth, 1600 / img.naturalHeight);
+      const w = Math.round(img.naturalWidth*sc), h = Math.round(img.naturalHeight*sc);
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h); cx.drawImage(img, 0, 0, w, h);
+      let type = 'image/webp', q = 0.62, data = cv.toDataURL(type, q);
+      if(!data.startsWith('data:image/webp')){ type = 'image/jpeg'; data = cv.toDataURL(type, q); } // máy không hỗ trợ WebP → JPEG
+      while(data.length > 200000 && q > 0.3){ q -= 0.08; data = cv.toDataURL(type, q); } // ≤ ~150KB
+      URL.revokeObjectURL(url); resolve(data);
+    }catch(e){ URL.revokeObjectURL(url); reject(e); } };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Không đọc được ảnh')); };
+    img.src = url;
+  });
+}
+async function depProofPicked(files){
+  if(!depProof) return;
+  const busy = document.getElementById('depProofBusy'); busy.style.display = 'block';
+  for(const f of Array.from(files||[])){
+    if(!depProof || depProof.imgs.length >= DEP_PROOF_MAX) break;
+    if(!/^image\//.test(f.type || 'image/')) continue;
+    try{ const data = await depProofCompress(f); if(depProof) depProof.imgs.push({data}); }
+    catch(e){ showToast('Không đọc được ảnh này — chọn ảnh khác.'); }
+  }
+  busy.style.display = 'none'; depProofRender();
+}
+// Máy tính: dán ảnh chụp màn hình bằng Ctrl+V khi cửa sổ đang mở
+document.addEventListener('paste', e=>{
+  if(!depProof || !document.getElementById('depProofModal').classList.contains('show')) return;
+  const files = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(f=>/^image\//.test(f.type));
+  if(files.length){ e.preventDefault(); depProofPicked(files); }
+});
+function depProofSubmit(){
+  if(!depProof) return;
+  if(!depProof.imgs.length){ showToast('📎 Chọn ảnh ' + (depProof.oldCust ? 'đoạn chat' : 'chuyển khoản') + ' trước.'); return; }
+  const fn = depProof.onOk; document.getElementById('depProofModal').classList.remove('show');
+  fn(); depProof = null;
+}
+function depProofSave(inv, kind){
+  if(!depProof || depProof.invId!==inv.id || !depProof.imgs.length) return;
+  const me = currentUser() || {}; const at = Date.now(); const upd = {};
+  depProof.imgs.forEach((p,i)=>{ const pid = 'dp' + at.toString(36) + i; upd[`depositProofs/${inv.id}/${pid}`] = {data: p.data, kind, at, by: me.id||'', byName: me.name||''}; });
+  const meta = {n: depProof.imgs.length, kind, at};
+  upd[`invoices/${inv.id}/depositProof`] = meta;
+  inv.depositProof = meta;
+  fbRoot.update(upd).catch(()=>showToast('⚠ Lỗi lưu ảnh — kiểm tra mạng.'));
+}
+function depProofRemove(invId){ fbRoot.update({[`depositProofs/${invId}`]: null, [`invoices/${invId}/depositProof`]: null}).catch(()=>{}); }
+function depProofLinkHtml(inv){
+  const m = inv && inv.depositProof; if(!m || !m.n) return '';
+  return `<a href="#" class="dep-proof-link" onclick="event.preventDefault(); event.stopPropagation(); depProofView('${inv.id}')">${m.kind==='chat' ? '💬 ảnh chat' : '🧾 ảnh CK'}${m.n>1 ? ' (' + m.n + ')' : ''}</a>`;
+}
+function depProofView(invId){
+  const inv = (state.invoices||[]).find(i=>i.id===invId);
+  const m = document.getElementById('packPhotosModal'), body = document.getElementById('packPhotosBody');
+  document.getElementById('packPhotosTitle').textContent = (inv && inv.depositProof && inv.depositProof.kind==='chat' ? '💬 Ảnh đoạn chat · HĐ ' : '🧾 Ảnh chuyển khoản · HĐ ') + ((inv && inv.invoiceNumber) || '');
+  body.innerHTML = '<div class="pack-note">⏳ Đang tải ảnh…</div>';
+  m.classList.add('show');
+  db_ref('depositProofs/' + invId).once('value').then(snap=>{
+    const arr = Object.values(snap.val() || {}).filter(p=>p && p.data).sort((a,b)=>a.at-b.at);
+    body.innerHTML = arr.length ? `<div class="pack-note" style="margin-bottom:8px;">Tải lên ${packTimeStr(arr[0].at)}${arr[0].byName ? ' · ' + escHtml(arr[0].byName) : ''} — chạm ảnh để xem to</div><div class="dep-proof-view">${arr.map(p=>`<img src="${p.data}" onclick="packPhotoZoom(this.src)">`).join('')}</div>` : '<div class="pack-note">Không còn ảnh.</div>';
+  }).catch(()=>{ body.innerHTML = '<div class="pack-note">Không tải được ảnh — kiểm tra mạng.</div>'; });
+}
+function db_ref(path){ return fbRoot.child(path); }
 function unmarkInvoiceDeposited(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv || !inv.depositLink) return;
@@ -4593,6 +4744,7 @@ function unmarkInvoiceDeposited(invoiceId){
     }
     delete inv.depositLink;
     fbInvoices.child(inv.id).child('depositLink').remove();
+    if(inv.depositProof){ delete inv.depositProof; depProofRemove(inv.id); }
     syncInvoiceItems(inv);
     showToast('Đã huỷ đánh dấu khách đã cọc.');
     renderInvoicesPage();
@@ -4618,6 +4770,7 @@ function purgeExpiredInvoices(list){
     if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
       fbInvoices.child(inv.id).remove().catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại
       removeInvoiceItems(inv.id);
+      if(inv.depositProof && fbRoot) fbRoot.child('depositProofs/' + inv.id).remove().catch(()=>{});
     } else keep.push(inv);
   });
   return keep;
@@ -4632,6 +4785,7 @@ function deleteInvoice(invoiceId){
     state.invoices = state.invoices.filter(x=>x.id!==invoiceId);
     fbInvoices.child(invoiceId).remove();
     removeInvoiceItems(invoiceId);
+    if(fbRoot) fbRoot.child('depositProofs/' + invoiceId).remove().catch(()=>{});
     renderInvoicesPage();
   });
 }
@@ -4742,7 +4896,7 @@ function renderInvoicesPage(){
           ? `<span class="phone-full">${escHtml(cleanPhone(inv.customerPhone))}</span><button class="phone-copy-btn" title="Copy SĐT" onclick="copyPhone('${escHtml(cleanPhone(inv.customerPhone))}', event)">📋</button>`
           : escHtml(maskPhone(inv.customerPhone))) : '<span style="color:var(--ink-soft);">—</span>'}</td>
       <td data-label="Nguồn">${inv.leadSource ? invoiceSourceCellHtml(inv) : ''}</td>
-      <td class="num" data-label="Cọc" style="color:${Number(inv.deposit)?'var(--warn)':'var(--ink-soft)'};">${Number(inv.deposit) ? fmtMoney(Number(inv.deposit)) + ' đ' : '—'}</td>
+      <td class="num" data-label="Cọc" style="color:${Number(inv.deposit)?'var(--warn)':'var(--ink-soft)'};">${Number(inv.deposit) ? fmtMoney(Number(inv.deposit)) + ' đ' : '—'}${depProofLinkHtml(inv) ? '<div>' + depProofLinkHtml(inv) + '</div>' : ''}</td>
       <td class="num" data-label="Còn phải thu" style="font-weight:600; color:var(--success);" title="Tổng tiền hàng ${fmtMoney(inv.totalAmount||0)} đ${Number(inv.deposit) ? ' − cọc ' + fmtMoney(Number(inv.deposit)) + ' đ' : ''}">${fmtMoney(inv.finalAmount)} đ${Number(inv.deposit) ? `<div class="inv-total-sub">tiền hàng ${fmtMoney(inv.totalAmount||0)} đ</div>` : ''}</td>
       <td class="inv-actions">
         ${inv.depositLink
@@ -5207,6 +5361,7 @@ function invoiceReadonlyHtml(inv){
       <div>
         <div><span>Nhân viên:</span> <b>${esc(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</b></div>
         ${inv.saleId ? `<div class="no-print" style="font-size:11px;"><span>Tài khoản lên đơn:</span> <b>${esc(userName(inv.saleId))}</b></div>` : ''}
+        ${depProofLinkHtml(inv) ? `<div class="no-print" style="font-size:12px; margin-top:2px;">${depProofLinkHtml(inv)}</div>` : ''}
         ${inv.teamName ? `<div><span>Team:</span> <b>${esc(inv.teamName)}</b></div>` : ''}
         ${inv.leadSource ? `<div><span>Nguồn kênh:</span> <b>${esc(inv.leadSource)}</b></div>` : ''}
       </div>
@@ -5632,41 +5787,50 @@ function renderPackPanel(){
   }).join('');
   const present = packPresentStaff();
   const staffList = present.length ? present : packActiveStaff();
-  const chips = staffList.length
-    ? `<div class="pack-chips">${staffList.map(x=>`<button class="pack-chip ${packPanel.staffId===x.id ? 'on' : ''}" onclick="packPickStaff('${x.id}')">${escHtml(x.name)}</button>`).join('')}</div>${present.length ? '' : '<div class="pack-note" style="margin-top:4px;">Hôm nay chưa ai được điểm danh — đang hiện tất cả tên.</div>'}`
-    : '<div class="pack-note">Chưa có tên nhân viên kho — Kho trưởng thêm ở mục 👥 Nhân viên kho.</div>';
-  let actions = '';
-  if(canAct && !short && ps && ps.state==='partial'){
-    actions = `<button class="btn-primary pack-big-btn pack-ok-btn" onclick="packDoPacked()">✅ Đã gửi bù phần còn nợ</button>`;
-  } else if(canAct && !short){
-    const wantPartial = ps && ps.state==='short' && packHasReply(ps) && ps.saleReply.choice==='partial';
-    const partialBtn = (ps && ps.state==='short') ? `<button class="btn-ghost pack-big-btn pack-partial-btn ${wantPartial ? 'hl' : ''}" onclick="packDoPartial()">📦 Đóng phần đã có (gửi thiếu)</button>` : '';
-    actions = `${wantPartial ? partialBtn : ''}<button class="btn-primary pack-big-btn pack-ok-btn" onclick="packDoPacked()">✅ ${ps && ps.state==='short' ? 'Đã bù đủ · Đã đóng' : 'Đã đóng'}</button>
-      ${wantPartial ? '' : partialBtn}
-      <button class="btn-ghost pack-big-btn pack-short-btn" onclick="packStartShort()">⚠ ${ps && ps.state==='short' ? 'Sửa thiếu' : 'Thiếu hàng'}</button>`;
-  } else if(canAct && short){
-    actions = `<input class="pack-note-input" placeholder="Ghi chú thêm (không bắt buộc)" value="${escHtml(packPanel.note)}" oninput="packPanel.note=this.value">
-      <button class="btn-primary pack-big-btn pack-short-btn-solid" onclick="packDoShort()">📣 Gửi báo thiếu cho Sale</button>
-      <button class="btn-ghost pack-big-btn" onclick="packPanel.mode='view'; renderPackPanel()">Huỷ</button>`;
+  // ---- Thanh GHIM trên cùng: Số HĐ · người đóng · ảnh · nút hành động — cuộn xuống vẫn thấy ----
+  const ph = packPanel.photos || [];
+  const kindNow = packPhotoKindNow(ps, short);
+  const photoHint = kindNow==='short' ? 'lúc thiếu' : (kindNow==='refill' ? 'trước khi đóng' : 'lúc đủ hàng');
+  const showPicker = canAct && !packPanel.lockedMe && (!packPanel.staffId || packPanel.pickStaff);
+  const staffBtn = !canAct ? '' : (packPanel.lockedMe
+    ? `<span class="pack-st-staff on">👤 ${escHtml(packStaffName(packPanel.staffId))}</span>`
+    : `<button class="pack-st-staff ${packPanel.staffId ? 'on' : 'need'}" onclick="packPanel.pickStaff=!showPickerNow(); renderPackPanel()">${packPanel.staffId ? '👤 ' + escHtml(packStaffName(packPanel.staffId)) + ' ▾' : '👆 Chọn tên'}</button>`);
+  const photoBtn = !canAct ? '' : (ph.length < PACK_PHOTO_MAX
+    ? `<label class="pack-st-photo ${ph.length ? 'on' : 'need'}" title="Chụp ảnh đơn hàng ${photoHint} — bắt buộc">📷 ${ph.length ? ph.length + ' ảnh' : 'Chụp ảnh'}<input type="file" accept="image/*" capture="environment" onchange="packPhotoPicked(this)" style="display:none;"></label>`
+    : `<span class="pack-st-photo on">📷 ${ph.length} ảnh</span>`);
+  let acts = '';
+  if(canAct && short){
+    acts = `<button class="pack-st-btn solid-orange" onclick="packDoShort()">📣 Gửi báo thiếu</button><button class="pack-st-btn ghost" onclick="packPanel.mode='view'; renderPackPanel()">Huỷ</button>`;
+  } else if(canAct && ps && ps.state==='partial'){
+    acts = `<button class="pack-st-btn green" onclick="packDoPacked()">✅ Đã gửi bù</button>`;
+  } else if(canAct){
+    const isShort = ps && ps.state==='short';
+    const wantPartial = isShort && packHasReply(ps) && ps.saleReply.choice==='partial';
+    const partialBtn = isShort ? `<button class="pack-st-btn blue ${wantPartial ? 'hl' : ''}" onclick="packDoPartial()">📦 Gửi thiếu</button>` : '';
+    acts = (wantPartial ? partialBtn : '') + `<button class="pack-st-btn green" onclick="packDoPacked()">✅ ${isShort ? 'Bù đủ · Đóng' : 'Đã đóng'}</button>` + (wantPartial ? '' : partialBtn) +
+      `<button class="pack-st-btn orange" onclick="packStartShort()">⚠ ${isShort ? 'Sửa thiếu' : 'Thiếu'}</button>`;
   } else if(isBoss && ps && ps.state==='packed'){
-    actions = `<button class="btn-ghost btn-small" onclick="packUndoPacked('${inv.id}')">↩ Huỷ trạng thái Đã đóng</button>`;
+    acts = `<button class="pack-st-btn ghost" onclick="packUndoPacked('${inv.id}')">↩ Huỷ trạng thái Đã đóng</button>`;
   }
-  body.innerHTML = `
-    <div class="pack-p-head">
-      <div class="pack-p-num">${escHtml(inv.invoiceNumber)}</div>
-      <div class="pack-p-meta">${escHtml(inv.customerName||'')} · Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}<br><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sản phẩm</b>${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 Xem hoá đơn đầy đủ</a>` : ''}</div>
+  const sticky = `<div class="pack-sticky">
+    <div class="pack-st-row1">
+      <div class="pack-st-num">${escHtml(inv.invoiceNumber)}</div>
+      <div class="pack-st-meta"><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sp</b> · ${escHtml(inv.customerName||'')} · Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 HĐ</a>` : ''}</div>
+      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
     </div>
-    ${banner}
-    ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở những dòng bị thiếu (số cái thiếu), rồi bấm "Gửi báo thiếu cho Sale".</div>' : ''}
+    ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions">${staffBtn}${photoBtn}${acts}</div>` : ''}
+    ${showPicker ? `<div class="pack-st-picker">${staffList.length ? staffList.map(x=>`<button class="pack-chip ${packPanel.staffId===x.id ? 'on' : ''}" onclick="packPickStaff('${x.id}')">${escHtml(x.name)}</button>`).join('') : '<span class="pack-note">Chưa có tên nhân viên kho — Kho trưởng thêm ở 👥 Nhân viên kho.</span>'}</div>` : ''}
+    ${canAct && ph.length ? `<div class="pack-st-thumbs">${ph.map((p,i)=>`<div class="pack-thumb sm"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="packPhotoRemove(${i})">×</button></div>`).join('')}<span class="pack-note">ảnh ${photoHint}</span></div>` : ''}
+    <div id="packPhotoBusy" class="pack-note" style="display:none;">⏳ Đang xử lý ảnh…</div>
+    ${canAct && short ? `<input class="pack-note-input pack-st-note" placeholder="Ghi chú thêm cho Sale (không bắt buộc)" value="${escHtml(packPanel.note)}" oninput="packPanel.note=this.value">` : ''}
     ${tickMode && prog.need ? `<div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Chạm dòng khi nhặt · đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>` : ''}
+  </div>`;
+  body.innerHTML = `${sticky}
+    ${banner}
+    ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở dòng bị thiếu (số cái thiếu), chụp ảnh rồi bấm "📣 Gửi báo thiếu".</div>' : ''}
     <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th class="pack-l-col">Màu</th><th class="pack-l-col">Size</th><th class="num pack-l-col">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th class="pack-l-col"></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
-    ${canAct ? (packPanel.lockedMe && !packPanel.showAll
-      ? `<div class="pack-p-sec"><div class="pack-p-label">👤 Người đóng: <span class="pack-me-name">${escHtml(packStaffName(packPanel.staffId))}</span></div></div>`
-      : `<div class="pack-p-sec ${packPanel.staffId ? '' : 'need'}"><div class="pack-p-label">${packPanel.staffId ? '👤 Người đóng:' : '👆 Ai đóng đơn này? Chạm tên mình'}</div>${chips}</div>`) : ''}
-    ${canAct ? packPhotoCaptureHtml(ps, short) : ''}
     ${packSavedPhotosHtml(inv.id, ps)}
-    <div class="pack-p-actions">${actions}</div>
-    <div class="pack-p-msg">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}<span class="pack-note">nhắn Sale ${escHtml(inv.saleName || userName(inv.saleId) || '')} về đơn này</span></div>`;
+    ${packZaloBtnHtml(inv.id) ? `<div class="pack-p-msg">${packZaloBtnHtml(inv.id)}<span class="pack-note">mở Zalo nhắn Sale về đơn này</span></div>` : ''}`;
   pimgHydrate(body);
 }
 // Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
@@ -5886,7 +6050,7 @@ function packNeedPhotos(onOk){
   if(packPanel && packPanel.photos && packPanel.photos.length){ onOk(); return; }
   const me = currentUser() || {};
   packBeep(false);
-  const sec = document.querySelector('#packPanelBody .pack-photo-sec'); if(sec){ sec.classList.remove('pack-flash'); void sec.offsetWidth; sec.classList.add('pack-flash'); sec.scrollIntoView({block:'center', behavior:'smooth'}); }
+  const sec = document.querySelector('#packPanelBody .pack-st-photo'); if(sec){ sec.classList.remove('pack-flash'); void sec.offsetWidth; sec.classList.add('pack-flash'); }
   if(['general_manager','warehouse'].includes(me.role)){
     askConfirm('Lưu mà không có ảnh?', 'Chưa chụp ảnh đơn hàng. Nên chụp để có bằng chứng khi khách khiếu nại. Vẫn lưu không có ảnh?', onOk);
   } else showToast('📷 Chụp ảnh đơn hàng trước rồi mới bấm.');
@@ -5936,7 +6100,8 @@ function packOpenPhotosViewer(invId){
   fbPackPhotos.child(invId).once('value').then(snap=>{ body.innerHTML = packPhotoGroupsHtml(snap.val()); })
     .catch(()=>{ body.innerHTML = '<div class="pack-note">Không tải được ảnh — kiểm tra mạng.</div>'; });
 }
-function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; renderPackPanel(); } }
+function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; packPanel.pickStaff = false; renderPackPanel(); } }
+function showPickerNow(){ return !!document.querySelector('#packPanelBody .pack-st-picker'); }
 // (ảnh mẫu trong panel được nạp ngay sau mỗi lần vẽ — xem renderPackPanel)
 function packMissStep(key, d, max){ if(!packPanel) return; const v = Math.max(0, Math.min(max, (packPanel.miss[key]||0) + d)); packPanel.miss[key] = v; renderPackPanel(); }
 function packStaffName(id){
@@ -5946,7 +6111,8 @@ function packStaffName(id){
 function packNeedStaff(){
   if(packPanel && packPanel.staffId) return true;
   packBeep(false); showToast('👆 Chạm vào TÊN của bạn trước (ai đóng đơn này).');
-  const sec = document.querySelector('#packPanelBody .pack-p-sec'); if(sec){ sec.classList.remove('pack-flash'); void sec.offsetWidth; sec.classList.add('pack-flash'); }
+  if(packPanel && !packPanel.pickStaff){ packPanel.pickStaff = true; renderPackPanel(); }
+  const sec = document.querySelector('#packPanelBody .pack-st-picker') || document.querySelector('#packPanelBody .pack-st-staff'); if(sec){ sec.classList.remove('pack-flash'); void sec.offsetWidth; sec.classList.add('pack-flash'); }
   return false;
 }
 function packStartShort(){
