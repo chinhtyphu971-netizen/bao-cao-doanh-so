@@ -4163,12 +4163,13 @@ function editInvoiceDraft(invoiceId, skipKhoCheck){
   if(!inv) return;
   if(!skipKhoCheck){
     const ps = (state.packStatus||[]).find(x=>x && x.id===inv.id), pp = (state.packPrints||[]).find(x=>x && x.id===inv.id);
-    if(ps && (ps.state==='packed' || ps.state==='partial')){
+    if(ps && ps.state==='packed' && ps.legacy){ /* đơn cũ kho đánh dấu đã xử lý → sửa thoải mái, không hỏi */ }
+    else if(ps && (ps.state==='packed' || ps.state==='partial')){
       if(!canEditPackedInvoice()){ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(ps.packedAt||ps.at)}) — không sửa được nữa. Cần sửa thì nhờ Kho trưởng bấm "Huỷ trạng thái Đã đóng".`); return; }
-      askConfirm('Kho đã đóng hàng đơn này', `Kho đã đóng gói lúc ${packTimeStr(ps.packedAt||ps.at)}. Sửa bây giờ thì gói hàng sẽ KHÔNG khớp hoá đơn. Vẫn sửa?`, ()=>editInvoiceDraft(invoiceId, true));
+      askConfirm('Kho đã đóng hàng đơn này', `Kho đã đóng gói lúc ${packTimeStr(ps.packedAt||ps.at)}. Sửa bây giờ thì gói hàng sẽ KHÔNG khớp hoá đơn — nhớ báo kho. Vẫn sửa?`, ()=>editInvoiceDraft(invoiceId, true));
       return;
     }
-    if(pp || (ps && ps.state==='short')){
+    else if(pp || (ps && ps.state==='short')){
       askConfirm('Kho đã in phiếu đơn này', `Kho đã in phiếu đóng hàng${pp ? ' lúc ' + packTimeStr(pp.at) : ''}${ps && ps.state==='short' ? ' và đang chờ bù hàng' : ''}. Sửa xong kho phải IN LẠI phiếu mới mới đóng được — nhớ báo kho nhé. Tiếp tục sửa?`, ()=>editInvoiceDraft(invoiceId, true));
       return;
     }
@@ -4895,7 +4896,7 @@ function unmarkInvoiceDeposited(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv || !inv.depositLink) return;
   const kps = (state.packStatus||[]).find(x=>x && x.id===inv.id), kpp = (state.packPrints||[]).find(x=>x && x.id===inv.id);
-  if(kps && (kps.state==='packed' || kps.state==='partial') && !canEditPackedInvoice()){ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(kps.packedAt||kps.at)}) — không huỷ cọc được. Nhờ Kho trưởng / Quản lý chung xử lý.`); return; }
+  if(kps && (kps.state==='packed' || kps.state==='partial') && !kps.legacy && !((currentUser()||{}).role==='general_manager')){ /* huỷ cọc đơn kho đã đóng: vẫn khoá */ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(kps.packedAt||kps.at)}) — không huỷ cọc được. Nhờ Kho trưởng / Quản lý chung xử lý.`); return; }
   const khoWarn = (kps && kps.state==='packed') ? `⚠ KHO ĐÃ ĐÓNG HÀNG lúc ${packTimeStr(kps.packedAt||kps.at)} — báo kho rút gói hàng lại! `
     : ((kpp || kps) ? `⚠ Kho đã in phiếu${kpp ? ' lúc ' + packTimeStr(kpp.at) : ''} — huỷ cọc thì kho sẽ thấy báo đỏ và KHÔNG đóng đơn này. ` : '');
   askConfirm(isOldCustomerInvoice(inv) ? 'Huỷ "Đã chốt"?' : 'Huỷ "Khách đã cọc"?', khoWarn + 'Dòng tương ứng trong "Data đã chốt" sẽ được gỡ ra (data có sẵn thì trả lại trạng thái cũ).', ()=>{
@@ -5118,7 +5119,10 @@ function invSaleFlow(inv, maps){
   return maps.pp[inv.id] ? 'printed' : 'deposited';
 }
 function invFlowPillHtml(flow){ const f = INV_FLOW_LIST.find(x=>x[0]===flow); return f ? `<span class="inv-flow-pill inv-chip-${flow}">${f[1]}</span>` : ''; }
-function canEditPackedInvoice(){ const u = currentUser(); return !!(u && u.role==='general_manager'); }
+// TẠM THỜI: Sale vẫn được sửa hoá đơn kể cả khi kho đã in / đã đóng (chỉ nhắc, không khoá).
+// Muốn khoá lại sau này: đổi LOCK_EDIT_AFTER_PACK = true.
+const LOCK_EDIT_AFTER_PACK = false;
+function canEditPackedInvoice(){ const u = currentUser(); return !LOCK_EDIT_AFTER_PACK || !!(u && u.role==='general_manager'); }
 
 // Tìm hoá đơn theo tên khách / SĐT / số HĐ — không phân biệt hoa thường, có dấu hay không dấu
 function normalizeSearchText(v){
