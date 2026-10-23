@@ -1434,10 +1434,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="nav-item" data-page="printReport" onclick="goPage('printReport')"><span class="label" id="navPrintReportLabel">🖨️ Báo cáo in hình</span></div>
       </div>
       <div id="navWarehouse" style="display:none;">
-        <div class="nav-item" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">📦 Hàng cần in</span></div>
         <div class="nav-item" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">🧾 In hoá đơn đóng hàng</span></div>
+        <div class="nav-item" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">📦 Hàng cần in</span></div>
         <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📦 Bàn đóng gói</span></div>
         <div class="nav-item" id="navItem_packAccountsWh" data-page="packAccounts" onclick="goPage('packAccounts')" style="display:none;"><span class="label">🔑 Tài khoản đóng gói</span></div>
+        <div class="nav-item" id="navItem_invOverviewWh" data-page="invoicesOverview" onclick="goPage('invoicesOverview')" style="display:none;"><span class="label">💰 Hoá đơn đã cọc</span></div>
       </div>
       <div id="navPacker" style="display:none;">
         <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📦 Bàn đóng gói</span></div>
@@ -2863,6 +2864,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <label class="field" id="editUserCanPackersRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
       <input type="checkbox" id="editUserCanPackers" style="width:auto; min-height:0;">
       <span>🔑 Được tạo / quản lý tài khoản <b>Nhân viên đóng gói</b></span>
+    </label>
+    <label class="field" id="editUserCanDepositsRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
+      <input type="checkbox" id="editUserCanDeposits" style="width:auto; min-height:0;">
+      <span>💰 Kế toán: xem <b>Tổng hợp hoá đơn đã cọc</b> (kèm ảnh chuyển khoản)</span>
     </label>
     <div class="login-error" id="editUserError"></div>
     <div class="actions">
@@ -5324,6 +5329,11 @@ function renderInvoicesOverviewPage(){
   // Trang này chỉ phụ thuộc hoá đơn + bộ lọc: nếu chỉ có data khách/báo cáo thay đổi (rất thường xuyên)
   // thì KHÔNG vẽ lại — tránh đơ máy Quản lý vì phải tính lại & vẽ lại cả nghìn hoá đơn mỗi 1-2 giây.
   // Đổi bộ lọc (ngày / tài khoản / tìm kiếm) → quay về trang 1
+  { // Kế toán (Kho có quyền xem): CHỈ xem hoá đơn đã cọc / đã chốt — khoá ô lọc cọc
+    const meIO = currentUser(); const accOnly = !!(meIO && meIO.role!=='general_manager');
+    const ds = document.getElementById('invOverviewDepositFilter');
+    if(ds){ if(accOnly){ ds.value = 'done'; ds.disabled = true; ds.title = 'Tài khoản kế toán chỉ xem hoá đơn đã cọc'; } else { ds.disabled = false; ds.title = ''; } }
+  }
   const depFilter = (document.getElementById('invOverviewDepositFilter')||{}).value || '';
   // Mặc định lọc sẵn các MÃ IN HÌNH (VD A55) — lần đầu, khi danh mục đã tải; người dùng xoá đi thì xem tất cả mã
   { const ce = document.getElementById('invByProductCode');
@@ -5369,6 +5379,7 @@ function renderInvoicesOverviewPage(){
       const nDone = invoices.filter(inv=>inv.depositLink).length, nPending = invoices.length - nDone;
       depSel.options[1].textContent = `✅ Đã cọc / đã chốt (${nDone})`;
       depSel.options[2].textContent = `⏳ Chưa cọc (${nPending})`;
+      depSel.options[2].hidden = depSel.disabled; depSel.options[0].hidden = depSel.disabled; // kế toán: chỉ còn "Đã cọc"
     }
     if(depFilter==='done') invoices = invoices.filter(inv=>inv.depositLink);
     if(depFilter==='pending') invoices = invoices.filter(inv=>!inv.depositLink);
@@ -11664,6 +11675,7 @@ function enterApp(){
   document.getElementById('navItem_packInvoices').style.display = (user.role==='general_manager') ? 'flex' : 'none';
   document.getElementById('navItem_packAccounts').style.display = 'none'; // Quản lý chung không cần mục này (đã có Chi nhánh & nhân sự)
   document.getElementById('navItem_packAccountsWh').style.display = (user.role==='warehouse' && user.canManagePackers) ? 'flex' : 'none';
+  document.getElementById('navItem_invOverviewWh').style.display = (user.role==='warehouse' && user.canViewDeposits) ? 'flex' : 'none';
   applySidebarPin(); // In hoá đơn đóng hàng: Quản lý chung (+ Kho ở menu riêng)
   document.getElementById('navItem_printOverview').style.display = (user.role==='general_manager') ? 'flex' : 'none'; // Tổng hợp hoá đơn: CHỈ Quản lý chung được xem
   document.getElementById('navSectionLabel_mkt').style.display = (user.role==='team_manager') ? 'none' : 'block';
@@ -11672,7 +11684,7 @@ function enterApp(){
   document.getElementById('navItem_mgrAllChats').style.display = (user.role==='general_manager') ? 'flex' : 'none';
 
   if(isPrinter){ goPage('printReport'); }
-  else if(isWarehouse){ goPage('printOverview'); }
+  else if(isWarehouse){ goPage('packInvoices'); } // Kho / Đặt in: mở thẳng trang In hoá đơn đóng hàng
   else if(isPacker){ goPage('packDesk'); }
   else if(isMkt || isMktManager){ goPage('mktMyLeadsList'); } // MKT & Quản lý team MKT: mặc định mở "Danh sách data"
   else if(isDataManager){ goPage('mgrLeads'); }
@@ -11787,14 +11799,14 @@ function goPage(pageId){
   // Nhân viên in hình: CHỈ trang Báo cáo in hình + Nội quy
   if(u && u.role==='printer' && pageId!=='printReport'){ pageId = 'printReport'; }
   // Kho / Đặt in: CHỈ Hàng cần in + Đặt đơn in + Nội quy
-  if(u && u.role==='warehouse' && !['printOverview','packInvoices','packDesk','printOrders','packAccounts'].includes(pageId)){ pageId = 'printOverview'; }
+  if(u && u.role==='warehouse' && !['printOverview','packInvoices','packDesk','printOrders','packAccounts','invoicesOverview'].includes(pageId)){ pageId = 'packInvoices'; }
   if(pageId==='packAccounts' && u && !canManagePackerAccounts(u)){ pageId = homePageForMe(); }
   if(u && u.role==='packer' && pageId!=='packDesk'){ pageId = 'packDesk'; } // Nhân viên đóng gói: CHỈ trang Bàn đóng gói
   if(pageId==='packDesk' && u && !['general_manager','warehouse','packer'].includes(u.role)){ pageId = homePageForMe(); }
   if(pageId==='packInvoices' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = homePageForMe(); }
   if(pageId==='printOrders' && u && !(u.role==='general_manager' || u.role==='warehouse' || u.canOrderPrint)){ pageId = u.role==='printer' ? 'printReport' : homePageForMe(); }
   if(pageId==='printOverview' && u && !['general_manager','warehouse'].includes(u.role)){ pageId = u.role==='printer' ? 'printReport' : 'mgrDashboard'; }
-  if(pageId==='invoicesOverview' && u && u.role!=='general_manager'){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
+  if(pageId==='invoicesOverview' && u && u.role!=='general_manager' && !(u.role==='warehouse' && u.canViewDeposits)){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktReportsAdmin' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
   currentPageId = pageId;
@@ -14357,6 +14369,8 @@ function openEditUserModal(userId){
   const me0 = currentUser();
   document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
   document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
+  document.getElementById('editUserCanDepositsRow').style.display = document.getElementById('editUserCanPackersRow').style.display;
+  document.getElementById('editUserCanDeposits').checked = !!u.canViewDeposits;
   document.getElementById('editUserError').textContent = '';
   document.getElementById('editUserModal').classList.add('show');
 }
@@ -14384,6 +14398,8 @@ function saveEditUser(){
   if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
     u.canManagePackers = !!document.getElementById('editUserCanPackers').checked;
     patch.canManagePackers = u.canManagePackers || null;
+    u.canViewDeposits = !!document.getElementById('editUserCanDeposits').checked;
+    patch.canViewDeposits = u.canViewDeposits || null;
   }
   fbUpdateUser(u.id, patch);
   showToast(`Đã cập nhật thông tin của ${newName}`);
