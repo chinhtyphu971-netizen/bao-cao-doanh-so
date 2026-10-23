@@ -1119,6 +1119,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pimg-name{ font-size:13px; margin-bottom:6px; word-break:break-word; }
   .pimg-acts{ display:flex; gap:6px; flex-wrap:wrap; }
   .pimg-up{ cursor:pointer; }
+  .pimg-item{ cursor:pointer; transition:border-color .15s, box-shadow .15s; flex-wrap:wrap; }
+  .pimg-item.sel{ border-color:var(--accent) !important; box-shadow:0 0 0 2px rgba(79,140,255,0.35); background:rgba(79,140,255,0.08); }
+  .pimg-item.drag{ border-color:#2EA05A !important; border-style:dashed !important; background:rgba(46,160,90,0.10); }
+  .pimg-sel-hint{ font-size:11.5px; color:#8DB4FF; font-weight:700; margin-top:5px; }
+  .pimg-tip{ font-size:12.5px; background:rgba(79,140,255,0.10); border:1px solid rgba(79,140,255,0.3); border-radius:10px; padding:8px 12px; margin-bottom:10px; line-height:1.5; }
+  .pimg-paste-btn{ white-space:nowrap; }
   .pack-x-btn{ color:#FF8A8D !important; }
   @media (max-width:720px){ .pack-pimg{ width:44px; height:44px; } .pack-pick{ min-width:38px; height:38px; } }
   .pack-l-meta{ display:none; }
@@ -6157,13 +6163,18 @@ function renderPimgManager(){
   const total = list.length, have = list.filter(x=>idx[x.key]).length;
   if(q) list = list.filter(x=>normalizeSearchText(x.code + ' ' + x.design + ' ' + x.label).includes(q));
   if(onlyMissing) list = list.filter(x=>!idx[x.key]);
+  pimgListNow = list;
   const rows = pageSlice('pimg', list, 40);
-  box.innerHTML = `<div class="pack-note" style="margin:6px 0 10px;">Đã có ảnh <b>${have}/${total}</b> mục. Ảnh theo <b>mẫu in</b> được ưu tiên; mẫu chưa có ảnh thì dùng ảnh theo <b>mã</b>.</div>
-    <div class="pimg-grid">${rows.map(x=>`<div class="pimg-item ${x.isCode ? 'is-code' : ''}">
+  box.innerHTML = `<div class="pack-note" style="margin:6px 0 6px;">Đã có ảnh <b>${have}/${total}</b> mục. Ảnh theo <b>mẫu in</b> được ưu tiên; mẫu chưa có ảnh thì dùng ảnh theo <b>mã</b>.</div>
+    <div class="pimg-tip">💡 <b>Dán nhanh:</b> copy ảnh (chuột phải ảnh → Sao chép hình ảnh) → <b>bấm chọn 1 ô</b> → nhấn <b>Ctrl+V</b>. Dán xong app tự nhảy sang ô <b>chưa có ảnh</b> tiếp theo. Cũng có thể <b>kéo thả</b> ảnh vào ô.</div>
+    <div class="pimg-grid">${rows.map(x=>`<div class="pimg-item ${x.isCode ? 'is-code' : ''} ${pimgTarget===x.key ? 'sel' : ''}" id="pimgItem_${x.key}" onclick="pimgSelect('${x.key}')"
+      ondragover="event.preventDefault(); this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="event.preventDefault(); this.classList.remove('drag'); pimgDropFile(event, '${x.key}')">
       ${idx[x.key] ? pimgImgHtml(x.key, 'pimg-thumb') : '<span class="pimg-thumb pimg-empty">🖼️</span>'}
       <div class="pimg-info"><div class="pimg-name">${x.isCode ? '<b>' + escHtml(x.label) + '</b><div class="pack-sub">ảnh chung của mã</div>' : `${codeWithMarkHtml(x.code)} <i class="iv-design">${escHtml(x.design)}</i>`}</div>
-        <div class="pimg-acts"><label class="btn-ghost btn-small pimg-up">📷 ${idx[x.key] ? 'Đổi ảnh' : 'Tải ảnh'}<input type="file" accept="image/*" style="display:none;" data-key="${x.key}" data-code="${escHtml(x.code)}" data-design="${escHtml(x.design)}" onchange="pimgUpload(this, this.dataset.key, this.dataset.code, this.dataset.design)"></label>
-        ${idx[x.key] ? `<button class="btn-ghost btn-small pack-x-btn" onclick="pimgDelete('${x.key}')">Xoá</button>` : ''}</div></div>
+        <div class="pimg-acts"><label class="btn-ghost btn-small pimg-up" onclick="event.stopPropagation(); pimgTarget='${x.key}'">📷 ${idx[x.key] ? 'Đổi ảnh' : 'Tải ảnh'}<input type="file" accept="image/*" style="display:none;" data-key="${x.key}" data-code="${escHtml(x.code)}" data-design="${escHtml(x.design)}" onchange="pimgUpload(this, this.dataset.key, this.dataset.code, this.dataset.design)"></label>
+        <button class="btn-ghost btn-small pimg-paste-btn" onclick="event.stopPropagation(); pimgPasteBtn('${x.key}')" title="Dán ảnh đã copy">📋 Dán</button>
+        ${idx[x.key] ? `<button class="btn-ghost btn-small pack-x-btn" onclick="event.stopPropagation(); pimgDelete('${x.key}')">Xoá</button>` : ''}</div>
+        ${pimgTarget===x.key ? '<div class="pimg-sel-hint">👉 Nhấn Ctrl+V để dán ảnh vào đây</div>' : ''}</div>
     </div>`).join('') || '<div class="pack-note">Không có mục nào.</div>'}</div>` + (list.length > 40 ? pagerHtml('pimg', list.length, 40, 'renderPimgManager') : '');
   pimgHydrate(box);
 }
@@ -6185,6 +6196,26 @@ function packImageResize(file, max, maxLen){
 }
 async function pimgUpload(input, key, code, design){
   const f = input.files && input.files[0]; input.value = ''; if(!f) return;
+  pimgTarget = key;
+  return pimgUploadFile(f, key, code, design, false);
+}
+// ----- Dán nhanh (Ctrl+V), nút 📋 Dán, kéo thả ảnh vào ô -----
+let pimgTarget = null, pimgListNow = [], pimgBusy = false;
+function pimgItemInfo(key){ return pimgCatalog().find(x=>x.key===key) || null; }
+function pimgSelect(key){ if(pimgTarget===key) return; pimgTarget = key; renderPimgManager(); }
+function pimgAdvance(fromKey){
+  // nhảy sang ô CHƯA có ảnh tiếp theo trong danh sách đang lọc
+  const idx = state.pimgIndex || {}; const list = pimgListNow || [];
+  const i = list.findIndex(x=>x.key===fromKey);
+  const next = list.slice(i+1).find(x=>!idx[x.key] && x.key!==fromKey) || null;
+  pimgTarget = next ? next.key : null;
+  if(next){ const pos = list.indexOf(next); pagerPages.pimg = Math.floor(pos / 40) + 1; }
+  renderPimgManager();
+  if(next) setTimeout(()=>{ const el = document.getElementById('pimgItem_' + next.key); if(el) el.scrollIntoView({block:'center', behavior:'smooth'}); }, 50);
+}
+async function pimgUploadFile(f, key, code, design, advance){
+  if(!f || !/^image\//.test(f.type || 'image/')){ showToast('Không phải ảnh — copy lại ảnh rồi dán.'); return; }
+  if(pimgBusy) return; pimgBusy = true;
   const me = currentUser() || {};
   showToast('⏳ Đang xử lý ảnh…');
   try{
@@ -6192,9 +6223,41 @@ async function pimgUpload(input, key, code, design){
     const v = Date.now();
     await fbRoot.update({[`productImages/${key}`]: {data, v, code, design: design || '', at: v, by: me.name || ''}, [`productImagesIndex/${key}`]: v});
     pimgMem[key] = {v, data}; pimgCacheSet(key, {v, data});
+    (state.pimgIndex = state.pimgIndex || {})[key] = v;
     showToast(`✅ Đã lưu ảnh ${code}${design ? ' · ' + design : ''}`);
+    if(advance) pimgAdvance(key); else renderPimgManager();
   }catch(e){ console.error(e); showToast('Không lưu được ảnh — thử lại.'); }
+  finally{ pimgBusy = false; }
 }
+function pimgUploadToKey(file, key){
+  const it = pimgItemInfo(key); if(!it) return;
+  pimgTarget = key; pimgUploadFile(file, key, it.code, it.design, true);
+}
+function pimgDropFile(ev, key){
+  const f = Array.from((ev.dataTransfer && ev.dataTransfer.files) || []).find(x=>/^image\//.test(x.type));
+  if(f) pimgUploadToKey(f, key); else showToast('Kéo thả file ảnh vào ô nhé.');
+}
+// Nút 📋 Dán: đọc ảnh từ bộ nhớ copy (trình duyệt sẽ hỏi cho phép lần đầu)
+async function pimgPasteBtn(key){
+  pimgTarget = key;
+  try{
+    if(!navigator.clipboard || !navigator.clipboard.read) throw new Error('no');
+    const items = await navigator.clipboard.read();
+    for(const it of items){
+      const t = it.types.find(x=>x.startsWith('image/'));
+      if(t){ const blob = await it.getType(t); pimgUploadToKey(new File([blob], 'paste.' + t.split('/')[1], {type:t}), key); return; }
+    }
+    showToast('Bộ nhớ copy chưa có ảnh — chuột phải vào ảnh → "Sao chép hình ảnh" rồi bấm Dán.');
+  }catch(e){ renderPimgManager(); showToast('Bấm chọn ô rồi nhấn Ctrl+V để dán ảnh.'); }
+}
+document.addEventListener('paste', e=>{
+  const det = document.getElementById('pimgDetails');
+  if(!det || !det.open || currentPageId!=='packInvoices' || !pimgTarget) return;
+  const ae = document.activeElement; if(ae && ae.id==='pimgSearch') return; // đang gõ ô tìm kiếm
+  const f = Array.from((e.clipboardData && e.clipboardData.files) || []).find(x=>/^image\//.test(x.type));
+  if(!f){ showToast('Chưa có ảnh trong bộ nhớ copy — chuột phải vào ảnh → "Sao chép hình ảnh".'); return; }
+  e.preventDefault(); pimgUploadToKey(f, pimgTarget);
+});
 function pimgDelete(key){
   askConfirm('Xoá ảnh mẫu?', 'Ảnh này sẽ không hiện khi nhặt hàng nữa.', ()=>{
     fbRoot.update({[`productImages/${key}`]: null, [`productImagesIndex/${key}`]: null}).then(()=>{ delete pimgMem[key]; pimgCacheDel(key); showToast('Đã xoá ảnh'); });
