@@ -1292,6 +1292,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-banner{ border-radius:10px; padding:10px 12px; margin:8px 0; font-size:14px; font-weight:600; line-height:1.45; }
   .pack-banner.bad{ background:rgba(229,72,77,0.16); border:1.5px solid #E5484D; color:#FF9A9D; }
   .pack-banner.ok{ background:rgba(46,160,90,0.16); border:1.5px solid #2EA05A; color:#6FD99A; }
+  .pack-banner.view{ background:rgba(79,140,255,0.12); border:1.5px solid rgba(79,140,255,0.5); color:#A9C4FF; }
   .pack-banner.warn{ background:rgba(240,166,58,0.15); border:1.5px solid #F0A63A; color:#F6C27A; }
   table.pack-lines{ width:100%; font-size:14.5px; }
   table.pack-lines td{ vertical-align:middle; }
@@ -1989,7 +1990,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="pack-actions">
             <button class="btn-ghost btn-small" onclick="packToggleAll()" id="packToggleAllBtn">☑ Chọn tất cả</button>
             <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
-            <button class="btn-ghost btn-small" id="packLegacyBtn" onclick="packMarkLegacySelected()" title="Đơn cũ đã gửi trước khi áp dụng quy trình kho">✅ Đánh dấu đã xử lý (đơn cũ)</button>
             <span id="packCountNote" class="pack-note"></span>
           </div>
           <div id="packWarnBox"></div>
@@ -5735,8 +5735,8 @@ function renderPackInvoicesPage(){
 
   const pagerEl = document.getElementById('packPager');
   if(pagerEl) pagerEl.innerHTML = list.length > PACK_PER_PAGE ? pagerHtml('packInv', list.length, PACK_PER_PAGE, 'renderPackInvoicesPage') : '';
-  const lb = document.getElementById('packLegacyBtn');
-  if(lb) lb.style.display = (packSelected.size && ['new','changed','done','all'].includes(status)) ? '' : 'none';
+  const lb = null; // đã bỏ nút "Đánh dấu đã xử lý (đơn cũ)"
+  if(lb) lb.style.display = (me.role==='warehouse' && packSelected.size && ['new','changed','done','all'].includes(status)) ? '' : 'none'; // đánh dấu đơn cũ: chỉ Kho
   if(!list.length){
     table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : (status==='short' ? 'Không có đơn nào chờ bù hàng 🎉' : 'Không có hoá đơn nào phù hợp.'))}</td></tr>`;
     return;
@@ -5748,7 +5748,7 @@ function renderPackInvoicesPage(){
       return `<tr class="${packSelected.has(inv.id) ? 'pack-row-sel' : ''}">
         <td><input type="checkbox" class="pack-cb" ${packSelected.has(inv.id)?'checked':''} onchange="packToggleOne('${inv.id}', this.checked)"></td>
         <td class="pack-act-cell">
-          <button class="btn-primary btn-small" onclick="packPanelOpen('${inv.id}')">📦 Mở</button>
+          <button class="btn-primary btn-small" onclick="packPanelOpen('${inv.id}', true)" title="Xem đơn — muốn đóng hàng thì quét mã hoặc vào Bàn đóng gói">📦 Mở</button>
           <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
           <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
         </td>
@@ -5823,7 +5823,7 @@ function packResetFilters(){
 // Sale không còn thấy là "Kho đã in / chưa đóng". Không cần ảnh, không tính vào thống kê người đóng.
 function packMarkLegacySelected(){
   const me = currentUser() || {};
-  if(!['general_manager','warehouse'].includes(me.role)) return;
+  if(me.role!=='warehouse') return;
   const smap = packStatusMap();
   const invs = Array.from(packSelected).map(id=>(state.invoices||[]).find(x=>x.id===id)).filter(inv=>inv && inv.depositLink && !smap[inv.id]);
   if(!invs.length){ showToast('Chọn các đơn cũ cần đánh dấu trước (đơn đã đóng / chờ bù thì bỏ qua).'); return; }
@@ -6037,13 +6037,13 @@ function renderPackStaffBox(){
 // ----- Panel đóng hàng -----
 let packPanel = null; // {invId, staffId, mode:'view'|'short', miss:{key:n}, note, fromCam}
 let packOpenedByCam = false, packLastCamCode = '', packLastCamAt = 0;
-function packPanelOpen(invId){
+function packPanelOpen(invId, viewOnly){
   const inv = packInvById(invId); if(!inv) return;
   packAttachPresence();
   const allStaff = packActiveStaff();
   const devMe = packDeviceMe(); const isMine = !!devMe && devMe!=='shared';
   packPanel = {invId, staffId: isMine ? devMe : (allStaff.length===1 ? allStaff[0].id : null), lockedMe: isMine, showAll: false,
-    mode:'view', miss:{}, note:'', fromCam: packOpenedByCam, photos:[], showPhotos:false, savedPhotos:null, picked: packPickLoad(invId)}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
+    mode:'view', miss:{}, note:'', fromCam: packOpenedByCam, photos:[], showPhotos:false, savedPhotos:null, picked: packPickLoad(invId), viewOnly: !!viewOnly}; // máy riêng → tự ghi tên chủ máy; máy chung: chạm chọn tên (chỉ 1 người có mặt → tự chọn sẵn)
   packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
@@ -6074,6 +6074,11 @@ function renderPackPanel(){
   else if(ps && ps.state==='packed'){ banner = `<div class="pack-banner ok">✅ ĐƠN NÀY ĐÃ ĐÓNG lúc ${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} — không đóng lại lần nữa.</div>`; canAct = false; }
   else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && ps.state==='partial'){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
+  // Quản lý chung: CHỈ XEM — không tick, không chụp, không bấm Đã đóng / Thiếu (tránh bấm nhầm)
+  const viewOnly = me.role==='general_manager' || !!packPanel.viewOnly;
+  if(viewOnly){ canAct = false; banner += me.role==='general_manager'
+    ? '<div class="pack-banner view">👁 Chế độ xem (Quản lý chung) — chỉ xem đơn, không thao tác đóng hàng.</div>'
+    : '<div class="pack-banner view">👁 Chế độ xem — muốn đóng hàng thì <b>quét mã QR</b> trên phiếu hoặc mở đơn ở trang <b>📦 Bàn đóng gói</b>.</div>'; }
   const prevMiss = {}; if(ps && (ps.state==='short' || ps.state==='partial')) (ps.shortItems||[]).forEach(x=>{ if(x.key) prevMiss[x.key] = Number(x.missing)||0; });
   const tickMode = canAct && !short;
   const prog = packPickProgress(lines, ps);
@@ -6137,7 +6142,7 @@ function renderPackPanel(){
     const partialBtn = isShort ? `<button class="pack-st-btn blue ${wantPartial ? 'hl' : ''}" onclick="packDoPartial()">📦 Gửi thiếu</button>` : '';
     acts = (wantPartial ? partialBtn : '') + `<button class="pack-st-btn green" onclick="packDoPacked()">✅ ${isShort ? 'Bù đủ · Đóng' : 'Đã đóng'}</button>` + (wantPartial ? '' : partialBtn) +
       `<button class="pack-st-btn orange" onclick="packStartShort()">⚠ ${isShort ? 'Sửa thiếu' : 'Thiếu'}</button>`;
-  } else if(isBoss && ps && ps.state==='packed'){
+  } else if(isBoss && !viewOnly && ps && ps.state==='packed'){
     acts = `<button class="pack-st-btn ghost" onclick="packUndoPacked('${inv.id}')">↩ Huỷ trạng thái Đã đóng</button>`;
   }
   const sticky = `<div class="pack-sticky">
@@ -6350,7 +6355,9 @@ function packPickTargets(lines, ps){
   return t;
 }
 function packPickTap(key, d){
+  if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(!packPanel) return;
+  if(packPanel.viewOnly) return;
   const inv = packInvById(packPanel.invId); if(!inv) return;
   const lines = packInvLines(inv); const t = packPickTargets(lines, packStatusMap()[inv.id]);
   const max = t[key] || 0; if(!max) return;
@@ -6505,7 +6512,9 @@ function packNeedStaff(){
   return false;
 }
 function packStartShort(){
+  if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(!packPanel) return;
+  if(packPanel.viewOnly) return;
   const ps = packStatusMap()[packPanel.invId];
   packPanel.mode = 'short'; packPanel.miss = {}; packPanel.note = (ps && ps.note) || '';
   const inv = packInvById(packPanel.invId);
@@ -6521,6 +6530,8 @@ function packBaseRecord(inv){
     staffId: packPanel.staffId, staffName: packStaffName(packPanel.staffId), byUser: me.id||'', byUserName: me.name||'', bySale: packIsSale(me) || null};
 }
 function packDoPacked(){
+  if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
+  if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
   const inv = packInvById(packPanel.invId); if(!inv) return;
   const prog = packPickProgress(packInvLines(inv), packStatusMap()[inv.id]);
@@ -6797,6 +6808,8 @@ function packOpenZalo(invId){
 }
 // ----- Kho: đóng phần đã có (gửi thiếu) / gửi bù phần còn nợ -----
 function packDoPartial(){
+  if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
+  if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
   const ps = packStatusMap()[packPanel.invId]; if(!ps || ps.state!=='short') return;
   const go = ()=>packNeedPhotos(()=>{
