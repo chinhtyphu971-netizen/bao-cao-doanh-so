@@ -1261,6 +1261,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-me-big{ display:flex; align-items:baseline; gap:8px; margin-top:6px; }
   .pack-me-big .pack-me-count{ font-size:34px; line-height:1; color:#6FD99A; }
   .pack-me-big span{ font-size:13px; color:var(--ink-soft); }
+  .pack-me-big .pack-me-count.qty{ color:#8DB4FF; margin-left:8px; }
+  .pack-me-week{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+  .pack-me-week b{ color:var(--ink); }
+  .pack-period{ display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 8px; }
+  tr.pack-total-row td{ font-weight:800; border-top:2px solid var(--line) !important; }
   .pack-switch{ font-size:12px; color:#8DB4FF !important; font-weight:700; margin-left:6px; }
   .pack-fab{ display:none; }
   .pack-type-link{ display:none; font-size:13px; color:#8DB4FF !important; font-weight:700; margin-top:6px; }
@@ -1990,7 +1995,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
               <option value="all">Tất cả</option>
             </select>
             <select id="packRangeSel" onchange="document.getElementById('packCustomRange').style.display = this.value==='custom' ? 'inline-flex' : 'none'; packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
-              <option value="all">Cọc: mọi ngày (30 ngày)</option>
+              <option value="all">Cọc: mọi ngày (60 ngày)</option>
               <option value="today">Cọc hôm nay</option>
               <option value="yesterday">Cọc hôm qua</option>
               <option value="7d">Cọc 7 ngày gần đây</option>
@@ -4983,7 +4988,7 @@ function unmarkInvoiceDeposited(invoiceId){
 // ===== HOÁ ĐƠN TỰ XOÁ SAU 30 NGÀY (tính từ lúc tạo) =====
 // Chạy mỗi lần danh sách hoá đơn tải về: hoá đơn quá hạn bị gỡ khỏi màn hình ngay và xoá trên Firebase.
 // Data đã chốt đã được đưa sang từ hoá đơn (nút "Khách đã cọc") vẫn giữ nguyên, không bị xoá theo.
-const INVOICE_KEEP_DAYS = 30;
+const INVOICE_KEEP_DAYS = 60; // giữ hoá đơn + ảnh cọc / ảnh đóng hàng / trạng thái kho 60 ngày (trước đây 30)
 function invoiceCreatedMs(inv){
   if(inv.createdAt) return Number(inv.createdAt);
   const t = inv.invoiceDate ? Date.parse(inv.invoiceDate + 'T00:00:00') : NaN;
@@ -5005,7 +5010,7 @@ function purgeExpiredInvoices(list){
   });
   return keep;
 }
-// Sale KHÔNG được xoá hoá đơn đã tạo — chỉ Quản lý chung xoá được (hoá đơn cũng tự xoá sau 30 ngày)
+// Sale KHÔNG được xoá hoá đơn đã tạo — chỉ Quản lý chung xoá được (hoá đơn cũng tự xoá sau INVOICE_KEEP_DAYS = 60 ngày)
 function canDeleteInvoice(){ const u = currentUser(); return !!(u && u.role==='general_manager'); }
 function deleteInvoice(invoiceId){
   if(!canDeleteInvoice()){ showToast('Bạn không có quyền xoá hoá đơn. Hoá đơn sẽ tự xoá sau ' + INVOICE_KEEP_DAYS + ' ngày.'); return; }
@@ -5948,7 +5953,8 @@ function renderPackAccounts(){
   const box = document.getElementById('packAccBox'); if(!box) return;
   const list = (state.users||[]).filter(u=>u && u.role==='packer').sort((a,b)=>(!!a.loginBlocked - !!b.loginBlocked) || String(a.name).localeCompare(String(b.name),'vi'));
   const today = todayStr();
-  const doneToday = {}; (state.packStatus||[]).forEach(p=>{ if(p && p.state==='packed' && !p.legacy && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today && p.staffId) doneToday[p.staffId] = (doneToday[p.staffId]||0) + 1; });
+  const totT = packStaffTotals('today');
+  const doneToday = {}; Object.keys(totT).forEach(k=>{ doneToday[k] = totT[k].orders; });
   const initials = n=>String(n||'?').trim().split(/\s+/).slice(-1)[0].charAt(0).toUpperCase();
   box.innerHTML = list.length ? `<div class="pack-acc-list">${list.map(u=>`<div class="pack-acc-row ${u.loginBlocked ? 'off' : ''}" id="packAccRow_${u.id}">
       <div class="pack-acc-avatar ${u.sharedDesk ? 'shared' : ''}">${u.sharedDesk ? '🖥️' : escHtml(initials(u.name))}</div>
@@ -5957,7 +5963,7 @@ function renderPackAccounts(){
         <div class="pack-acc-chips">
           <button class="pack-acc-chip pin" title="${packAccShowPin[u.id] ? 'Ẩn PIN' : 'Hiện PIN'}" onclick="packAccShowPin['${u.id}']=!packAccShowPin['${u.id}']; renderPackAccounts()">🔑 ${packAccShowPin[u.id] ? `<b>${escHtml(u.pin)}</b>` : '••••'} <span class="pack-acc-eye">${packAccShowPin[u.id] ? '🙈' : '👁'}</span></button>
           ${u.zaloPhone ? `<span class="pack-acc-chip">📱 ${escHtml(u.zaloPhone)}</span>` : ''}
-          ${u.sharedDesk ? '' : `<span class="pack-acc-chip ${doneToday[u.id] ? 'good' : ''}">📦 Hôm nay <b>${doneToday[u.id]||0}</b> đơn</span>`}
+          ${u.sharedDesk ? '' : `<span class="pack-acc-chip ${doneToday[u.id] ? 'good' : ''}">📦 Hôm nay <b>${doneToday[u.id]||0}</b> đơn · <b>${(totT[u.id]||{}).qty||0}</b> sp</span>`}
         </div>
       </div>
       <div class="pack-acc-acts">${u.loginBlocked
@@ -5998,7 +6004,7 @@ function packIsSale(u){ return !!(u && PACK_SALE_ROLES.includes(u.role)); }
 // ===================== LỊCH SỬ IN PHIẾU =====================
 // Mỗi lần bấm In (nhiều đơn hay 1 đơn) → ghi 1 lượt: giờ, người in, danh sách Số HĐ theo ĐÚNG THỨ TỰ in.
 // Máy in kẹt giữa chừng → mở lượt đó, bấm "⤵ từ đây" ở đơn bị kẹt để chọn từ đơn đó đến hết rồi In lại.
-// Giữ 30 ngày gần nhất.
+// Giữ 60 ngày gần nhất (cùng thời hạn hoá đơn).
 let packHistOpen = null, packHistSel = {};
 function packLogPrintBatch(invs){
   if(!fbPackPrintBatches) return null;
@@ -6012,7 +6018,7 @@ function packCleanupOldBatches(){
   if(packBatchCleanDone || !fbPackPrintBatches) return;
   const me = currentUser(); if(!me || !['general_manager','warehouse'].includes(me.role)) return;
   packBatchCleanDone = true;
-  const cut = Date.now() - 30*86400000;
+  const cut = Date.now() - INVOICE_KEEP_DAYS*86400000;
   fbPackPrintBatches.orderByKey().limitToFirst(50).once('value').then(snap=>{
     const upd = {}; snap.forEach(ch=>{ const v = ch.val(); if(v && Number(v.at) < cut) upd[ch.key] = null; });
     if(Object.keys(upd).length) fbPackPrintBatches.update(upd).catch(()=>{});
@@ -6052,7 +6058,7 @@ function packHistFrom(bid, idx){
 function packHistReprint(ids){
   const missing = ids.filter(id=>!(state.invoices||[]).some(x=>x.id===id && x.depositLink));
   const ok = ids.filter(id=>!missing.includes(id));
-  if(!ok.length){ showToast('Các đơn này không còn (đã huỷ cọc / quá 30 ngày).'); return; }
+  if(!ok.length){ showToast(`Các đơn này không còn (đã huỷ cọc / quá ${INVOICE_KEEP_DAYS} ngày).`); return; }
   if(missing.length) showToast(`Bỏ qua ${missing.length} đơn đã huỷ cọc / không còn.`);
   packPrintInvoicesOrdered(ok);
 }
@@ -6556,7 +6562,7 @@ function packPickProgress(lines, ps){
 // ===================== ẢNH ĐƠN HÀNG (lúc đủ / thiếu / bù) =====================
 // Bắt buộc chụp ít nhất 1 ảnh trước khi bấm Đã đóng / Gửi báo thiếu / Đã bù đủ (tối đa 4 ảnh mỗi lần).
 // Ảnh được thu nhỏ (cạnh dài 1280px, JPEG) còn ~100–200KB rồi lưu ở nhánh packPhotos — CHỈ tải khi có người bấm xem,
-// nên không làm chậm app. Ảnh tự xoá cùng hoá đơn (sau 30 ngày).
+// nên không làm chậm app. Ảnh tự xoá cùng hoá đơn (sau INVOICE_KEEP_DAYS ngày).
 const PACK_PHOTO_MAX = 4;
 const PACK_PHOTO_KIND = {packed:'Lúc đóng (đủ hàng)', short:'Lúc báo thiếu', refill:'Lúc bù đủ & đóng', partial:'Lúc gửi trước phần có'};
 function packPhotoKindNow(ps, short){ return short ? 'short' : ((ps && (ps.state==='short' || ps.state==='partial')) ? 'refill' : 'packed'); }
@@ -6649,7 +6655,7 @@ function packLoadSavedPhotos(invId){
 }
 function packPhotoGroupsHtml(obj){
   const arr = Object.values(obj||{}).filter(p=>p && p.data).sort((a,b)=>a.at-b.at);
-  if(!arr.length) return '<div class="pack-note">Không còn ảnh (có thể đã quá 30 ngày).</div>';
+  if(!arr.length) return `<div class="pack-note">Không còn ảnh (có thể đã quá ${INVOICE_KEEP_DAYS} ngày).</div>`;
   const groups = [];
   arr.forEach(p=>{ const g = groups.find(x=>x.kind===p.kind && Math.abs(x.at-p.at) < 60000); if(g) g.items.push(p); else groups.push({kind:p.kind, at:p.at, byName:p.byName, items:[p]}); });
   return groups.map(g=>`<div class="pack-photo-group"><div class="pack-p-label">📷 ${PACK_PHOTO_KIND[g.kind] || 'Ảnh'} <span class="pack-note">${packTimeStr(g.at)}${g.byName ? ' · ' + escHtml(g.byName) : ''}</span></div>
@@ -6696,7 +6702,8 @@ function packStartShort(){
 function packBaseRecord(inv){
   const me = currentUser() || {};
   return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: Date.now(),
-    staffId: packPanel.staffId, staffName: packStaffName(packPanel.staffId), byUser: me.id||'', byUserName: me.name||'', bySale: packIsSale(me) || null};
+    staffId: packPanel.staffId, staffName: packStaffName(packPanel.staffId), byUser: me.id||'', byUserName: me.name||'', bySale: packIsSale(me) || null,
+    qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0)};
 }
 function packDoPacked(){
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
@@ -6797,9 +6804,12 @@ function renderPackDeskMe(){
     return;
   }
   const today = todayStr();
-  const mine = (state.packStatus||[]).filter(p=>p && p.state==='packed' && p.staffId===me && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today).length;
+  const myT = packStaffTotals('today')[me] || {orders:0, qty:0};
+  const my7 = packStaffTotals('7d')[me] || {orders:0, qty:0};
+  const mine = myT.orders;
   box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a></div>
-    <div class="pack-me-big"><b class="pack-me-count">${mine}</b><span>đơn bạn đã đóng hôm nay</span></div></div>`;
+    <div class="pack-me-big"><b class="pack-me-count">${mine}</b><span>đơn</span><b class="pack-me-count qty">${myT.qty}</b><span>sản phẩm · hôm nay</span></div>
+    <div class="pack-me-week">7 ngày: <b>${my7.orders}</b> đơn · <b>${my7.qty}</b> sản phẩm</div></div>`;
 }
 function renderPackDeskPage(){
   const me = currentUser(); if(!me || !['general_manager','warehouse','packer'].includes(me.role)) return;
@@ -6845,13 +6855,47 @@ function renderPackStats(){
   const byStaff7 = {}; all.filter(p=>p.state==='packed' && !p.legacy && Number(p.packedAt||p.at) >= d7).forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff7[k] = (byStaff7[k]||0) + 1; });
   const miss = {}; all.forEach(p=>(p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
   const missRows = Object.entries(miss).sort((a,b)=>b[1].times-a[1].times || b[1].qty-a[1].qty).slice(0, 15);
-  const staffNames = Array.from(new Set(Object.keys(byStaff).concat(Object.keys(byStaff7)))).sort((a,b)=>(byStaff7[b]||0)-(byStaff7[a]||0));
+  const tot = packStaffTotals(packStatsPeriod);
+  const rows = Object.values(tot).sort((a,b)=>b.qty-a.qty || b.orders-a.orders);
+  const sumO = rows.reduce((a,r)=>a+r.orders,0), sumQ = rows.reduce((a,r)=>a+r.qty,0);
   box.innerHTML = `
     <div class="pack-stats-grid">
-      <div><h4>Số đơn đã đóng theo người</h4>${staffNames.length ? `<table class="pack-mini"><thead><tr><th>Tên</th><th class="num">Hôm nay</th><th class="num">7 ngày</th></tr></thead><tbody>${staffNames.map(n=>`<tr><td>${escHtml(n)}</td><td class="num"><b>${byStaff[n]||0}</b></td><td class="num">${byStaff7[n]||0}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có dữ liệu.</div>'}</div>
+      <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
+        <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
+        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escHtml(r.name)}${r.bySale ? ' <span class="pack-note">(Sale)</span>' : ''}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td></tr>`).join('')}
+          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
+        <div class="pack-note" style="margin-top:6px;">Không tính các đơn cũ đã đánh dấu "đã xử lý". Dữ liệu giữ ${INVOICE_KEEP_DAYS} ngày.</div></div>
       <div><h4>Mẫu hay thiếu (các đơn trong ${INVOICE_KEEP_DAYS} ngày)</h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
     </div>`;
 }
+
+// ===================== THỐNG KÊ ĐƠN + SẢN PHẨM THEO NGƯỜI ĐÓNG =====================
+function packQtyOf(p){
+  if(Number(p.qty)) return Number(p.qty);
+  const inv = packInvById(p.id);
+  return inv ? (Number(inv.totalQty) || packInvLines(inv).reduce((a,l)=>a+l.qty, 0)) : 0;
+}
+function packPeriodRange(per){
+  const d0 = new Date(); d0.setHours(0,0,0,0); const t0 = d0.getTime();
+  if(per==='today') return [t0, Infinity];
+  if(per==='yesterday') return [t0 - 86400000, t0];
+  if(per==='7d') return [t0 - 6*86400000, Infinity];
+  if(per==='month'){ const m = new Date(d0); m.setDate(1); return [m.getTime(), Infinity]; }
+  return [0, Infinity];
+}
+// {staffKey: {name, orders, qty, bySale}} cho khoảng thời gian (bỏ đơn cũ đánh dấu "đã xử lý")
+function packStaffTotals(per){
+  const [a, b] = packPeriodRange(per); const out = {};
+  (state.packStatus||[]).forEach(p=>{
+    if(!p || p.state!=='packed' || p.legacy) return;
+    const t = Number(p.packedAt||p.at); if(!(t>=a && t<b)) return;
+    const k = p.staffId || ('n:' + (p.staffName||'')); const r = out[k] || (out[k] = {name: p.staffName || '(không rõ)', orders:0, qty:0, bySale:false});
+    r.orders++; r.qty += packQtyOf(p); if(p.bySale) r.bySale = true;
+  });
+  return out;
+}
+let packStatsPeriod = 'today';
+const PACK_PERIODS = [['today','Hôm nay'],['yesterday','Hôm qua'],['7d','7 ngày'],['month','Tháng này']];
 // ----- Sale nhận báo thiếu -----
 let packSaleNoticeQueue = [];
 function packSeenKey(){ const u = currentUser(); return 'pack_seen_' + (u ? u.id : ''); }
@@ -11828,7 +11872,7 @@ function setupRoleScopedListeners(user){
 
   // Hoá đơn
   // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
-  // Nhân viên đóng gói chỉ cần hoá đơn ĐÃ CỌC (30 ngày) → truy vấn theo depositLink/markedAt, bỏ đơn chờ cọc
+  // Nhân viên đóng gói chỉ cần hoá đơn ĐÃ CỌC (INVOICE_KEEP_DAYS ngày) → truy vấn theo depositLink/markedAt, bỏ đơn chờ cọc
   const packerCut = Date.now() - INVOICE_KEEP_DAYS*86400000;
   const invKey = !user ? 'none' : (r==='packer' ? 'deposited:' + todayStr() : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id)));
   attachScoped('invoices', invKey,
@@ -14222,7 +14266,7 @@ function renderDataAudit(){
   body.innerHTML = `
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
       <div style="font-size:14px;">${issues ? `Tìm thấy <b style="color:var(--warn);">${issues}</b> điểm cần xem lại` : '<b style="color:var(--success);">✅ Không phát hiện sai lệch nào</b>'}
-        <span style="color:var(--ink-soft); font-size:12.5px;"> · đã rà ${closed.length} đơn chốt, ${(state.invoices||[]).length} hoá đơn (30 ngày), ${(state.reports||[]).length} báo cáo</span></div>
+        <span style="color:var(--ink-soft); font-size:12.5px;"> · đã rà ${closed.length} đơn chốt, ${(state.invoices||[]).length} hoá đơn (${INVOICE_KEEP_DAYS} ngày), ${(state.reports||[]).length} báo cáo</span></div>
       <button class="btn-ghost btn-small" onclick="renderDataAudit()">🔄 Kiểm tra lại</button>
     </div>
     <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">Công cụ chỉ ĐỌC và liệt kê — không tự sửa hay xoá gì.</div>` +
