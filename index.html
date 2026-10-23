@@ -1237,7 +1237,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-thumb.sm{ width:44px; height:44px; border-radius:8px; }
   .pack-thumb.sm .pack-thumb-x{ width:20px; height:20px; font-size:13px; top:1px; right:1px; }
   .pack-st-note{ width:100%; margin-top:8px; }
-  .pack-sticky .pack-progress{ margin:8px 0 0; height:28px; }
+  .pack-sticky .pack-progress{ margin:0; height:28px; flex:1; min-width:0; }
+  .pack-progress-row{ display:flex; gap:6px; align-items:center; margin-top:8px; }
+  .pack-pick-all{ flex:0 0 auto; height:28px; min-height:0 !important; padding:0 10px !important; border-radius:8px; border:1.5px solid #2EA05A; background:rgba(46,160,90,0.15); color:#6FD99A; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
   .pack-sticky .pack-progress span{ line-height:28px; }
   .pack-st-staff.pack-flash, .pack-st-photo.pack-flash, .pack-st-picker.pack-flash{ animation:packFlash 0.9s ease 2; }
   @media (max-width:720px){
@@ -6314,7 +6316,7 @@ function renderPackPanel(){
     ${canAct && ph.length ? `<div class="pack-st-thumbs">${ph.map((p,i)=>`<div class="pack-thumb sm"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="packPhotoRemove(${i})">×</button></div>`).join('')}<span class="pack-note">ảnh ${photoHint}</span></div>` : ''}
     <div id="packPhotoBusy" class="pack-note" style="display:none;">⏳ Đang xử lý ảnh…</div>
     ${canAct && short ? `<input class="pack-note-input pack-st-note" placeholder="Ghi chú thêm cho Sale (không bắt buộc)" value="${escHtml(packPanel.note)}" oninput="packPanel.note=this.value">` : ''}
-    ${tickMode && prog.need ? `<div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Chạm dòng khi nhặt · đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>` : ''}
+    ${tickMode && prog.need ? `<div class="pack-progress-row"><div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>${prog.got<prog.need ? `<button class="pack-pick-all" onclick="packPickAllLines()">✓ Đã nhặt đủ cả đơn</button>` : ''}</div>` : ''}
   </div>`;
   body.innerHTML = `${sticky}
     ${banner}
@@ -6529,6 +6531,14 @@ function packPickTap(key, d){
   packPanel.picked[key] = nv; packPickSave();
   if(nv===max && (d||1)>0) packBeep(true);
   renderPackPanel();
+}
+// Nhặt bằng phiếu giấy rồi mới quét: kiểm hàng trên bàn khớp màn hình → 1 chạm tick đủ CẢ ĐƠN
+function packPickAllLines(){
+  if(!packPanel || packPanel.viewOnly || (currentUser()||{}).role==='general_manager') return;
+  const inv = packInvById(packPanel.invId); if(!inv) return;
+  const t = packPickTargets(packInvLines(inv), packStatusMap()[inv.id]);
+  Object.keys(t).forEach(k=>{ if(t[k]) packPanel.picked[k] = t[k]; });
+  packPickSave(); packBeep(true); renderPackPanel();
 }
 // Nhặt đủ cả nhóm (cùng mã + mẫu, nhiều màu) bằng 1 chạm
 function packPickGroup(keysCsv){
