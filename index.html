@@ -1251,6 +1251,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     #page-packDesk{ padding-bottom:92px; }
     body.on-pack-desk .pack-fab{ display:flex; align-items:center; justify-content:center; gap:8px; position:fixed; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); height:60px; z-index:40; border:none; border-radius:16px; background:var(--accent, #4F8CFF); color:#fff; font-size:18px; font-weight:800; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; }
   }
+  /* Vòng tick gọn hơn, nút − to & tách riêng cho dễ bấm */
+  .pack-pick-cell{ padding-right:4px !important; }
+  .pack-pick-minus{ width:34px !important; height:28px !important; margin:6px auto 0 !important; font-size:18px !important; font-weight:800; border-color:rgba(255,255,255,0.25) !important; color:var(--ink) !important; background:rgba(255,255,255,0.06) !important; }
+  @media (max-width:720px){
+    .pack-pick{ min-width:32px !important; height:32px !important; font-size:11.5px !important; border-width:2px; }
+    .pack-pick.done{ font-size:16px !important; }
+    .pack-pick-cell{ width:40px; }
+  }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -6283,8 +6291,11 @@ function packPickTap(key, d){
   const lines = packInvLines(inv); const t = packPickTargets(lines, packStatusMap()[inv.id]);
   const max = t[key] || 0; if(!max) return;
   const cur = (packPanel.picked||{})[key] || 0;
-  const nv = Math.max(0, Math.min(max, cur + (d||1)));
-  if(nv===cur && (d||1)>0){ packBeep(false); return; }
+  let step = d || 1;
+  if(step > 0 && cur >= max){ step = -1; showToast('↩ Bỏ tick 1 cái'); } // dòng đã đủ mà chạm lại → bỏ tick (dễ sửa khi chạm nhầm)
+  const nv = Math.max(0, Math.min(max, cur + step));
+  if(nv===cur) return;
+  d = step;
   packPanel.picked[key] = nv; packPickSave();
   if(nv===max && (d||1)>0) packBeep(true);
   renderPackPanel();
