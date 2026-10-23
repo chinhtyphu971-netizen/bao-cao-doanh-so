@@ -177,6 +177,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   /* Menu đã GHIM: luôn hiện bên trái, ẩn nút ☰ */
   body.sb-pinned #hamburgerBtn{ display:none !important; }
   body.sb-pinned .sidebar.collapsed-desktop{ display:flex !important; }
+  .sb-zalo-link{ display:inline-block; margin:6px 0 2px; font-size:12.5px; color:#8DB4FF; cursor:pointer; font-weight:600; }
+  .sb-zalo-link.empty{ color:#F0A63A; }
+  .inv-chip.inv-zalo-nudge{ border-style:dashed; border-color:#F0A63A; color:#F0A63A; margin-left:auto; }
   .sb-pin-link{ display:inline-block; margin-top:8px; color:#8B96B4 !important; }
   @media (max-width:720px){
     body.sb-pinned .sidebar{ position:sticky !important; transform:none !important; top:0; height:100vh; height:100dvh; width:150px; min-width:150px; flex:0 0 150px; padding-left:10px; padding-right:10px; box-shadow:none; z-index:5; }
@@ -1496,6 +1499,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div class="sidebar-foot">
         <div class="who" id="sidebarWho">—</div>
         <div id="sidebarRole">—</div>
+        <div><span class="sb-zalo-link" id="sbZaloLink" onclick="openMyZalo()">📱 Thêm SĐT Zalo</span></div>
         <span class="logout-link" onclick="confirmLogout()">Đăng xuất</span>
         <div><span class="logout-link sb-pin-link" id="sbPinLink" onclick="toggleSidebarPin()">📌 Ghim menu</span></div>
       </div>
@@ -2744,6 +2748,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="pack-note" id="depProofBusy" style="display:none; margin-top:6px;">⏳ Đang nén ảnh…</div>
     <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
     <div class="actions"><button class="btn-ghost" onclick="depProofClose()">Huỷ</button><button class="btn-primary" id="depProofOk" onclick="depProofSubmit()">Xác nhận</button></div>
+  </div>
+</div>
+<!-- Tự điền SĐT Zalo của mình -->
+<div class="modal-backdrop" id="myZaloModal" onclick="if(event.target===this) this.classList.remove('show')">
+  <div class="modal" style="max-width:380px;">
+    <h2>📱 SĐT Zalo của bạn</h2>
+    <p>Kho và đồng nghiệp bấm nút <b>Zalo</b> trong app sẽ mở đúng Zalo của bạn để nhắn về đơn hàng.</p>
+    <input id="myZaloInput" type="tel" inputmode="numeric" placeholder="VD 0912345678" style="width:100%; font-size:17px;" onkeydown="if(event.key==='Enter') saveMyZalo()">
+    <div id="myZaloErr" class="pack-note" style="color:#FF8A8D; min-height:16px; margin-top:4px;"></div>
+    <div class="actions"><button class="btn-ghost" onclick="document.getElementById('myZaloModal').classList.remove('show')">Huỷ</button><button class="btn-primary" onclick="saveMyZalo()">Lưu</button></div>
   </div>
 </div>
 <!-- Ảnh đơn hàng (xem) -->
@@ -5016,7 +5030,8 @@ function renderInvoicesPage(){
   const chipsEl = document.getElementById('myInvoicesChips');
   if(chipsEl) chipsEl.innerHTML = [['todo', '🔔 Cần xử lý', counts.todo], ['', 'Tất cả', base.length]].concat(INV_FLOW_LIST.map(f=>[f[0], f[1], counts[f[0]]]))
     .filter(c=>c[0]==='' || c[0]==='todo' || c[2]>0 || c[0]===dep)
-    .map(c=>`<button class="inv-chip inv-chip-${c[0]||'all'} ${dep===c[0] ? 'on' : ''}" onclick="myInvFlowFilter='${c[0]}'; pagerPages.myInvoices=1; renderInvoicesPage()">${c[1]} <b>${c[2]}</b></button>`).join('');
+    .map(c=>`<button class="inv-chip inv-chip-${c[0]||'all'} ${dep===c[0] ? 'on' : ''}" onclick="myInvFlowFilter='${c[0]}'; pagerPages.myInvoices=1; renderInvoicesPage()">${c[1]} <b>${c[2]}</b></button>`).join('')
+    + (u && !u.zaloPhone ? `<button class="inv-chip inv-zalo-nudge" onclick="openMyZalo()" title="Để kho bấm mở Zalo nhắn bạn về đơn hàng">📱 Thêm SĐT Zalo của bạn</button>` : '');
   const depTxt = dep==='todo' ? ' · cần xử lý' : (dep ? ' · ' + (INV_FLOW_LIST.find(f=>f[0]===dep) || ['',''])[1].replace(/^\S+\s/, '').toLowerCase() : '');
   document.getElementById('myInvoicesCount').textContent = q.trim()
     ? `(tìm thấy ${mine.length} trên mọi ngày${depTxt})`
@@ -11349,6 +11364,30 @@ function goBackFromBranch(){
   goStep(skippedRoleStep ? 1 : 2);
 }
 // Bấm "Đăng xuất" → hỏi lại trước (tránh chạm nhầm trên điện thoại)
+// ----- Mỗi người tự điền SĐT Zalo của mình -----
+function renderMyZaloLink(){
+  const el = document.getElementById('sbZaloLink'); const u = currentUser(); if(!el || !u) return;
+  el.textContent = u.zaloPhone ? '📱 Zalo: ' + u.zaloPhone : '📱 Thêm SĐT Zalo';
+  el.classList.toggle('empty', !u.zaloPhone);
+}
+function openMyZalo(){
+  const u = currentUser(); if(!u) return;
+  document.getElementById('myZaloInput').value = u.zaloPhone || '';
+  document.getElementById('myZaloErr').textContent = '';
+  document.getElementById('myZaloModal').classList.add('show');
+  setTimeout(()=>document.getElementById('myZaloInput').focus(), 50);
+}
+function saveMyZalo(){
+  const u = currentUser(); if(!u) return;
+  const z = cleanPhone(document.getElementById('myZaloInput').value || '');
+  if(z && !/^0\d{9,10}$/.test(z)){ document.getElementById('myZaloErr').textContent = 'SĐT chưa đúng (10–11 số, bắt đầu bằng 0).'; return; }
+  u.zaloPhone = z || '';
+  fbUpdateUser(u.id, {zaloPhone: z || null});
+  document.getElementById('myZaloModal').classList.remove('show');
+  renderMyZaloLink();
+  showToast(z ? '✅ Đã lưu SĐT Zalo của bạn' : 'Đã xoá SĐT Zalo');
+  if(currentPageId==='invoices') renderInvoicesPage();
+}
 function confirmLogout(){
   const u = currentUser();
   askConfirm('Đăng xuất?', `Thoát khỏi tài khoản ${u ? u.name : ''} trên máy này? Lần sau phải nhập lại tên và mã PIN.`, ()=>logout());
@@ -11650,7 +11689,8 @@ function enterApp(){
   const isPacker = user.role==='packer';
   document.getElementById('navPacker').style.display = isPacker ? 'block' : 'none';
   document.body.classList.toggle('role-packer', isPacker); // chỉ có 1 trang → ẩn menu trái, nút ☰ / ⟳ cho gọn màn hình điện thoại
-  document.getElementById('navCommon').style.display = canSeeCompanyRules(user) ? 'block' : 'none'; // Nội quy: ẩn với Bàn đóng gói / Kho / Thợ in
+  document.getElementById('navCommon').style.display = canSeeCompanyRules(user) ? 'block' : 'none';
+  renderMyZaloLink(); // Nội quy: ẩn với Bàn đóng gói / Kho / Thợ in
   document.getElementById('navPrintOrder').style.display = (!isPrinter && (user.role==='general_manager' || isWarehouse || user.canOrderPrint)) ? 'block' : 'none';
   document.getElementById('navMkt').style.display = isMkt ? 'block' : 'none';
   document.getElementById('navMktManager').style.display = isMktManager ? 'block' : 'none';
