@@ -6502,8 +6502,33 @@ function packPanelOpen(invId, viewOnly){
   packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
+  if(!viewOnly) packClaimAutoForSale(invId); // Sale mở đơn để đóng → tự "nhận đơn" (kho không nhận trùng)
 }
-function packPanelClose(){ packPanel = null; document.getElementById('packPanelModal').classList.remove('show'); }
+function packPanelClose(){
+  // Sale đóng màn hình mà CHƯA đóng đơn → trả đơn về hàng chờ ngay (không bắt kho đợi 60 phút)
+  if(packPanel && packSaleAutoClaimId===packPanel.invId){
+    const st = packStatusMap()[packPanel.invId];
+    if(!(st && (st.state==='packed' || st.state==='partial'))) packClaimRelease(packPanel.invId, true);
+    packSaleAutoClaimId = null;
+  }
+  packPanel = null; document.getElementById('packPanelModal').classList.remove('show');
+}
+let packSaleAutoClaimId = null;
+async function packClaimAutoForSale(invId){
+  const me = currentUser(); if(!me || !packIsSale(me) || !fbPackClaims) return;
+  const inv = packInvById(invId); if(!inv || !inv.depositLink) return;
+  const st = packStatusMap()[invId]; if(st && (st.state==='packed' || st.state==='partial')) return;
+  const cur = packActiveClaimOf(invId); if(cur && cur.by!==me.id) return; // người khác đang giữ → màn hình đã báo chặn
+  const now = Date.now();
+  const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now, bySale: true};
+  try{
+    const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && c.by!==me.id) return; return rec; });
+    if(res && res.committed){
+      state.packClaims = (state.packClaims||[]).filter(c=>c.id!==invId).concat([rec]);
+      packSaleAutoClaimId = invId;
+    } else if(packPanel && packPanel.invId===invId) renderPackPanel(); // vừa có người khác nhận → hiện chặn
+  }catch(e){}
+}
 function packInvLines(inv){
   const lines = [];
   (inv.productGroups||[]).forEach((g,gi)=>(g.colorLines||[]).forEach((l,ci)=>{
@@ -6633,7 +6658,7 @@ function renderPackPanel(){
 function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); packClaimDoneFor(packPanel.invId); packPanel.fromCam = false; } packPanelClose(); } // sau báo thiếu: hỏi gửi Zalo trước, không tự mở camera
 function packAfterAction(){
   const fromCam = packPanel && packPanel.fromCam;
-  const fromClaim = packPanel && !!packMyClaimIs(packPanel.invId);
+  const fromClaim = packPanel && !!packMyClaimIs(packPanel.invId) && !packIsSale(currentUser());
   if(packPanel){ packPickClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
   if(fromClaim){ packPanelClose(); setTimeout(()=>showToast('✅ Xong đơn — bấm 📥 Nhận đơn để nhận đơn tiếp'), 600); return; }
   packPanelClose();
