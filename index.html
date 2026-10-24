@@ -1303,6 +1303,57 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     #page-packDesk .pack-hero-claim{ display:none !important; }
     body.on-pack-desk .toast{ bottom:calc(86px + env(safe-area-inset-bottom, 0px)) !important; }
   }
+  /* ===== Tối ưu thao tác điện thoại cho nhân viên đóng gói ===== */
+  #packPanelModal button, #packPanelModal label, .pack-fab button, #packScanModal button, .pack-list-row, .pack-pickable{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  .pack-flash-ov{ position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center; pointer-events:none; }
+  .pack-flash-ov.show{ display:flex; animation:packFlashIn .25s ease; }
+  .pack-flash-box{ min-width:220px; max-width:82vw; padding:26px 28px; border-radius:22px; text-align:center; font-size:26px; font-weight:900; color:#fff; box-shadow:0 20px 60px rgba(0,0,0,0.55); line-height:1.25; }
+  .pack-flash-box small{ display:block; font-size:15px; font-weight:700; opacity:0.9; margin-top:6px; }
+  .pack-flash-ov.ok .pack-flash-box{ background:#2EA05A; }
+  .pack-flash-ov.warn .pack-flash-box{ background:#E08A1E; }
+  @keyframes packFlashIn{ from{ transform:scale(0.85); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .pack-busy-bar{ position:fixed; left:50%; top:calc(14px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:110; background:#1E2A44; color:#fff; border:1px solid var(--accent); border-radius:999px; padding:8px 16px; font-size:14px; font-weight:700; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); }
+  body.pack-busy .pack-st-btn{ opacity:0.55; }
+  .pack-scan-type{ display:flex; gap:8px; margin-top:10px; }
+  .pack-scan-type input{ flex:1; font-size:17px !important; min-height:46px; }
+  .pack-scan-type button{ min-width:72px; font-size:16px !important; }
+  .pack-scan-acts{ justify-content:space-between !important; }
+  #packTorchBtn.on{ background:#F0C23A !important; color:#111 !important; border-color:#F0C23A !important; }
+  @media (max-width:720px){
+    /* Thanh trên cùng: Số HĐ + nút nhỏ ở dòng 1, khách / Sale xuống dòng 2 cho khỏi bị cắt */
+    .pack-st-row1{ flex-wrap:wrap; row-gap:2px; }
+    .pack-st-meta{ order:3; flex:1 1 100%; white-space:normal; font-size:12px; }
+    .pack-st-tools{ margin-left:auto; gap:5px; }
+    .pack-st-icon{ width:40px; height:40px; font-size:17px; }
+    .pack-st-tools .pack-chat-btn{ min-height:40px !important; }
+    .pack-st-print{ display:none; } /* in phiếu: làm trên máy tính */
+    /* Nút hành động to, dễ bấm bằng ngón cái */
+    .pack-st-actions{ gap:8px; }
+    .pack-st-btn{ height:52px !important; font-size:17px !important; border-radius:12px; }
+    .pack-st-photo, .pack-st-staff{ height:48px !important; font-size:15px !important; border-radius:12px; }
+    .pack-st-actions.personal .pack-st-photo{ grid-column:1 / -1; }
+    .pack-st-actions.personal .pack-st-btn.green{ grid-column:1 / 2; }
+    .pack-progress-row{ gap:8px; }
+    .pack-sticky .pack-progress{ height:40px; }
+    .pack-sticky .pack-progress span{ line-height:40px; font-size:13.5px; }
+    .pack-pick-all{ height:40px; padding:0 12px !important; font-size:13.5px; }
+    .pack-st-picker .pack-chip{ min-height:44px; font-size:15px; padding:8px 16px; }
+    /* Dòng hàng: cao hơn, vòng tick to hơn */
+    table.pack-lines tr.pack-pickable td{ padding-top:10px !important; padding-bottom:10px !important; }
+    .pack-pick{ min-width:40px !important; height:40px !important; font-size:13px !important; }
+    .pack-pick.done{ font-size:19px !important; }
+    .pack-pick-cell{ width:48px; }
+    .pack-pick-minus{ width:40px !important; height:30px !important; }
+    .pack-pimg{ width:52px !important; height:52px !important; }
+    /* Báo thiếu: nút − / + to */
+    .pack-l-miss .pack-step{ width:40px; height:40px; font-size:20px; }
+    .pack-l-miss b{ min-width:24px; font-size:18px; }
+    .pack-st-note{ min-height:44px; font-size:16px !important; }
+    /* Bàn đóng gói: dòng danh sách dễ chạm */
+    .pack-list-row{ padding:12px 6px; }
+    .pack-type-link{ padding:8px 4px; font-size:14px; }
+    .pack-fab-claim, .pack-fab-scan{ height:62px !important; }
+  }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -2786,6 +2837,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </div>
 
 <!-- Xem hoá đơn (chỉ xem) — mở từ trang Tổng hợp hoá đơn -->
+<div class="pack-flash-ov" id="packFlash"><div class="pack-flash-box"><div id="packFlashText"></div></div></div>
+<div class="pack-busy-bar" id="packBusyBar" style="display:none;">⏳ Đang lưu… đừng tắt màn hình</div>
 <!-- Đóng hàng: mở ra sau khi quét 1 phiếu -->
 <div class="modal-backdrop" id="packPanelModal" onclick="if(event.target===this) packPanelClose()">
   <div class="modal pack-panel-modal">
@@ -2886,7 +2939,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <h2>📷 Quét mã đóng hàng</h2>
     <div class="pack-scan-video-wrap"><video id="packScanVideo" playsinline muted autoplay></video><div class="pack-scan-frame"></div></div>
     <p id="packScanMsg" class="pack-scan-msg">Đưa mã QR ở cuối phiếu vào trong khung</p>
-    <div class="actions"><button class="btn-ghost" onclick="packScanStop()">Đóng</button></div>
+    <div class="pack-scan-type">
+      <input id="packScanTypeInput" type="text" inputmode="numeric" autocomplete="off" placeholder="⌨️ Gõ Số HĐ" onkeydown="if(event.key==='Enter') packScanTypeGo()">
+      <button class="btn-primary" onclick="packScanTypeGo()">Mở</button>
+    </div>
+    <div class="actions pack-scan-acts"><button class="btn-ghost" id="packTorchBtn" style="display:none;" onclick="packTorchToggle()">🔦 Đèn</button><button class="btn-ghost" onclick="packScanStop()">✕ Đóng</button></div>
   </div>
 </div>
 
@@ -6316,6 +6373,36 @@ function packAskShareZalo(invId){
     `<button class="btn-ghost" onclick="document.getElementById('packShareModal').classList.remove('show')">Để sau</button>`;
   document.getElementById('packShareModal').classList.add('show');
 }
+
+// ===================== THAO TÁC TRÊN ĐIỆN THOẠI: phản hồi rõ ràng =====================
+let packSaving = false;
+function packSetBusy(on){
+  packSaving = !!on;
+  document.body.classList.toggle('pack-busy', !!on);
+  document.querySelectorAll('#packPanelBody .pack-st-btn').forEach(b=>{ b.disabled = !!on; });
+  const bar = document.getElementById('packBusyBar'); if(bar) bar.style.display = on ? 'flex' : 'none';
+}
+// Màn hình xác nhận to, rõ ~1 giây sau khi lưu xong (nhìn lướt cũng biết đã xong)
+function packFlash(text, kind){
+  const el = document.getElementById('packFlash'); if(!el) return;
+  el.className = 'pack-flash-ov show ' + (kind||'ok');
+  document.getElementById('packFlashText').innerHTML = text;
+  clearTimeout(packFlash._t); packFlash._t = setTimeout(()=>{ el.className = 'pack-flash-ov'; }, 1100);
+}
+// Đèn pin khi quét trong kho tối
+let packTorchOn = false;
+function packTorchToggle(){
+  try{
+    const tr = packScanStream && packScanStream.getVideoTracks()[0]; if(!tr) return;
+    packTorchOn = !packTorchOn;
+    tr.applyConstraints({advanced:[{torch: packTorchOn}]}).catch(()=>{ packTorchOn = false; showToast('Máy này không bật được đèn khi quét.'); });
+    const b = document.getElementById('packTorchBtn'); if(b) b.classList.toggle('on', packTorchOn);
+  }catch(e){}
+}
+function packScanTypeGo(){
+  const el = document.getElementById('packScanTypeInput'); const v = (el.value||'').trim(); if(!v) return;
+  el.value = ''; packScanStop(); packOpenInvoiceByCode(v);
+}
 // ===================== ĐÓNG HÀNG (Bàn đóng gói) =====================
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
 //   shortItems:[{code,design,color,size,qty,missing}], shortAt, shortBy, note, packedAt}
@@ -6525,9 +6612,9 @@ function renderPackPanel(){
     <div class="pack-st-row1">
       <div class="pack-st-num">${escHtml(inv.invoiceNumber)}</div>
       <div class="pack-st-meta"><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sp</b> · ${escHtml(inv.customerName||'')} · Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 HĐ</a>` : ''}</div>
-      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
+      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon pack-st-print" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
     </div>
-    ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions">${staffBtn}${photoBtn}${acts}</div>` : ''}
+    ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions ${packPanel.lockedMe ? 'personal' : ''}">${packPanel.lockedMe ? '' : staffBtn}${photoBtn}${acts}</div>` : ''}
     ${showPicker ? `<div class="pack-st-picker">${staffList.length ? staffList.map(x=>`<button class="pack-chip ${packPanel.staffId===x.id ? 'on' : ''}" onclick="packPickStaff('${x.id}')">${escHtml(x.name)}</button>`).join('') : '<span class="pack-note">Chưa có tên nhân viên kho — Kho trưởng thêm ở 👥 Nhân viên kho.</span>'}</div>` : ''}
     ${canAct && ph.length ? `<div class="pack-st-thumbs">${ph.map((p,i)=>`<div class="pack-thumb sm"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="packPhotoRemove(${i})">×</button></div>`).join('')}<span class="pack-note">ảnh ${photoHint}</span></div>` : ''}
     <div id="packPhotoBusy" class="pack-note" style="display:none;">⏳ Đang xử lý ảnh…</div>
@@ -6848,7 +6935,8 @@ function packPhotosWrite(invId, rec, kind){
   rec.photos = Object.keys(meta).length ? meta : null;
   upd[`packStatus/${invId}`] = rec;
   if(packExtraInv[invId]) packExtraPS[invId] = Object.assign({}, rec); // đơn Sale khác (không có trong danh sách đã tải)
-  return fbRoot.update(upd);
+  packSetBusy(true);
+  return fbRoot.update(upd).finally(()=>packSetBusy(false));
 }
 function packPhotoCount(ps){ return ps && ps.photos ? Object.keys(ps.photos).length : 0; }
 // Xem ảnh đã lưu: tải theo yêu cầu (bấm mới tải)
@@ -6918,6 +7006,7 @@ function packBaseRecord(inv){
     qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0)};
 }
 function packDoPacked(){
+  if(packSaving) return; // đang lưu → chặn bấm 2 lần
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
@@ -6938,11 +7027,12 @@ function packDoPackedSave(){
   const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: Date.now()});
   packPhotosWrite(inv.id, rec, kind).then(()=>{
     if(old && (old.state==='short' || old.state==='partial')) packChatPost(inv.id, old.state==='partial' ? '✅ Kho đã gửi bù phần còn nợ — đơn đã đủ.' : '✅ Kho đã bù đủ hàng và đóng đơn.', inv.saleId);
-    packBeep(true); showToast(`✅ ${inv.invoiceNumber} đã đóng · ${rec.staffName}`);
+    packBeep(true); packFlash(`✅ ĐÃ ĐÓNG<br><small>${escHtml(inv.invoiceNumber)} · ${escHtml(rec.staffName||'')}</small>`, 'ok');
     packAfterAction();
   }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
 }
 function packDoShort(){
+  if(packSaving) return; // đang lưu → chặn bấm 2 lần
   if(!packPanel || !packNeedStaff()) return;
   const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
   const items = packInvLines(inv).filter(l=>(packPanel.miss[l.key]||0) > 0)
@@ -6953,7 +7043,7 @@ function packDoShort(){
   const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: Date.now(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
   packPhotosWrite(inv.id, rec, 'short').then(()=>{
     packChatPost(inv.id, `⚠ Kho báo THIẾU HÀNG: ${packShortText(items)}${rec.note ? ' — ' + rec.note : ''}. Bạn hỏi khách rồi bấm "↩ Trả lời kho" nhé.`, inv.saleId);
-    packBeep(true); showToast(`📣 Đã báo thiếu ${inv.invoiceNumber} cho Sale ${inv.saleName || userName(inv.saleId)}`);
+    packBeep(true); packFlash(`📣 ĐÃ BÁO THIẾU<br><small>${escHtml(inv.invoiceNumber)} → Sale ${escHtml(inv.saleName || userName(inv.saleId))}</small>`, 'warn');
     const shareId = inv.id;
     packAfterActionNoCam();
     setTimeout(()=>packAskShareZalo(shareId), 400);
@@ -7242,6 +7332,7 @@ function packOpenZalo(invId){
 }
 // ----- Kho: đóng phần đã có (gửi thiếu) / gửi bù phần còn nợ -----
 function packDoPartial(){
+  if(packSaving) return; // đang lưu → chặn bấm 2 lần
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
@@ -7251,7 +7342,7 @@ function packDoPartial(){
     const rec = Object.assign({}, ps, packBaseRecord(inv), {state:'packed', shortSent:true, packedAt: Date.now(), partialAt: Date.now()});
     packPhotosWrite(inv.id, rec, 'partial').then(()=>{
       packChatPost(inv.id, `📦 Kho đã GỬI THIẾU (không gửi bù). Đã trừ: ${packShortText(ps.shortItems)}. Bạn báo khách và sửa hoá đơn bỏ các món thiếu để thu đúng tiền.`, inv.saleId);
-      packBeep(true); showToast(`📦 ${inv.invoiceNumber}: đã đóng · gửi thiếu — đã trừ ${packShortText(ps.shortItems)}`);
+      packBeep(true); packFlash(`📦 ĐÃ ĐÓNG · GỬI THIẾU<br><small>${escHtml(inv.invoiceNumber)}</small>`, 'warn');
       const shareId = inv.id;
       packAfterActionNoCam();
       setTimeout(()=>packAskShareZalo(shareId), 400);
@@ -7401,6 +7492,10 @@ async function packScanStart(){
   try{ await video.play(); }catch(e){}
   packScanDetector = null;
   try{ if('BarcodeDetector' in window){ const f = await window.BarcodeDetector.getSupportedFormats(); if(f.includes('qr_code')) packScanDetector = new window.BarcodeDetector({formats:['qr_code']}); } }catch(e){ packScanDetector = null; }
+ { // có đèn pin thì hiện nút 🔦
+    packTorchOn = false; const tb = document.getElementById('packTorchBtn');
+    try{ const tr = packScanStream.getVideoTracks()[0]; const caps = tr.getCapabilities ? tr.getCapabilities() : {}; if(tb){ tb.style.display = caps && caps.torch ? '' : 'none'; tb.classList.remove('on'); } }catch(e){ if(tb) tb.style.display = 'none'; }
+  }
   msg.textContent = 'Đưa mã QR ở cuối phiếu vào trong khung';
   packScanBusy = false;
   clearInterval(packScanTimer);
