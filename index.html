@@ -1292,6 +1292,17 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .pack-pick.done{ font-size:16px !important; }
     .pack-pick-cell{ width:40px; }
   }
+  /* Nhận đơn */
+  .pack-hero-claim{ width:100%; max-width:520px; font-size:20px !important; font-weight:800 !important; padding:18px 20px !important; border-radius:14px !important; background:#2EA05A !important; border-color:#2EA05A !important; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto; }
+  .pack-hero-claim.holding, .pack-fab-claim.holding{ background:#E08A1E !important; border-color:#E08A1E !important; }
+  .pack-hero-claim:disabled, .pack-fab-claim:disabled{ opacity:0.5; }
+  @media (max-width:720px){
+    body.on-pack-desk .pack-fab{ display:flex !important; gap:8px; background:none !important; box-shadow:none !important; padding:0 !important; }
+    .pack-fab-claim{ flex:1; height:60px; border:none; border-radius:16px; background:#2EA05A; color:#fff; font-size:17px; font-weight:800; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; }
+    .pack-fab-scan{ flex:0 0 96px; height:60px; border:none; border-radius:16px; background:var(--accent, #4F8CFF); color:#fff; font-size:16px; font-weight:800; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; }
+    #page-packDesk .pack-hero-claim{ display:none !important; }
+    body.on-pack-desk .toast{ bottom:calc(86px + env(safe-area-inset-bottom, 0px)) !important; }
+  }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -1988,6 +1999,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="pack-toolbar">
             <select id="packStatusSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="new">🆕 Chưa in</option>
+              <option value="claimed">📱 Đang được nhận</option>
               <option value="changed">⚠ Đã sửa sau khi in</option>
               <option value="done">🖨️ Đã in, chưa đóng</option>
               <option value="short">🟠 Chờ bù hàng</option>
@@ -2051,7 +2063,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </details>
       </div>
 
-      <button class="pack-fab" id="packFab" onclick="packScanStart()">📷 QUÉT MÃ ĐÓNG HÀNG</button>
+      <div class="pack-fab" id="packFab"><button class="pack-fab-claim" id="packFabClaim" onclick="packClaimNext()">📥 NHẬN ĐƠN</button><button class="pack-fab-scan" onclick="packScanStart()">📷 Quét</button></div>
 
       <div id="page-packAccounts" class="page" style="display:none;">
         <div class="page-head"><div><h1>Tài khoản nhân viên đóng gói</h1><p>Tạo tài khoản cho từng bạn đóng gói (tên + mã PIN 4 số) — bạn ấy đăng nhập bằng điện thoại của mình, chỉ thấy trang Bàn đóng gói</p></div></div>
@@ -2076,6 +2088,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="page-head"><div><h1>Bàn đóng gói</h1><p>Quét mã QR cuối phiếu → chạm tên mình → bấm Đã đóng hoặc Thiếu</p></div></div>
         <div id="packDeskMe"></div>
         <div class="card pack-hero">
+          <button class="btn-primary pack-hero-claim" id="packClaimBtn" onclick="packClaimNext()">📥 NHẬN ĐƠN</button>
           <button class="btn-primary pack-hero-cam" onclick="packScanStart()">📷 QUÉT MÃ ĐÓNG HÀNG</button>
           <div class="pack-hero-or">hoặc dùng súng quét / gõ Số HĐ:</div>
           <input id="packDeskScanInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Bóp súng quét, hoặc gõ Số HĐ rồi Enter"
@@ -3019,7 +3032,7 @@ const LocalDB = {
 })();
 let printOrdersLoadedOnce = false;
 let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
 function reportWindowStart(){ const d = new Date(); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
@@ -3137,7 +3150,8 @@ function startFirebaseListeners(){
   fbProductImages = db.ref('productImages');           // Ảnh mẫu sản phẩm: productImages/{khoá} = {data(JPEG nén ~400–600px), v, code, design}
   fbProductImagesIndex = db.ref('productImagesIndex'); // Mục lục nhỏ: productImagesIndex/{khoá} = v (phiên bản) — biết ảnh nào có / đã đổi mà không tải ảnh
   fbPackPhotos = db.ref('packPhotos');
-  fbPackPrintBatches = db.ref('packPrintBatches'); // Lịch sử in: mỗi lượt bấm In = 1 dòng {at, byName, ids[], nums[], confirmed} // Ảnh đơn hàng lúc đóng / thiếu / bù: packPhotos/{hoáĐơn}/{mãẢnh} = {data(JPEG nén), kind, at, byName} — chỉ tải khi bấm xem
+  fbPackPrintBatches = db.ref('packPrintBatches');
+  fbPackClaims = db.ref('packClaims'); // Nhận đơn: packClaims/{hoáĐơn} = {by, byName, at, touchAt} — 1 đơn chỉ 1 người giữ // Lịch sử in: mỗi lượt bấm In = 1 dòng {at, byName, ids[], nums[], confirmed} // Ảnh đơn hàng lúc đóng / thiếu / bù: packPhotos/{hoáĐơn}/{mãẢnh} = {data(JPEG nén), kind, at, byName} — chỉ tải khi bấm xem
   fbInvoiceCounter = db.ref('system/invoiceCounter');
   fbInvoiceSettings = db.ref('invoiceSettings');
   fbCallAttemptOptions = db.ref('callAttemptOptions');
@@ -5675,6 +5689,10 @@ function cleanupPackPrints(){
   if(Object.keys(upd3).length && fbPackPhotos) fbPackPhotos.update(upd3).catch(()=>{});
   if(Object.keys(upd).length) fbPackPrints.update(upd).catch(()=>{});
   if(Object.keys(upd2).length && fbPackStatus) fbPackStatus.update(upd2).catch(()=>{});
+  // Dọn "nhận đơn" cũ: đơn đã xong / không còn / giữ quá 1 ngày
+  const updC = {}; const smapC = packStatusMap();
+  (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && smapC[c.id].state!=='short') || Date.now()-Number(c.touchAt||c.at||0) > 86400000)) updC[c.id] = null; });
+  if(Object.keys(updC).length && fbPackClaims) fbPackClaims.update(updC).catch(()=>{});
 }
 function packItemsSummaryHtml(inv){
   const parts = [];
@@ -5734,7 +5752,7 @@ function packCurrentList(){
   }
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
-  const counts = {new:0, changed:0, done:0, short:0, packed:0, all:base.length};
+  const counts = {new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
   base.forEach(inv=>{ counts[packFlowStatus(inv, map[inv.id], smap[inv.id])]++; });
   const list = status==='all' ? base : base.filter(inv=>packFlowStatus(inv, map[inv.id], smap[inv.id])===status);
   list.sort((a,b)=>sortDir==='desc' ? packDepositMs(b)-packDepositMs(a) : packDepositMs(a)-packDepositMs(b)); // mặc định cọc trước → in trước
@@ -5750,12 +5768,8 @@ function renderPackInvoicesPage(){
   const {list, counts, map, smap, status} = packCurrentList();
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
-    statusSel.options[0].textContent = `🆕 Chưa in (${counts.new})`;
-    statusSel.options[1].textContent = `⚠ Đã sửa sau khi in (${counts.changed})`;
-    statusSel.options[2].textContent = `🖨️ Đã in, chưa đóng (${counts.done})`;
-    statusSel.options[3].textContent = `🟠 Chờ bù hàng (${counts.short})`;
-    statusSel.options[4].textContent = `✅ Đã đóng (${counts.packed})`;
-    statusSel.options[5].textContent = `Tất cả (${counts.all})`;
+    const lab = {new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
+    Array.from(statusSel.options).forEach(o=>{ if(lab[o.value]) o.textContent = lab[o.value]; });
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
   const kd = document.getElementById('packStaffDetails'); if(kd && kd.open) renderPackStaffBox();
@@ -5830,6 +5844,11 @@ function packWaitImages(root, maxMs){
 }
 function packPrintInvoices(ids){
   let invs = (ids||[]).map(id=>(state.invoices||[]).find(x=>x.id===id)).filter(inv=>inv && inv.depositLink);
+  { // Bỏ qua đơn đang có NGƯỜI KHÁC nhận làm bằng điện thoại (không in trùng)
+    const meP = currentUser() || {};
+    const skip = invs.filter(inv=>{ const c = packActiveClaimOf(inv.id); return c && c.by!==meP.id && !packPrintMap()[inv.id]; });
+    if(skip.length){ invs = invs.filter(inv=>!skip.includes(inv)); showToast(`Bỏ qua ${skip.length} đơn đang có người nhận làm trên điện thoại.`); }
+  }
   if(!packPrintKeepOrder) invs = invs.sort((a,b)=>packDepositMs(a)-packDepositMs(b)); // in lại từ lịch sử: giữ thứ tự cũ
   if(!invs.length){ showToast('Không có hoá đơn đã cọc nào để in.'); return; }
   let area = document.getElementById('packPrintArea');
@@ -6001,6 +6020,71 @@ const PACK_SALE_ROLES = ['staff','team_manager'];
 function packCanUse(u){ return !!(u && (['general_manager','warehouse','packer'].includes(u.role) || PACK_SALE_ROLES.includes(u.role))); }
 function packIsSale(u){ return !!(u && PACK_SALE_ROLES.includes(u.role)); }
 
+
+// ===================== NHẬN ĐƠN (song song với in phiếu) =====================
+// Nhân viên bấm "📥 Nhận đơn" → nhận 1 đơn CŨ NHẤT đã cọc, CHƯA in phiếu, chưa ai nhận, chưa đóng.
+// Đơn đã nhận → biến khỏi danh sách "Chưa in" của Kho trưởng (không in trùng). Đơn kho đã in phiếu → thuộc đường giấy, không vào hàng chờ nhận.
+// Mỗi người giữ 1 đơn: đóng xong / báo thiếu / trả đơn mới nhận tiếp. Bỏ dở quá 60 phút không thao tác → tự trả về hàng chờ.
+const PACK_CLAIM_TTL = 60*60000;
+function packClaimMap(){ const m = {}; (state.packClaims||[]).forEach(c=>{ if(c && c.id) m[c.id] = c; }); return m; }
+function packClaimActive(c){ return !!(c && (Date.now() - Number(c.touchAt||c.at||0)) < PACK_CLAIM_TTL); }
+function packActiveClaimOf(invId){ const c = packClaimMap()[invId]; return packClaimActive(c) ? c : null; }
+function packInvDone(invId){ const ps = packStatusMap()[invId]; return !!(ps && (ps.state==='packed' || ps.state==='partial' || ps.state==='short')); }
+function packMyClaim(){
+  const me = currentUser(); if(!me) return null;
+  return (state.packClaims||[]).find(c=>c && c.by===me.id && packClaimActive(c) && !packInvDone(c.id) && (state.invoices||[]).some(i=>i.id===c.id && i.depositLink)) || null;
+}
+function packClaimQueue(){
+  const smap = packStatusMap(), pmap = packPrintMap();
+  return (state.invoices||[]).filter(inv=>inv && inv.depositLink && !smap[inv.id] && !pmap[inv.id] && !packActiveClaimOf(inv.id))
+    .sort((a,b)=>packDepositMs(a)-packDepositMs(b));
+}
+function packClaimMinutes(c){ return Math.max(0, Math.round((Date.now() - Number(c.at||0))/60000)); }
+async function packClaimNext(){
+  const me = currentUser(); if(!me || me.role==='general_manager' || !fbPackClaims) return;
+  if(!packInvoicesLoaded){ showToast('Đang tải hoá đơn, chờ vài giây.'); return; }
+  const mine = packMyClaim();
+  if(mine){ showToast(`Bạn đang giữ đơn ${mine.invoiceNumber} — làm xong (hoặc trả đơn) rồi nhận tiếp.`); packPanelOpen(mine.id); return; }
+  const q = packClaimQueue();
+  if(!q.length){ packBeep(false); showToast('🎉 Hết đơn chờ nhận (đơn còn lại đã in phiếu hoặc đang có người làm).'); return; }
+  for(const inv of q.slice(0, 8)){
+    const now = Date.now();
+    let res = null;
+    try{
+      res = await fbPackClaims.child(inv.id).transaction(cur=>{
+        if(cur && packClaimActive(cur) && cur.by!==me.id) return; // người khác vừa nhận
+        return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
+      });
+    }catch(e){ res = null; }
+    if(res && res.committed){
+      const rec = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
+      state.packClaims = (state.packClaims||[]).filter(c=>c.id!==inv.id).concat([rec]);
+      packBeep(true); showToast(`📥 Đã nhận đơn ${inv.invoiceNumber}`);
+      packPanelOpen(inv.id);
+      return;
+    }
+  }
+  packBeep(false); showToast('Đơn vừa có người khác nhận — bấm Nhận đơn lại.');
+}
+function packClaimRelease(invId, silent){
+  if(!fbPackClaims || !invId) return;
+  state.packClaims = (state.packClaims||[]).filter(c=>c.id!==invId);
+  fbPackClaims.child(invId).remove().catch(()=>{});
+  if(!silent) showToast('↩ Đã trả đơn về hàng chờ');
+}
+function packClaimGiveBack(invId){
+  askConfirm('Trả đơn về hàng chờ?', 'Đơn sẽ quay lại hàng chờ để người khác nhận. Chỉ dùng khi bạn không làm tiếp được đơn này.', ()=>{ packClaimRelease(invId); packPanelClose(); });
+}
+let packClaimTouchAt = 0;
+function packClaimTouch(invId){
+  const c = packClaimMap()[invId]; const me = currentUser();
+  if(!c || !me || c.by!==me.id || Date.now() - packClaimTouchAt < 5*60000) return;
+  packClaimTouchAt = Date.now(); c.touchAt = Date.now();
+  fbPackClaims.child(invId).update({touchAt: c.touchAt}).catch(()=>{});
+}
+// Xong đơn (đóng / báo thiếu / gửi thiếu) → bỏ giữ đơn
+function packMyClaimIs(invId){ const c = packClaimMap()[invId]; const me = currentUser(); return c && me && c.by===me.id && packClaimActive(c) ? c : null; }
+function packClaimDoneFor(invId){ const c = packClaimMap()[invId]; if(c) packClaimRelease(invId, true); }
 // ===================== LỊCH SỬ IN PHIẾU =====================
 // Mỗi lần bấm In (nhiều đơn hay 1 đơn) → ghi 1 lượt: giờ, người in, danh sách Số HĐ theo ĐÚNG THỨ TỰ in.
 // Máy in kẹt giữa chừng → mở lượt đó, bấm "⤵ từ đây" ở đơn bị kẹt để chọn từ đơn đó đến hết rồi In lại.
@@ -6128,12 +6212,15 @@ function packFlowStatus(inv, pp, ps){
   if(ps && ps.state==='packed') return 'packed';
   if(ps && ps.state==='partial') return 'packed'; // bản ghi "gửi 1 phần" cũ: coi như đã xong (không gửi bù)
   if(ps && ps.state==='short') return 'short';
+  if(!pp && packActiveClaimOf(inv.id)) return 'claimed'; // đang có người nhận làm bằng điện thoại → không cần in
   return packStatusOf(inv, pp);
 }
 function packShortText(items){
   return (items||[]).filter(x=>x && Number(x.missing)>0).map(x=>`${x.code}${x.design ? ' '+x.design : ''}${x.color ? ' '+x.color : ''}${x.size ? ' '+x.size : ''} thiếu ${x.missing}`).join(' · ');
 }
 function packStatusBadgeHtml(inv, pp, ps){
+  const cl = (!pp && !(ps && ps.state)) ? packActiveClaimOf(inv.id) : null;
+  if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${me.role==='warehouse' ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packClaimRelease('${inv.id}'); renderPackInvoicesPage()">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
   if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span><div class="pack-sub">${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</div>`;
@@ -6243,6 +6330,13 @@ function renderPackPanel(){
   else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))){ canAct = false; banner = `<div class="pack-banner ok">✅ ĐÃ ĐÓNG · GỬI THIẾU lúc ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. Không gửi bù — <b>đã trừ: ${escHtml(packShortText(ps.shortItems))}</b>.</div>`; }
   else if(false){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
+  // Đơn đang có NGƯỜI KHÁC nhận → không cho đóng trùng
+  const claimO = packActiveClaimOf(inv.id);
+  if(claimO && claimO.by!==me.id && !(ps && (ps.state==='packed' || ps.state==='partial'))){
+    canAct = false;
+    banner += `<div class="pack-banner warn">📱 <b>${escHtml(claimO.byName||'Người khác')}</b> đang nhận đơn này (từ ${packTimeStr(claimO.at)}) — không đóng trùng.${isBoss && me.role!=='general_manager' ? ` <button class="btn-ghost btn-small" onclick="packClaimRelease('${inv.id}'); renderPackPanel()">↩ Trả lại hàng chờ</button>` : ''}</div>`;
+  }
+  if(packMyClaimIs(inv.id)) packClaimTouch(inv.id);
   // Quản lý chung: CHỈ XEM — không tick, không chụp, không bấm Đã đóng / Thiếu (tránh bấm nhầm)
   const viewOnly = me.role==='general_manager' || !!packPanel.viewOnly;
   if(viewOnly){ canAct = false; banner += me.role==='general_manager'
@@ -6318,7 +6412,7 @@ function renderPackPanel(){
     <div class="pack-st-row1">
       <div class="pack-st-num">${escHtml(inv.invoiceNumber)}</div>
       <div class="pack-st-meta"><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sp</b> · ${escHtml(inv.customerName||'')} · Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 HĐ</a>` : ''}</div>
-      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
+      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
     </div>
     ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions">${staffBtn}${photoBtn}${acts}</div>` : ''}
     ${showPicker ? `<div class="pack-st-picker">${staffList.length ? staffList.map(x=>`<button class="pack-chip ${packPanel.staffId===x.id ? 'on' : ''}" onclick="packPickStaff('${x.id}')">${escHtml(x.name)}</button>`).join('') : '<span class="pack-note">Chưa có tên nhân viên kho — Kho trưởng thêm ở 👥 Nhân viên kho.</span>'}</div>` : ''}
@@ -6336,10 +6430,12 @@ function renderPackPanel(){
   pimgHydrate(body);
 }
 // Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
-function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); packPanel.fromCam = false; } packPanelClose(); } // sau báo thiếu: hỏi gửi Zalo trước, không tự mở camera
+function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); packClaimDoneFor(packPanel.invId); packPanel.fromCam = false; } packPanelClose(); } // sau báo thiếu: hỏi gửi Zalo trước, không tự mở camera
 function packAfterAction(){
   const fromCam = packPanel && packPanel.fromCam;
-  if(packPanel) packPickClear(packPanel.invId);
+  const fromClaim = packPanel && !!packMyClaimIs(packPanel.invId);
+  if(packPanel){ packPickClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
+  if(fromClaim){ packPanelClose(); setTimeout(()=>showToast('✅ Xong đơn — bấm 📥 Nhận đơn để nhận đơn tiếp'), 600); return; }
   packPanelClose();
   if(fromCam){ packLastCamAt = Date.now(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
   else { const si = document.getElementById(currentPageId==='packDesk' ? 'packDeskScanInput' : 'packScanInput'); if(si && window.matchMedia('(min-width:721px)').matches) si.focus(); }
@@ -6830,11 +6926,16 @@ function renderPackDeskPage(){
   const pmap = packPrintMap();
   const waiting = (state.invoices||[]).filter(i=>i && i.depositLink && pmap[i.id] && !smap[i.id]).length;
   const devMe = packDeviceMe(); const personal = !!devMe && devMe!=='shared';
+  { // Nút Nhận đơn: đang giữ đơn → "Tiếp tục HĐ…"; số đơn còn chờ nhận
+    const myC = packMyClaim(); const qn = packInvoicesLoaded ? packClaimQueue().length : 0;
+    const txt = myC ? `▶ TIẾP TỤC ĐƠN ${myC.invoiceNumber}` : `📥 NHẬN ĐƠN${qn ? ' (' + qn + ' chờ)' : ''}`;
+    ['packClaimBtn','packFabClaim'].forEach(id=>{ const b = document.getElementById(id); if(b){ b.textContent = txt; b.classList.toggle('holding', !!myC); b.disabled = !myC && !qn; } });
+  }
   const st = document.getElementById('packDeskStats');
   if(st) st.innerHTML = !packInvoicesLoaded ? '<span class="pack-note">Đang tải hoá đơn…</span>'
     : (personal
-      ? (shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> đơn chờ bù hàng</span>` : '')
-      : `<span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
+      ? (shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> đơn chờ bù hàng</span>` : '') + `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận</span>`
+      : `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận (chưa in)</span><span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
   const sh = document.getElementById('packDeskShort');
   if(sh) sh.innerHTML = shorts.length ? shorts.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div></div>`).join('') : '<div class="pack-note">Không có đơn nào chờ bù hàng 🎉</div>';
   const dn = document.getElementById('packDeskDone');
@@ -11906,6 +12007,11 @@ function setupRoleScopedListeners(user){
     onDataChanged();
   }, false);
   const kKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
+  const pcKey = (user && (r==='general_manager' || isWarehouse || PACK_SALE_ROLES.includes(r))) ? 'on' : 'none';
+  attachScoped('packClaims', pcKey, pcKey==='on' ? fbPackClaims : null, (arr)=>{
+    state.packClaims = arr;
+    if(['packDesk','packInvoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
+  }, false);
   const pbKey = (user && (r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
   attachScoped('packPrintBatches', pbKey, pbKey==='on' ? fbPackPrintBatches.orderByKey().limitToLast(60) : null, (arr)=>{
     state.packPrintBatches = arr;
