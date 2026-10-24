@@ -10136,6 +10136,16 @@ function isLeadRecallable(l){
   if(!l.assignedAt || Date.now() - Number(l.assignedAt) < RECALL_MIN_HOURS*3600000) return false;
   return true;
 }
+// Thu hồi TỰ ĐỘNG: data nhận từ HÔM QUA trở về trước → không xét mốc 3 giờ
+// (trước đây data nhận khuya hôm trước, VD 23h, lúc 1h sáng chưa đủ 3 giờ nên bị bỏ sót mà ngày đó đã khoá → sót luôn)
+function isLeadRecallableAuto(l){
+  if(!l || !l.assignedTo || l.manualEntry || l.invoiceId) return false;
+  if(l.status) return false;
+  const nameByMkt = l.mktName && String(l.customerName||'').trim()===String(l.mktName).trim();
+  if(l.customerName && !nameByMkt) return false;
+  const recvDay = l.distributedDate || (l.assignedAt ? toLocalDateStr(new Date(Number(l.assignedAt))) : '');
+  return !!recvDay && recvDay < todayStr();
+}
 function recallableLeadsOf(userId){ return state.leads.filter(l=>l.assignedTo===userId && isLeadRecallable(l)); }
 function recallLeads(ids, onDone, opts){
   opts = opts || {};
@@ -10146,7 +10156,7 @@ function recallLeads(ids, onDone, opts){
   const now = Date.now(); const upd = {}; const byPerson = {}; const byPersonDay = {};
   ids.forEach(id=>{
     const l = state.leads.find(x=>x.id===id);
-    if(!isLeadRecallable(l)) return; // kiểm tra lại lần cuối: Sale vừa cập nhật thì BỎ QUA
+    if(!(opts.system ? isLeadRecallableAuto(l) : isLeadRecallable(l))) return; // kiểm tra lại lần cuối: Sale vừa cập nhật thì BỎ QUA
     const from = l.assignedTo, fromName = l.assignedToName || ((state.users.find(u=>u.id===from)||{}).name) || '';
     const recvDay = l.distributedDate || toLocalDateStr(new Date(l.assignedAt || now)); // ngày Sale NHẬN data này
     (byPersonDay[from] = byPersonDay[from] || {})[recvDay] = ((byPersonDay[from]||{})[recvDay]||0) + 1;
@@ -10280,14 +10290,10 @@ function checkOldDataForPage(){
 // NHẬN TỪ HÔM QUA TRỞ VỀ TRƯỚC mà Sale chưa cập nhật tên & tình trạng → trả về kho để sáng chia lại.
 // Khoá theo ngày trên Firebase (system/autoRecall/{ngày}) → chỉ 1 máy chạy, không chạy trùng. KHÔNG báo cho Sale.
 const AUTO_RECALL_HOUR = 1;
-let autoRecallTriedDay = '';
+let autoRecallTriedDay = '', autoRecallLastTry = 0;
 function autoRecallCandidates(){
   const today = todayStr();
-  return state.leads.filter(l=>{
-    if(!isLeadRecallable(l)) return false;
-    const recvDay = l.distributedDate || toLocalDateStr(new Date(Number(l.assignedAt)||0));
-    return recvDay < today; // data của hôm qua (và trước nữa)
-  });
+  return state.leads.filter(l=>isLeadRecallableAuto(l)); // data của hôm qua (và trước nữa) chưa làm
 }
 function runAutoRecallIfDue(){
   const me = currentUser();
@@ -10295,16 +10301,20 @@ function runAutoRecallIfDue(){
   if(!leadsDataReady || !fbAutoRecall) return;
   if(new Date().getHours() < AUTO_RECALL_HOUR) return;
   const today = todayStr();
-  if(autoRecallTriedDay===today) return;
-  autoRecallTriedDay = today;
+  const nowMs = Date.now();
+  if(autoRecallTriedDay===today && nowMs - autoRecallLastTry < 10*60000) return; // mỗi máy kiểm tra tối đa 10 phút/lần
+  autoRecallTriedDay = today; autoRecallLastTry = nowMs;
+  if(!autoRecallCandidates().length) return; // không còn data cũ chưa làm → khỏi ghi gì
   fbAutoRecall.child(today).transaction(cur=>{
-    if(cur && cur.done) return; // ngày này đã có máy khác chạy rồi
-    return {done:true, startedAt: Date.now(), by: me.name};
-  }, (err, committed)=>{
+    if(cur && cur.runningAt && nowMs - Number(cur.runningAt) < 10*60000) return; // máy khác đang chạy
+    return Object.assign({}, cur || {}, {done:true, startedAt: (cur && cur.startedAt) || nowMs, runningAt: nowMs, by: me.name});
+  }, (err, committed, snap)=>{
     if(err || !committed) return;
+    const prev = (snap && snap.val && snap.val()) || {};
     const ids = autoRecallCandidates().map(l=>l.id);
-    if(!ids.length){ fbAutoRecall.child(today).update({count:0, finishedAt:Date.now()}); return; }
-    recallLeads(ids, n=>{ fbAutoRecall.child(today).update({count:n||0, finishedAt:Date.now()}); }, {system:true, silent:true});
+    const finish = n=>fbAutoRecall.child(today).update({count: (Number(prev.count)||0) + (n||0), runs: (Number(prev.runs)||0) + 1, finishedAt: Date.now(), runningAt: null});
+    if(!ids.length){ finish(0); return; }
+    recallLeads(ids, n=>finish(n), {system:true, silent:true});
   });
 }
 setInterval(()=>{ try{ runAutoRecallIfDue(); }catch(e){ console.error(e); } }, 5*60*1000);
