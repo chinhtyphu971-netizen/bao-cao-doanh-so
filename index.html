@@ -1224,6 +1224,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-st-staff.on{ border-color:#2EA05A; color:#6FD99A; }
   .pack-st-staff.need, .pack-st-photo.need{ border-color:#F0A63A; color:#F0A63A; border-style:dashed; }
   .pack-st-photo.on{ border-color:#2EA05A; color:#6FD99A; }
+  .pack-st-photo-wrap{ display:flex; gap:6px; min-width:0; }
+  .pack-st-photo-wrap .pack-st-photo{ max-width:none; flex:1 1 auto; justify-content:center; }
+  .pack-st-gallery-plus{ flex:0 0 auto; width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; border:1.5px solid var(--line); background:rgba(255,255,255,0.06); color:var(--ink); font-size:22px; font-weight:800; cursor:pointer; align-self:center; }
+  .pack-st-gallery-plus:active{ background:rgba(79,140,255,0.25); }
+  @media (max-width:720px){ .pack-st-gallery-plus{ width:48px; height:48px; } }
   .pack-st-btn{ flex:1 1 auto; height:40px; min-height:0 !important; padding:0 12px !important; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; border:1.5px solid transparent; white-space:nowrap; }
   .pack-st-btn.green{ background:#2EA05A; color:#fff; }
   .pack-st-btn.orange{ background:transparent; color:#F0A63A; border-color:#F0A63A; flex:0 1 auto; }
@@ -1331,7 +1336,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .pack-st-actions{ gap:8px; }
     .pack-st-btn{ height:52px !important; font-size:17px !important; border-radius:12px; }
     .pack-st-photo, .pack-st-staff{ height:48px !important; font-size:15px !important; border-radius:12px; }
-    .pack-st-actions.personal .pack-st-photo{ grid-column:1 / -1; }
+    .pack-st-actions.personal .pack-st-photo, .pack-st-actions.personal .pack-st-photo-wrap{ grid-column:1 / -1; }
+    .pack-st-photo-wrap{ width:100%; grid-column:1 / -1; }
+    .pack-st-actions:not(.personal) .pack-st-staff{ grid-column:1 / -1; }
     .pack-st-actions.personal .pack-st-btn.green{ grid-column:1 / 2; }
     .pack-progress-row{ gap:8px; }
     .pack-sticky .pack-progress{ height:40px; }
@@ -1354,6 +1361,26 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .pack-type-link{ padding:8px 4px; font-size:14px; }
     .pack-fab-claim, .pack-fab-scan{ height:62px !important; }
   }
+  /* Camera chụp ảnh trong app */
+  .pack-cam{ position:fixed; inset:0; z-index:105; background:#000; display:none; }
+  .pack-cam.show{ display:block; }
+  .pack-cam video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .pack-cam-shot-flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .pack-cam-shot-flash.go{ animation:packShot .25s ease-out; }
+  @keyframes packShot{ from{ opacity:0.85; } to{ opacity:0; } }
+  .pack-cam-top{ position:absolute; left:0; right:0; top:0; padding:calc(12px + env(safe-area-inset-top, 0px)) 14px 12px; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(rgba(0,0,0,0.55), transparent); }
+  .pack-cam-ic{ width:46px; height:46px; min-height:0 !important; border-radius:50%; border:none; background:rgba(0,0,0,0.45); color:#fff; font-size:20px; cursor:pointer; }
+  .pack-cam-ic.on{ background:#F0C23A; color:#111; }
+  .pack-cam-info{ color:#fff; font-weight:800; font-size:15px; background:rgba(0,0,0,0.45); padding:6px 14px; border-radius:999px; }
+  .pack-cam-msg{ position:absolute; left:16px; right:16px; top:42%; text-align:center; color:#fff; font-size:15px; font-weight:600; }
+  .pack-cam-msg:empty{ display:none; }
+  .pack-cam-bottom{ position:absolute; left:0; right:0; bottom:0; padding:18px 22px calc(22px + env(safe-area-inset-bottom, 0px)); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(transparent, rgba(0,0,0,0.65)); }
+  .pack-cam-plus{ width:56px; height:56px; border-radius:14px; border:2px solid rgba(255,255,255,0.85); background:rgba(0,0,0,0.35); color:#fff; font-size:30px; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .pack-cam-shutter{ width:78px; height:78px; min-height:0 !important; border-radius:50%; border:5px solid #fff; background:rgba(255,255,255,0.25); cursor:pointer; padding:0; }
+  .pack-cam-shutter:active{ background:#fff; transform:scale(0.94); }
+  .pack-cam-shutter:disabled{ opacity:0.35; }
+  .pack-cam-done{ min-width:56px; height:56px; min-height:0 !important; border-radius:14px; border:2px solid rgba(255,255,255,0.6); background:rgba(0,0,0,0.35); color:#fff; font-size:15px; font-weight:800; padding:0 12px; cursor:pointer; }
+  .pack-cam-done.ready{ background:#2EA05A; border-color:#2EA05A; }
   /* ===== Đóng hàng ===== */
   .pack-cam-big{ font-size:17px; padding:12px 18px; }
   .pack-h3{ margin:0 0 10px; font-size:15px; }
@@ -2843,6 +2870,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </div>
 
 <!-- Xem hoá đơn (chỉ xem) — mở từ trang Tổng hợp hoá đơn -->
+<!-- Camera chụp ảnh đơn hàng (trong app) — góc dưới có nút ＋ lấy ảnh từ thư viện -->
+<div class="pack-cam" id="packCamModal">
+  <video id="packCamVideo" playsinline muted autoplay></video>
+  <div class="pack-cam-shot-flash" id="packCamShotFlash"></div>
+  <div class="pack-cam-top">
+    <button class="pack-cam-ic" onclick="packCamClose()" title="Đóng">✕</button>
+    <span id="packCamInfo" class="pack-cam-info"></span>
+    <button class="pack-cam-ic" id="packCamTorch" style="visibility:hidden;" onclick="packCamTorch()" title="Đèn">🔦</button>
+  </div>
+  <div class="pack-cam-msg" id="packCamMsg"></div>
+  <div class="pack-cam-bottom">
+    <label class="pack-cam-plus" title="Lấy ảnh có sẵn trong thư viện">＋<input id="packCamFile" type="file" accept="image/*" multiple style="display:none;" onchange="packCamFromGallery(this)"></label>
+    <button class="pack-cam-shutter" id="packCamShutter" onclick="packCamShoot()" aria-label="Chụp"></button>
+    <button class="pack-cam-done" id="packCamDone" onclick="packCamClose()">Xong</button>
+  </div>
+</div>
 <div class="pack-flash-ov" id="packFlash"><div class="pack-flash-box"><div id="packFlashText"></div></div></div>
 <div class="pack-busy-bar" id="packBusyBar" style="display:none;">⏳ Đang lưu… đừng tắt màn hình</div>
 <!-- Đóng hàng: mở ra sau khi quét 1 phiếu -->
@@ -6449,6 +6492,65 @@ function packAskShareZalo(invId){
   document.getElementById('packShareModal').classList.add('show');
 }
 
+
+// ===================== CAMERA CHỤP ẢNH ĐƠN HÀNG (trong app) =====================
+// Bấm "📷 Chụp ảnh" → mở camera ngay trong app: nút tròn giữa để chụp (chụp liền nhiều tấm),
+// góc dưới trái có nút ＋ để lấy ảnh đã chụp từ trước trong thư viện máy. Không mở được camera → mở chọn ảnh của máy.
+let packCamStream = null, packCamTorchOn = false;
+async function packCamOpen(){
+  if(!packPanel) return;
+  const m = document.getElementById('packCamModal'), v = document.getElementById('packCamVideo'), msg = document.getElementById('packCamMsg');
+  msg.textContent = ''; m.classList.add('show'); packCamUpdate();
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = 'Máy không mở được camera trong app — bấm ＋ để chọn ảnh.'; return; }
+  try{
+    packCamStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false});
+    v.srcObject = packCamStream; try{ await v.play(); }catch(e){}
+    packCamTorchOn = false;
+    const tb = document.getElementById('packCamTorch');
+    try{ const tr = packCamStream.getVideoTracks()[0]; const caps = tr.getCapabilities ? tr.getCapabilities() : {}; tb.style.visibility = caps && caps.torch ? 'visible' : 'hidden'; tb.classList.remove('on'); }catch(e){ tb.style.visibility = 'hidden'; }
+  }catch(err){
+    msg.textContent = (err && err.name==='NotAllowedError') ? 'Chưa cho phép camera — bấm biểu tượng ổ khoá trên thanh địa chỉ để cho phép, hoặc bấm ＋ chọn ảnh.' : 'Không mở được camera — bấm ＋ để chọn ảnh có sẵn.';
+  }
+}
+function packCamStop(){
+  if(packCamStream){ packCamStream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); packCamStream = null; }
+  const v = document.getElementById('packCamVideo'); if(v) v.srcObject = null;
+}
+function packCamClose(){ packCamStop(); document.getElementById('packCamModal').classList.remove('show'); if(packPanel) renderPackPanel(); }
+function packCamUpdate(){
+  const n = (packPanel && packPanel.photos || []).length;
+  document.getElementById('packCamInfo').textContent = `${n}/${PACK_PHOTO_MAX} ảnh`;
+  const d = document.getElementById('packCamDone'); d.textContent = n ? `✓ Xong (${n})` : 'Xong'; d.classList.toggle('ready', n>0);
+  document.getElementById('packCamShutter').disabled = n >= PACK_PHOTO_MAX;
+}
+function packCamShoot(){
+  const v = document.getElementById('packCamVideo');
+  if(!packPanel || !packCamStream || !v.videoWidth){ showToast('Camera chưa sẵn sàng — bấm ＋ để chọn ảnh.'); return; }
+  if(packPanel.photos.length >= PACK_PHOTO_MAX) return;
+  const sc = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+  const w = Math.round(v.videoWidth*sc), h = Math.round(v.videoHeight*sc);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  cv.getContext('2d').drawImage(v, 0, 0, w, h);
+  let q = 0.72, data = cv.toDataURL('image/jpeg', q);
+  while(data.length > 330000 && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
+  packPanel.photos.push({data, at: Date.now()});
+  const f = document.getElementById('packCamShotFlash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  if(navigator.vibrate) navigator.vibrate(40);
+  packCamUpdate();
+  if(packPanel.photos.length >= PACK_PHOTO_MAX){ showToast(`Đủ ${PACK_PHOTO_MAX} ảnh`); setTimeout(packCamClose, 400); }
+}
+async function packCamFromGallery(input){
+  await packPhotoPicked(input); // nén + thêm ảnh như chọn ảnh thường
+  packCamClose();
+}
+function packCamTorch(){
+  try{
+    const tr = packCamStream && packCamStream.getVideoTracks()[0]; if(!tr) return;
+    packCamTorchOn = !packCamTorchOn;
+    tr.applyConstraints({advanced:[{torch: packCamTorchOn}]}).catch(()=>{ packCamTorchOn = false; });
+    document.getElementById('packCamTorch').classList.toggle('on', packCamTorchOn);
+  }catch(e){}
+}
 // ===================== THAO TÁC TRÊN ĐIỆN THOẠI: phản hồi rõ ràng =====================
 let packSaving = false;
 function packSetBusy(on){
@@ -6585,6 +6687,7 @@ function packPanelOpen(invId, viewOnly){
   if(!viewOnly) packClaimAutoForSale(invId); // Sale mở đơn để đóng → tự "nhận đơn" (kho không nhận trùng)
 }
 function packPanelClose(){
+  if(packCamStream || document.getElementById('packCamModal').classList.contains('show')){ packCamStop(); document.getElementById('packCamModal').classList.remove('show'); }
   // Sale đóng màn hình mà CHƯA đóng đơn → trả đơn về hàng chờ ngay (không bắt kho đợi 60 phút)
   if(packPanel && packSaleAutoClaimId===packPanel.invId){
     const st = packStatusMap()[packPanel.invId];
@@ -6698,7 +6801,7 @@ function renderPackPanel(){
     ? `<span class="pack-st-staff on">👤 ${escHtml(packStaffName(packPanel.staffId))}</span>`
     : `<button class="pack-st-staff ${packPanel.staffId ? 'on' : 'need'}" onclick="packPanel.pickStaff=!showPickerNow(); renderPackPanel()">${packPanel.staffId ? '👤 ' + escHtml(packStaffName(packPanel.staffId)) + ' ▾' : '👆 Chọn tên'}</button>`);
   const photoBtn = !canAct ? '' : (ph.length < PACK_PHOTO_MAX
-    ? `<label class="pack-st-photo ${ph.length ? 'on' : 'need'}" title="Chụp ảnh đơn hàng ${photoHint} — bắt buộc">📷 ${ph.length ? ph.length + ' ảnh' : 'Chụp ảnh'}<input type="file" accept="image/*" capture="environment" onchange="packPhotoPicked(this)" style="display:none;"></label>`
+    ? `<button class="pack-st-photo ${ph.length ? 'on' : 'need'}" title="Chụp ảnh đơn hàng ${photoHint} — bắt buộc" onclick="packCamOpen()">📷 ${ph.length ? ph.length + ' ảnh · chụp thêm' : 'Chụp ảnh'}</button>`
     : `<span class="pack-st-photo on">📷 ${ph.length} ảnh</span>`);
   let acts = '';
   if(canAct && short){
