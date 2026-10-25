@@ -201,6 +201,17 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-hist-chip.packed{ opacity:0.6; }
   .pack-hist-chip button{ border:none; background:transparent; color:#8DB4FF; font-size:11px; cursor:pointer; min-height:0 !important; padding:2px 4px; }
   .pack-hist-acts{ display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+  .inv-todo-bar{ border:1.5px solid rgba(240,166,58,0.55); background:rgba(240,166,58,0.08); border-radius:14px; padding:12px 14px; margin:0 0 14px; }
+  .inv-todo-title{ font-weight:800; font-size:15px; margin-bottom:8px; }
+  .inv-todo-title span{ color:#F0A63A; }
+  .inv-todo-chips{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .inv-todo-chip{ min-height:38px !important; padding:6px 14px !important; border-radius:999px; border:1.5px solid var(--line); background:rgba(255,255,255,0.05); color:var(--ink); font-size:13.5px; font-weight:700; cursor:pointer; }
+  .inv-todo-chip b{ margin-left:4px; font-size:15px; }
+  .inv-todo-chip.bad{ border-color:#E5484D; color:#FF8A8D; background:rgba(229,72,77,0.12); animation:packUrgPulse 1.6s ease-in-out infinite; }
+  .inv-todo-chip.ok{ border-color:#2EA05A; color:#6FD99A; }
+  .inv-todo-chip.warn{ border-color:#F0A63A; color:#F6C27A; }
+  .inv-todo-chip.info{ color:#A9C4FF; border-color:rgba(79,140,255,0.5); }
+  .inv-todo-all{ margin-left:auto; background:transparent !important; border:none !important; color:#8DB4FF; font-weight:800; cursor:pointer; min-height:0 !important; }
   .inv-chip.inv-zalo-nudge{ border-style:dashed; border-color:#F0A63A; color:#F0A63A; margin-left:auto; }
   .sb-pin-link{ display:inline-block; margin-top:8px; color:#8B96B4 !important; }
   @media (max-width:720px){
@@ -1469,6 +1480,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-sale-badge.ok{ color:var(--success); }
   .pack-sale-badge.warn{ color:#F0A63A; }
   .pack-sale-badge.printed{ color:#8DB4FF; }
+  .ship-quick{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .ship-quick button{ min-height:36px !important; padding:4px 12px !important; border-radius:999px; border:1.5px solid var(--line); background:transparent; color:var(--ink); font-size:13.5px; font-weight:700; cursor:pointer; }
+  .ship-quick button.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .pack-sale-badge.ship-ok{ color:#6FD99A; }
   .pack-badge.pack-urgent{ background:#E5484D; color:#fff; margin-right:4px; }
   .pack-urgent-banner{ font-size:15px !important; animation:packUrgPulse 1.4s ease-in-out infinite; }
@@ -1721,6 +1735,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <!-- ---------- Data của tôi (mọi vai trò) ---------- -->
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
+        <div id="myInvTodoBar" class="inv-todo-bar" style="display:none;"></div>
 
         <div class="chip-row" style="margin-bottom:16px;">
           <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
@@ -3020,6 +3035,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <h2 id="shipTitle">🚚 Lên vận đơn</h2>
     <div id="shipInfo" style="font-size:13.5px; margin-bottom:10px;"></div>
     <div class="field"><label>Hãng vận chuyển</label>
+      <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button></div>
       <input id="shipCarrier" list="shipCarrierList" placeholder="VD: GHTK, J&amp;T…" autocomplete="off">
       <datalist id="shipCarrierList"></datalist></div>
     <div class="field"><label>Mã vận đơn <span class="pack-note">(không bắt buộc — dán từ app hãng vận chuyển)</span></label>
@@ -6214,7 +6230,7 @@ async function packFetchInvoiceByNumber(code){
 // Kho bấm Đã đóng (đủ hoặc gửi thiếu) → máy Sale hiện POPUP + tiếng ting (gộp nhiều đơn).
 // Đơn vào "🚚 Chờ lên vận đơn" (trong Cần xử lý) tới khi Sale bấm "Đã lên vận đơn" (kèm hãng + mã vận đơn nếu có).
 // Lưu ở packStatus/{hoáĐơn}/ship = {at, by, byName, carrier, code}.
-const SHIP_CARRIERS = ['Khách lấy tại cửa hàng','GHTK','GHN','Viettel Post','J&T Express','SPX (Shopee Express)','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao'];
+const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','GHTK','GHN','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao']; // 3 hãng hay dùng nhất lên đầu
 const SHIP_LATE_HOURS = 4;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
@@ -6229,6 +6245,8 @@ function shipLineHtml(inv, ps){
   return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Đã lên vận đơn</button></div>`;
 }
 let shipInvId = null;
+function shipPick(v){ document.getElementById('shipCarrier').value = v; shipQuickMark(); const c = document.getElementById('shipCode'); if(c) c.focus(); }
+function shipQuickMark(){ const v = document.getElementById('shipCarrier').value; document.querySelectorAll('.ship-quick button').forEach(b=>{ b.classList.toggle('on', b.getAttribute('onclick').indexOf("'" + v + "'")>=0 || (v==='J&T Express' && b.textContent==='J&T')); }); }
 function shipFillCarriers(){ const dl = document.getElementById('shipCarrierList'); if(dl && !dl.children.length) dl.innerHTML = SHIP_CARRIERS.map(c=>`<option value="${escHtml(c)}">`).join(''); }
 function shipOpen(invId){
   shipFillCarriers();
@@ -6240,6 +6258,7 @@ function shipOpen(invId){
   document.getElementById('shipCarrier').value = (ps.ship && ps.ship.carrier) || (ps.wasUrgent ? 'Khách lấy tại cửa hàng' : last);
   document.getElementById('shipCode').value = (ps.ship && ps.ship.code) || '';
   document.getElementById('shipUndo').style.display = ps.ship ? '' : 'none';
+  shipQuickMark();
   document.getElementById('shipModal').classList.add('show');
   setTimeout(()=>document.getElementById('shipCode').focus(), 50);
 }
@@ -10424,7 +10443,30 @@ function switchMyLeadsTab(tab){
   document.getElementById('myLeadsSectionClosed').style.display = tab==='closed' ? 'block' : 'none';
   if(tab==='closed') renderMyClosedLeads();
 }
+// ===== Ô "Việc cần làm với hoá đơn" ngay trên trang Data của tôi (Sale hay để màn hình ở đây) =====
+// Bấm từng ô → sang trang Hoá đơn, lọc đúng nhóm cần xử lý.
+function renderMyInvTodoBar(){
+  const el = document.getElementById('myInvTodoBar'); const me = currentUser(); if(!el) return;
+  if(!me || !['staff','team_manager'].includes(me.role)){ el.style.display = 'none'; return; }
+  const maps = invFlowMaps(); const c = {pending:0, short:0, reprint:0, toship:0};
+  (state.invoices||[]).filter(inv=>inv && inv.saleId===me.id).forEach(inv=>{
+    const f = invSaleFlow(inv, maps);
+    if(f==='pending') c.pending++;
+    else if(f==='short' && !packHasReply(maps.ps[inv.id])) c.short++;
+    else if(f==='toship') c.toship++;
+    if(invNeedsReprint(inv, maps)) c.reprint++;
+  });
+  const total = c.pending + c.short + c.reprint + c.toship;
+  if(!total){ el.style.display = 'none'; return; }
+  const chip = (n, label, cls, f)=> n ? `<button class="inv-todo-chip ${cls}" onclick="goInvFilter('${f}')">${label} <b>${n}</b></button>` : '';
+  el.innerHTML = `<div class="inv-todo-title">🔔 Việc cần làm với hoá đơn <span>(${total})</span></div>
+    <div class="inv-todo-chips">${chip(c.short, '⚠ Kho báo thiếu — trả lời kho', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in — báo kho', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc — nhắc khách', 'info', 'pending')}
+      <button class="inv-todo-all" onclick="goInvFilter('todo')">Xem tất cả →</button></div>`;
+  el.style.display = '';
+}
+function goInvFilter(f){ goPage('invoices'); myInvFlowFilter = f; pagerPages.myInvoices = 1; renderInvoicesPage(); window.scrollTo(0,0); }
 function renderMyLeads(){
+  renderMyInvTodoBar();
   // SĐT nào đã có hoá đơn (của chính Sale này) → nút hoá đơn trước SĐT đổi sang màu xanh lá
   const invByPhone = {};
   { const me = currentUser();
