@@ -1271,6 +1271,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-me-week{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
   .pack-me-week b{ color:var(--ink); }
   .pack-period{ display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 8px; }
+  tr.pack-sale-sep td{ font-size:11.5px; color:var(--ink-soft); font-weight:700; padding-top:10px !important; border-top:1px dashed var(--line) !important; }
   tr.pack-total-row td{ font-weight:800; border-top:2px solid var(--line) !important; }
   .pack-switch{ font-size:12px; color:#8DB4FF !important; font-weight:700; margin-left:6px; }
   .pack-fab{ display:none; }
@@ -7529,19 +7530,20 @@ function renderPackStats(){
   const byStaff = {}; doneToday.forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff[k] = (byStaff[k]||0) + 1; });
   const d7 = Date.now() - 7*86400000;
   const byStaff7 = {}; all.filter(p=>p.state==='packed' && !p.legacy && Number(p.packedAt||p.at) >= d7).forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff7[k] = (byStaff7[k]||0) + 1; });
-  const miss = {}; all.forEach(p=>(p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
+  const [pa, pb] = packPeriodRange(packStatsPeriod);
+  const miss = {}; all.filter(p=>p && !p.legacy && Number(p.shortAt||0)>=pa && Number(p.shortAt||0)<pb).forEach(p=>(p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
   const missRows = Object.entries(miss).sort((a,b)=>b[1].times-a[1].times || b[1].qty-a[1].qty).slice(0, 15);
   const tot = packStaffTotals(packStatsPeriod);
-  const rows = Object.values(tot).sort((a,b)=>b.qty-a.qty || b.orders-a.orders);
+  const rows = Object.values(tot).sort((a,b)=>(a.bySale - b.bySale) || b.qty-a.qty || b.orders-a.orders); // Sale tự đóng xuống cuối
   const sumO = rows.reduce((a,r)=>a+r.orders,0), sumQ = rows.reduce((a,r)=>a+r.qty,0);
   box.innerHTML = `
     <div class="pack-stats-grid">
       <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
         <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
-        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th><th class="num">Báo thiếu</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escHtml(r.name)}${r.bySale ? ' <span class="pack-note">(Sale)</span>' : ''}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td></tr>`).join('')}
-          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
-        <div class="pack-note" style="margin-top:6px;">Không tính các đơn cũ đã đánh dấu "đã xử lý". Dữ liệu giữ ${INVOICE_KEEP_DAYS} ngày.</div></div>
-      <div><h4>Mẫu hay thiếu (các đơn trong ${INVOICE_KEEP_DAYS} ngày)</h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
+        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th><th class="num">Báo thiếu</th><th class="num">% thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="5">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
+          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td><td></td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
+        <div class="pack-note" style="margin-top:6px;">Đơn báo thiếu: người báo được tính số sp đã nhặt (tổng − thiếu), người bù được phần bù, gửi thiếu thì phần thiếu không tính. % thiếu trên 30% tô đỏ. Không tính đơn cũ "đã xử lý".</div></div>
+      <div><h4>Mẫu hay thiếu <span class="pack-note">(${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()})</span></h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
     </div>`;
 }
 
@@ -7561,22 +7563,37 @@ function packPeriodRange(per){
 }
 // {staffKey: {name, orders, qty, bySale}} cho khoảng thời gian (bỏ đơn cũ đánh dấu "đã xử lý")
 function packStaffTotals(per){
+  // Cách tính:
+  //  • Số đơn: người bấm ĐÓNG cuối cùng (đủ hàng / bù đủ / gửi thiếu).
+  //  • Số sp: đơn bình thường → người đóng được cả đơn.
+  //           đơn có báo thiếu → người BÁO được (tổng − số thiếu) lúc báo; người BÙ ĐỦ được phần bù (số thiếu);
+  //           GỬI THIẾU → phần thiếu không ai được tính (không gửi).
+  //  • % thiếu = số đơn bị báo thiếu ÷ số đơn đã đụng tới (đã đóng hoặc đã báo thiếu) của người đó.
   const [a, b] = packPeriodRange(per); const out = {};
+  const inR = t=>{ t = Number(t||0); return t>=a && t<b; };
+  const row = (sid, sname, bySale)=>{ const k = sid || ('n:' + (sname||'')); const r = out[k] || (out[k] = {name: sname || '(không rõ)', orders:0, qty:0, shorts:0, bySale:false, ids:new Set(), shortIds:new Set()}); if(bySale) r.bySale = true; if(sname && r.name==='(không rõ)') r.name = sname; return r; };
   (state.packStatus||[]).forEach(p=>{
-    if(!p || (p.state!=='packed' && p.state!=='partial') || p.legacy) return;
-    const t = Number(p.packedAt||p.at); if(!(t>=a && t<b)) return;
-    const k = p.staffId || ('n:' + (p.staffName||'')); const r = out[k] || (out[k] = {name: p.staffName || '(không rõ)', orders:0, qty:0, bySale:false});
-    r.orders++; r.qty += packQtyOf(p); if(p.bySale) r.bySale = true;
+    if(!p || p.legacy) return;
+    const total = packQtyOf(p);
+    const miss = (p.shortItems||[]).reduce((s2,x)=>s2 + (Number(x.missing)||0), 0);
+    const repId = p.shortStaffId || (p.state==='short' ? p.staffId : '');
+    const repName = p.shortStaffName || (p.state==='short' ? p.staffName : '');
+    const sentShort = !!(p.shortSent || p.state==='partial');
+    // phần người BÁO THIẾU đã nhặt được
+    if(p.shortAt && miss>0 && (repId || repName) && inR(p.shortAt)){
+      const r = row(repId, repName, false);
+      r.qty += Math.max(0, total - miss); r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
+    }
+    // phần người ĐÓNG
+    if((p.state==='packed' || p.state==='partial') && inR(p.packedAt||p.at)){
+      const r = row(p.staffId, p.staffName, p.bySale);
+      r.orders++; r.ids.add(p.id);
+      if(miss>0 && (repId || repName)) r.qty += sentShort ? 0 : miss;   // đã báo thiếu trước đó
+      else if(miss>0) r.qty += sentShort ? Math.max(0, total - miss) : total; // dữ liệu cũ không rõ người báo
+      else r.qty += total;
+    }
   });
-  // số lần BÁO THIẾU trong khoảng (theo người báo)
-  (state.packStatus||[]).forEach(p=>{
-    if(!p || p.legacy || !p.shortAt) return;
-    const t = Number(p.shortAt); if(!(t>=a && t<b)) return;
-    const sid = p.shortStaffId || (p.state==='short' ? p.staffId : ''); const sname = p.shortStaffName || (p.state==='short' ? p.staffName : '');
-    if(!sid && !sname) return;
-    const k = sid || ('n:' + sname); const r = out[k] || (out[k] = {name: sname || '(không rõ)', orders:0, qty:0, bySale:false});
-    r.shorts = (r.shorts||0) + 1;
-  });
+  Object.values(out).forEach(r=>{ r.shortRate = r.ids.size ? Math.round(r.shortIds.size*100/r.ids.size) : 0; });
   return out;
 }
 let packStatsPeriod = 'today';
