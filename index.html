@@ -1078,6 +1078,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-presence-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; font-size:14px; }
   .pack-presence-edit{ color:var(--accent); font-weight:700; white-space:nowrap; font-size:13px; }
   .pack-presence-warn{ border:1.5px solid #F0A63A !important; }
+  .pack-miss-tag{ display:inline-block; font-size:12px; font-weight:800; color:#fff; background:#E08A1E; border-radius:999px; padding:1px 8px; margin-right:4px; white-space:nowrap; }
   .pack-sale-tag{ display:inline-block; font-size:12px; font-weight:700; color:#C9B8FF; background:rgba(124,77,204,0.18); border-radius:999px; padding:1px 8px; margin:0 2px; white-space:nowrap; }
   .pack-row-go{ float:right; color:var(--accent); font-weight:700; font-size:13px; }
   .pack-p-sec.need{ border:1.5px dashed #F0A63A; }
@@ -6762,6 +6763,9 @@ function packFlowStatus(inv, pp, ps){
   if(!pp && packActiveClaimOf(inv.id)) return 'claimed'; // đang có người nhận làm bằng điện thoại → không cần in
   return packStatusOf(inv, pp);
 }
+// Tổng số sản phẩm còn cần bù của 1 đơn thiếu
+function packMissTotal(ps){ return ((ps && ps.shortItems) || []).reduce((a,x)=>a+(Number(x.missing)||0), 0); }
+function packMissTag(ps){ const n = packMissTotal(ps); return n ? `<span class="pack-miss-tag">Cần bù ${n} sp</span>` : ''; }
 function packShortText(items){
   return (items||[]).filter(x=>x && Number(x.missing)>0).map(x=>`${x.code}${x.design ? ' '+x.design : ''}${x.color ? ' '+x.color : ''}${x.size ? ' '+x.size : ''} thiếu ${x.missing}`).join(' · ');
 }
@@ -6777,7 +6781,7 @@ function packStatusBadgeInner(inv, pp, ps){
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
   if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Đã đóng · gửi thiếu</span><div class="pack-sub">đã trừ: ${escHtml(packShortText(ps.shortItems))}${ph}</div>${shipKhoLine(ps)}`;
   if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span><div class="pack-sub">${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</div>${shipKhoLine(ps)}`;
-  if(ps && ps.state==='short') return `<span class="pack-badge pack-changed">🟠 Chờ bù hàng</span><div class="pack-sub">${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, true)}`;
+  if(ps && ps.state==='short') return `<span class="pack-badge pack-changed">🟠 Chờ bù hàng</span> ${packMissTag(ps)}<div class="pack-sub">${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, true)}`;
   const stt = packStatusOf(inv, pp);
   if(stt==='new') return '<span class="pack-badge pack-new">Chưa in</span>';
   if(stt==='changed') return `<span class="pack-badge pack-changed">⚠ Đã sửa sau khi in</span><div class="pack-sub">in lúc ${packTimeStr(pp.at)}${pp.n>1 ? ` · lần ${pp.n}` : ''}</div>`;
@@ -6906,7 +6910,7 @@ function renderPackPanel(){
   else if(stale && !packMyClaimIs(inv.id)){ banner = `<div class="pack-banner bad">⚠ PHIẾU ĐÃ CŨ — Sale sửa hoá đơn sau khi in (in lúc ${packTimeStr(pp.at)}). Đưa Kho trưởng IN LẠI phiếu mới rồi mới đóng.${isBoss ? ` <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">🖨️ In lại ngay</button>` : ''}</div>`; canAct = false; }
   else if(ps && ps.state==='packed' && ps.legacy){ banner = '<div class="pack-banner ok">✅ Đơn cũ — đã đánh dấu ĐÃ XỬ LÝ (gửi trước khi áp dụng quy trình kho).</div>'; canAct = false; }
   else if(ps && ps.state==='packed' && !ps.shortSent){ banner = `<div class="pack-banner ok">✅ ĐƠN NÀY ĐÃ ĐÓNG lúc ${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} — không đóng lại lần nữa.</div>`; canAct = false; }
-  else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
+  else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG · <b>cần bù ${packMissTotal(ps)} sp</b> (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))){ canAct = false; banner = `<div class="pack-banner ok">✅ ĐÃ ĐÓNG · GỬI THIẾU lúc ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. Không gửi bù — <b>đã trừ: ${escHtml(packShortText(ps.shortItems))}</b>.</div>`; }
   else if(false){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
   if(packReadyShort(ps)) banner = `<div class="pack-banner ok">🔁 ĐƠN BÙ — Sale chọn <b>${escHtml(PACK_REPLY[ps.saleReply.choice]||'')}</b>${ps.saleReply.choice==='change' ? ': làm theo hoá đơn MỚI bên dưới (Sale đã sửa mẫu)' : ': đóng phần đang có, bấm 📦 Gửi thiếu'}.</div>` + banner;
@@ -7539,12 +7543,12 @@ function renderPackDeskPage(){
   const shortList = showAllShort ? shorts : myShorts;
   const st2 = document.getElementById('packDeskShortTitle');
   if(st2) st2.innerHTML = personal
-    ? `⚠ ${showAllShort ? 'Đơn thiếu cả kho' : 'Đơn thiếu của bạn'} <span class="pack-note">(${shortList.length})</span> <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllShort=!packDeskShowAllShort; renderPackDeskPage()">${showAllShort ? 'Chỉ của tôi' : 'Xem cả kho (' + shorts.length + ')'}</a>`
-    : `⚠ Chờ bù hàng <span class="pack-note">(${shorts.length})</span>`;
+    ? `⚠ ${showAllShort ? 'Đơn thiếu cả kho' : 'Đơn thiếu của bạn'} <span class="pack-note">(${shortList.length} đơn · cần bù ${shortList.reduce((a,p)=>a+packMissTotal(p),0)} sp)</span> <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllShort=!packDeskShowAllShort; renderPackDeskPage()">${showAllShort ? 'Chỉ của tôi' : 'Xem cả kho (' + shorts.length + ')'}</a>`
+    : `⚠ Chờ bù hàng <span class="pack-note">(${shorts.length} đơn · cần bù ${shorts.reduce((a,p)=>a+packMissTotal(p),0)} sp)</span>`;
   // Đơn thiếu bạn đã báo và đã được xử lý xong HÔM NAY (bù đủ / gửi thiếu)
   const myShortDone = personal && !showAllShort ? (state.packStatus||[]).filter(p=>p && p.shortStaffId===devMe && (p.state==='packed' || p.state==='partial') && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===todayStr()) : [];
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = (shortList.length ? shortList.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
+  if(sh) sh.innerHTML = (shortList.length ? shortList.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)} ${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
     + (myShortDone.length ? `<div class="pack-short-done"><div class="pack-note" style="margin:10px 0 4px;">Đã xử lý hôm nay (${myShortDone.length}):</div>${myShortDone.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${(p.shortSent || p.state==='partial') ? '📦 gửi thiếu' : '✅ đã bù đủ'} · ${packTimeStr(p.packedAt||p.at)}${p.staffName && p.staffId!==devMe ? ' · ' + escHtml(p.staffName) : ''}</span></div>`).join('')}</div>` : '');
   const dn = document.getElementById('packDeskDone');
   const showAllDone = !personal || packDeskShowAllDone;
@@ -7674,7 +7678,7 @@ function packSaleBadgeHtml(inv){
   if(ps.state==='partial' || (ps.state==='packed' && ps.shortSent)) return `<div class="pack-sale-badge warn">📦 Đã đóng · GỬI THIẾU ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)} — đã trừ: ${escHtml(packShortText(ps.shortItems))}. Báo khách &amp; sửa hoá đơn bỏ món thiếu.${ph}</div>${shipHtml}<div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='packed') return `<div class="pack-sale-badge ok" title="Đã đóng hàng">📦 ${ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn đã tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : 'Đã đóng'} ${packTimeStr(ps.packedAt||ps.at)}${ph}</div>${shipHtml}`;
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
-  if(ps.state==='short') return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu: ${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, false)}
+  if(ps.state==='short') return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu (cần bù ${packMissTotal(ps)} sp): ${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, false)}
     <div class="pack-sale-actions"><button class="btn-small ${packHasReply(ps) ? 'btn-ghost' : 'btn-primary'} pack-reply-open" onclick="event.stopPropagation(); packOpenReply('${inv.id}')">${packHasReply(ps) ? '✏️ Sửa trả lời' : '↩ Trả lời kho'}</button>${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   return '';
 }
