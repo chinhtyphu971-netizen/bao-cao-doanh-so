@@ -1284,6 +1284,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .rf-list{ display:flex; flex-direction:column; }
   .rf-row{ display:grid; grid-template-columns:minmax(64px, 30%) 1fr auto; gap:8px; align-items:center; padding:6px 2px; border-bottom:1px solid var(--line); }
   .rf-code{ font-weight:800; font-size:14px; line-height:1.25; word-break:break-word; }
+  .rf-code i.rf-phoi{ color:var(--ink-soft); font-weight:600; font-style:normal; }
   .rf-code i{ display:block; font-size:12px; font-weight:700; color:#C9A7FF; }
   .rf-vars{ display:flex; flex-wrap:wrap; gap:4px; }
   .rf-chip{ font-size:12px; background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; }
@@ -7763,6 +7764,11 @@ let packStatsPeriod = 'today';
 const PACK_PERIODS = [['today','Hôm nay'],['yesterday','Hôm qua'],['7d','7 ngày'],['month','Tháng này']];
 
 // Bấm số "Cần bù" → danh sách mã sản phẩm còn phải bù (gộp theo mã · mẫu · màu · size)
+function packIsPrintCode(code){
+  const c = String(code||'').trim().toUpperCase();
+  const pr = (state.products||[]).find(p=>p && String(p.code||'').trim().toUpperCase()===c);
+  return !!(pr && parseDesignOptions(pr.designs).length);
+}
 function packShowRefill(staffKey){
   const [a, b] = packPeriodRange(packStatsPeriod);
   const groups = {}; let total = 0; const orders = new Set(); let who = 'Cả kho';
@@ -7775,9 +7781,10 @@ function packShowRefill(staffKey){
     if(staffKey) who = sname || who;
     (p.shortItems||[]).forEach(x=>{
       const m = Number(x.missing)||0; if(!m) return;
-      // GỘP theo mã + mẫu in; các màu / size thành ô nhỏ trên cùng 1 dòng
-      const gk = (x.code||'') + '|' + (x.design||'');
-      const g = groups[gk] || (groups[gk] = {code:x.code, design:x.design||'', qty:0, vars:{}, nums:new Set()});
+      // GỘP theo mã (+ mẫu in). Mã IN HÌNH (A55, A57… có danh sách mẫu in): thường chỉ thiếu ÁO PHÔI → gộp theo MÀU, bỏ qua mẫu in
+      const isPrint = packIsPrintCode(x.code);
+      const gk = (x.code||'') + '|' + (isPrint ? '' : (x.design||''));
+      const g = groups[gk] || (groups[gk] = {code:x.code, design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}, nums:new Set()});
       const vk = [x.color, x.size].filter(Boolean).join(' ') || '—';
       g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m;
       if(p.invoiceNumber) g.nums.add(p.invoiceNumber); orders.add(p.id);
@@ -7788,7 +7795,7 @@ function packShowRefill(staffKey){
   document.getElementById('packPhotosBody').innerHTML = list.length
     ? `<div class="rf-sum"><span>${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
        <div class="rf-list" id="rfList">${list.map(g=>`<div class="rf-row">
-         <div class="rf-code">${escHtml(g.code)}${g.design ? `<i>${escHtml(g.design)}</i>` : ''}</div>
+         <div class="rf-code">${escHtml(g.code)}${g.design ? `<i>${escHtml(g.design)}</i>` : (g.isPrint ? '<i class="rf-phoi">áo phôi (mọi mẫu)</i>' : '')}</div>
          <div class="rf-vars">${Object.entries(g.vars).map(([v,q])=>`<span class="rf-chip">${escHtml(v)} <b>${q}</b></span>`).join('')}
            <div class="rf-nums">HĐ ${Array.from(g.nums).map(escHtml).join(', ')}</div></div>
          <div class="rf-total">${g.qty}</div></div>`).join('')}</div>`
