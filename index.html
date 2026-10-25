@@ -2193,7 +2193,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="packDeskPresence" style="display:none; margin-top:10px;"></div>
         </div>
         <div class="card">
-          <h3 class="pack-h3">⚠ Chờ bù hàng</h3>
+          <h3 class="pack-h3" id="packDeskShortTitle">⚠ Chờ bù hàng</h3>
           <div id="packDeskShort"></div>
         </div>
         <div class="card">
@@ -7251,6 +7251,7 @@ function packDoShort(){
   packNeedPhotos(()=>{
   const old = packStatusMap()[inv.id];
   const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: Date.now(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
+  rec.shortStaffId = rec.staffId; rec.shortStaffName = rec.staffName; // người BÁO thiếu (không đổi khi người khác xử lý tiếp)
   packPhotosWrite(inv.id, rec, 'short').then(()=>{
     packChatPost(inv.id, `⚠ Kho báo THIẾU HÀNG: ${packShortText(items)}${rec.note ? ' — ' + rec.note : ''}. Bạn hỏi khách rồi bấm "↩ Trả lời kho" nhé.`, inv.saleId);
     packBeep(true); packFlash(`📣 ĐÃ BÁO THIẾU<br><small>${escHtml(inv.invoiceNumber)} → Sale ${escHtml(inv.saleName || userName(inv.saleId))}</small>`, 'warn');
@@ -7347,10 +7348,22 @@ function renderPackDeskPage(){
   const st = document.getElementById('packDeskStats');
   if(st) st.innerHTML = !packInvoicesLoaded ? '<span class="pack-note">Đang tải hoá đơn…</span>'
     : (personal
-      ? (shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> đơn chờ bù hàng</span>` : '') + `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận</span>`
+      ? `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận</span>` + (shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length ? `<span class="pack-stat warn"><b>${shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length}</b> đơn thiếu của bạn</span>` : '')
       : `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận (chưa in)</span><span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
+  // Đơn thiếu: nhân viên cá nhân mặc định xem ĐƠN THIẾU CỦA MÌNH (đơn mình báo), bấm để xem cả kho
+  const shortBy = p=>p.shortStaffId || (p.state==='short' ? p.staffId : '');
+  const myShorts = personal ? shorts.filter(p=>shortBy(p)===devMe) : shorts;
+  const showAllShort = !personal || packDeskShowAllShort;
+  const shortList = showAllShort ? shorts : myShorts;
+  const st2 = document.getElementById('packDeskShortTitle');
+  if(st2) st2.innerHTML = personal
+    ? `⚠ ${showAllShort ? 'Đơn thiếu cả kho' : 'Đơn thiếu của bạn'} <span class="pack-note">(${shortList.length})</span> <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllShort=!packDeskShowAllShort; renderPackDeskPage()">${showAllShort ? 'Chỉ của tôi' : 'Xem cả kho (' + shorts.length + ')'}</a>`
+    : `⚠ Chờ bù hàng <span class="pack-note">(${shorts.length})</span>`;
+  // Đơn thiếu bạn đã báo và đã được xử lý xong HÔM NAY (bù đủ / gửi thiếu)
+  const myShortDone = personal && !showAllShort ? (state.packStatus||[]).filter(p=>p && p.shortStaffId===devMe && (p.state==='packed' || p.state==='partial') && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===todayStr()) : [];
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = shorts.length ? shorts.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div></div>`).join('') : '<div class="pack-note">Không có đơn nào chờ bù hàng 🎉</div>';
+  if(sh) sh.innerHTML = (shortList.length ? shortList.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">Mở ›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span><div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${escHtml(packShortText(p.shortItems))}</div>${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
+    + (myShortDone.length ? `<div class="pack-short-done"><div class="pack-note" style="margin:10px 0 4px;">Đã xử lý hôm nay (${myShortDone.length}):</div>${myShortDone.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${(p.shortSent || p.state==='partial') ? '📦 gửi thiếu' : '✅ đã bù đủ'} · ${packTimeStr(p.packedAt||p.at)}${p.staffName && p.staffId!==devMe ? ' · ' + escHtml(p.staffName) : ''}</span></div>`).join('')}</div>` : '');
   const dn = document.getElementById('packDeskDone');
   const showAllDone = !personal || packDeskShowAllDone;
   const doneList = showAllDone ? doneToday : doneToday.filter(p=>p.staffId===devMe);
@@ -7360,7 +7373,7 @@ function renderPackDeskPage(){
     : `✅ Đã đóng hôm nay <span class="pack-note">(${doneList.length})</span>`;
   if(dn) dn.innerHTML = doneList.length ? doneList.slice(0, packDeskDoneLimit).map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> <span class="pack-sub">${packTimeStr(p.packedAt||p.at)}${showAllDone ? ' · ' + escHtml(p.staffName||'') : ''}</span></div>`).join('') + (doneList.length>packDeskDoneLimit ? `<button class="btn-ghost btn-small" style="margin-top:8px;" onclick="packDeskDoneLimit+=30; renderPackDeskPage()">Xem thêm ${Math.min(30, doneList.length-packDeskDoneLimit)} đơn (còn ${doneList.length-packDeskDoneLimit})</button>` : '') : '<div class="pack-note">Chưa đóng đơn nào hôm nay — bấm 📷 Quét mã để bắt đầu.</div>';
 }
-let packDeskDoneLimit = 10, packDeskShowAllDone = false;
+let packDeskDoneLimit = 10, packDeskShowAllDone = false, packDeskShowAllShort = false;
 // ----- Thống kê cho Kho trưởng -----
 function renderPackStats(){
   const box = document.getElementById('packStatsBox'); if(!box) return;
@@ -7379,8 +7392,8 @@ function renderPackStats(){
     <div class="pack-stats-grid">
       <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
         <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
-        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escHtml(r.name)}${r.bySale ? ' <span class="pack-note">(Sale)</span>' : ''}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td></tr>`).join('')}
-          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
+        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th><th class="num">Báo thiếu</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escHtml(r.name)}${r.bySale ? ' <span class="pack-note">(Sale)</span>' : ''}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td></tr>`).join('')}
+          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
         <div class="pack-note" style="margin-top:6px;">Không tính các đơn cũ đã đánh dấu "đã xử lý". Dữ liệu giữ ${INVOICE_KEEP_DAYS} ngày.</div></div>
       <div><h4>Mẫu hay thiếu (các đơn trong ${INVOICE_KEEP_DAYS} ngày)</h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
     </div>`;
@@ -7408,6 +7421,15 @@ function packStaffTotals(per){
     const t = Number(p.packedAt||p.at); if(!(t>=a && t<b)) return;
     const k = p.staffId || ('n:' + (p.staffName||'')); const r = out[k] || (out[k] = {name: p.staffName || '(không rõ)', orders:0, qty:0, bySale:false});
     r.orders++; r.qty += packQtyOf(p); if(p.bySale) r.bySale = true;
+  });
+  // số lần BÁO THIẾU trong khoảng (theo người báo)
+  (state.packStatus||[]).forEach(p=>{
+    if(!p || p.legacy || !p.shortAt) return;
+    const t = Number(p.shortAt); if(!(t>=a && t<b)) return;
+    const sid = p.shortStaffId || (p.state==='short' ? p.staffId : ''); const sname = p.shortStaffName || (p.state==='short' ? p.staffName : '');
+    if(!sid && !sname) return;
+    const k = sid || ('n:' + sname); const r = out[k] || (out[k] = {name: sname || '(không rõ)', orders:0, qty:0, bySale:false});
+    r.shorts = (r.shorts||0) + 1;
   });
   return out;
 }
