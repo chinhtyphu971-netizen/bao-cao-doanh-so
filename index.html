@@ -6721,6 +6721,35 @@ function packScanTypeGo(){
   const el = document.getElementById('packScanTypeInput'); const v = (el.value||'').trim(); if(!v) return;
   el.value = ''; packScanStop(); packOpenInvoiceByCode(v);
 }
+
+// ----- Cập nhật đơn đang thiếu (bù dần từng phần) — KHÔNG bắt chụp ảnh -----
+// Giảm số thiếu ở dòng đã bù được → lưu. Người bù được ghi nhận số sp đã bù (refills) để tính thống kê.
+// Giữ nguyên lúc báo thiếu + câu trả lời của Sale. Bù hết (thiếu = 0) → bấm "Bù đủ · Đóng" (lúc này mới cần ảnh).
+function packSaveShortEdit(inv, old, items){
+  if(!items.length){
+    packPanel.mode = 'view'; renderPackPanel(); packBeep(true);
+    showToast('✅ Đã bù đủ hết — chụp ảnh rồi bấm "Bù đủ · Đóng" để hoàn tất.');
+    return;
+  }
+  const me = currentUser() || {};
+  const oldMap = {}; (old.shortItems||[]).forEach(x=>{ oldMap[x.key] = Number(x.missing)||0; });
+  const newMap = {}; items.forEach(x=>{ newMap[x.key] = Number(x.missing)||0; });
+  let refilled = 0, more = 0;
+  Object.keys(Object.assign({}, oldMap, newMap)).forEach(k=>{ const d = (oldMap[k]||0) - (newMap[k]||0); if(d>0) refilled += d; else more += -d; });
+  if(!refilled && !more && String(packPanel.note||'').trim()===String(old.note||'')){ packPanel.mode = 'view'; renderPackPanel(); showToast('Không có gì thay đổi.'); return; }
+  const now = Date.now();
+  const missOrig = (old.missOrig!=null ? Number(old.missOrig) : (old.shortItems||[]).reduce((a,x)=>a+(Number(x.missing)||0),0)) + more;
+  const rec = Object.assign({}, old, {shortItems: items, note: String(packPanel.note||'').trim(), at: now, missOrig});
+  if(!rec.shortItemsOrig) rec.shortItemsOrig = old.shortItems || items;
+  if(refilled) rec.refills = (old.refills||[]).concat([{at: now, by: packPanel.staffId || me.id || '', byName: packStaffName(packPanel.staffId) || me.name || '', qty: refilled}]);
+  packSetBusy(true);
+  fbPackStatus.child(inv.id).set(rec).then(()=>{
+    packSetBusy(false);
+    if(refilled) packChatPost(inv.id, `🔁 Kho đã bù thêm ${refilled} sp. Còn thiếu: ${packShortText(items)}`, inv.saleId);
+    packBeep(true); packFlash(`💾 ĐÃ CẬP NHẬT THIẾU<br><small>${refilled ? 'Bù thêm ' + refilled + ' sp · ' : ''}còn thiếu ${items.reduce((a,x)=>a+x.missing,0)}</small>`, 'warn');
+    packPanel.mode = 'view'; renderPackPanel();
+  }).catch(e=>{ packSetBusy(false); console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
+}
 // ===================== ĐÓNG HÀNG (Bàn đóng gói) =====================
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
 //   shortItems:[{code,design,color,size,qty,missing}], shortAt, shortBy, note, packedAt}
@@ -6939,24 +6968,26 @@ function renderPackPanel(){
   const ph = packPanel.photos || [];
   const kindNow = packPhotoKindNow(ps, short);
   const photoHint = kindNow==='short' ? 'lúc thiếu' : (kindNow==='refill' ? 'trước khi đóng' : 'lúc đủ hàng');
+  const photoOptional = short && ps && ps.state==='short'; // cập nhật bù dần: ảnh không bắt buộc
   const showPicker = canAct && !packPanel.lockedMe && (!packPanel.staffId || packPanel.pickStaff);
   const staffBtn = !canAct ? '' : (packPanel.lockedMe
     ? `<span class="pack-st-staff on">👤 ${escHtml(packStaffName(packPanel.staffId))}</span>`
     : `<button class="pack-st-staff ${packPanel.staffId ? 'on' : 'need'}" onclick="packPanel.pickStaff=!showPickerNow(); renderPackPanel()">${packPanel.staffId ? '👤 ' + escHtml(packStaffName(packPanel.staffId)) + ' ▾' : '👆 Chọn tên'}</button>`);
   const photoBtn = !canAct ? '' : (ph.length < PACK_PHOTO_MAX
-    ? `<button class="pack-st-photo ${ph.length ? 'on' : 'need'}" title="Chụp ảnh đơn hàng ${photoHint} — bắt buộc" onclick="packCamOpen()">📷 ${ph.length ? ph.length + ' ảnh · chụp thêm' : 'Chụp ảnh'}</button>`
+    ? `<button class="pack-st-photo ${ph.length ? 'on' : (photoOptional ? '' : 'need')}" title="Chụp ảnh đơn hàng ${photoHint}${photoOptional ? ' (không bắt buộc)' : ' — bắt buộc'}" onclick="packCamOpen()">📷 ${ph.length ? ph.length + ' ảnh · chụp thêm' : 'Chụp ảnh'}</button>`
     : `<span class="pack-st-photo on">📷 ${ph.length} ảnh</span>`);
   let acts = '';
   if(canAct && short){
-    acts = `<button class="pack-st-btn solid-orange" onclick="packDoShort()">📣 Gửi báo thiếu</button><button class="pack-st-btn ghost" onclick="packPanel.mode='view'; renderPackPanel()">Huỷ</button>`;
+    acts = `<button class="pack-st-btn solid-orange" onclick="packDoShort()">${ps && ps.state==='short' ? '💾 Lưu cập nhật thiếu' : '📣 Gửi báo thiếu'}</button><button class="pack-st-btn ghost" onclick="packPanel.mode='view'; renderPackPanel()">Huỷ</button>`;
   } else if(false){ // (không còn gửi bù)
     acts = `<button class="pack-st-btn green" onclick="packDoPacked()">✅ Đã gửi bù</button>`;
   } else if(canAct){
     const isShort = ps && ps.state==='short';
     const wantPartial = isShort && packHasReply(ps) && ps.saleReply.choice==='partial';
     const partialBtn = isShort ? `<button class="pack-st-btn blue ${wantPartial ? 'hl' : ''}" onclick="packDoPartial()">📦 Gửi thiếu</button>` : '';
+    // (đang thiếu) nút "Sửa thiếu" = cập nhật bù dần, không cần ảnh
     acts = (wantPartial ? partialBtn : '') + `<button class="pack-st-btn green" onclick="packDoPacked()">✅ ${isShort ? 'Bù đủ · Đóng' : 'Đã đóng'}</button>` + (wantPartial ? '' : partialBtn) +
-      `<button class="pack-st-btn orange" onclick="packStartShort()">⚠ ${isShort ? 'Sửa thiếu' : 'Thiếu'}</button>`;
+      `<button class="pack-st-btn orange" onclick="packStartShort()">${isShort ? '✏️ Bù dần / sửa thiếu' : '⚠ Thiếu'}</button>`;
   } else if(isBoss && !viewOnly && ps && ps.state==='packed'){
     acts = `<button class="pack-st-btn ghost" onclick="packUndoPacked('${inv.id}')">↩ Huỷ trạng thái Đã đóng</button>`;
   }
@@ -6975,7 +7006,9 @@ function renderPackPanel(){
   </div>`;
   body.innerHTML = `${sticky}
     ${banner}
-    ${short ? '<div class="pack-banner warn">Bấm <b>+</b> ở dòng bị thiếu (số cái thiếu), chụp ảnh rồi bấm "📣 Gửi báo thiếu".</div>' : ''}
+    ${short ? (ps && ps.state==='short'
+      ? '<div class="pack-banner warn">Bù được món nào thì bấm <b>−</b> giảm số thiếu ở dòng đó, rồi bấm <b>💾 Lưu cập nhật thiếu</b> (không cần ảnh, sửa được nhiều lần). Bù hết thì chụp ảnh và bấm <b>Bù đủ · Đóng</b>.</div>'
+      : '<div class="pack-banner warn">Bấm <b>+</b> ở dòng bị thiếu (số cái thiếu), chụp ảnh rồi bấm "📣 Gửi báo thiếu".</div>') : ''}
     <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th class="pack-l-col">Màu</th><th class="pack-l-col">Size</th><th class="num pack-l-col">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th class="pack-l-col"></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
     ${packSavedPhotosHtml(inv.id, ps)}
     ${(packZaloBtnHtml(inv.id) || packZaloShareBtnsHtml(inv.id)) ? `<div class="pack-p-msg">${packZaloShareBtnsHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>` : ''}`;
@@ -7393,11 +7426,14 @@ function packDoShort(){
   const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
   const items = packInvLines(inv).filter(l=>(packPanel.miss[l.key]||0) > 0)
     .map(l=>({key:l.key, code:l.code, design:l.design, color:l.color, size:l.size, qty:l.qty, missing: packPanel.miss[l.key]}));
+  const oldS = packStatusMap()[inv.id];
+  if(oldS && oldS.state==='short'){ packSaveShortEdit(inv, oldS, items); return; } // ĐANG thiếu → chỉ cập nhật (bù dần), không cần ảnh
   if(!items.length){ packBeep(false); showToast('Chưa chọn dòng nào thiếu — bấm + ở dòng bị thiếu.'); return; }
   packNeedPhotos(()=>{
   const old = packStatusMap()[inv.id];
   const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: Date.now(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
   rec.shortStaffId = rec.staffId; rec.shortStaffName = rec.staffName; // người BÁO thiếu (không đổi khi người khác xử lý tiếp)
+  rec.missOrig = items.reduce((a,x)=>a+(Number(x.missing)||0), 0); rec.shortItemsOrig = items; rec.refills = null; // số thiếu BAN ĐẦU (để tính sp đã nhặt)
   packPhotosWrite(inv.id, rec, 'short').then(()=>{
     packChatPost(inv.id, `⚠ Kho báo THIẾU HÀNG: ${packShortText(items)}${rec.note ? ' — ' + rec.note : ''}. Bạn hỏi khách rồi bấm "↩ Trả lời kho" nhé.`, inv.saleId);
     packBeep(true); packFlash(`📣 ĐÃ BÁO THIẾU<br><small>${escHtml(inv.invoiceNumber)} → Sale ${escHtml(inv.saleName || userName(inv.saleId))}</small>`, 'warn');
@@ -7530,7 +7566,7 @@ function renderPackStats(){
   const d7 = Date.now() - 7*86400000;
   const byStaff7 = {}; all.filter(p=>p.state==='packed' && !p.legacy && Number(p.packedAt||p.at) >= d7).forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff7[k] = (byStaff7[k]||0) + 1; });
   const [pa, pb] = packPeriodRange(packStatsPeriod);
-  const miss = {}; all.filter(p=>p && !p.legacy && Number(p.shortAt||0)>=pa && Number(p.shortAt||0)<pb).forEach(p=>(p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
+  const miss = {}; all.filter(p=>p && !p.legacy && Number(p.shortAt||0)>=pa && Number(p.shortAt||0)<pb).forEach(p=>(p.shortItemsOrig||p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
   const missRows = Object.entries(miss).sort((a,b)=>b[1].times-a[1].times || b[1].qty-a[1].qty).slice(0, 15);
   const tot = packStaffTotals(packStatsPeriod);
   const rows = Object.values(tot).sort((a,b)=>(a.bySale - b.bySale) || b.qty-a.qty || b.orders-a.orders); // Sale tự đóng xuống cuối
@@ -7574,24 +7610,27 @@ function packStaffTotals(per){
   (state.packStatus||[]).forEach(p=>{
     if(!p || p.legacy) return;
     const total = packQtyOf(p);
-    const miss = (p.shortItems||[]).reduce((s2,x)=>s2 + (Number(x.missing)||0), 0);
+    const miss = (p.shortItems||[]).reduce((s2,x)=>s2 + (Number(x.missing)||0), 0);       // số thiếu HIỆN TẠI (sau các lần bù dần)
+    const missOrig = p.missOrig!=null ? Number(p.missOrig) : miss;                          // số thiếu lúc báo
     const repId = p.shortStaffId || (p.state==='short' ? p.staffId : '');
     const repName = p.shortStaffName || (p.state==='short' ? p.staffName : '');
     const sentShort = !!(p.shortSent || p.state==='partial');
     // phần người BÁO THIẾU đã nhặt được
-    if(p.shortAt && miss>0 && (repId || repName) && inR(p.shortAt)){
+    if(p.shortAt && missOrig>0 && (repId || repName) && inR(p.shortAt)){
       const r = row(repId, repName, false);
-      const q = Math.max(0, total - miss); r.qty += q; r.qtyShort += q; r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
+      const q = Math.max(0, total - missOrig); r.qty += q; r.qtyShort += q; r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
     }
+    // phần BÙ DẦN (mỗi lần cập nhật thiếu)
+    (p.refills||[]).forEach(f=>{ if(f && Number(f.qty)>0 && inR(f.at)){ const r = row(f.by, f.byName, false); r.qty += Number(f.qty); r.qtyShort += Number(f.qty); r.ids.add(p.id); } });
     // phần người ĐÓNG
     if((p.state==='packed' || p.state==='partial') && inR(p.packedAt||p.at)){
       const r = row(p.staffId, p.staffName, p.bySale);
       r.orders++; r.ids.add(p.id);
       let q = 0;
-      if(miss>0 && (repId || repName)) q = sentShort ? 0 : miss;   // đã báo thiếu trước đó: người bù được phần bù
-      else if(miss>0) q = sentShort ? Math.max(0, total - miss) : total; // dữ liệu cũ không rõ người báo
+      if(missOrig>0 && (repId || repName)) q = sentShort ? 0 : miss;   // đã báo thiếu trước đó: người bù đủ được phần còn lại
+      else if(missOrig>0) q = sentShort ? Math.max(0, total - miss) : total; // dữ liệu cũ không rõ người báo
       else { r.qty += total; r.qtyFull += total; }                 // đơn đủ hàng
-      if(miss>0){ r.qty += q; r.qtyShort += q; }
+      if(missOrig>0){ r.qty += q; r.qtyShort += q; }
     }
   });
   Object.values(out).forEach(r=>{ r.shortRate = r.ids.size ? Math.round(r.shortIds.size*100/r.ids.size) : 0; });
