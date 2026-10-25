@@ -5919,7 +5919,9 @@ function packCurrentList(){
   const counts = {new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
   base.forEach(inv=>{ counts[packFlowStatus(inv, map[inv.id], smap[inv.id])]++; });
   const list = status==='all' ? base : base.filter(inv=>packFlowStatus(inv, map[inv.id], smap[inv.id])===status);
-  list.sort((a,b)=>sortDir==='desc' ? packDepositMs(b)-packDepositMs(a) : packDepositMs(a)-packDepositMs(b)); // mặc định cọc trước → in trước
+  const umapL = packUrgentMap();
+  list.sort((a,b)=>((umapL[b.id] ? 1 : 0) - (umapL[a.id] ? 1 : 0)) // 🏃 khách lấy trực tiếp LUÔN lên đầu
+    || (sortDir==='desc' ? packDepositMs(b)-packDepositMs(a) : packDepositMs(a)-packDepositMs(b))); // mặc định cọc trước → in trước
   return {list, counts, map, smap, status};
 }
 function renderPackInvoicesPage(){
