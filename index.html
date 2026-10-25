@@ -1318,6 +1318,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-flash-ov.ok .pack-flash-box{ background:#2EA05A; }
   .pack-flash-ov.warn .pack-flash-box{ background:#E08A1E; }
   @keyframes packFlashIn{ from{ transform:scale(0.85); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .app-update-bar{ position:fixed; left:50%; top:calc(10px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:130; width:max-content; max-width:94vw; background:#2EA05A; color:#fff; border-radius:999px; padding:10px 18px; font-size:14.5px; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; animation:packUrgPulse 1.6s ease-in-out infinite; }
   .pack-offline-bar{ position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:111; width:max-content; max-width:92vw; background:#7A2A2D; color:#fff; border:1px solid #E5484D; border-radius:12px; padding:8px 14px; font-size:13.5px; font-weight:700; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); text-align:center; }
   body.pack-offline .pack-st-btn.green, body.pack-offline .pack-st-btn.solid-orange, body.pack-offline .pack-st-btn.blue{ opacity:0.5; }
   .pack-busy-bar{ position:fixed; left:50%; top:calc(14px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:110; background:#1E2A44; color:#fff; border:1px solid var(--accent); border-radius:999px; padding:8px 16px; font-size:14px; font-weight:700; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); }
@@ -1556,7 +1557,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   <div id="trungThuPatternLayer"></div>
   <div id="trungThuFloatLayer"></div>
   <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Mở menu">☰</button>
-  <button class="hamburger-btn" id="refreshBtn" onclick="location.reload()" aria-label="Làm mới" style="left:auto; right:14px;">⟳</button>
+  <button class="hamburger-btn" id="refreshBtn" onclick="appHardReload()" aria-label="Làm mới" style="left:auto; right:14px;">⟳</button>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>  <div class="shell">
     <div class="sidebar collapsed-desktop">
       <div class="brand-title">Báo cáo doanh số</div>
@@ -2889,6 +2890,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <button class="pack-cam-done" id="packCamDone" onclick="packCamClose()">Xong</button>
   </div>
 </div>
+<div class="app-update-bar" id="appUpdateBar" style="display:none;" onclick="appHardReload()">🔄 Đã có bản cập nhật mới — <b>bấm để tải</b></div>
 <div class="pack-flash-ov" id="packFlash"><div class="pack-flash-box"><div id="packFlashText"></div></div></div>
 <div class="pack-offline-bar" id="packOfflineBar" style="display:none;">📴 Mất mạng — tick &amp; ảnh vẫn được giữ trên máy, có mạng lại sẽ lưu tiếp</div>
 <div class="pack-busy-bar" id="packBusyBar" style="display:none;">⏳ Đang lưu… đừng tắt màn hình</div>
@@ -6659,6 +6661,33 @@ function packCamTorch(){
     document.getElementById('packCamTorch').classList.toggle('on', packCamTorchOn);
   }catch(e){}
 }
+
+// ===================== CẬP NHẬT BẢN MỚI =====================
+// Điện thoại (nhất là mở bằng biểu tượng ngoài màn hình) hay giữ bản cũ trong bộ nhớ đệm.
+// - Nút ⟳ / thanh "Có bản mới" → tải lại kèm ?v=<thời gian> để BỎ QUA bộ nhớ đệm, luôn lấy bản mới nhất.
+// - App tự kiểm tra (gói nhỏ HEAD, không tải cả file) khi mở lại app và mỗi 10 phút: file trên máy chủ đổi → hiện thanh báo.
+//   Tick / ảnh đang làm dở đã lưu nháp trên máy nên tải lại không mất.
+function appHardReload(){
+  try{ const u = new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.toString()); }
+  catch(e){ location.reload(); }
+}
+(function(){ try{ const u = new URL(location.href); if(u.searchParams.has('v')){ u.searchParams.delete('v'); history.replaceState(null, '', u.pathname + u.search + u.hash); } }catch(e){} })();
+let appVerBase = null, appVerLastCheck = 0;
+async function appCheckUpdate(force){
+  if(location.protocol!=='http:' && location.protocol!=='https:') return;
+  if(!force && Date.now() - appVerLastCheck < 60000) return;
+  appVerLastCheck = Date.now();
+  try{
+    const r = await fetch(location.pathname + '?vc=' + Date.now(), {method:'HEAD', cache:'no-store'});
+    const tag = r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length') || '';
+    if(!tag) return;
+    if(appVerBase===null){ appVerBase = tag; return; }
+    if(tag!==appVerBase){ const b = document.getElementById('appUpdateBar'); if(b) b.style.display = 'flex'; }
+  }catch(e){}
+}
+setTimeout(()=>appCheckUpdate(true), 3000);
+setInterval(()=>appCheckUpdate(true), 10*60000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') appCheckUpdate(false); });
 // ===================== THAO TÁC TRÊN ĐIỆN THOẠI: phản hồi rõ ràng =====================
 let packSaving = false;
 function packSetBusy(on){
@@ -7426,14 +7455,14 @@ function renderPackDeskMe(){
   if(presCard) presCard.style.display = 'none'; // đã bỏ điểm danh
   if(me==='shared'){
     const u0 = currentUser();
-    box.innerHTML = `<div class="pack-me-line">🖥️ <b>${u0 && u0.role==='packer' ? escHtml(u0.name) : 'Máy chung'}</b> — sau mỗi lần quét chạm chọn tên người đóng${u0 && u0.role==='packer' ? '<a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a>' : ''}</div>`;
+    box.innerHTML = `<div class="pack-me-line">🖥️ <b>${u0 && u0.role==='packer' ? escHtml(u0.name) : 'Máy chung'}</b> — sau mỗi lần quét chạm chọn tên người đóng${u0 && u0.role==='packer' ? '<a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a><a href="#" class="pack-logout" onclick="event.preventDefault(); appHardReload()" title="Tải bản mới nhất">⟳</a>' : ''}</div>`;
     return;
   }
   const today = todayStr();
   const myT = packStaffTotals('today')[me] || {orders:0, qty:0};
   const my7 = packStaffTotals('7d')[me] || {orders:0, qty:0};
   const mine = myT.orders;
-  box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a></div>
+  box.innerHTML = `<div class="pack-me-line pack-me-personal"><div class="pack-me-hi">👋 Chào <b>${escHtml(packStaffName(me))}</b><a href="#" class="pack-logout" onclick="event.preventDefault(); confirmLogout()" title="Đăng xuất">⏻</a><a href="#" class="pack-logout" onclick="event.preventDefault(); appHardReload()" title="Tải bản mới nhất">⟳</a></div>
     <div class="pack-me-big"><b class="pack-me-count">${mine}</b><span>đơn</span><b class="pack-me-count qty">${myT.qty}</b><span>sản phẩm · hôm nay</span></div>
     <div class="pack-me-week">7 ngày: <b>${my7.orders}</b> đơn · <b>${my7.qty}</b> sản phẩm</div></div>`;
 }
