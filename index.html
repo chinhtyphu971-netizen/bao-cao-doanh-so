@@ -5855,7 +5855,7 @@ function cleanupPackPrints(){
   if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || Date.now()-Number(v[k].at||0) > 2*86400000) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
   // Dọn "nhận đơn" cũ: đơn đã xong / không còn / giữ quá 1 ngày
   const updC = {}; const smapC = packStatusMap();
-  (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && smapC[c.id].state!=='short') || Date.now()-Number(c.touchAt||c.at||0) > 86400000)) updC[c.id] = null; });
+  (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && smapC[c.id].state!=='short') || !packClaimActive(c))) updC[c.id] = null; });
   if(Object.keys(updC).length && fbPackClaims) fbPackClaims.update(updC).catch(()=>{});
 }
 function packItemsSummaryHtml(inv){
@@ -6334,10 +6334,12 @@ async function packClaimSpecific(invId){
 // ===================== NHẬN ĐƠN (song song với in phiếu) =====================
 // Nhân viên bấm "📥 Nhận đơn" → nhận 1 đơn CŨ NHẤT đã cọc, CHƯA in phiếu, chưa ai nhận, chưa đóng.
 // Đơn đã nhận → biến khỏi danh sách "Chưa in" của Kho trưởng (không in trùng). Đơn kho đã in phiếu → thuộc đường giấy, không vào hàng chờ nhận.
-// Mỗi người giữ 1 đơn: đóng xong / báo thiếu / trả đơn mới nhận tiếp. Bỏ dở quá 60 phút không thao tác → tự trả về hàng chờ.
+// Mỗi người giữ 1 đơn: đóng xong / báo thiếu / trả đơn mới nhận tiếp. Không tự thu hồi trong ngày; qua ngày mới tự trả.
 const PACK_CLAIM_TTL = 60*60000;
 function packClaimMap(){ const m = {}; (state.packClaims||[]).forEach(c=>{ if(c && c.id) m[c.id] = c; }); return m; }
-function packClaimActive(c){ return !!(c && (Date.now() - Number(c.touchAt||c.at||0)) < PACK_CLAIM_TTL); }
+// KHÔNG tự thu hồi theo thời gian (nghỉ trưa vẫn giữ đơn): đơn được giữ tới khi làm xong / tự trả đơn / Kho trưởng trả lại.
+// Chỉ hết hạn khi QUA NGÀY (đơn nhận hôm trước chưa xong → sáng nay tự về hàng chờ).
+function packClaimActive(c){ return !!(c && c.at && toLocalDateStr(new Date(Number(c.at)))===todayStr()); }
 function packActiveClaimOf(invId){ const c = packClaimMap()[invId]; return packClaimActive(c) ? c : null; }
 function packInvDone(invId){ const ps = packStatusMap()[invId]; return !!(ps && (ps.state==='packed' || ps.state==='partial' || ps.state==='short')); }
 function packClaimStillOpen(c){
