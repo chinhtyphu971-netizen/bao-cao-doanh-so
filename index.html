@@ -5853,10 +5853,10 @@ function cleanupPackPrints(){
   if(Object.keys(upd).length) fbPackPrints.update(upd).catch(()=>{});
   if(Object.keys(upd2).length && fbPackStatus) fbPackStatus.update(upd2).catch(()=>{});
   const smapC0 = packStatusMap();
-  if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || Date.now()-Number(v[k].at||0) > 2*86400000) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
+  if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || (Date.now()-Number(v[k].at||0) > 2*86400000 && !packActiveClaimOf(k))) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
   // Dọn "nhận đơn" cũ: đơn đã xong / không còn / giữ quá 1 ngày
   const updC = {}; const smapC = packStatusMap();
-  (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && smapC[c.id].state!=='short') || !packClaimActive(c))) updC[c.id] = null; });
+  (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && (smapC[c.id].state==='packed' || smapC[c.id].state==='partial')))) updC[c.id] = null; }); // chỉ dọn khi đơn đã xong / không còn
   if(Object.keys(updC).length && fbPackClaims) fbPackClaims.update(updC).catch(()=>{});
 }
 function packItemsSummaryHtml(inv){
@@ -6335,12 +6335,11 @@ async function packClaimSpecific(invId){
 // ===================== NHẬN ĐƠN (song song với in phiếu) =====================
 // Nhân viên bấm "📥 Nhận đơn" → nhận 1 đơn CŨ NHẤT đã cọc, CHƯA in phiếu, chưa ai nhận, chưa đóng.
 // Đơn đã nhận → biến khỏi danh sách "Chưa in" của Kho trưởng (không in trùng). Đơn kho đã in phiếu → thuộc đường giấy, không vào hàng chờ nhận.
-// Mỗi người giữ 1 đơn: đóng xong / báo thiếu / trả đơn mới nhận tiếp. Không tự thu hồi trong ngày; qua ngày mới tự trả.
+// Mỗi người giữ 1 đơn: đóng xong / báo thiếu / trả đơn mới nhận tiếp. Không tự thu hồi (kể cả sang ngày mới).
 const PACK_CLAIM_TTL = 60*60000;
 function packClaimMap(){ const m = {}; (state.packClaims||[]).forEach(c=>{ if(c && c.id) m[c.id] = c; }); return m; }
-// KHÔNG tự thu hồi theo thời gian (nghỉ trưa vẫn giữ đơn): đơn được giữ tới khi làm xong / tự trả đơn / Kho trưởng trả lại.
-// Chỉ hết hạn khi QUA NGÀY (đơn nhận hôm trước chưa xong → sáng nay tự về hàng chờ).
-function packClaimActive(c){ return !!(c && c.at && toLocalDateStr(new Date(Number(c.at)))===todayStr()); }
+// KHÔNG BAO GIỜ tự thu hồi (nghỉ trưa, sang ngày mới vẫn giữ): đơn được giữ tới khi làm xong / tự trả đơn / Kho trưởng trả lại.
+function packClaimActive(c){ return !!(c && c.at); }
 function packActiveClaimOf(invId){ const c = packClaimMap()[invId]; return packClaimActive(c) ? c : null; }
 function packInvDone(invId){ const ps = packStatusMap()[invId]; return !!(ps && (ps.state==='packed' || ps.state==='partial' || ps.state==='short')); }
 function packClaimStillOpen(c){
@@ -7535,13 +7534,13 @@ function renderPackStats(){
   const missRows = Object.entries(miss).sort((a,b)=>b[1].times-a[1].times || b[1].qty-a[1].qty).slice(0, 15);
   const tot = packStaffTotals(packStatsPeriod);
   const rows = Object.values(tot).sort((a,b)=>(a.bySale - b.bySale) || b.qty-a.qty || b.orders-a.orders); // Sale tự đóng xuống cuối
-  const sumO = rows.reduce((a,r)=>a+r.orders,0), sumQ = rows.reduce((a,r)=>a+r.qty,0);
+  const sumO = rows.reduce((a,r)=>a+r.orders,0), sumQ = rows.reduce((a,r)=>a+r.qty,0), sumQF = rows.reduce((a,r)=>a+(r.qtyFull||0),0), sumQS = rows.reduce((a,r)=>a+(r.qtyShort||0),0);
   box.innerHTML = `
     <div class="pack-stats-grid">
       <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
         <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
-        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num">Số sản phẩm</th><th class="num">Báo thiếu</th><th class="num">% thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="5">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
-          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td><td></td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
+        ${rows.length ? `<table class="pack-mini"><thead><tr><th>Người đóng</th><th class="num">Số đơn</th><th class="num" title="Sản phẩm của các đơn đủ hàng">SP đơn đủ</th><th class="num" title="Sản phẩm đã nhặt ở các đơn có báo thiếu (người báo: tổng − thiếu; người bù: phần bù)">SP đơn thiếu</th><th class="num">Tổng SP</th><th class="num">Báo thiếu</th><th class="num">% thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="7">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num">${r.qtyFull||0}</td><td class="num" style="color:${r.qtyShort ? '#F0A63A' : 'var(--ink-soft)'};">${r.qtyShort||0}</td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
+          <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQF}</td><td class="num">${sumQS}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td><td></td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
         <div class="pack-note" style="margin-top:6px;">Đơn báo thiếu: người báo được tính số sp đã nhặt (tổng − thiếu), người bù được phần bù, gửi thiếu thì phần thiếu không tính. % thiếu trên 30% tô đỏ. Không tính đơn cũ "đã xử lý".</div></div>
       <div><h4>Mẫu hay thiếu <span class="pack-note">(${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()})</span></h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
     </div>`;
@@ -7571,7 +7570,7 @@ function packStaffTotals(per){
   //  • % thiếu = số đơn bị báo thiếu ÷ số đơn đã đụng tới (đã đóng hoặc đã báo thiếu) của người đó.
   const [a, b] = packPeriodRange(per); const out = {};
   const inR = t=>{ t = Number(t||0); return t>=a && t<b; };
-  const row = (sid, sname, bySale)=>{ const k = sid || ('n:' + (sname||'')); const r = out[k] || (out[k] = {name: sname || '(không rõ)', orders:0, qty:0, shorts:0, bySale:false, ids:new Set(), shortIds:new Set()}); if(bySale) r.bySale = true; if(sname && r.name==='(không rõ)') r.name = sname; return r; };
+  const row = (sid, sname, bySale)=>{ const k = sid || ('n:' + (sname||'')); const r = out[k] || (out[k] = {name: sname || '(không rõ)', orders:0, qty:0, qtyFull:0, qtyShort:0, shorts:0, bySale:false, ids:new Set(), shortIds:new Set()}); if(bySale) r.bySale = true; if(sname && r.name==='(không rõ)') r.name = sname; return r; };
   (state.packStatus||[]).forEach(p=>{
     if(!p || p.legacy) return;
     const total = packQtyOf(p);
@@ -7582,15 +7581,17 @@ function packStaffTotals(per){
     // phần người BÁO THIẾU đã nhặt được
     if(p.shortAt && miss>0 && (repId || repName) && inR(p.shortAt)){
       const r = row(repId, repName, false);
-      r.qty += Math.max(0, total - miss); r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
+      const q = Math.max(0, total - miss); r.qty += q; r.qtyShort += q; r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
     }
     // phần người ĐÓNG
     if((p.state==='packed' || p.state==='partial') && inR(p.packedAt||p.at)){
       const r = row(p.staffId, p.staffName, p.bySale);
       r.orders++; r.ids.add(p.id);
-      if(miss>0 && (repId || repName)) r.qty += sentShort ? 0 : miss;   // đã báo thiếu trước đó
-      else if(miss>0) r.qty += sentShort ? Math.max(0, total - miss) : total; // dữ liệu cũ không rõ người báo
-      else r.qty += total;
+      let q = 0;
+      if(miss>0 && (repId || repName)) q = sentShort ? 0 : miss;   // đã báo thiếu trước đó: người bù được phần bù
+      else if(miss>0) q = sentShort ? Math.max(0, total - miss) : total; // dữ liệu cũ không rõ người báo
+      else { r.qty += total; r.qtyFull += total; }                 // đơn đủ hàng
+      if(miss>0){ r.qty += q; r.qtyShort += q; }
     }
   });
   Object.values(out).forEach(r=>{ r.shortRate = r.ids.size ? Math.round(r.shortIds.size*100/r.ids.size) : 0; });
