@@ -1273,6 +1273,20 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-me-week b{ color:var(--ink); }
   .pack-period{ display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 8px; }
   tr.pack-sale-sep td{ font-size:11.5px; color:var(--ink-soft); font-weight:700; padding-top:10px !important; border-top:1px dashed var(--line) !important; }
+  .rf-sum{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:-4px 0 8px; }
+  .rf-sum b{ color:#F0A63A; font-size:16px; }
+  .rf-toggle{ margin-left:auto; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:12.5px; }
+  .rf-toggle input{ width:auto !important; min-height:0 !important; }
+  .rf-list{ display:flex; flex-direction:column; }
+  .rf-row{ display:grid; grid-template-columns:minmax(64px, 30%) 1fr auto; gap:8px; align-items:center; padding:6px 2px; border-bottom:1px solid var(--line); }
+  .rf-code{ font-weight:800; font-size:14px; line-height:1.25; word-break:break-word; }
+  .rf-code i{ display:block; font-size:12px; font-weight:700; color:#C9A7FF; }
+  .rf-vars{ display:flex; flex-wrap:wrap; gap:4px; }
+  .rf-chip{ font-size:12px; background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; }
+  .rf-chip b{ color:#F0A63A; margin-left:2px; }
+  .rf-nums{ display:none; flex-basis:100%; font-size:11px; color:var(--ink-soft); }
+  .rf-list.show-nums .rf-nums{ display:block; }
+  .rf-total{ font-size:17px; font-weight:900; color:#F0A63A; min-width:30px; text-align:right; }
   .pack-refill-link{ color:#FF8A8D !important; text-decoration:underline dotted; font-weight:800; }
   .pack-refill-list{ display:flex; flex-direction:column; }
   .pack-refill-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); }
@@ -7663,18 +7677,23 @@ function packShowRefill(staffKey){
     if(staffKey) who = sname || who;
     (p.shortItems||[]).forEach(x=>{
       const m = Number(x.missing)||0; if(!m) return;
-      const gk = [x.code, x.design||'', x.color||'', x.size||''].join('|');
-      const g = groups[gk] || (groups[gk] = {code:x.code, design:x.design||'', color:x.color||'', size:x.size||'', qty:0, nums:[]});
-      g.qty += m; total += m; if(!g.nums.includes(p.invoiceNumber)) g.nums.push(p.invoiceNumber); orders.add(p.id);
+      // GỘP theo mã + mẫu in; các màu / size thành ô nhỏ trên cùng 1 dòng
+      const gk = (x.code||'') + '|' + (x.design||'');
+      const g = groups[gk] || (groups[gk] = {code:x.code, design:x.design||'', qty:0, vars:{}, nums:new Set()});
+      const vk = [x.color, x.size].filter(Boolean).join(' ') || '—';
+      g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m;
+      if(p.invoiceNumber) g.nums.add(p.invoiceNumber); orders.add(p.id);
     });
   });
-  const list = Object.values(groups).sort((x,y)=>String(x.code).localeCompare(String(y.code),'vi',{numeric:true}) || y.qty-x.qty);
+  const list = Object.values(groups).sort((x,y)=>String(x.code).localeCompare(String(y.code),'vi',{numeric:true}) || String(x.design).localeCompare(String(y.design),'vi'));
   document.getElementById('packPhotosTitle').textContent = `📋 Cần bù · ${who}`;
   document.getElementById('packPhotosBody').innerHTML = list.length
-    ? `<div class="pack-note" style="margin-bottom:8px;">${orders.size} đơn · <b style="color:#F0A63A;">${total} sp</b> cần bù (${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()})</div>
-       <div class="pack-refill-list">${list.map(g=>`<div class="pack-refill-row">
-         <div class="pack-refill-name">${codeWithMarkHtml(g.code)}${g.design ? ` <i class="iv-design">${escHtml(g.design)}</i>` : ''}<div class="pack-sub">${[g.color, g.size].filter(Boolean).map(escHtml).join(' · ') || '—'}${g.nums.filter(Boolean).length ? ' · đơn ' + g.nums.filter(Boolean).map(escHtml).join(', ') : ''}</div></div>
-         <div class="pack-refill-qty">×${g.qty}</div></div>`).join('')}</div>`
+    ? `<div class="rf-sum"><span>${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
+       <div class="rf-list" id="rfList">${list.map(g=>`<div class="rf-row">
+         <div class="rf-code">${escHtml(g.code)}${g.design ? `<i>${escHtml(g.design)}</i>` : ''}</div>
+         <div class="rf-vars">${Object.entries(g.vars).map(([v,q])=>`<span class="rf-chip">${escHtml(v)} <b>${q}</b></span>`).join('')}
+           <div class="rf-nums">HĐ ${Array.from(g.nums).map(escHtml).join(', ')}</div></div>
+         <div class="rf-total">${g.qty}</div></div>`).join('')}</div>`
     : '<div class="pack-note">Không còn sản phẩm nào cần bù 🎉</div>';
   document.getElementById('packPhotosModal').classList.add('show');
 }
