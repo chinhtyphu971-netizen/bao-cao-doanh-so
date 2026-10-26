@@ -201,7 +201,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-hist-chip.packed{ opacity:0.6; }
   .pack-hist-chip button{ border:none; background:transparent; color:#8DB4FF; font-size:11px; cursor:pointer; min-height:0 !important; padding:2px 4px; }
   .pack-hist-acts{ display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
-  .inv-todo-bar{ border:1.5px solid rgba(240,166,58,0.55); background:rgba(240,166,58,0.08); border-radius:14px; padding:12px 14px; margin:0 0 14px; }
+  .inv-todo-bar{ border:1.5px solid rgba(240,166,58,0.55); background:linear-gradient(rgba(240,166,58,0.08), rgba(240,166,58,0.08)), var(--panel); border-radius:14px; padding:12px 14px; margin:0; }
+  .my-right-col{ display:flex; flex-direction:column; gap:12px; min-width:0; }
+  .checkin-compact{ padding:14px 18px !important; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .checkin-compact h2{ margin:0 !important; font-size:16px; }
+  .checkin-compact #checkinStatus{ margin:0 !important; }
+  .checkin-compact #checkinStatus p, .checkin-compact #checkinStatus .muted{ margin:0; }
   .inv-todo-title{ font-weight:800; font-size:15px; margin-bottom:8px; }
   .inv-todo-title span{ color:#F0A63A; }
   .inv-todo-chips{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -1735,7 +1740,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <!-- ---------- Data của tôi (mọi vai trò) ---------- -->
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
-        <div id="myInvTodoBar" class="inv-todo-bar" style="display:none;"></div>
 
         <div class="chip-row" style="margin-bottom:16px;">
           <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
@@ -1748,10 +1752,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <div id="myRecallBanner" class="recall-banner" style="display:none;"></div>
             <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
 
-            <div class="card" id="checkinCard" style="margin-bottom:0;">
-              <h2>Điểm danh hôm nay</h2>
-              <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Điểm danh để Quản lý biết bạn đang đi làm hôm nay — Quản lý sẽ xác nhận cho bạn vào vòng xoay nhận data.</p>
-              <div id="checkinStatus" style="margin-top:10px;"></div>
+            <div class="my-right-col">
+              <div class="card checkin-compact" id="checkinCard" style="margin-bottom:0;">
+                <h2>Điểm danh hôm nay</h2>
+                <div id="checkinStatus"></div>
+              </div>
+              <div id="myInvTodoBar" class="inv-todo-bar" style="display:none;"></div>
             </div>
           </div>
 
