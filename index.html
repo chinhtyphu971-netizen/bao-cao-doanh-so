@@ -1494,6 +1494,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-urgent-banner{ font-size:15px !important; animation:packUrgPulse 1.4s ease-in-out infinite; }
   @keyframes packUrgPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(229,72,77,0.0); } 50%{ box-shadow:0 0 0 4px rgba(229,72,77,0.35); } }
   .pack-notice-item.urgent{ border-left-color:#E5484D; background:rgba(229,72,77,0.10); }
+  .urg-choices{ display:flex; flex-direction:column; gap:10px; margin:10px 0; }
+  .urg-choice{ display:grid; grid-template-columns:44px 1fr; grid-template-rows:auto auto; column-gap:10px; text-align:left; padding:12px 14px; border-radius:14px; border:1.5px solid rgba(229,72,77,0.5); background:rgba(229,72,77,0.08); color:var(--ink); cursor:pointer; min-height:0 !important; }
+  .urg-choice span{ grid-row:1 / 3; font-size:30px; align-self:center; }
+  .urg-choice b{ font-size:15.5px; }
+  .urg-choice small{ color:var(--ink-soft); font-size:12.5px; }
+  .urg-choice:hover{ border-color:#E5484D; background:rgba(229,72,77,0.16); }
   .inv-urgent-btn{ color:#FF8A8D !important; border-color:rgba(229,72,77,0.5) !important; }
   .inv-urgent-on{ background:#E5484D !important; color:#fff !important; border-color:#E5484D !important; }
   .inv-one-line{ display:flex !important; flex-wrap:wrap; align-items:center; gap:2px 6px; line-height:1.35; }
@@ -3024,10 +3030,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packReplyNoticeModal').classList.remove('show')">Để sau</button></div>
   </div>
 </div>
+<!-- Sale chọn loại ưu tiên -->
+<div class="modal-backdrop" id="packUrgChooseModal" onclick="if(event.target===this) this.classList.remove('show')">
+  <div class="modal" style="max-width:420px;">
+    <h2 id="packUrgChooseTitle">⚡ Ưu tiên nhặt ngay</h2>
+    <p class="pack-note">Kho sẽ nhặt &amp; đóng đơn này TRƯỚC mọi đơn khác. Chỉ dùng đúng 2 trường hợp:</p>
+    <div class="urg-choices" id="packUrgChooseBtns"></div>
+    <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packUrgChooseModal').classList.remove('show')">Huỷ</button></div>
+  </div>
+</div>
 <!-- Kho: khách đang chờ lấy trực tiếp -->
 <div class="modal-backdrop" id="packUrgentModal">
   <div class="modal" style="max-width:420px;">
-    <h2 style="color:#FF8A8D;">🏃 Khách đang chờ lấy hàng!</h2>
+    <h2 style="color:#FF8A8D;">⚡ Đơn cần nhặt ngay!</h2>
     <p class="pack-note">Nhặt &amp; đóng ngay các đơn sau:</p>
     <div id="packUrgentBody"></div>
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packUrgentModal').classList.remove('show')">Đã biết</button></div>
@@ -3047,7 +3062,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <h2 id="shipTitle">🚚 Lên vận đơn</h2>
     <div id="shipInfo" style="font-size:13.5px; margin-bottom:10px;"></div>
     <div class="field"><label>Hãng vận chuyển</label>
-      <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button></div>
+      <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button><button type="button" onclick="shipPick('Gửi xe khách')">Gửi xe</button></div>
       <input id="shipCarrier" list="shipCarrierList" placeholder="VD: GHTK, J&amp;T…" autocomplete="off">
       <datalist id="shipCarrierList"></datalist></div>
     <div class="field"><label>Mã vận đơn <span class="pack-note">(không bắt buộc — dán từ app hãng vận chuyển)</span></label>
@@ -5372,8 +5387,8 @@ function renderInvoicesPage(){
             ? `<button class="btn-primary btn-small" style="background:#7C4DCC;" title="Khách cũ — không cần cọc, bấm để đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">🤝 Chốt đơn</button>`
             : `<button class="btn-ghost btn-small inv-await-deposit" title="Khi khách chuyển cọc, bấm để xác nhận → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">⏳ Chờ cọc · Xác nhận</button>`)}
         ${(flow==='deposited' || flow==='printed') && inv.saleId===u.id ? (packIsUrgent(inv.id)
-          ? `<button class="btn-ghost btn-small inv-urgent-on" title="Bỏ đánh dấu" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">🏃 Khách chờ lấy ✕</button>`
-          : `<button class="btn-ghost btn-small inv-urgent-btn" title="Khách đang chờ lấy tại cửa hàng → kho nhặt ngay" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', true)">🏃 Khách lấy trực tiếp</button>`) : ''}
+          ? `<button class="btn-ghost btn-small inv-urgent-on" title="Bỏ ưu tiên" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">${packUrgentLabel(inv.id)} ✕</button>`
+          : `<button class="btn-ghost btn-small inv-urgent-btn" title="Khách lấy trực tiếp / hàng cần gửi xe → kho nhặt ngay" onclick="event.stopPropagation(); packUrgentChoose('${inv.id}')">⚡ Ưu tiên nhặt</button>`) : ''}
         ${(flow==='deposited' || flow==='printed' || flow==='short' || flow==='partial') && inv.saleId===u.id ? `<button class="btn-ghost btn-small inv-pack-btn" title="Tự nhặt & đóng đơn này" onclick="event.stopPropagation(); packPanelOpen('${inv.id}')">📦 Đóng</button>` : ''}
         ${locked
           ? `<button class="btn-ghost btn-small inv-locked-btn" title="Kho đã đóng hàng — không sửa được" onclick="editInvoiceDraft('${inv.id}')">🔒 Sửa</button>`
@@ -6242,7 +6257,7 @@ async function packFetchInvoiceByNumber(code){
 // Kho bấm Đã đóng (đủ hoặc gửi thiếu) → máy Sale hiện POPUP + tiếng ting (gộp nhiều đơn).
 // Đơn vào "🚚 Chờ lên vận đơn" (trong Cần xử lý) tới khi Sale bấm "Đã lên vận đơn" (kèm hãng + mã vận đơn nếu có).
 // Lưu ở packStatus/{hoáĐơn}/ship = {at, by, byName, carrier, code}.
-const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','GHTK','GHN','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao']; // 3 hãng hay dùng nhất lên đầu
+const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','Gửi xe khách','GHTK','GHN','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao']; // 3 hãng hay dùng nhất lên đầu
 const SHIP_LATE_HOURS = 4;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
@@ -6252,7 +6267,7 @@ function shipKhoLine(ps){
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">⏳ Sale chưa lên vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
 }
 // Tên hãng ngắn cho danh sách
-function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Post':'Viettel', 'J&T Express':'J&T', 'Khách lấy tại cửa hàng':'Lấy tại cửa hàng', 'Grab / Be giao':'Grab/Be'}; return m[c] || c || ''; }
+function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Post':'Viettel', 'J&T Express':'J&T', 'Khách lấy tại cửa hàng':'Lấy tại cửa hàng', 'Gửi xe khách':'Gửi xe', 'Grab / Be giao':'Grab/Be'}; return m[c] || c || ''; }
 // Giờ ngắn: "13:55" nếu hôm nay, "13:55 25/10" nếu ngày khác
 function packTimeShort(t){ const d = new Date(Number(t||0)); if(!t) return ''; const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); return toLocalDateStr(d)===todayStr() ? hm : hm + ' ' + d.getDate() + '/' + (d.getMonth()+1); }
 function shipLineHtml(inv, ps){
@@ -6271,7 +6286,7 @@ function shipOpen(invId){
   document.getElementById('shipTitle').textContent = `🚚 Lên vận đơn · HĐ ${inv.invoiceNumber}`;
   document.getElementById('shipInfo').innerHTML = `${escHtml(inv.customerName||'')} · còn phải thu <b>${fmtMoney(inv.finalAmount||0)} đ</b>${(ps.shortSent || ps.state==='partial') ? `<div class="pack-note" style="color:#F0A63A;">Đơn GỬI THIẾU — đã trừ: ${escHtml(packShortText(ps.shortItems))}. Nhớ sửa hoá đơn để thu đúng tiền.</div>` : ''}`;
   const last = (()=>{ try{ return localStorage.getItem('ship_last_carrier') || ''; }catch(e){ return ''; } })();
-  document.getElementById('shipCarrier').value = (ps.ship && ps.ship.carrier) || (ps.wasUrgent ? 'Khách lấy tại cửa hàng' : last);
+  document.getElementById('shipCarrier').value = (ps.ship && ps.ship.carrier) || (ps.wasUrgent ? PACK_URG[PACK_URG[ps.urgentKind] ? ps.urgentKind : 'pickup'].carrier : last);
   document.getElementById('shipCode').value = (ps.ship && ps.ship.code) || '';
   document.getElementById('shipUndo').style.display = ps.ship ? '' : 'none';
   shipQuickMark();
@@ -6345,21 +6360,34 @@ function packIsSale(u){ return !!(u && PACK_SALE_ROLES.includes(u.role)); }
 // CHỈ dùng cho khách đang chờ lấy tại cửa hàng. Sale bấm "🏃 Khách lấy trực tiếp" trên đơn đã cọc:
 //  → đơn LÊN ĐẦU hàng chờ "Nhận đơn" (kể cả đơn đã in phiếu), máy kho có popup + ting, màn hình nhặt có dải đỏ.
 //  → Kho trưởng bỏ đánh dấu được. Đóng xong tự bỏ đánh dấu. Lên vận đơn chọn "Khách lấy tại cửa hàng".
+// Loại ưu tiên: 'pickup' = khách lấy trực tiếp tại cửa hàng · 'bus' = hàng cần GỬI XE (kịp chuyến)
+const PACK_URG = {pickup:{icon:'🏃', short:'Khách chờ lấy', long:'KHÁCH ĐANG CHỜ LẤY TRỰC TIẾP', carrier:'Khách lấy tại cửa hàng'},
+                  bus:{icon:'🚌', short:'Gửi xe', long:'HÀNG CẦN GỬI XE — kịp chuyến', carrier:'Gửi xe khách'}};
+function packUrgKind(u){ return (u && PACK_URG[u.kind]) ? u.kind : 'pickup'; }
+function packUrgentLabel(invId, long){ const u = packUrgentMap()[invId]; const k = PACK_URG[packUrgKind(u)]; return k.icon + ' ' + (long ? k.long : k.short); }
 function packUrgentMap(){ const m = {}; (state.packUrgent||[]).forEach(u=>{ if(u && u.id) m[u.id] = u; }); return m; }
 function packIsUrgent(invId){ return !!packUrgentMap()[invId]; }
-function packSetUrgent(invId, on){
+function packUrgentChoose(invId){
+  const inv = packInvById(invId); if(!inv) return;
+  document.getElementById('packUrgChooseTitle').textContent = `⚡ Ưu tiên nhặt ngay · HĐ ${inv.invoiceNumber}`;
+  document.getElementById('packUrgChooseBtns').innerHTML =
+    `<button class="urg-choice" onclick="packSetUrgent('${invId}', true, 'pickup')"><span>🏃</span><b>Khách lấy trực tiếp</b><small>Khách đang chờ tại cửa hàng</small></button>
+     <button class="urg-choice" onclick="packSetUrgent('${invId}', true, 'bus')"><span>🚌</span><b>Hàng cần gửi xe</b><small>Đóng ngay cho kịp chuyến xe</small></button>`;
+  document.getElementById('packUrgChooseModal').classList.add('show');
+}
+function packSetUrgent(invId, on, kind){
   const inv = packInvById(invId); const me = currentUser() || {}; if(!inv || !fbPackUrgent) return;
   if(on){
-    askConfirm('Khách lấy trực tiếp?', `Đơn ${inv.invoiceNumber} sẽ được kho NHẶT NGAY, ưu tiên trước mọi đơn khác. Chỉ dùng khi khách đang chờ lấy tại cửa hàng.`, ()=>{
-      const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: Date.now()};
-      state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId).concat([rec]);
-      fbPackUrgent.child(invId).set(rec).then(()=>{ showToast('🏃 Đã báo kho nhặt ngay'); packChatPost(invId, `🏃 KHÁCH ĐANG CHỜ LẤY TRỰC TIẾP — nhặt đơn ${inv.invoiceNumber} ngay giúp mình nhé.`, null); }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
-      if(currentPageId==='invoices') renderInvoicesPage();
-    });
+    document.getElementById('packUrgChooseModal').classList.remove('show');
+    const k = PACK_URG[kind] ? kind : 'pickup'; const K = PACK_URG[k];
+    const rec = {id: invId, kind: k, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: Date.now()};
+    state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId).concat([rec]);
+    fbPackUrgent.child(invId).set(rec).then(()=>{ showToast(`${K.icon} Đã báo kho nhặt ngay`); packChatPost(invId, `${K.icon} ${K.long} — nhặt đơn ${inv.invoiceNumber} ngay giúp mình nhé.`, null); }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
+    if(currentPageId==='invoices') renderInvoicesPage();
   } else {
     state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId);
     fbPackUrgent.child(invId).remove().catch(()=>{});
-    showToast('Đã bỏ đánh dấu khách lấy trực tiếp');
+    showToast('Đã bỏ ưu tiên nhặt');
     if(currentPageId==='invoices') renderInvoicesPage(); else if(currentPageId==='packInvoices') renderPackInvoicesPage();
   }
 }
@@ -6377,7 +6405,7 @@ function packCheckUrgentNotices(){
   fresh.forEach(u=>{ packUrgentSeen[u.id] = u.at; }); try{ localStorage.setItem(key, JSON.stringify(packUrgentSeen)); }catch(e){}
   const body = document.getElementById('packUrgentBody');
   body.innerHTML = fresh.map(u=>{ const inv = packInvById(u.id) || {};
-    return `<div class="pack-notice-item urgent"><b>HĐ ${escHtml(u.invoiceNumber)}</b> · ${escHtml(inv.customerName||'')}<div class="pack-sub">Sale ${escHtml(u.byName||'')} · ${packTimeStr(u.at)} · ${packInvLines(inv).reduce((a,l)=>a+l.qty,0)} sản phẩm</div>
+    return `<div class="pack-notice-item urgent"><b>${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short}</b> · HĐ <b>${escHtml(u.invoiceNumber)}</b> · ${escHtml(inv.customerName||'')}<div class="pack-sub">Sale ${escHtml(u.byName||'')} · ${packTimeStr(u.at)} · ${packInvLines(inv).reduce((a,l)=>a+l.qty,0)} sản phẩm</div>
       <div class="pack-sale-actions"><button class="btn-small btn-primary" onclick="document.getElementById('packUrgentModal').classList.remove('show'); packClaimSpecific('${u.id}')">📥 Nhận đơn này</button></div></div>`; }).join('');
   document.getElementById('packUrgentModal').classList.add('show');
   try{ playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 700); }catch(e){}
@@ -6868,7 +6896,7 @@ function packSwapOpen(){
   document.getElementById('packPhotosTitle').textContent = '🔄 San hàng giữa đơn thiếu của bạn';
   document.getElementById('packPhotosBody').innerHTML = plans.length
     ? `<div class="pack-note" style="margin-bottom:8px;">Chuyển hàng theo gợi ý rồi bấm <b>Đã chuyển</b> — đơn nhận sẽ <b>đủ hàng</b>, đóng được ngay.</div>` + plans.map((pl, i)=>`<div class="swap-card">
-        <div class="swap-head">✅ Đơn <b>${escHtml(pl.toNum)}</b> ${packSaleTag(pl.toId)} sẽ <b>ĐỦ HÀNG</b>${pl.urgent ? ' <span class="pack-badge pack-urgent">🏃 Khách chờ lấy</span>' : ''}</div>
+        <div class="swap-head">✅ Đơn <b>${escHtml(pl.toNum)}</b> ${packSaleTag(pl.toId)} sẽ <b>ĐỦ HÀNG</b>${pl.urgent ? ` <span class="pack-badge pack-urgent">${packUrgentLabel(pl.toId)}</span>` : ''}</div>
         ${pl.moves.map(m=>`<div class="swap-move">↪ Lấy <b>${m.qty}</b> ${escHtml(m.line.code)}${m.line.design ? ' <i class="iv-design">' + escHtml(m.line.design) + '</i>' : ''} ${escHtml([m.line.color, m.line.size].filter(Boolean).join(' '))} từ túi đơn <b>${escHtml(m.fromNum)}</b></div>`).join('')}
         <div style="text-align:right; margin-top:6px;"><button class="btn-primary btn-small" onclick="packSwapApply(${i})">✔ Đã chuyển</button></div></div>`).join('')
     : '<div class="pack-note">Chưa san được đơn nào — các đơn thiếu của bạn đang thiếu những món giống nhau, hoặc không có đơn nào để lấy bớt hàng.</div>';
@@ -6924,7 +6952,7 @@ function packShortText(items){
 }
 function packStatusBadgeHtml(inv, pp, ps){
   const urg = packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'));
-  if(urg){ const me = currentUser() || {}; return `<span class="pack-badge pack-urgent">🏃 Khách chờ lấy</span>` + packStatusBadgeInner(inv, pp, ps) + (me.role==='warehouse' ? `<div class="pack-sub"><a href="#" class="pack-ph-link" onclick="event.preventDefault(); packSetUrgent('${inv.id}', false)">bỏ ưu tiên</a></div>` : ''); }
+  if(urg){ const me = currentUser() || {}; return `<span class="pack-badge pack-urgent">${packUrgentLabel(inv.id)}</span>` + packStatusBadgeInner(inv, pp, ps) + (me.role==='warehouse' ? `<div class="pack-sub"><a href="#" class="pack-ph-link" onclick="event.preventDefault(); packSetUrgent('${inv.id}', false)">bỏ ưu tiên</a></div>` : ''); }
   return packStatusBadgeInner(inv, pp, ps);
 }
 function packStatusBadgeInner(inv, pp, ps){
@@ -7068,7 +7096,7 @@ function renderPackPanel(){
   else if(false){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
   if(ps && ps.state==='short' && ps.swappedFull && !packMissTotal(ps)) banner = `<div class="pack-banner ok">✅ ĐÃ ĐỦ HÀNG sau khi san từ đơn khác — tick, chụp ảnh rồi bấm <b>Bù đủ · Đóng</b>.</div>` + banner;
   if(packReadyShort(ps)) banner = `<div class="pack-banner ok">🔁 ĐƠN BÙ — Sale chọn <b>${escHtml(PACK_REPLY[ps.saleReply.choice]||'')}</b>${ps.saleReply.choice==='change' ? ': làm theo hoá đơn MỚI bên dưới (Sale đã sửa mẫu)' : ': đóng phần đang có, bấm 📦 Gửi thiếu'}.</div>` + banner;
-  if(packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'))) banner = `<div class="pack-banner bad pack-urgent-banner">🏃 KHÁCH ĐANG CHỜ LẤY TRỰC TIẾP — nhặt &amp; đóng ngay</div>` + banner;
+  if(packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'))) banner = `<div class="pack-banner bad pack-urgent-banner">${packUrgentLabel(inv.id, true)} — nhặt &amp; đóng ngay</div>` + banner;
   // Đơn đang có NGƯỜI KHÁC nhận → không cho đóng trùng
   const claimO = packActiveClaimOf(inv.id);
   if(claimO && claimO.by!==me.id && !(ps && (ps.state==='packed' || ps.state==='partial'))){
@@ -7569,7 +7597,7 @@ function packDoPackedSave(){
   const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
   const old = packStatusMap()[inv.id];
   const kind = (old && (old.state==='short' || old.state==='partial')) ? 'refill' : 'packed';
-  const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: Date.now()}, packIsUrgent(inv.id) ? {wasUrgent: true} : {});
+  const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: Date.now()}, packIsUrgent(inv.id) ? {wasUrgent: true, urgentKind: packUrgKind(packUrgentMap()[inv.id])} : {});
   packPhotosWrite(inv.id, rec, kind).then(()=>{
     if(old && (old.state==='short' || old.state==='partial')) packChatPost(inv.id, old.state==='partial' ? '✅ Kho đã gửi bù phần còn nợ — đơn đã đủ.' : '✅ Kho đã bù đủ hàng và đóng đơn.', inv.saleId);
     packUrgentDone(inv.id);
