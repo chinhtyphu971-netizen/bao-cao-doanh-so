@@ -1290,6 +1290,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-me-week b{ color:var(--ink); }
   .pack-period{ display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 8px; }
   tr.pack-sale-sep td{ font-size:11.5px; color:var(--ink-soft); font-weight:700; padding-top:10px !important; border-top:1px dashed var(--line) !important; }
+  tr.pack-line-chg td{ background:rgba(240,194,58,0.16) !important; }
+  .pack-chg-tag{ display:inline-block; font-size:11px; font-weight:900; color:#111; background:#F0C23A; border-radius:6px; padding:0 6px; margin-left:4px; vertical-align:middle; }
+  .chg-add{ color:#6FD99A; font-size:13.5px; margin-top:3px; } .chg-mod{ color:#F6C27A; font-size:13.5px; margin-top:3px; } .chg-rem{ color:#FF8A8D; font-size:13.5px; margin-top:3px; }
+  .pack-edited-after{ font-size:12px; font-weight:700; color:#FF8A8D; margin-top:3px; }
   .swap-btn{ margin-left:6px; padding:3px 10px !important; font-size:12.5px !important; background:#2EA05A !important; border-color:#2EA05A !important; }
   .swap-card{ border:1.5px solid rgba(46,160,90,0.5); background:rgba(46,160,90,0.07); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
   .swap-head{ font-size:14px; margin-bottom:6px; }
@@ -3039,6 +3043,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packUrgChooseModal').classList.remove('show')">Huỷ</button></div>
   </div>
 </div>
+<!-- Kho: Sale vừa sửa đơn đang làm -->
+<div class="modal-backdrop" id="packChangeModal">
+  <div class="modal" style="max-width:420px;">
+    <h2>✏️ Sale vừa sửa đơn bạn đang làm</h2>
+    <div id="packChangeBody"></div>
+    <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packChangeModal').classList.remove('show')">Đã biết</button></div>
+  </div>
+</div>
 <!-- Kho: khách đang chờ lấy trực tiếp -->
 <div class="modal-backdrop" id="packUrgentModal">
   <div class="modal" style="max-width:420px;">
@@ -4468,19 +4480,24 @@ function refreshInvoiceEditor(){
 function startNewInvoiceDraftFromEditor(){
   autoSaveInvoiceThen(startNewInvoiceDraft);
 }
-function editInvoiceDraft(invoiceId, skipKhoCheck){
+function editInvoiceDraft(invoiceId, skipKhoCheck, skipHolder){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
+  if(!skipHolder){ // kho đang nhặt / đang thiếu → báo trước cho Sale biết
+    const meH = currentUser() || {}; const clH = packActiveClaimOf(inv.id); const psH = packStatusMap()[inv.id];
+    const who = (clH && clH.by!==meH.id) ? clH.byName : ((psH && psH.state==='short') ? (psH.shortStaffName || psH.staffName || 'Kho') : '');
+    if(who){ askConfirm('Kho đang làm đơn này', `${who} đang ${psH && psH.state==='short' ? 'xử lý đơn thiếu' : 'nhặt'} đơn ${inv.invoiceNumber}. Bạn sửa xong, app sẽ BÁO NGAY phần thay đổi cho ${who}. Tiếp tục sửa?`, ()=>editInvoiceDraft(invoiceId, skipKhoCheck, true)); return; }
+  }
   if(!skipKhoCheck){
     const ps = (state.packStatus||[]).find(x=>x && x.id===inv.id), pp = (state.packPrints||[]).find(x=>x && x.id===inv.id);
     if(ps && ps.state==='packed' && ps.legacy){ /* đơn cũ kho đánh dấu đã xử lý → sửa thoải mái, không hỏi */ }
     else if(ps && (ps.state==='packed' || ps.state==='partial')){
       if(!canEditPackedInvoice()){ showToast(`🔒 Kho đã ĐÓNG HÀNG đơn này (${packTimeStr(ps.packedAt||ps.at)}) — không sửa được nữa. Cần sửa thì nhờ Kho trưởng bấm "Huỷ trạng thái Đã đóng".`); return; }
-      askConfirm('Kho đã đóng hàng đơn này', `Kho đã đóng gói lúc ${packTimeStr(ps.packedAt||ps.at)}. Sửa bây giờ thì gói hàng sẽ KHÔNG khớp hoá đơn — nhớ báo kho. Vẫn sửa?`, ()=>editInvoiceDraft(invoiceId, true));
+      askConfirm('Kho đã đóng hàng đơn này', `Kho đã đóng gói lúc ${packTimeStr(ps.packedAt||ps.at)}. Sửa bây giờ thì gói hàng sẽ KHÔNG khớp hoá đơn — nhớ báo kho. Vẫn sửa?`, ()=>editInvoiceDraft(invoiceId, true, true));
       return;
     }
     else if(pp || (ps && ps.state==='short')){
-      askConfirm('Kho đã in phiếu đơn này', `Kho đã in phiếu đóng hàng${pp ? ' lúc ' + packTimeStr(pp.at) : ''}${ps && ps.state==='short' ? ' và đang chờ bù hàng' : ''}. Sửa xong kho phải IN LẠI phiếu mới mới đóng được — nhớ báo kho nhé. Tiếp tục sửa?`, ()=>editInvoiceDraft(invoiceId, true));
+      askConfirm('Kho đã in phiếu đơn này', `Kho đã in phiếu đóng hàng${pp ? ' lúc ' + packTimeStr(pp.at) : ''}${ps && ps.state==='short' ? ' và đang chờ bù hàng' : ''}. Sửa xong kho phải IN LẠI phiếu mới mới đóng được — nhớ báo kho nhé. Tiếp tục sửa?`, ()=>editInvoiceDraft(invoiceId, true, true));
       return;
     }
   }
@@ -4947,8 +4964,10 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
       fbUpdateLead(linkedLead.id, patch);
     }
   }
+  const prevInvForPack = state.invoices.find(x=>x.id===id);
   state.invoices = state.invoices.filter(x=>x.id!==id).concat([finalInvoice]);
   fbInvoices.child(id).set(finalInvoice);
+  try{ if(prevInvForPack) packOnInvoiceEdited(prevInvForPack, finalInvoice); }catch(e){ console.error(e); }
   syncInvoiceItems(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
   // Ở lại ngay trên hoá đơn vừa lưu (đã có Số HĐ) để chụp gửi khách / sửa tiếp — không đóng về danh sách
@@ -6687,9 +6706,10 @@ async function packDraftRestore(invId){
   let remote = null; try{ if(fbPackPicks){ const sn = await fbPackPicks.child(invId).once('value'); remote = sn.val(); } }catch(e){}
   if(!packPanel || packPanel.invId!==invId) return;
   let nPick = 0, nPhoto = 0, changed = false;
-  const mergePick = src=>{ Object.keys(src||{}).forEach(k=>{ const v = Number(src[k])||0; if(v > (packPanel.picked[k]||0)){ packPanel.picked[k] = v; changed = true; } }); };
+  const invR = packInvById(invId);
+  const mergePick = src=>{ src = packMigrateKeys(invR, src); Object.keys(src||{}).forEach(k=>{ const v = Number(src[k])||0; if(v > (packPanel.picked[k]||0)){ packPanel.picked[k] = v; changed = true; } }); };
   if(d){ mergePick(d.picked); if((!packPanel.photos || !packPanel.photos.length) && d.photos && d.photos.length){ packPanel.photos = d.photos; nPhoto = d.photos.length; changed = true; }
-    if(d.mode==='short' && (!st || st.state!=='short' || Number(d.at) > Number(st.shortAt||0))){ packPanel.mode = 'short'; packPanel.miss = d.miss||{}; packPanel.note = d.note||''; changed = true; }
+    if(d.mode==='short' && (!st || st.state!=='short' || Number(d.at) > Number(st.shortAt||0))){ packPanel.mode = 'short'; packPanel.miss = packMigrateKeys(invR, d.miss||{}); packPanel.note = d.note||''; changed = true; }
     if(!packPanel.staffId && d.staffId) packPanel.staffId = d.staffId; }
   if(remote && remote.picked) mergePick(remote.picked);
   nPick = Object.values(packPanel.picked||{}).reduce((a,v)=>a+(Number(v)||0),0);
@@ -6843,6 +6863,75 @@ function packSaveShortEdit(inv, old, items){
   }).catch(e=>{ packSetBusy(false); console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
 }
 
+
+// ===================== SALE SỬA ĐƠN KHI KHO ĐANG NHẶT / ĐANG THIẾU / ĐÃ ĐÓNG =====================
+// Mỗi máy kho lưu "bản gốc" các dòng hàng (theo mã khoá) lúc bắt đầu làm đơn (nhận đơn / mở đơn / báo thiếu).
+// Hoá đơn đổi → so với bản gốc: popup + ting cho người đang làm, và tô vàng dòng mới / đổi số lượng trong màn hình nhặt.
+function packLinesSnap(inv){ const m = {}; packInvLines(inv).forEach(l=>{ m[l.key] = [l.qty, [l.code, l.design, l.color, l.size].filter(Boolean).join(' ')]; }); return m; }
+function packSnapKey(invId){ return 'pack_snap_' + invId; }
+function packSnapGet(invId){ try{ return JSON.parse(localStorage.getItem(packSnapKey(invId)) || 'null'); }catch(e){ return null; } }
+function packSnapSet(inv){ try{ localStorage.setItem(packSnapKey(inv.id), JSON.stringify({sig: packSig(inv), lines: packLinesSnap(inv), notified: packSig(inv)})); }catch(e){} }
+function packSnapEnsure(inv){ if(inv && !packSnapGet(inv.id)) packSnapSet(inv); }
+function packSnapClear(invId){ try{ localStorage.removeItem(packSnapKey(invId)); }catch(e){} }
+function packLinesDiff(oldL, newL){
+  const add = [], rem = [], chg = [];
+  Object.keys(newL||{}).forEach(k=>{ const n = newL[k]; const o = (oldL||{})[k]; if(!o) add.push({key:k, label:n[1], qty:n[0]}); else if(o[0]!==n[0]) chg.push({key:k, label:n[1], from:o[0], to:n[0]}); });
+  Object.keys(oldL||{}).forEach(k=>{ if(!(newL||{})[k]) rem.push({key:k, label:oldL[k][1], qty:oldL[k][0]}); });
+  return {add, rem, chg, any: add.length + rem.length + chg.length > 0};
+}
+function packDiffText(d){
+  const p = [];
+  d.add.forEach(x=>p.push(`thêm ${x.qty} ${x.label}`));
+  d.chg.forEach(x=>p.push(`${x.label}: ${x.from} → ${x.to}`));
+  d.rem.forEach(x=>p.push(`bỏ ${x.qty} ${x.label}`));
+  return p.join('; ');
+}
+// Các đơn "của tôi đang làm" trên máy này: đang nhận, hoặc tôi báo thiếu (chưa xong)
+function packMyWorkingIds(){
+  const me = currentUser(); if(!me) return [];
+  const ids = new Set();
+  (state.packClaims||[]).forEach(c=>{ if(c && c.by===me.id && packClaimActive(c)) ids.add(c.id); });
+  (state.packStatus||[]).forEach(p=>{ if(p && p.state==='short' && (p.shortStaffId || p.staffId)===me.id) ids.add(p.id); });
+  return Array.from(ids);
+}
+function packCheckChangeNotices(){
+  const me = currentUser(); if(!me || !['warehouse','packer'].includes(me.role)) return;
+  const fresh = [];
+  packMyWorkingIds().forEach(id=>{
+    const inv = packInvById(id); if(!inv) return;
+    const sn = packSnapGet(id); if(!sn){ packSnapSet(inv); return; }
+    const sig = packSig(inv); if(sig===sn.sig || sig===sn.notified) return;
+    const d = packLinesDiff(sn.lines, packLinesSnap(inv));
+    sn.notified = sig; try{ localStorage.setItem(packSnapKey(id), JSON.stringify(sn)); }catch(e){}
+    if(d.any) fresh.push({id, inv, d});
+  });
+  if(!fresh.length) return;
+  document.getElementById('packChangeBody').innerHTML = fresh.map(f=>`<div class="pack-notice-item"><b>HĐ ${escHtml(f.inv.invoiceNumber)}</b> ${packSaleTag(f.id)}
+      ${f.d.add.map(x=>`<div class="chg-add">➕ Thêm <b>${x.qty}</b> ${escHtml(x.label)}</div>`).join('')}
+      ${f.d.chg.map(x=>`<div class="chg-mod">✏️ ${escHtml(x.label)}: <b>${x.from} → ${x.to}</b></div>`).join('')}
+      ${f.d.rem.map(x=>`<div class="chg-rem">➖ Bỏ <b>${x.qty}</b> ${escHtml(x.label)}</div>`).join('')}
+      <div class="pack-sale-actions"><button class="btn-small btn-primary" onclick="document.getElementById('packChangeModal').classList.remove('show'); packPanelOpen('${f.id}')">Mở đơn xem</button></div></div>`).join('');
+  document.getElementById('packChangeModal').classList.add('show');
+  try{ playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 600); }catch(e){}
+  if(navigator.vibrate) navigator.vibrate([200,100,200]);
+}
+function packSnapAccept(invId){ const inv = packInvById(invId); if(inv) packSnapSet(inv); renderPackPanel(); showToast('Đã ghi nhận thay đổi'); }
+// Sale lưu hoá đơn đã sửa → báo người đang nhặt / đang thiếu / đã đóng
+function packOnInvoiceEdited(prev, inv){
+  if(!prev || !inv || !fbRoot) return;
+  const d = packLinesDiff(packLinesSnap(prev), packLinesSnap(inv)); if(!d.any) return;
+  const me = currentUser() || {}; const txt = packDiffText(d);
+  const ps = packStatusMap()[inv.id]; const cl = packActiveClaimOf(inv.id);
+  if(ps && (ps.state==='packed' || ps.state==='partial') && !ps.legacy){
+    // ĐÃ ĐÓNG mà Sale sửa → gắn nhãn cho kho kiểm tra lại gói hàng
+    fbPackStatus.child(inv.id).child('editedAfterPack').set({at: Date.now(), by: me.id||'', byName: me.name||'', text: txt}).catch(()=>{});
+    packChatPost(inv.id, `⚠ Sale sửa đơn ${inv.invoiceNumber} SAU KHI KHO ĐÃ ĐÓNG: ${txt}. Kho kiểm tra lại gói hàng giúp mình.`, ps.byUser || null);
+    return;
+  }
+  const holder = (cl && cl.by!==me.id) ? cl.by : ((ps && ps.state==='short') ? (ps.shortStaffId || ps.byUser) : null);
+  if(holder || (ps && ps.state==='short')) packChatPost(inv.id, `✏️ Sale vừa sửa đơn ${inv.invoiceNumber}: ${txt}. Kiểm tra lại các dòng tô vàng khi nhặt.`, holder || null);
+}
+function packEditedAfterPackClear(invId){ fbPackStatus.child(invId).child('editedAfterPack').remove().then(()=>{ showToast('Đã đánh dấu kiểm tra xong'); if(currentPageId==='packInvoices') renderPackInvoicesPage(); }).catch(()=>{}); }
 // ===================== SAN HÀNG GIỮA CÁC ĐƠN THIẾU (theo từng người) =====================
 // Chỉ xét các đơn thiếu DO CHÍNH NGƯỜI ĐÓ BÁO (hàng đang ở rổ / túi của người đó).
 // Lần lượt theo ưu tiên (khách chờ lấy → Sale chọn đổi mẫu → cọc sớm nhất), thử lấy hàng ĐÃ NHẶT của các đơn ưu tiên thấp hơn
@@ -6856,7 +6945,7 @@ function packSwapPlan(staffId){
     .filter(p=>{ const c = packActiveClaimOf(p.id); return !c || c.by===staffId || c.by===me.id; });
   const info = orders.map(p=>{
     const inv = packInvById(p.id); const lines = packInvLines(inv);
-    const missByKey = {}; (p.shortItems||[]).forEach(x=>{ missByKey[x.key] = Number(x.missing)||0; });
+    const missByKey = {}; packFixShortKeys(p.shortItems).forEach(x=>{ missByKey[x.key] = Number(x.missing)||0; });
     const picked = {}, need = {}, lineBySku = {};
     lines.forEach(l=>{ const sku = packSku(l); const m = Math.min(l.qty, missByKey[l.key]||0); lineBySku[sku] = l;
       if(l.qty - m > 0) picked[sku] = (picked[sku]||0) + (l.qty - m);
@@ -6936,7 +7025,7 @@ function packSwapApply(i){
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
 //   shortItems:[{code,design,color,size,qty,missing}], shortAt, shortBy, note, packedAt}
 // shortItems được GIỮ LẠI sau khi bù đủ (để thống kê mẫu hay thiếu).
-function packStatusMap(){ const m = Object.assign({}, packExtraPS); (state.packStatus||[]).forEach(p=>{ if(p && p.id) m[p.id] = p; }); return m; }
+function packStatusMap(){ const m = Object.assign({}, packExtraPS); (state.packStatus||[]).forEach(p=>{ if(p && p.id) m[p.id] = (p.shortItems && p.shortItems.some(x=>x && x.key && /^\d+-\d+$/.test(x.key))) ? Object.assign({}, p, {shortItems: packFixShortKeys(p.shortItems)}) : p; }); return m; }
 function packFlowStatus(inv, pp, ps){
   if(ps && ps.state==='packed') return 'packed';
   if(ps && ps.state==='partial') return 'packed'; // bản ghi "gửi 1 phần" cũ: coi như đã xong (không gửi bù)
@@ -6956,6 +7045,11 @@ function packStatusBadgeHtml(inv, pp, ps){
   return packStatusBadgeInner(inv, pp, ps);
 }
 function packStatusBadgeInner(inv, pp, ps){
+  if(ps && ps.editedAfterPack && (ps.state==='packed' || ps.state==='partial')){ const me = currentUser() || {};
+    return packStatusBadgeInner2(inv, pp, ps) + `<div class="pack-edited-after">⚠ Sale sửa sau khi đóng (${packTimeStr(ps.editedAfterPack.at)}): ${escHtml(ps.editedAfterPack.text||'')}${me.role==='warehouse' ? ` <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packEditedAfterPackClear('${inv.id}')">✓ Đã kiểm tra</a>` : ''}</div>`; }
+  return packStatusBadgeInner2(inv, pp, ps);
+}
+function packStatusBadgeInner2(inv, pp, ps){
   const cl = (!pp && !(ps && ps.state)) ? packActiveClaimOf(inv.id) : null;
   if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${me.role==='warehouse' ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packClaimRelease('${inv.id}'); renderPackInvoicesPage()">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
@@ -7041,6 +7135,7 @@ function packPanelOpen(invId, viewOnly){
   document.getElementById('packPanelModal').classList.add('show');
   if(!viewOnly) packClaimAutoForSale(invId); // Sale mở đơn để đóng → tự "nhận đơn" (kho không nhận trùng)
   if(!viewOnly) packDraftRestore(invId);       // khôi phục tick / ảnh đang làm dở (mất mạng, tắt app…)
+  if(!viewOnly && ['warehouse','packer'].includes((currentUser()||{}).role)) packSnapEnsure(packInvById(invId)); // bản gốc để phát hiện Sale sửa
 }
 function packPanelClose(){
   if(packCamStream || document.getElementById('packCamModal').classList.contains('show')){ packCamStop(); document.getElementById('packCamModal').classList.remove('show'); }
@@ -7068,14 +7163,29 @@ async function packClaimAutoForSale(invId){
     } else if(packPanel && packPanel.invId===invId) renderPackPanel(); // vừa có người khác nhận → hiện chặn
   }catch(e){}
 }
+// Mỗi dòng hàng có MÃ KHOÁ ỔN ĐỊNH theo mã + mẫu + màu + size (không theo thứ tự dòng) → Sale chèn / xoá / đổi thứ tự
+// thì dấu tick, số thiếu… vẫn nằm đúng món. oldKey = kiểu cũ "nhóm-dòng" (để chuyển dữ liệu cũ).
+function packKeyOf(sku){ let h = 5381; for(let i=0;i<sku.length;i++) h = ((h<<5) + h + sku.charCodeAt(i)) | 0; return 'k' + (h>>>0).toString(36); }
+function packItemKey(x){ return packKeyOf(packSku(x)); }
 function packInvLines(inv){
-  const lines = [];
+  const lines = []; const seen = {};
   (inv.productGroups||[]).forEach((g,gi)=>(g.colorLines||[]).forEach((l,ci)=>{
     const q = Number(l.qty)||0; if(!g.productCode || !q) return;
-    lines.push({key:gi+'-'+ci, code:String(g.productCode).trim().toUpperCase(), name:g.productName||'', design:g.design||'', color:l.color||'', size:l.size||'', qty:q});
+    const it = {code:String(g.productCode).trim().toUpperCase(), name:g.productName||'', design:g.design||'', color:l.color||'', size:l.size||'', qty:q};
+    let key = packItemKey(it); seen[key] = (seen[key]||0) + 1; if(seen[key] > 1) key += '_' + seen[key];
+    lines.push(Object.assign(it, {key, oldKey: gi+'-'+ci}));
   }));
   return lines;
 }
+// Chuyển bảng tick kiểu cũ ("0-1") sang mã khoá mới
+function packMigrateKeys(inv, map){
+  map = map || {}; const ks = Object.keys(map); if(!inv || !ks.some(k=>/^\d+-\d+$/.test(k))) return map;
+  const conv = {}; packInvLines(inv).forEach(l=>{ conv[l.oldKey] = l.key; });
+  const out = {}; ks.forEach(k=>{ const nk = /^\d+-\d+$/.test(k) ? conv[k] : k; if(nk) out[nk] = Math.max(out[nk]||0, Number(map[k])||0); });
+  return out;
+}
+// Danh sách thiếu lưu kiểu cũ → đổi khoá theo mã + mẫu + màu + size
+function packFixShortKeys(items){ return (items||[]).map(x=>(x && x.key && /^\d+-\d+$/.test(x.key)) ? Object.assign({}, x, {key: packItemKey(x)}) : x); }
 function renderPackPanel(){
   const body = document.getElementById('packPanelBody'); if(!body || !packPanel) return;
   const inv = packInvById(packPanel.invId);
@@ -7090,7 +7200,7 @@ function renderPackPanel(){
   if(!inv.depositLink){ banner = '<div class="pack-banner bad">⛔ Hoá đơn CHƯA CỌC hoặc Sale đã HUỶ CỌC — KHÔNG đóng hàng. Đưa phiếu cho Kho trưởng.</div>'; canAct = false; }
   else if(stale && !packMyClaimIs(inv.id)){ banner = `<div class="pack-banner bad">⚠ PHIẾU ĐÃ CŨ — Sale sửa hoá đơn sau khi in (in lúc ${packTimeStr(pp.at)}). Đưa Kho trưởng IN LẠI phiếu mới rồi mới đóng.${isBoss ? ` <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">🖨️ In lại ngay</button>` : ''}</div>`; canAct = false; }
   else if(ps && ps.state==='packed' && ps.legacy){ banner = '<div class="pack-banner ok">✅ Đơn cũ — đã đánh dấu ĐÃ XỬ LÝ (gửi trước khi áp dụng quy trình kho).</div>'; canAct = false; }
-  else if(ps && ps.state==='packed' && !ps.shortSent){ banner = `<div class="pack-banner ok">✅ ĐƠN NÀY ĐÃ ĐÓNG lúc ${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} — không đóng lại lần nữa.</div>`; canAct = false; }
+  else if(ps && ps.state==='packed' && !ps.shortSent){ banner = (ps.editedAfterPack ? `<div class="pack-banner bad">⚠ Sale đã SỬA ĐƠN SAU KHI ĐÓNG (${packTimeStr(ps.editedAfterPack.at)}): ${escHtml(ps.editedAfterPack.text||'')} — kiểm tra lại gói hàng.</div>` : '') + `<div class="pack-banner ok">✅ ĐƠN NÀY ĐÃ ĐÓNG lúc ${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} — không đóng lại lần nữa.</div>`; canAct = false; }
   else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG · <b>cần bù ${packMissTotal(ps)} sp</b> (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}): <b>${escHtml(packShortText(ps.shortItems))}</b>${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))){ canAct = false; banner = `<div class="pack-banner ok">✅ ĐÃ ĐÓNG · GỬI THIẾU lúc ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. Không gửi bù — <b>đã trừ: ${escHtml(packShortText(ps.shortItems))}</b>.</div>`; }
   else if(false){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
@@ -7110,6 +7220,11 @@ function renderPackPanel(){
     ? '<div class="pack-banner view">👁 Chế độ xem (Quản lý chung) — chỉ xem đơn, không thao tác đóng hàng.</div>'
     : '<div class="pack-banner view">👁 Chế độ xem — muốn đóng hàng thì <b>quét mã QR</b> trên phiếu hoặc mở đơn ở trang <b>📦 Bàn đóng gói</b>.</div>'; }
   const prevMiss = {}; if(ps && (ps.state==='short' || ps.state==='partial')) (ps.shortItems||[]).forEach(x=>{ if(x.key) prevMiss[x.key] = Number(x.missing)||0; });
+  // So với bản gốc lúc bắt đầu làm: dòng MỚI / ĐỔI SỐ LƯỢNG → tô vàng
+  const snapNow = (['warehouse','packer'].includes(me.role) && canAct) ? packSnapGet(inv.id) : null;
+  const chgDiff = snapNow ? packLinesDiff(snapNow.lines, packLinesSnap(inv)) : {add:[], rem:[], chg:[], any:false};
+  const chgMap = {}; chgDiff.add.forEach(x=>{ chgMap[x.key] = 'MỚI'; }); chgDiff.chg.forEach(x=>{ chgMap[x.key] = `SL ${x.from}→${x.to}`; });
+  if(chgDiff.any) banner = `<div class="pack-banner warn pack-chg-banner">✏️ <b>Sale đã sửa đơn</b> sau khi bạn bắt đầu: ${escHtml(packDiffText(chgDiff))}. Các dòng tô vàng là dòng mới / đổi số lượng. <button class="btn-ghost btn-small" onclick="packSnapAccept('${inv.id}')">✓ Đã xem</button></div>` + banner;
   const tickMode = canAct && !short;
   const prog = packPickProgress(lines, ps);
   // Gom các dòng CÙNG mã + mẫu in (khác màu / size) thành 1 nhóm: ảnh + tên mẫu hiện 1 lần, bên dưới là từng màu để tick
@@ -7117,15 +7232,16 @@ function renderPackPanel(){
   const nCols = (tickMode ? 1 : 0) + 4 + (extraCol ? 1 : 0);
   const lineRow = (l, inGroup)=>{
     const miss = short ? (packPanel.miss[l.key]||0) : (prevMiss[l.key]||0);
+    const chgTag = chgMap[l.key] ? ` <span class="pack-chg-tag">${chgMap[l.key]}</span>` : '';
     const tgt = prog.t[l.key] || 0, got = Math.min(tgt, (packPanel.picked||{})[l.key]||0), done = tgt>0 && got>=tgt;
     const pickCell = tickMode ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
       : `<td class="pack-pick-cell"><span class="pack-pick sent" title="Đã gửi ở lần trước">✓</span></td>`) : '';
-    const meta = `${[l.color, l.size].filter(Boolean).map(escHtml).join(' · ') || '—'} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}`;
+    const meta = `${[l.color, l.size].filter(Boolean).map(escHtml).join(' · ') || '—'} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}${chgTag}`;
     const prodCell = inGroup
-      ? `<td class="pack-l-prod pack-sub-cell"><span class="pack-sub-arrow">↳</span><span class="pack-sub-meta"><b class="pack-sub-color">${escHtml(l.color)||'—'}</b>${l.size ? ' · ' + escHtml(l.size) : ''} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}</span></td>`
+      ? `<td class="pack-l-prod pack-sub-cell"><span class="pack-sub-arrow">↳</span>${chgTag}<span class="pack-sub-meta"><b class="pack-sub-color">${escHtml(l.color)||'—'}</b>${l.size ? ' · ' + escHtml(l.size) : ''} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}</span></td>`
       : `<td class="pack-l-prod"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l.code, l.design), 'pack-pimg')}<div class="pack-l-txt"><span class="pack-l-code">${codeWithMarkHtml(l.code)}</span>${l.design ? ` <i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? ' <span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}
         <div class="pack-l-meta">${meta}</div></div></div></td>`;
-    return `<tr class="${miss ? 'pack-line-miss' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}${inGroup ? ' pack-sub-row' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
+    return `<tr class="${miss ? 'pack-line-miss' : ''}${chgMap[l.key] ? ' pack-line-chg' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}${inGroup ? ' pack-sub-row' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
       ${pickCell}
       ${prodCell}
       <td class="pack-l-col">${escHtml(l.color)||'—'}</td><td class="pack-l-col">${escHtml(l.size)||'—'}</td>
@@ -7202,11 +7318,11 @@ function renderPackPanel(){
   if(canAct) packDraftSave(); // lưu nháp tick / ảnh / thiếu ngay trên máy
 }
 // Xong 1 đơn: đóng màn hình. Nếu vừa quét bằng camera → tự mở camera quét đơn tiếp (khỏi bấm lại nút)
-function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packClaimDoneFor(packPanel.invId); packPanel.fromCam = false; } packPanelClose(); } // sau báo thiếu: hỏi gửi Zalo trước, không tự mở camera
+function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); { const iv = packInvById(packPanel.invId); if(iv) packSnapSet(iv); } packClaimDoneFor(packPanel.invId); packPanel.fromCam = false; } packPanelClose(); } // sau báo thiếu: hỏi gửi Zalo trước, không tự mở camera
 function packAfterAction(){
   const fromCam = packPanel && packPanel.fromCam;
   const fromClaim = packPanel && !!packMyClaimIs(packPanel.invId) && !packIsSale(currentUser());
-  if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
+  if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packSnapClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
   if(fromClaim){ packPanelClose(); setTimeout(()=>showToast('✅ Xong đơn — bấm 📥 Nhận đơn để nhận đơn tiếp'), 600); return; }
   packPanelClose();
   if(fromCam){ packLastCamAt = Date.now(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
@@ -7382,7 +7498,7 @@ function pimgDelete(key){
 // Chạm vào dòng = nhặt thêm 1 cái (0/3 → 1/3 → … → ✓). Tiến độ giữ trên máy (đóng màn hình mở lại vẫn còn).
 // Bấm "Thiếu" khi chưa nhặt đủ → app tự điền số thiếu = cần − đã nhặt.
 function packPickKey(invId){ return 'pack_pick_' + invId; }
-function packPickLoad(invId){ try{ return JSON.parse(localStorage.getItem(packPickKey(invId)) || '{}') || {}; }catch(e){ return {}; } }
+function packPickLoad(invId){ let m = {}; try{ m = JSON.parse(localStorage.getItem(packPickKey(invId)) || '{}') || {}; }catch(e){} return packMigrateKeys(packInvById(invId), m); }
 function packPickSave(){ if(!packPanel) return; try{ localStorage.setItem(packPickKey(packPanel.invId), JSON.stringify(packPanel.picked||{})); }catch(e){} }
 function packPickClear(invId){ try{ localStorage.removeItem(packPickKey(invId)); }catch(e){} }
 // Số cần nhặt của từng dòng: bình thường = SL; đơn "đã gửi 1 phần" = chỉ phần còn nợ
@@ -12902,7 +13018,7 @@ function setupRoleScopedListeners(user){
     (arr)=>{
       if(isWarehouse){ const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
       else state.invoices = purgeExpiredInvoices(arr);
-      packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:') || invKey.startsWith('mine:'); cleanupPackPrints();
+      packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:') || invKey.startsWith('mine:'); cleanupPackPrints(); packCheckChangeNotices();
       onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
     }, false);
 
