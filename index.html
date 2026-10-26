@@ -1566,7 +1566,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl-sale{ font-size:26pt !important; }
   .lbl-sale{ flex:0 0 auto; border:0.8mm solid #000; border-radius:2mm; padding:1mm 2.5mm; font-size:22pt; font-weight:900; line-height:1.05; text-align:center; }
   .lbl-sale small{ display:block; font-size:7.5pt; font-weight:700; }
-  .lbl-mid{ display:flex; gap:4mm; align-items:flex-end; margin-top:auto; }
+  .lbl-mid{ display:flex; gap:4mm; align-items:center; }
+  .lbl-write{ flex:1; display:flex; flex-direction:column; justify-content:flex-start; gap:0; margin-top:1mm; overflow:hidden; }
+  .lbl-wline{ flex:0 0 auto; height:8mm; border-bottom:0.3mm dotted #555; font-size:9.5pt; font-weight:700; display:flex; align-items:flex-end; padding-bottom:0.5mm; }
+  .s100x150 .lbl-wline, .sa4 .lbl-wline{ height:10mm; }
+  .lbl-wmore{ flex:1; max-height:none; }
   .lbl-qr{ flex:0 0 auto; width:30mm; height:30mm; }
   .s100x150 .lbl-qr, .sa4 .lbl-qr{ width:34mm; height:34mm; }
   .lbl-qr svg{ width:100%; height:100%; display:block; }
@@ -2237,7 +2241,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
             <button class="btn-ghost" onclick="packLabelPrintSelected()" title="In tem dán gói: tên khách to, Sale, Số HĐ, mã QR">🏷️ In tem đã chọn</button>
             <select id="packLabelSize" onchange="try{localStorage.setItem('pack_label_size', this.value)}catch(e){}" title="Khổ giấy tem" style="width:auto;">
-              <option value="100x100">Tem 100×100</option><option value="100x150">Tem 100×150</option><option value="a4">A4 (4 tem/trang)</option>
+              <option value="100x150" selected>Giấy nhiệt 100×150 (như tem vận chuyển)</option><option value="100x100">Tem 100×100</option><option value="a4">A4 (4 tem/trang)</option>
             </select>
             <span id="packCountNote" class="pack-note"></span>
           </div>
@@ -6701,10 +6705,11 @@ function packLabelHtml(inv, size){
         <div><b>${qty} sp</b> · ${lines.length} dòng</div>
         <div>Cọc ${escHtml(packTimeShort(packDepositMs(inv)))}${isOldCustomerInvoice(inv) ? ' · khách cũ' : ''}</div>
         ${u ? `<div class="lbl-urg">${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short.toUpperCase()}</div>` : ''}</div></div>
+    <div class="lbl-write"><div class="lbl-wline"><span>Người đóng:</span></div><div class="lbl-wline"><span>Thiếu / ghi chú:</span></div>${'<div class="lbl-wline"></div>'.repeat(size==='100x150' ? 9 : (size==='a4' ? 7 : 2))}</div>
   </div>`;
 }
 function packLabelPrint(ids){
-  const size = (document.getElementById('packLabelSize')||{}).value || (()=>{ try{ return localStorage.getItem('pack_label_size') || '100x100'; }catch(e){ return '100x100'; } })();
+  const size = (document.getElementById('packLabelSize')||{}).value || (()=>{ try{ return localStorage.getItem('pack_label_size') || '100x150'; }catch(e){ return '100x150'; } })();
   const invs = (ids||[]).map(id=>packInvById(id)).filter(inv=>inv && inv.depositLink).sort((a,b)=>packDepositMs(a)-packDepositMs(b));
   if(!invs.length){ showToast('Chọn hoá đơn đã cọc để in tem.'); return; }
   let area = document.getElementById('packLabelArea');
