@@ -1553,7 +1553,33 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-qr-num{ font-size:26px; font-weight:800; color:#000; line-height:1.15; margin:2px 0; }
   .pack-qr-sub{ font-size:12px; color:#000; }
   #packPrintArea{ display:none; }
+  #packLabelArea{ display:none; }
+  /* ===== TEM DÁN GÓI ===== */
+  .lbl{ box-sizing:border-box; background:#fff; color:#000; font-family:Arial, 'Helvetica Neue', sans-serif; padding:4mm; display:flex; flex-direction:column; gap:2mm; overflow:hidden; border:0.3mm dashed #999; }
+  .lbl.s100x100{ width:100mm; height:100mm; }
+  .lbl.s100x150{ width:100mm; height:150mm; }
+  .lbl.sa4{ width:100mm; height:140mm; }
+  .lbl-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:3mm; border-bottom:0.6mm solid #000; padding-bottom:2mm; }
+  .lbl-cust{ font-size:21pt; font-weight:900; line-height:1.1; word-break:break-word; flex:1; min-width:0; }
+  .lbl-sale{ flex:0 0 auto; border:0.8mm solid #000; border-radius:2mm; padding:1mm 2.5mm; font-size:22pt; font-weight:900; line-height:1.05; text-align:center; }
+  .lbl-sale small{ display:block; font-size:7.5pt; font-weight:700; }
+  .lbl-mid{ display:flex; gap:3mm; align-items:center; }
+  .lbl-qr{ flex:0 0 auto; width:34mm; height:34mm; }
+  .s100x150 .lbl-qr, .sa4 .lbl-qr{ width:40mm; height:40mm; }
+  .lbl-qr svg{ width:100%; height:100%; display:block; }
+  .lbl-info{ flex:1; min-width:0; font-size:10pt; line-height:1.35; }
+  .lbl-hd{ font-size:20pt; font-weight:900; letter-spacing:0.3mm; }
+  .lbl-urg{ display:inline-block; margin-top:1mm; border:0.6mm solid #000; padding:0.5mm 2mm; font-weight:900; font-size:11pt; }
+  .lbl-items{ font-size:8.5pt; line-height:1.3; border-top:0.3mm solid #000; padding-top:1.5mm; overflow:hidden; flex:1; }
+  .lbl-items b{ font-size:9pt; }
+  .lbl-a4page{ display:grid; grid-template-columns:100mm 100mm; grid-auto-rows:140mm; gap:0; justify-content:center; break-after:page; page-break-after:always; }
+  .lbl-a4page:last-child{ break-after:auto; page-break-after:auto; }
   @media print{
+    body.printing-label > *:not(#packLabelArea){ display:none !important; }
+    body.printing-label #packLabelArea{ display:block !important; }
+    #packLabelArea .lbl{ border:none; break-after:page; page-break-after:always; }
+    #packLabelArea .lbl:last-child{ break-after:auto; page-break-after:auto; }
+    #packLabelArea .lbl-a4page .lbl{ border:0.3mm dashed #999; break-after:auto; page-break-after:auto; }
     body.printing-pack > *:not(#packPrintArea){ display:none !important; }
     body.printing-pack #packPrintArea{ display:block !important; }
     #packPrintArea .pack-sheet{ padding:0 !important; break-after:page; page-break-after:always; }
@@ -2204,6 +2230,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="pack-actions">
             <button class="btn-ghost btn-small" onclick="packToggleAll()" id="packToggleAllBtn">☑ Chọn tất cả</button>
             <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
+            <button class="btn-ghost" onclick="packLabelPrintSelected()" title="In tem dán gói: tên khách to, Sale, Số HĐ, mã QR">🏷️ In tem đã chọn</button>
+            <select id="packLabelSize" onchange="try{localStorage.setItem('pack_label_size', this.value)}catch(e){}" title="Khổ giấy tem" style="width:auto;">
+              <option value="100x100">Tem 100×100</option><option value="100x150">Tem 100×150</option><option value="a4">A4 (4 tem/trang)</option>
+            </select>
             <span id="packCountNote" class="pack-note"></span>
           </div>
           <div id="packWarnBox"></div>
@@ -6058,6 +6088,7 @@ function renderPackInvoicesPage(){
   if(!packInvoicesLoaded){ table.innerHTML = '<tr><td class="empty-note">Đang tải hoá đơn…</td></tr>'; return; }
   packAttachPresence();
   const {list, counts, map, smap, status} = packCurrentList();
+  { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
     const lab = {new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
@@ -6643,6 +6674,55 @@ function packClaimTouch(invId){
 // Xong đơn (đóng / báo thiếu / gửi thiếu) → bỏ giữ đơn
 function packMyClaimIs(invId){ const c = packClaimMap()[invId]; const me = currentUser(); return c && me && c.by===me.id && packClaimActive(c) ? c : null; }
 function packClaimDoneFor(invId){ const c = packClaimMap()[invId]; if(c) packClaimRelease(invId, true); const st = packStatusMap()[invId]; if(st && (st.state==='packed' || st.state==='partial')) packUrgentDone(invId); }
+
+// ===================== IN TEM DÁN GÓI (thay viết tay) =====================
+// Mỗi hoá đơn đã cọc 1 tem: TÊN KHÁCH to · chữ tắt Sale (VD "T.A") · Số HĐ · mã QR đóng hàng (quét như phiếu) · tổng SP · ưu tiên.
+// Khổ: 100×100, 100×150 (máy in nhiệt) hoặc A4 (4 tem / trang, cắt ra dán).
+function packSaleInitials(name){
+  const w = String(name||'').replace(/\bsale\b/ig, '').trim().split(/\s+/).filter(Boolean);
+  if(!w.length) return '';
+  const pick = w.length >= 2 ? w.slice(-2) : w;
+  return pick.map(x=>x.charAt(0).toUpperCase()).join('.');
+}
+function packLabelHtml(inv, size){
+  const sale = inv.saleName || (inv.saleId ? userName(inv.saleId) : '');
+  const lines = packInvLines(inv);
+  const qty = lines.reduce((a,l)=>a+l.qty,0);
+  const u = packUrgentMap()[inv.id];
+  const items = lines.map(l=>`${escHtml(l.code)}${l.design ? ' ' + escHtml(l.design) : ''}${[l.color,l.size].filter(Boolean).length ? ' ' + escHtml([l.color,l.size].filter(Boolean).join(' ')) : ''} <b>×${l.qty}</b>`).join(' · ');
+  return `<div class="lbl s${size}">
+    <div class="lbl-top"><div class="lbl-cust">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
+    <div class="lbl-mid"><div class="lbl-qr">${packQrSvg(packQrUrl(inv))}</div>
+      <div class="lbl-info"><div class="lbl-hd">${escHtml(inv.invoiceNumber||'')}</div>
+        <div><b>${qty} sp</b> · ${lines.length} dòng</div>
+        <div>Cọc ${escHtml(packTimeShort(packDepositMs(inv)))}${isOldCustomerInvoice(inv) ? ' · khách cũ' : ''}</div>
+        ${u ? `<div class="lbl-urg">${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short.toUpperCase()}</div>` : ''}</div></div>
+    <div class="lbl-items">${items}</div>
+  </div>`;
+}
+function packLabelPrint(ids){
+  const size = (document.getElementById('packLabelSize')||{}).value || (()=>{ try{ return localStorage.getItem('pack_label_size') || '100x100'; }catch(e){ return '100x100'; } })();
+  const invs = (ids||[]).map(id=>packInvById(id)).filter(inv=>inv && inv.depositLink).sort((a,b)=>packDepositMs(a)-packDepositMs(b));
+  if(!invs.length){ showToast('Chọn hoá đơn đã cọc để in tem.'); return; }
+  let area = document.getElementById('packLabelArea');
+  if(!area){ area = document.createElement('div'); area.id = 'packLabelArea'; document.body.appendChild(area); }
+  if(size==='a4'){
+    const pages = []; for(let i=0; i<invs.length; i+=4) pages.push(invs.slice(i, i+4));
+    area.innerHTML = pages.map(pg=>`<div class="lbl-a4page">${pg.map(inv=>packLabelHtml(inv, 'a4')).join('')}</div>`).join('');
+  } else area.innerHTML = invs.map(inv=>packLabelHtml(inv, size)).join('');
+  let st = document.getElementById('packLabelPageStyle');
+  if(!st){ st = document.createElement('style'); st.id = 'packLabelPageStyle'; document.head.appendChild(st); }
+  st.textContent = size==='a4' ? '@media print{ @page{ size:A4; margin:6mm; } }' : `@media print{ @page{ size:${size==='100x150' ? '100mm 150mm' : '100mm 100mm'}; margin:0; } }`;
+  const done = ()=>{ window.removeEventListener('afterprint', done); document.body.classList.remove('printing-label'); st.textContent = ''; };
+  document.body.classList.add('printing-label');
+  window.addEventListener('afterprint', done);
+  showToast(`Đang in ${invs.length} tem…`);
+  setTimeout(()=>window.print(), 80);
+}
+function packLabelPrintSelected(){
+  if(!packSelected.size){ showToast('Tick chọn các hoá đơn cần in tem trước.'); return; }
+  packLabelPrint(Array.from(packSelected));
+}
 // ===================== LỊCH SỬ IN PHIẾU =====================
 // Mỗi lần bấm In (nhiều đơn hay 1 đơn) → ghi 1 lượt: giờ, người in, danh sách Số HĐ theo ĐÚNG THỨ TỰ in.
 // Máy in kẹt giữa chừng → mở lượt đó, bấm "⤵ từ đây" ở đơn bị kẹt để chọn từ đơn đó đến hết rồi In lại.
@@ -7428,7 +7508,7 @@ function renderPackPanel(){
     <div class="pack-st-row1">
       <div class="pack-st-num">${escHtml(inv.invoiceNumber)}</div>
       <div class="pack-st-meta"><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sp</b> · ${escHtml(inv.customerName||'')} · <span class="pack-sale-tag">👤 Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</span>${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 HĐ</a>` : ''}</div>
-      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon pack-st-print" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
+      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon pack-st-print" title="In tem dán gói" onclick="packLabelPrint(['${inv.id}'])">🏷️</button><button class="pack-st-icon pack-st-print" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
     </div>
     ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions ${packPanel.lockedMe ? 'personal' : ''}">${packPanel.lockedMe ? '' : staffBtn}${photoBtn}${acts}</div>` : ''}
     ${showPicker ? `<div class="pack-st-picker">${staffList.length ? staffList.map(x=>`<button class="pack-chip ${packPanel.staffId===x.id ? 'on' : ''}" onclick="packPickStaff('${x.id}')">${escHtml(x.name)}</button>`).join('') : '<span class="pack-note">Chưa có tên nhân viên kho — Kho trưởng thêm ở 👥 Nhân viên kho.</span>'}</div>` : ''}
