@@ -1513,6 +1513,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-urgent-on{ background:#E5484D !important; color:#fff !important; border-color:#E5484D !important; }
   .inv-one-line{ display:flex !important; flex-wrap:wrap; align-items:center; gap:2px 6px; line-height:1.35; }
   .inv-ol-dim{ color:var(--ink-soft); font-weight:600; }
+  .ship-pkgs{ color:#F6C27A; font-weight:800; font-size:12px; }
   .ship-code-link{ color:#8DB4FF !important; font-weight:800; text-decoration:underline dotted; white-space:nowrap; }
   .inv-ol-ship{ color:#6FD99A; font-size:12.5px; font-weight:700; }
   .inv-one-line .pack-chat-btn, .inv-one-line .pack-zalo-btn{ padding:1px 8px !important; min-height:0 !important; font-size:12px !important; }
@@ -3084,8 +3085,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button><button type="button" onclick="shipPick('Gửi xe khách')">Gửi xe</button></div>
       <input id="shipCarrier" list="shipCarrierList" placeholder="VD: GHTK, J&amp;T…" autocomplete="off">
       <datalist id="shipCarrierList"></datalist></div>
-    <div class="field"><label>Mã vận đơn <span class="pack-note">(không bắt buộc — dán từ app hãng vận chuyển)</span></label>
-      <input id="shipCode" placeholder="VD: S12345678" autocomplete="off" onkeydown="if(event.key==='Enter') shipSave()"></div>
+    <div class="field"><label>Mã vận đơn <span class="pack-note">(không bắt buộc — đơn chia <b>nhiều kiện</b>: mỗi mã 1 dòng hoặc cách nhau dấu phẩy)</span></label>
+      <textarea id="shipCode" rows="2" placeholder="VD: SPXVN0123456789&#10;SPXVN0987654321" autocomplete="off" oninput="shipCodePreview()" style="width:100%; font-size:15px; resize:vertical;"></textarea>
+      <div id="shipCodePrev" class="pack-note" style="margin-top:3px;"></div></div>
     <div class="actions"><button class="btn-ghost" id="shipUndo" onclick="shipUndo()" style="margin-right:auto;">Bỏ đánh dấu</button><button class="btn-ghost" onclick="document.getElementById('shipModal').classList.remove('show')">Huỷ</button><button class="btn-primary" onclick="shipSave()">✅ Đã lên vận đơn</button></div>
   </div>
 </div>
@@ -6329,9 +6331,27 @@ function shipTrack(carrier, code){
   window.open(shipTrackUrl(carrier, code), '_blank', 'noopener');
   showToast('📋 Đã copy mã vận đơn — trang chưa tự hiện kết quả thì dán mã vào ô tra cứu');
 }
+// Nhiều kiện: mỗi kiện 1 mã. Dán link tra cứu nhầm → tự bóc lấy mã.
+function shipParseCodes(raw){
+  const out = [];
+  String(raw||'').split(/[\s,;|]+/).forEach(t=>{
+    t = t.trim(); if(!t) return;
+    if(/^https?:\/\//i.test(t) || /\.(vn|com|net)\//i.test(t)){
+      try{ const u = new URL(/^https?:/i.test(t) ? t : 'https://' + t);
+        const vals = Array.from(u.searchParams.values()).filter(v=>/[0-9]{5,}/.test(v));
+        t = vals.length ? vals[vals.length-1] : (u.search && /[0-9]{5,}/.test(u.search) ? u.search.replace(/^\?/, '') : u.pathname.split('/').filter(Boolean).pop() || '');
+      }catch(e){ t = t.split(/[?=/#]/).filter(x=>/[0-9]{5,}/.test(x)).pop() || ''; }
+    }
+    t = t.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase();
+    if(t && t.length >= 5 && !out.includes(t)) out.push(t);
+  });
+  return out;
+}
+function shipCodesOf(ship){ return ship ? (Array.isArray(ship.codes) && ship.codes.length ? ship.codes : shipParseCodes(ship.code)) : []; }
 function shipCodeLink(ship){
-  if(!ship || !ship.code) return '';
-  return `<a href="#" class="ship-code-link" title="Bấm để xem trạng thái trên trang ${escHtml(ship.carrier||'hãng vận chuyển')}" onclick="event.preventDefault(); event.stopPropagation(); shipTrack(${escHtml(JSON.stringify(ship.carrier||''))}, ${escHtml(JSON.stringify(ship.code))})">${escHtml(ship.code)} ↗</a>`;
+  const codes = shipCodesOf(ship); if(!codes.length) return '';
+  const car = escHtml(JSON.stringify((ship && ship.carrier)||''));
+  return (codes.length > 1 ? `<span class="ship-pkgs">${codes.length} kiện:</span> ` : '') + codes.map(c=>`<a href="#" class="ship-code-link" title="Bấm để xem trạng thái trên trang ${escHtml((ship && ship.carrier)||'hãng vận chuyển')}" onclick="event.preventDefault(); event.stopPropagation(); shipTrack(${car}, ${escHtml(JSON.stringify(c))})">${escHtml(c)} ↗</a>`).join(' ');
 }
 // Tên hãng ngắn cho danh sách
 function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Post':'Viettel', 'J&T Express':'J&T', 'Khách lấy tại cửa hàng':'Lấy tại cửa hàng', 'Gửi xe khách':'Gửi xe', 'Grab / Be giao':'Grab/Be'}; return m[c] || c || ''; }
@@ -6354,7 +6374,8 @@ function shipOpen(invId){
   document.getElementById('shipInfo').innerHTML = `${escHtml(inv.customerName||'')} · còn phải thu <b>${fmtMoney(inv.finalAmount||0)} đ</b>${(ps.shortSent || ps.state==='partial') ? `<div class="pack-note" style="color:#F0A63A;">Đơn GỬI THIẾU — đã trừ: ${escHtml(packShortText(ps.shortItems))}. Nhớ sửa hoá đơn để thu đúng tiền.</div>` : ''}`;
   const last = (()=>{ try{ return localStorage.getItem('ship_last_carrier') || ''; }catch(e){ return ''; } })();
   document.getElementById('shipCarrier').value = (ps.ship && ps.ship.carrier) || (ps.wasUrgent ? PACK_URG[PACK_URG[ps.urgentKind] ? ps.urgentKind : 'pickup'].carrier : last);
-  document.getElementById('shipCode').value = (ps.ship && ps.ship.code) || '';
+  document.getElementById('shipCode').value = shipCodesOf(ps.ship).join('\n');
+  shipCodePreview();
   document.getElementById('shipUndo').style.display = ps.ship ? '' : 'none';
   shipQuickMark();
   document.getElementById('shipModal').classList.add('show');
@@ -6364,14 +6385,19 @@ function shipSave(){
   if(!shipInvId) return;
   const me = currentUser() || {};
   const carrier = String(document.getElementById('shipCarrier').value||'').trim();
-  const code = String(document.getElementById('shipCode').value||'').trim().replace(/\s+/g,'');
-  const ship = {at: nowMs(), by: me.id||'', byName: me.name||'', carrier: carrier || null, code: code || null};
+  const codes = shipParseCodes(document.getElementById('shipCode').value);
+  const ship = {at: nowMs(), by: me.id||'', byName: me.name||'', carrier: carrier || null, code: codes.join(', ') || null, codes: codes.length ? codes : null};
   const ps = packStatusMap()[shipInvId]; if(ps) ps.ship = ship;
   try{ if(carrier) localStorage.setItem('ship_last_carrier', carrier); }catch(e){}
   fbPackStatus.child(shipInvId).child('ship').set(ship).then(()=>{
     showToast('🚚 Đã ghi nhận lên vận đơn'); document.getElementById('shipModal').classList.remove('show');
     if(currentPageId==='invoices') renderInvoicesPage();
   }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
+}
+function shipCodePreview(){
+  const el = document.getElementById('shipCodePrev'); if(!el) return;
+  const codes = shipParseCodes(document.getElementById('shipCode').value);
+  el.innerHTML = codes.length ? `✓ ${codes.length} kiện: <b>${codes.map(escHtml).join(' · ')}</b>` : '';
 }
 function shipUndo(){
   if(!shipInvId) return;
