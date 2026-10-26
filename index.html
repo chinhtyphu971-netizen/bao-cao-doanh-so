@@ -6539,6 +6539,15 @@ function packClaimRelease(invId, silent){
   fbPackClaims.child(invId).remove().catch(()=>{});
   if(!silent) showToast('↩ Đã trả đơn về hàng chờ');
 }
+// Kho trưởng / Quản lý chung trả đơn đang có người giữ về hàng chờ (người khác nhận được)
+function packClaimReleaseAsk(invId){
+  const c = packClaimMap()[invId]; const inv = packInvById(invId) || {};
+  askConfirm('Trả đơn về hàng chờ?', `Đơn ${inv.invoiceNumber||''} đang do ${c ? c.byName : 'người khác'} giữ. Trả về hàng chờ để người khác bấm "Nhận đơn" nhận tiếp (phần đã tick vẫn được giữ).`, ()=>{
+    packClaimRelease(invId);
+    if(packPanel && packPanel.invId===invId) renderPackPanel();
+    if(currentPageId==='packInvoices') renderPackInvoicesPage();
+  });
+}
 function packClaimGiveBack(invId){
   askConfirm('Trả đơn về hàng chờ?', 'Đơn sẽ quay lại hàng chờ để người khác nhận. Chỉ dùng khi bạn không làm tiếp được đơn này.', ()=>{ packClaimRelease(invId); packPanelClose(); });
 }
@@ -7041,7 +7050,7 @@ function packShortText(items){
 }
 function packStatusBadgeHtml(inv, pp, ps){
   const urg = packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'));
-  if(urg){ const me = currentUser() || {}; return `<span class="pack-badge pack-urgent">${packUrgentLabel(inv.id)}</span>` + packStatusBadgeInner(inv, pp, ps) + (me.role==='warehouse' ? `<div class="pack-sub"><a href="#" class="pack-ph-link" onclick="event.preventDefault(); packSetUrgent('${inv.id}', false)">bỏ ưu tiên</a></div>` : ''); }
+  if(urg){ const me = currentUser() || {}; return `<span class="pack-badge pack-urgent">${packUrgentLabel(inv.id)}</span>` + packStatusBadgeInner(inv, pp, ps) + (['warehouse','general_manager'].includes(me.role) ? `<div class="pack-sub"><a href="#" class="pack-ph-link" onclick="event.preventDefault(); packSetUrgent('${inv.id}', false)">bỏ ưu tiên</a></div>` : ''); }
   return packStatusBadgeInner(inv, pp, ps);
 }
 function packStatusBadgeInner(inv, pp, ps){
@@ -7051,7 +7060,7 @@ function packStatusBadgeInner(inv, pp, ps){
 }
 function packStatusBadgeInner2(inv, pp, ps){
   const cl = (!pp && !(ps && ps.state)) ? packActiveClaimOf(inv.id) : null;
-  if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${me.role==='warehouse' ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packClaimRelease('${inv.id}'); renderPackInvoicesPage()">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
+  if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
   if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Đã đóng · gửi thiếu</span><div class="pack-sub">đã trừ: ${escHtml(packShortText(ps.shortItems))}${ph}</div>${shipKhoLine(ps)}`;
@@ -7211,7 +7220,7 @@ function renderPackPanel(){
   const claimO = packActiveClaimOf(inv.id);
   if(claimO && claimO.by!==me.id && !(ps && (ps.state==='packed' || ps.state==='partial'))){
     canAct = false;
-    banner += `<div class="pack-banner warn">📱 <b>${escHtml(claimO.byName||'Người khác')}</b> đang nhận đơn này (từ ${packTimeStr(claimO.at)}) — không đóng trùng.${isBoss && me.role!=='general_manager' ? ` <button class="btn-ghost btn-small" onclick="packClaimRelease('${inv.id}'); renderPackPanel()">↩ Trả lại hàng chờ</button>` : ''}</div>`;
+    banner += `<div class="pack-banner warn">📱 <b>${escHtml(claimO.byName||'Người khác')}</b> đang nhận đơn này (từ ${packTimeStr(claimO.at)}) — không đóng trùng.${isBoss ? ` <button class="btn-ghost btn-small" onclick="packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</button>` : ''}</div>`;
   }
   if(packMyClaimIs(inv.id)) packClaimTouch(inv.id);
   // Quản lý chung: CHỈ XEM — không tick, không chụp, không bấm Đã đóng / Thiếu (tránh bấm nhầm)
