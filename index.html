@@ -12752,7 +12752,7 @@ function openNoteModal(reportId){
   document.getElementById('noteModal').classList.add('show');
 }
 function closeNoteModal(){ document.getElementById('noteModal').classList.remove('show'); }
-document.getElementById('confirmOkBtn').onclick=()=>{ if(pendingConfirm) pendingConfirm(); closeConfirm(); };
+document.getElementById('confirmOkBtn').onclick=()=>{ const fn = pendingConfirm; closeConfirm(); if(fn) fn(); }; // đóng TRƯỚC rồi mới chạy → hộp hỏi tiếp theo (nếu có) không bị đóng mất
 document.getElementById('pinConfirmOkBtn').onclick=()=>{
   const entered = document.getElementById('pinConfirmInput').value.trim();
   const u = currentUser();
