@@ -1074,7 +1074,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-cb{ width:18px; height:18px; min-height:0 !important; cursor:pointer; }
   #packTable td[data-label="Trạng thái"]{ white-space:normal !important; min-width:210px; max-width:330px; }
   #packTable td.pack-items{ white-space:normal !important; min-width:180px; max-width:360px; }
+  .pack-items-clamp{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; position:relative; }
+  .pack-items-clamp.open{ display:block; -webkit-line-clamp:unset; }
   #packTable td.pack-act-cell{ min-width:205px; }
+  .pack-sub.pack-inline{ display:inline; margin-left:2px; }
   .pack-clamp{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; }
   #packTable tr.pack-row-sel td{ background:var(--accent-soft) !important; }
   .pack-items{ font-size:12.5px; line-height:1.5; min-width:180px; }
@@ -6106,7 +6109,7 @@ function renderPackInvoicesPage(){
         <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
         <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
         <td data-label="Sale">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
-        <td data-label="Sản phẩm" class="pack-items">${packItemsSummaryHtml(inv)}</td>
+        <td data-label="Sản phẩm" class="pack-items"><div class="pack-items-clamp" title="Bấm để xem đủ / thu gọn" onclick="this.classList.toggle('open')">${packItemsSummaryHtml(inv)}</div></td>
         <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
       </tr>`;
     }).join('') + '</tbody>';
@@ -7180,8 +7183,8 @@ function packStatusBadgeInner2(inv, pp, ps){
   if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
-  if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Đã đóng · gửi thiếu</span><div class="pack-sub">đã trừ: ${escHtml(packShortText(ps.shortItems))}${ph}</div>${shipKhoLine(ps)}`;
-  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span><div class="pack-sub">${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</div>${shipKhoLine(ps)}`;
+  if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Gửi thiếu</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
+  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</span>${shipKhoLine(ps)}`;
   if(ps && ps.state==='short'){ const rep0 = ps.shortStaffName || ps.staffName || ''; const clK = packActiveClaimOf(inv.id);
     return `<span class="pack-badge pack-changed">🟠 Chờ bù</span> ${packMissTag(ps)}${rep0 ? ' ' + packWhoTag(rep0, 'Người báo thiếu') : ''}${clK ? ` <span class="pack-sub" style="display:inline;">· 📱 ${escHtml(clK.byName||'')} đang xử lý</span>` : ''}
       <div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">${escHtml(packShortText(ps.shortItems))}</div>${ph ? `<div class="pack-sub">${ph}</div>` : ''}${packReplyHtml(ps, true)}`; }
