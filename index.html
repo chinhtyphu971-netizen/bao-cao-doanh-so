@@ -1072,6 +1072,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-view-btn{ padding:5px 10px; }
   @media (max-width:720px){ .pack-act-cell{ white-space:normal; min-width:84px; } .pack-act-cell .btn-small{ display:block; width:100%; margin:3px 0; } }
   .pack-cb{ width:18px; height:18px; min-height:0 !important; cursor:pointer; }
+  #packTable td[data-label="Trạng thái"]{ white-space:normal !important; min-width:210px; max-width:330px; }
+  #packTable td.pack-items{ white-space:normal !important; min-width:180px; max-width:360px; }
+  #packTable td.pack-act-cell{ min-width:205px; }
+  .pack-clamp{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; }
   #packTable tr.pack-row-sel td{ background:var(--accent-soft) !important; }
   .pack-items{ font-size:12.5px; line-height:1.5; min-width:180px; }
   .pack-sep{ color:var(--ink-soft); }
@@ -7178,7 +7182,9 @@ function packStatusBadgeInner2(inv, pp, ps){
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
   if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Đã đóng · gửi thiếu</span><div class="pack-sub">đã trừ: ${escHtml(packShortText(ps.shortItems))}${ph}</div>${shipKhoLine(ps)}`;
   if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span><div class="pack-sub">${packTimeStr(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</div>${shipKhoLine(ps)}`;
-  if(ps && ps.state==='short') return `<span class="pack-badge pack-changed">🟠 Chờ bù hàng</span> ${packMissTag(ps)}<div class="pack-sub">${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, true)}`;
+  if(ps && ps.state==='short'){ const rep0 = ps.shortStaffName || ps.staffName || ''; const clK = packActiveClaimOf(inv.id);
+    return `<span class="pack-badge pack-changed">🟠 Chờ bù</span> ${packMissTag(ps)}${rep0 ? ' ' + packWhoTag(rep0, 'Người báo thiếu') : ''}${clK ? ` <span class="pack-sub" style="display:inline;">· 📱 ${escHtml(clK.byName||'')} đang xử lý</span>` : ''}
+      <div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">${escHtml(packShortText(ps.shortItems))}</div>${ph ? `<div class="pack-sub">${ph}</div>` : ''}${packReplyHtml(ps, true)}`; }
   const stt = packStatusOf(inv, pp);
   if(stt==='new') return '<span class="pack-badge pack-new">Chưa in</span>';
   if(stt==='changed') return `<span class="pack-badge pack-changed">⚠ Đã sửa sau khi in</span><div class="pack-sub">in lúc ${packTimeStr(pp.at)}${pp.n>1 ? ` · lần ${pp.n}` : ''}</div>`;
