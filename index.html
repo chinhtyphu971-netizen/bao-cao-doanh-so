@@ -1372,6 +1372,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-flash-ov.ok .pack-flash-box{ background:#2EA05A; }
   .pack-flash-ov.warn .pack-flash-box{ background:#E08A1E; }
   @keyframes packFlashIn{ from{ transform:scale(0.85); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .clock-warn-bar{ position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:129; width:max-content; max-width:94vw; background:#7A4A12; color:#fff; border:1px solid #F0A63A; border-radius:12px; padding:8px 14px; font-size:13px; align-items:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,0.45); }
+  .clock-warn-bar a{ color:#FFE3B0; font-weight:800; margin-left:6px; }
   .app-update-bar{ position:fixed; left:50%; top:calc(10px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:130; width:max-content; max-width:94vw; background:#2EA05A; color:#fff; border-radius:999px; padding:10px 18px; font-size:14.5px; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; animation:packUrgPulse 1.6s ease-in-out infinite; }
   .pack-offline-bar{ position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:111; width:max-content; max-width:92vw; background:#7A2A2D; color:#fff; border:1px solid #E5484D; border-radius:12px; padding:8px 14px; font-size:13.5px; font-weight:700; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); text-align:center; }
   body.pack-offline .pack-st-btn.green, body.pack-offline .pack-st-btn.solid-orange, body.pack-offline .pack-st-btn.blue{ opacity:0.5; }
@@ -2960,6 +2962,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <button class="pack-cam-done" id="packCamDone" onclick="packCamClose()">Xong</button>
   </div>
 </div>
+<div class="clock-warn-bar" id="clockWarnBar" style="display:none;"></div>
 <div class="app-update-bar" id="appUpdateBar" style="display:none;" onclick="appHardReload()">🔄 Đã có bản cập nhật mới — <b>bấm để tải</b></div>
 <div class="pack-flash-ov" id="packFlash"><div class="pack-flash-box"><div id="packFlashText"></div></div></div>
 <div class="pack-offline-bar" id="packOfflineBar" style="display:none;">📴 Mất mạng — tick &amp; ảnh vẫn được giữ trên máy, có mạng lại sẽ lưu tiếp</div>
@@ -3197,6 +3200,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </div>
 
 <script>
+// ===== GIỜ CHUẨN THEO MÁY CHỦ =====
+// Điện thoại / máy tính chỉnh sai giờ → giờ cọc, giờ đóng… bị lệch (VD hiện "19:40 hôm nay" khi mới 11h).
+// App lấy độ lệch giữa máy và máy chủ Firebase (.info/serverTimeOffset) rồi dùng giờ đã chỉnh cho MỌI thao tác.
+var appServerOffset = 0;
+function nowMs(){ return Date.now() + (appServerOffset||0); }
+
 /* =========================================================================
    FIREBASE — đồng bộ dữ liệu real-time giữa nhiều thiết bị/nhiều người
    Cách kết nối (làm 1 lần):
@@ -3278,7 +3287,7 @@ let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
 let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null, fbPackUrgent = null, fbPackPicks = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
-function reportWindowStart(){ const d = new Date(); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
+function reportWindowStart(){ const d = new Date(nowMs()); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
 // KHOÁ NHẬP DATA khi MKT chưa nộp báo cáo của HÔM TRƯỚC. Chỉ áp dụng cho các ngày từ mốc này trở đi
 // (tránh khoá oan ngày đầu mới có tính năng báo cáo MKT).
 const MKT_REPORT_LOCK_FROM = '2026-10-01';
@@ -3395,7 +3404,14 @@ function startFirebaseListeners(){
   fbPackPhotos = db.ref('packPhotos');
   fbPackPrintBatches = db.ref('packPrintBatches');
   fbPackClaims = db.ref('packClaims');
-  fbPackPicks = db.ref('packPicks'); // Tiến độ tick đang nhặt (đồng bộ để đổi máy vẫn còn): packPicks/{hoáĐơn} = {picked, by, byName, at}
+  fbPackPicks = db.ref('packPicks');
+  db.ref('.info/serverTimeOffset').on('value', snap=>{
+    appServerOffset = Number(snap.val())||0;
+    const bar = document.getElementById('clockWarnBar');
+    if(bar){ const mins = Math.round(Math.abs(appServerOffset)/60000);
+      bar.style.display = mins >= 5 ? 'flex' : 'none';
+      bar.innerHTML = `⏰ Giờ trên máy này đang ${appServerOffset > 0 ? 'CHẬM' : 'NHANH'} ${mins >= 60 ? Math.round(mins/60) + ' giờ' : mins + ' phút'} — app đã tự dùng giờ chuẩn. Nên vào Cài đặt điện thoại bật "Ngày giờ tự động". <a href="#" onclick="event.preventDefault(); this.parentNode.style.display='none'">Đóng</a>`; }
+  }); // Tiến độ tick đang nhặt (đồng bộ để đổi máy vẫn còn): packPicks/{hoáĐơn} = {picked, by, byName, at}
   // Theo dõi mạng: mất mạng → báo + chặn bấm lưu (tick / ảnh vẫn được giữ trên máy)
   db.ref('.info/connected').on('value', snap=>{ const v = snap.val(); if(v===true){ packEverOnline = true; packSetOnline(true); } else if(v===false && packEverOnline){ packSetOnline(false); } });
   fbPackUrgent = db.ref('packUrgent'); // Khách lấy trực tiếp: packUrgent/{hoáĐơn} = {at, by, byName, saleId, invoiceNumber} → ưu tiên nhặt trước // Nhận đơn: packClaims/{hoáĐơn} = {by, byName, at, touchAt} — 1 đơn chỉ 1 người giữ // Lịch sử in: mỗi lượt bấm In = 1 dòng {at, byName, ids[], nums[], confirmed} // Ảnh đơn hàng lúc đóng / thiếu / bù: packPhotos/{hoáĐơn}/{mãẢnh} = {data(JPEG nén), kind, at, byName} — chỉ tải khi bấm xem
@@ -3471,7 +3487,7 @@ function startFirebaseListeners(){
 }
 function broadcastRefresh(){
   askConfirm('Làm mới cho tất cả', 'Mọi người đang mở app (kể cả ai đã thêm icon ra màn hình chính) sẽ tự động tải lại trang trong vài giây. Tiếp tục?', ()=>{
-    fbSystem.set(Date.now());
+    fbSystem.set(nowMs());
     showToast('Đã gửi lệnh làm mới cho tất cả');
   });
 }
@@ -3512,7 +3528,7 @@ function onDataChanged(){
     if(currentPageId && currentPageId!=='staffReport' && currentPageId!=='mktInput' && currentPageId!=='invoices' && currentPageId!=='mktReport' && currentPageId!=='printReport' && currentPageId!=='printOrders'){
       clearTimeout(dataChangedRenderTimer);
       // Chống lag: gộp các thay đổi liên tiếp, vẽ lại tối đa ~1 lần mỗi 1,5 giây (trước là mỗi 0,3 giây)
-      const wait = Math.max(300, 1500 - (Date.now() - lastAutoRenderAt));
+      const wait = Math.max(300, 1500 - (nowMs() - lastAutoRenderAt));
       dataChangedRenderTimer = setTimeout(()=>{
         // Tab đang ẩn (chuyển sang tab/ứng dụng khác) → không vẽ lại, đợi quay lại mới vẽ 1 lần
         if(document.hidden){ pendingRenderWhenVisible = true; return; }
@@ -3568,7 +3584,7 @@ function refreshCurrentPagePreservingScroll(){
   const scrollY = window.scrollY;
   isAutoRefreshing = true;
   try{ goPage(currentPageId); } finally { isAutoRefreshing = false; }
-  lastAutoRenderAt = Date.now();
+  lastAutoRenderAt = nowMs();
   window.scrollTo(0, scrollY);
 }
 /* ---- Bảng dài (data của Sale/MKT, data chốt...) chỉ vẽ 100 dòng đầu, có nút "Xem thêm" ----
@@ -3893,7 +3909,7 @@ function addVideoShoot(){
     supportActors, // {actorId: soVideo}
     totalCost,
     note: noteEl.value.trim(),
-    createdAt: Date.now(), // thời điểm MKT thực sự thêm buổi quay này vào hệ thống
+    createdAt: nowMs(), // thời điểm MKT thực sự thêm buổi quay này vào hệ thống
   };
   state.videoShoots.push(shoot);
   fbVideoShoots.child(shoot.id).set(shoot);
@@ -4243,7 +4259,7 @@ function toSheetCsvUrl(url){
     u = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
   }
   // Chống lấy bản cũ trong bộ nhớ đệm trình duyệt
-  return u + (u.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  return u + (u.includes('?') ? '&' : '?') + '_t=' + nowMs();
 }
 // Khoá trong Firebase KHÔNG được chứa . # $ [ ] / → mã có các ký tự này (VD "A55.1", "A/12") trước đây làm
 // cả lần cập nhật bị lỗi. Giờ tự thay bằng "_" ở KHOÁ lưu trữ, còn mã hiển thị (code) giữ nguyên.
@@ -4292,7 +4308,7 @@ async function syncProductsFromSheet(){
       const colors = (r[7]||'').trim();
       const sizeInfo = (r[8]||'').trim();
       const designs = (r[designCol]||'').trim(); // danh sách mẫu in, cách nhau bởi dấu phẩy (VD mã A55)
-      products[productKeyFor(code)] = {code, name, price10, price100, price1000, colors, sizeInfo, designs, updatedAt: Date.now()};
+      products[productKeyFor(code)] = {code, name, price10, price100, price1000, colors, sizeInfo, designs, updatedAt: nowMs()};
     });
     const count = Object.keys(products).length;
     if(count===0){
@@ -4322,7 +4338,7 @@ async function syncProductsFromSheet(){
     const nothing = !newCodes.length && !priceChanged.length && !otherChanged.length && !removed.length;
     const isPublished = /\/pub(\?|$|html)|\/d\/e\//.test(url);
     const msgEl = document.getElementById('productSyncMsg');
-    const timeTxt = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    const timeTxt = new Date(nowMs()).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
     if(msgEl) msgEl.innerHTML = nothing
       ? `<div style="padding:10px 12px; border:1px dashed #F0A63A; border-radius:8px; background:rgba(240,166,58,0.08);">⚠️ <b>${timeTxt}</b> — Đã đọc ${count} mã nhưng <b>không thấy thay đổi nào</b> so với lần trước (giá, màu, mẫu in đều như cũ).<br>
           ${isPublished ? 'Anh đang dùng link <b>"Công bố lên web"</b>: Google thường mất <b>khoảng 5 phút</b> mới cập nhật nội dung vừa sửa trên Sheet. Đợi vài phút rồi bấm lại.<br>Muốn lấy giá mới <b>ngay lập tức</b>: dùng link chỉnh sửa của Sheet (thanh địa chỉ dạng <i>…/spreadsheets/d/…/edit#gid=…</i>), bật chia sẻ "Bất kỳ ai có đường liên kết đều xem được", dán vào ô link → Lưu link → bấm cập nhật.' : 'Kiểm tra đã sửa đúng tab (trang tính) mà link đang trỏ tới chưa, và sửa đúng cột giá (cột D, E, F).'}</div>`
@@ -4887,8 +4903,8 @@ function invoiceItemsRecord(inv){
     items.push({code: String(g.productCode||'').trim().toUpperCase(), name: g.productName||'', design: g.design || l.design || '', color: l.color || '', qty: q});
   }));
   // Số HĐ + tên Sale để Kho đối chiếu đơn — KHÔNG có tên/SĐT khách, KHÔNG có giá
-  return {id: inv.id, invoiceNumber: inv.invoiceNumber || '', saleName: inv.saleName || '', invoiceDate: inv.invoiceDate || '', createdAt: inv.createdAt || Date.now(),
-    deposited: !!inv.depositLink, oldCustomer: !!(inv.depositLink && isOldCustomerInvoice(inv)), depositAt: (inv.depositLink && inv.depositLink.markedAt) || null, items, updatedAt: Date.now()};
+  return {id: inv.id, invoiceNumber: inv.invoiceNumber || '', saleName: inv.saleName || '', invoiceDate: inv.invoiceDate || '', createdAt: inv.createdAt || nowMs(),
+    deposited: !!inv.depositLink, oldCustomer: !!(inv.depositLink && isOldCustomerInvoice(inv)), depositAt: (inv.depositLink && inv.depositLink.markedAt) || null, items, updatedAt: nowMs()};
 }
 function syncInvoiceItems(inv){ if(fbInvoiceItems && inv && inv.id) fbInvoiceItems.child(inv.id).set(invoiceItemsRecord(inv)).catch(()=>{}); }
 function removeInvoiceItems(id){ if(fbInvoiceItems && id) fbInvoiceItems.child(id).remove().catch(()=>{}); }
@@ -4942,8 +4958,8 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
     totalAmount: totals.totalAmount,
     deposit: totals.deposit,
     finalAmount: totals.finalAmount,
-    createdAt: d.createdAt || Date.now(),
-    updatedAt: Date.now(),
+    createdAt: d.createdAt || nowMs(),
+    updatedAt: nowMs(),
   };
   const phone = cleanPhone(d.customerPhone);
   if(phone) finalInvoice.customerPhone = phone;
@@ -5030,7 +5046,7 @@ function markInvoiceDeposited(invoiceId){
   const norm = normalizePhone(phone);
   // Sale đã tự chọn "Đã chốt" (hoặc tự thêm dòng) cho SĐT này trong 7 ngày gần đây mà CHƯA gắn hoá đơn nào
   // → đó chính là đơn này: gắn hoá đơn vào dòng đó, KHÔNG tạo thêm dòng chốt mới (tránh doanh thu bị cộng đôi).
-  const d7 = new Date(); d7.setDate(d7.getDate()-7); const since = toLocalDateStr(d7);
+  const d7 = new Date(nowMs()); d7.setDate(d7.getDate()-7); const since = toLocalDateStr(d7);
   const recentClosed = state.leads
     .filter(l=>l.assignedTo===ownerId && l.status==='Đã chốt' && !l.invoiceId && (l.closedDate||'')>=since && normalizePhone(leadPhone(l))===norm)
     .sort((a,b)=>(b.closedDate||'').localeCompare(a.closedDate||''))[0];
@@ -5046,11 +5062,11 @@ function markInvoiceDeposited(invoiceId){
     const today = todayStr();
     let link;
     if(existing){
-      link = {leadId: existing.id, created: false, markedAt: Date.now(),
+      link = {leadId: existing.id, created: false, markedAt: nowMs(),
         prev: {status: existing.status||'', closedDate: existing.closedDate||'', closedAmount: (existing.closedAmount===undefined ? null : existing.closedAmount)}};
       const updates = recentClosed
         ? {closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber} // giữ nguyên Ngày chốt Sale đã ghi
-        : {status:'Đã chốt', closedDate: today, closedAt: Date.now(), closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
+        : {status:'Đã chốt', closedDate: today, closedAt: nowMs(), closedAmount: amount, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber};
       if(!existing.customerName) updates.customerName = inv.customerName;
       Object.assign(existing, updates);
       fbUpdateLead(existing.id, updates);
@@ -5061,22 +5077,22 @@ function markInvoiceDeposited(invoiceId){
         source: isReturningCustomerFor(null, phone, null, inv.id) ? returningSourceName() : ((inv.leadSource && inv.leadSource!==returningSourceName()) ? inv.leadSource : ''),
         status: 'Đã chốt',
         closedDate: today,
-        closedAt: Date.now(),
+        closedAt: nowMs(),
         closedAmount: amount,
         customerName: inv.customerName || '',
         assignedTo: owner.id,
         assignedToName: owner.name,
-        assignedAt: Date.now(),
+        assignedAt: nowMs(),
         createdBy: currentUser().id,
         createdByName: currentUser().name,
-        createdAt: Date.now(),
+        createdAt: nowMs(),
         manualEntry: true,
         invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
       };
       state.leads.push(lead);
       fbSetLead(lead);
-      link = {leadId: lead.id, created: true, markedAt: Date.now()};
+      link = {leadId: lead.id, created: true, markedAt: nowMs()};
     }
     inv.depositLink = link;
     fbInvoices.child(inv.id).update({depositLink: link});
@@ -5155,7 +5171,7 @@ function depProofSubmit(){
 }
 function depProofSave(inv, kind){
   if(!depProof || depProof.invId!==inv.id || !depProof.imgs.length) return;
-  const me = currentUser() || {}; const at = Date.now(); const upd = {};
+  const me = currentUser() || {}; const at = nowMs(); const upd = {};
   depProof.imgs.forEach((p,i)=>{ const pid = 'dp' + at.toString(36) + i; upd[`depositProofs/${inv.id}/${pid}`] = {data: p.data, kind, at, by: me.id||'', byName: me.name||''}; });
   const meta = {n: depProof.imgs.length, kind, at};
   upd[`invoices/${inv.id}/depositProof`] = meta;
@@ -5260,14 +5276,14 @@ const INVOICE_KEEP_DAYS = 60; // giữ hoá đơn + ảnh cọc / ảnh đóng h
 function invoiceCreatedMs(inv){
   if(inv.createdAt) return Number(inv.createdAt);
   const t = inv.invoiceDate ? Date.parse(inv.invoiceDate + 'T00:00:00') : NaN;
-  return isNaN(t) ? Date.now() : t;
+  return isNaN(t) ? nowMs() : t;
 }
 function invoiceDaysLeft(inv){
   const expireAt = invoiceCreatedMs(inv) + INVOICE_KEEP_DAYS*86400000;
-  return Math.max(0, Math.ceil((expireAt - Date.now())/86400000));
+  return Math.max(0, Math.ceil((expireAt - nowMs())/86400000));
 }
 function purgeExpiredInvoices(list){
-  const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000;
+  const cutoff = nowMs() - INVOICE_KEEP_DAYS*86400000;
   const keep = [];
   (list||[]).forEach(inv=>{
     if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
@@ -5433,7 +5449,7 @@ function renderInvoicesPage(){
 // Mặc định "🔔 Cần xử lý" = Chờ cọc (mọi đơn, bao lâu cũng hiện) + Kho báo thiếu + Sửa sau khi kho in (cần báo kho in lại).
 let myInvFlowFilter = 'todo';
 const INV_STALE_DAYS = 3; // chờ cọc từ 3 ngày → hiện nhãn "x ngày chưa cọc · nhắc khách" (vẫn hiện đầy đủ, không làm mờ)
-function invPendingDays(inv){ return Math.floor((Date.now() - invoiceCreatedMs(inv)) / 86400000); }
+function invPendingDays(inv){ return Math.floor((nowMs() - invoiceCreatedMs(inv)) / 86400000); }
 function invNeedsReprint(inv, maps){
   if(!inv.depositLink) return false;
   const ps = maps.ps[inv.id], pp = maps.pp[inv.id];
@@ -5922,6 +5938,11 @@ function packDepositMs(inv){ return Number(inv.depositLink && inv.depositLink.ma
 function packStatusOf(inv, pp){ if(!pp) return 'new'; return pp.sig===packSig(inv) ? 'done' : 'changed'; }
 function packTimeStr(ms){
   if(!ms) return '—';
+  if(Number(ms) > nowMs() + 10*60000) return packTimeStrRaw(ms) + ' ⚠';
+  return packTimeStrRaw(ms);
+}
+function packTimeStrRaw(ms){
+  if(!ms) return '—';
   const d = new Date(Number(ms)); const p = n=>String(n).padStart(2,'0');
   const day = toLocalDateStr(d);
   const dd = day===todayStr() ? 'hôm nay' : `${p(d.getDate())}/${p(d.getMonth()+1)}`;
@@ -5947,7 +5968,7 @@ function cleanupPackPrints(){
   if(Object.keys(upd).length) fbPackPrints.update(upd).catch(()=>{});
   if(Object.keys(upd2).length && fbPackStatus) fbPackStatus.update(upd2).catch(()=>{});
   const smapC0 = packStatusMap();
-  if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || (Date.now()-Number(v[k].at||0) > 2*86400000 && !packActiveClaimOf(k))) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
+  if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || (nowMs()-Number(v[k].at||0) > 2*86400000 && !packActiveClaimOf(k))) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
   // Dọn "nhận đơn" cũ: đơn đã xong / không còn / giữ quá 1 ngày
   const updC = {}; const smapC = packStatusMap();
   (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && (smapC[c.id].state==='packed' || smapC[c.id].state==='partial')))) updC[c.id] = null; }); // chỉ dọn khi đơn đã xong / không còn
@@ -5976,8 +5997,8 @@ function packCurrentList(){
   const sortDir = (document.getElementById('packSortSel')||{}).value || 'asc';
   const from = (document.getElementById('packFrom')||{}).value || '', to = (document.getElementById('packTo')||{}).value || '';
   const today = todayStr();
-  const yd = new Date(); yd.setDate(yd.getDate()-1); const yesterday = toLocalDateStr(yd);
-  const d7 = new Date(); d7.setHours(0,0,0,0); d7.setDate(d7.getDate()-6); const from7 = d7.getTime();
+  const yd = new Date(nowMs()); yd.setDate(yd.getDate()-1); const yesterday = toLocalDateStr(yd);
+  const d7 = new Date(nowMs()); d7.setHours(0,0,0,0); d7.setDate(d7.getDate()-6); const from7 = d7.getTime();
   let base = (state.invoices||[]).filter(inv=>inv && inv.depositLink);
   base = base.filter(inv=>{
     const ms = packDepositMs(inv); const day = toLocalDateStr(new Date(ms));
@@ -6155,7 +6176,7 @@ function packMarkLegacySelected(){
   const invs = Array.from(packSelected).map(id=>(state.invoices||[]).find(x=>x.id===id)).filter(inv=>inv && inv.depositLink && !smap[inv.id]);
   if(!invs.length){ showToast('Chọn các đơn cũ cần đánh dấu trước (đơn đã đóng / chờ bù thì bỏ qua).'); return; }
   askConfirm(`Đánh dấu ${invs.length} đơn là ĐÃ XỬ LÝ (đơn cũ)?`, 'Dùng cho đơn đã gửi hàng TRƯỚC khi áp dụng quy trình kho. Các đơn này sẽ chuyển sang "✅ Đã đóng" (ghi chú: đơn cũ), không cần ảnh, không tính vào số đơn của nhân viên. Bấm nhầm thì mở từng đơn → "Huỷ trạng thái Đã đóng".', ()=>{
-    const now = Date.now(); const upd = {};
+    const now = nowMs(); const upd = {};
     invs.forEach(inv=>{ upd[`packStatus/${inv.id}`] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), state:'packed', legacy:true,
       at: now, packedAt: now, staffId:'', staffName:'Đơn cũ', byUser: me.id||'', byUserName: me.name||''}; });
     const keys = Object.keys(upd); const chunks = [];
@@ -6184,7 +6205,7 @@ function packAccCreate(){
   if(packAccNameTaken(name)) return packAccErr('Đã có người dùng tên này — thêm họ / chữ cái để phân biệt.');
   packAccErr('');
   const me = currentUser() || {};
-  const user = {id: uid(), name, pin, role:'packer', branchId:null, mktBranchId:null, assignedSources:[], createdAt: Date.now(), createdBy: me.id || '', createdByName: me.name || ''};
+  const user = {id: uid(), name, pin, role:'packer', branchId:null, mktBranchId:null, assignedSources:[], createdAt: nowMs(), createdBy: me.id || '', createdByName: me.name || ''};
   if(zalo) user.zaloPhone = zalo;
   if(document.getElementById('packAccShared').checked) user.sharedDesk = true;
   document.getElementById('packAccShared').checked = false;
@@ -6223,7 +6244,7 @@ function packAccSave(id){
 function packAccToggleBlock(id){
   const u = packAccTarget(id); if(!u) return;
   const blocking = !u.loginBlocked;
-  const go = ()=>{ u.loginBlocked = blocking; fbUpdateUser(id, {loginBlocked: blocking || null, blockedAt: blocking ? Date.now() : null}); showToast(blocking ? `${u.name} đã cho nghỉ — không đăng nhập được nữa` : `Đã mở lại tài khoản ${u.name}`); renderPackAccounts(); };
+  const go = ()=>{ u.loginBlocked = blocking; fbUpdateUser(id, {loginBlocked: blocking || null, blockedAt: blocking ? nowMs() : null}); showToast(blocking ? `${u.name} đã cho nghỉ — không đăng nhập được nữa` : `Đã mở lại tài khoản ${u.name}`); renderPackAccounts(); };
   if(blocking) askConfirm(`Cho ${u.name} nghỉ?`, 'Tài khoản sẽ bị chặn đăng nhập ngay (máy đang mở cũng tự thoát). Số đơn đã đóng trước đây vẫn giữ nguyên. Mở lại được bất cứ lúc nào.', go);
   else go();
 }
@@ -6285,7 +6306,7 @@ const SHIP_LATE_HOURS = 4;
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
   if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">🚚 Sale đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + escHtml(ps.ship.code) : ''}</div>`;
-  const h = (Date.now() - Number(ps.packedAt||ps.at||Date.now()))/3600000;
+  const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">⏳ Sale chưa lên vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
 }
 // Tên hãng ngắn cho danh sách
@@ -6320,7 +6341,7 @@ function shipSave(){
   const me = currentUser() || {};
   const carrier = String(document.getElementById('shipCarrier').value||'').trim();
   const code = String(document.getElementById('shipCode').value||'').trim().replace(/\s+/g,'');
-  const ship = {at: Date.now(), by: me.id||'', byName: me.name||'', carrier: carrier || null, code: code || null};
+  const ship = {at: nowMs(), by: me.id||'', byName: me.name||'', carrier: carrier || null, code: code || null};
   const ps = packStatusMap()[shipInvId]; if(ps) ps.ship = ship;
   try{ if(carrier) localStorage.setItem('ship_last_carrier', carrier); }catch(e){}
   fbPackStatus.child(shipInvId).child('ship').set(ship).then(()=>{
@@ -6340,7 +6361,7 @@ function packCheckDoneNotices(){
   const me = currentUser(); if(!me) return;
   let seen = null; try{ seen = JSON.parse(localStorage.getItem(packDoneSeenKey()) || 'null'); }catch(e){}
   if(!seen){ // lần đầu dùng bản này: không bắn thông báo cho các đơn đã đóng từ trước
-    seen = {since: Date.now(), ids: {}}; try{ localStorage.setItem(packDoneSeenKey(), JSON.stringify(seen)); }catch(e){} return;
+    seen = {since: nowMs(), ids: {}}; try{ localStorage.setItem(packDoneSeenKey(), JSON.stringify(seen)); }catch(e){} return;
   }
   const fresh = (state.packStatus||[]).filter(p=>p && p.saleId===me.id && (p.state==='packed' || p.state==='partial') && !p.legacy && !p.ship
     && Number(p.packedAt||p.at) > Number(seen.since||0) && seen.ids[p.id]!==Number(p.packedAt||p.at) && !(p.bySale && p.staffId===me.id));
@@ -6362,7 +6383,7 @@ function packCheckDoneNotices(){
 }
 function packDoneAck(){
   let seen = null; try{ seen = JSON.parse(localStorage.getItem(packDoneSeenKey()) || 'null'); }catch(e){}
-  seen = seen || {since: Date.now(), ids: {}}; seen.ids = seen.ids || {};
+  seen = seen || {since: nowMs(), ids: {}}; seen.ids = seen.ids || {};
   packDoneQueue.forEach(p=>{ seen.ids[p.id] = Number(p.packedAt||p.at); });
   // gọn bộ nhớ: chỉ giữ 300 đơn gần nhất
   const keys = Object.keys(seen.ids); if(keys.length > 300) keys.slice(0, keys.length-300).forEach(k=>delete seen.ids[k]);
@@ -6403,7 +6424,7 @@ function packSetUrgent(invId, on, kind){
   if(on){
     document.getElementById('packUrgChooseModal').classList.remove('show');
     const k = PACK_URG[kind] ? kind : 'pickup'; const K = PACK_URG[k];
-    const rec = {id: invId, kind: k, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: Date.now()};
+    const rec = {id: invId, kind: k, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: nowMs()};
     state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId).concat([rec]);
     fbPackUrgent.child(invId).set(rec).then(()=>{ showToast(`${K.icon} Đã báo kho nhặt ngay`); packChatPost(invId, `${K.icon} ${K.long} — nhặt đơn ${inv.invoiceNumber} ngay giúp mình nhé.`, null); }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
     if(currentPageId==='invoices') renderInvoicesPage();
@@ -6440,7 +6461,7 @@ async function packClaimSpecific(invId){
   if(mine && mine.id!==invId){ showToast(`Bạn đang giữ đơn ${mine.invoiceNumber} — trả đơn hoặc làm xong rồi nhận đơn khách chờ.`); packPanelOpen(mine.id); return; }
   const inv = packInvById(invId); if(!inv) return;
   const cur = packActiveClaimOf(invId); if(cur && cur.by!==me.id){ showToast(`${cur.byName} đã nhận đơn này rồi.`); return; }
-  const now = Date.now(); const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
+  const now = nowMs(); const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
   try{
     const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && c.by!==me.id) return; return rec; });
     if(res && res.committed){ state.packClaims = (state.packClaims||[]).filter(c=>c.id!==invId).concat([rec]); packBeep(true); packPanelOpen(invId); return; }
@@ -6484,7 +6505,7 @@ function packClaimQueue(){
   const normal = invs.filter(inv=>!smap[inv.id] && (!pmap[inv.id] || umap[inv.id]));
   const ready = invs.filter(inv=>{
     const ps = smap[inv.id]; if(!packReadyShort(ps)) return false;
-    return packShortReporter(ps)===me.id || (Date.now() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
+    return packShortReporter(ps)===me.id || (nowMs() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
   });
   const rank = inv=>umap[inv.id] ? 0 : (ready.includes(inv) ? (packShortReporter(smap[inv.id])===me.id ? 1 : 2) : 3);
   return normal.concat(ready).sort((a,b)=>rank(a)-rank(b) || (umap[a.id] && umap[b.id] ? umap[a.id].at-umap[b.id].at : 0) || packDepositMs(a)-packDepositMs(b));
@@ -6510,7 +6531,7 @@ function packCheckReplyNotices(){
   try{ playTingSound(); }catch(e){}
   if(navigator.vibrate) navigator.vibrate([150,80,150]);
 }
-function packClaimMinutes(c){ return Math.max(0, Math.round((Date.now() - Number(c.at||0))/60000)); }
+function packClaimMinutes(c){ return Math.max(0, Math.round((nowMs() - Number(c.at||0))/60000)); }
 async function packClaimNext(){
   const me = currentUser(); if(!me || me.role==='general_manager' || !fbPackClaims) return;
   if(!packInvoicesLoaded){ showToast('Đang tải hoá đơn, chờ vài giây.'); return; }
@@ -6519,7 +6540,7 @@ async function packClaimNext(){
   const q = packClaimQueue();
   if(!q.length){ packBeep(false); showToast('🎉 Hết đơn chờ nhận (đơn còn lại đã in phiếu hoặc đang có người làm).'); return; }
   for(const inv of q.slice(0, 8)){
-    const now = Date.now();
+    const now = nowMs();
     let res = null;
     try{
       res = await fbPackClaims.child(inv.id).transaction(cur=>{
@@ -6558,8 +6579,8 @@ function packClaimGiveBack(invId){
 let packClaimTouchAt = 0;
 function packClaimTouch(invId){
   const c = packClaimMap()[invId]; const me = currentUser();
-  if(!c || !me || c.by!==me.id || Date.now() - packClaimTouchAt < 5*60000) return;
-  packClaimTouchAt = Date.now(); c.touchAt = Date.now();
+  if(!c || !me || c.by!==me.id || nowMs() - packClaimTouchAt < 5*60000) return;
+  packClaimTouchAt = nowMs(); c.touchAt = nowMs();
   fbPackClaims.child(invId).update({touchAt: c.touchAt}).catch(()=>{});
 }
 // Xong đơn (đóng / báo thiếu / gửi thiếu) → bỏ giữ đơn
@@ -6574,7 +6595,7 @@ function packLogPrintBatch(invs){
   if(!fbPackPrintBatches) return null;
   const me = currentUser() || {};
   const ref = fbPackPrintBatches.push();
-  ref.set({id: ref.key, at: Date.now(), by: me.id||'', byName: me.name||'', count: invs.length, ids: invs.map(i=>i.id), nums: invs.map(i=>String(i.invoiceNumber||'')), confirmed: false}).catch(()=>{});
+  ref.set({id: ref.key, at: nowMs(), by: me.id||'', byName: me.name||'', count: invs.length, ids: invs.map(i=>i.id), nums: invs.map(i=>String(i.invoiceNumber||'')), confirmed: false}).catch(()=>{});
   return ref.key;
 }
 let packBatchCleanDone = false;
@@ -6582,7 +6603,7 @@ function packCleanupOldBatches(){
   if(packBatchCleanDone || !fbPackPrintBatches) return;
   const me = currentUser(); if(!me || !['general_manager','warehouse'].includes(me.role)) return;
   packBatchCleanDone = true;
-  const cut = Date.now() - INVOICE_KEEP_DAYS*86400000;
+  const cut = nowMs() - INVOICE_KEEP_DAYS*86400000;
   fbPackPrintBatches.orderByKey().limitToFirst(50).once('value').then(snap=>{
     const upd = {}; snap.forEach(ch=>{ const v = ch.val(); if(v && Number(v.at) < cut) upd[ch.key] = null; });
     if(Object.keys(upd).length) fbPackPrintBatches.update(upd).catch(()=>{});
@@ -6701,7 +6722,7 @@ function packDraftSave(){
   if(!packPanel) return;
   const P = packPanel; clearTimeout(packDraftTimer);
   packDraftTimer = setTimeout(()=>{
-    const d = {at: Date.now(), picked: P.picked||{}, photos: P.photos||[], miss: P.miss||{}, note: P.note||'', mode: P.mode||'view', staffId: P.staffId||null};
+    const d = {at: nowMs(), picked: P.picked||{}, photos: P.photos||[], miss: P.miss||{}, note: P.note||'', mode: P.mode||'view', staffId: P.staffId||null};
     pimgCacheSet('draft_' + P.invId, d);
   }, 300);
 }
@@ -6710,7 +6731,7 @@ function packPicksSync(){ // gửi tiến độ tick lên máy chủ (gộp 1,5 
   if(!packPanel || !fbPackPicks) return;
   const id = packPanel.invId, picked = Object.assign({}, packPanel.picked||{}); const me = currentUser() || {};
   clearTimeout(packPicksTimer);
-  packPicksTimer = setTimeout(()=>{ fbPackPicks.child(id).set({picked, by: me.id||'', byName: me.name||'', at: Date.now()}).catch(()=>{}); }, 1500);
+  packPicksTimer = setTimeout(()=>{ fbPackPicks.child(id).set({picked, by: me.id||'', byName: me.name||'', at: nowMs()}).catch(()=>{}); }, 1500);
 }
 async function packDraftRestore(invId){
   if(!packPanel || packPanel.invId!==invId || packPanel.viewOnly) return;
@@ -6771,7 +6792,7 @@ function packCamShoot(){
   cv.getContext('2d').drawImage(v, 0, 0, w, h);
   let q = 0.72, data = cv.toDataURL('image/jpeg', q);
   while(data.length > 330000 && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
-  packPanel.photos.push({data, at: Date.now()});
+  packPanel.photos.push({data, at: nowMs()});
   packDraftSave();
   const f = document.getElementById('packCamShotFlash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   if(navigator.vibrate) navigator.vibrate(40);
@@ -6797,17 +6818,17 @@ function packCamTorch(){
 // - App tự kiểm tra (gói nhỏ HEAD, không tải cả file) khi mở lại app và mỗi 10 phút: file trên máy chủ đổi → hiện thanh báo.
 //   Tick / ảnh đang làm dở đã lưu nháp trên máy nên tải lại không mất.
 function appHardReload(){
-  try{ const u = new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.toString()); }
+  try{ const u = new URL(location.href); u.searchParams.set('v', nowMs()); location.replace(u.toString()); }
   catch(e){ location.reload(); }
 }
 (function(){ try{ const u = new URL(location.href); if(u.searchParams.has('v')){ u.searchParams.delete('v'); history.replaceState(null, '', u.pathname + u.search + u.hash); } }catch(e){} })();
 let appVerBase = null, appVerLastCheck = 0;
 async function appCheckUpdate(force){
   if(location.protocol!=='http:' && location.protocol!=='https:') return;
-  if(!force && Date.now() - appVerLastCheck < 60000) return;
-  appVerLastCheck = Date.now();
+  if(!force && nowMs() - appVerLastCheck < 60000) return;
+  appVerLastCheck = nowMs();
   try{
-    const r = await fetch(location.pathname + '?vc=' + Date.now(), {method:'HEAD', cache:'no-store'});
+    const r = await fetch(location.pathname + '?vc=' + nowMs(), {method:'HEAD', cache:'no-store'});
     const tag = r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length') || '';
     if(!tag) return;
     if(appVerBase===null){ appVerBase = tag; return; }
@@ -6862,7 +6883,7 @@ function packSaveShortEdit(inv, old, items){
   let refilled = 0, more = 0;
   Object.keys(Object.assign({}, oldMap, newMap)).forEach(k=>{ const d = (oldMap[k]||0) - (newMap[k]||0); if(d>0) refilled += d; else more += -d; });
   if(!refilled && !more && String(packPanel.note||'').trim()===String(old.note||'')){ packPanel.mode = 'view'; renderPackPanel(); showToast('Không có gì thay đổi.'); return; }
-  const now = Date.now();
+  const now = nowMs();
   const missOrig = (old.missOrig!=null ? Number(old.missOrig) : (old.shortItems||[]).reduce((a,x)=>a+(Number(x.missing)||0),0)) + more;
   const rec = Object.assign({}, old, {shortItems: items, note: String(packPanel.note||'').trim(), at: now, missOrig});
   if(!rec.shortItemsOrig) rec.shortItemsOrig = old.shortItems || items;
@@ -6937,7 +6958,7 @@ function packOnInvoiceEdited(prev, inv){
   const ps = packStatusMap()[inv.id]; const cl = packActiveClaimOf(inv.id);
   if(ps && (ps.state==='packed' || ps.state==='partial') && !ps.legacy){
     // ĐÃ ĐÓNG mà Sale sửa → gắn nhãn cho kho kiểm tra lại gói hàng
-    fbPackStatus.child(inv.id).child('editedAfterPack').set({at: Date.now(), by: me.id||'', byName: me.name||'', text: txt}).catch(()=>{});
+    fbPackStatus.child(inv.id).child('editedAfterPack').set({at: nowMs(), by: me.id||'', byName: me.name||'', text: txt}).catch(()=>{});
     packChatPost(inv.id, `⚠ Sale sửa đơn ${inv.invoiceNumber} SAU KHI KHO ĐÃ ĐÓNG: ${txt}. Kho kiểm tra lại gói hàng giúp mình.`, ps.byUser || null);
     return;
   }
@@ -7008,7 +7029,7 @@ function packSwapOpen(){
 let packSwapPlansCache = [];
 function packSwapApply(i){
   const pl = packSwapPlansCache[i]; if(!pl || !fbRoot) return;
-  const smap = packStatusMap(); const me = currentUser() || {}; const now = Date.now(); const upd = {};
+  const smap = packStatusMap(); const me = currentUser() || {}; const now = nowMs(); const upd = {};
   const to = smap[pl.toId]; if(!to || to.state!=='short'){ showToast('Đơn này đã thay đổi — mở lại gợi ý.'); packSwapOpen(); return; }
   upd[`packStatus/${pl.toId}`] = Object.assign({}, to, {shortItems: [], swappedFull: true, at: now,
     swapIn: (to.swapIn||[]).concat(pl.moves.map(m=>({from: m.fromNum, sku: m.sku, qty: m.qty, at: now})))});
@@ -7059,8 +7080,8 @@ function packDeductShortPlan(inv, items){
   nv.totalAmount = nv.productGroups.reduce((a,g)=>a+(Number(g.unitPrice)||0)*g.colorLines.reduce((b,l)=>b+(Number(l.qty)||0),0),0);
   nv.finalAmount = nv.totalAmount - (Number(nv.deposit)||0);
   const me = currentUser() || {};
-  nv.updatedAt = Date.now();
-  nv.shortDeducted = (inv.shortDeducted||[]).concat([{at: Date.now(), by: me.id||'', byName: me.name||'', amount, items: removed.map(r=>`${r.qty} ${r.label}`).join(', ')}]);
+  nv.updatedAt = nowMs();
+  nv.shortDeducted = (inv.shortDeducted||[]).concat([{at: nowMs(), by: me.id||'', byName: me.name||'', amount, items: removed.map(r=>`${r.qty} ${r.label}`).join(', ')}]);
   return {nv, amount, removed, finalBefore: Number(inv.finalAmount)||0, finalAfter: nv.finalAmount, totalBefore: Number(inv.totalAmount)||0};
 }
 function packApplyDeduct(plan){
@@ -7150,12 +7171,12 @@ function packStaffAdd(){
   if(!name){ showToast('Gõ tên nhân viên kho trước.'); return; }
   if(packActiveStaff().some(x=>normalizeSearchText(x.name)===normalizeSearchText(name))){ showToast('Tên này đã có trong danh sách.'); return; }
   const id = 'ks_' + uid();
-  fbPackStaff.child(id).set({id, name, active:true, createdAt:Date.now()}).then(()=>{ el.value = ''; showToast('Đã thêm ' + name); });
+  fbPackStaff.child(id).set({id, name, active:true, createdAt:nowMs()}).then(()=>{ el.value = ''; showToast('Đã thêm ' + name); });
 }
 function packStaffRemove(id){
   const st = (state.packStaff||[]).find(x=>x.id===id); if(!st) return; // chỉ tên thêm tay (tài khoản thì xoá ở Chi nhánh & nhân sự)
   askConfirm('Bỏ nhân viên kho?', `Bỏ "${st.name}" khỏi danh sách đóng hàng. Số đơn đã đóng trước đây vẫn giữ nguyên.`, ()=>{
-    fbPackStaff.child(id).update({active:false, removedAt:Date.now()});
+    fbPackStaff.child(id).update({active:false, removedAt:nowMs()});
   });
 }
 function packPresenceChipsHtml(){
@@ -7204,7 +7225,7 @@ async function packClaimAutoForSale(invId){
   const inv = packInvById(invId); if(!inv || !inv.depositLink) return;
   const st = packStatusMap()[invId]; if(st && (st.state==='packed' || st.state==='partial')) return;
   const cur = packActiveClaimOf(invId); if(cur && cur.by!==me.id) return; // người khác đang giữ → màn hình đã báo chặn
-  const now = Date.now();
+  const now = nowMs();
   const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now, bySale: true};
   try{
     const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && c.by!==me.id) return; return rec; });
@@ -7376,7 +7397,7 @@ function packAfterAction(){
   if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packSnapClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
   if(fromClaim){ packPanelClose(); setTimeout(()=>showToast('✅ Xong đơn — bấm 📥 Nhận đơn để nhận đơn tiếp'), 600); return; }
   packPanelClose();
-  if(fromCam){ packLastCamAt = Date.now(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
+  if(fromCam){ packLastCamAt = nowMs(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
   else { const si = document.getElementById(currentPageId==='packDesk' ? 'packDeskScanInput' : 'packScanInput'); if(si && window.matchMedia('(min-width:721px)').matches) si.focus(); }
 }
 
@@ -7502,7 +7523,7 @@ async function pimgUploadFile(f, key, code, design, advance){
   showToast('⏳ Đang xử lý ảnh…');
   try{
     const data = await packImageResize(f, 600, 80000); // ~600px, ≤ ~60KB
-    const v = Date.now();
+    const v = nowMs();
     await fbRoot.update({[`productImages/${key}`]: {data, v, code, design: design || '', at: v, by: me.name || ''}, [`productImagesIndex/${key}`]: v});
     pimgMem[key] = {v, data}; pimgCacheSet(key, {v, data});
     (state.pimgIndex = state.pimgIndex || {})[key] = v;
@@ -7642,7 +7663,7 @@ async function packPhotoPicked(input){
   const busy = document.getElementById('packPhotoBusy'); if(busy) busy.style.display = 'block';
   for(const f of files){
     if((packPanel.photos||[]).length >= PACK_PHOTO_MAX) break;
-    try{ const data = await packCompressImage(f); if(packPanel) packPanel.photos.push({data, at: Date.now()}); }
+    try{ const data = await packCompressImage(f); if(packPanel) packPanel.photos.push({data, at: nowMs()}); }
     catch(e){ console.error(e); showToast('Không đọc được ảnh này — chụp lại giúp nhé.'); }
   }
   renderPackPanel();
@@ -7667,9 +7688,9 @@ function packNeedPhotos(onOk){
 function packPhotosWrite(invId, rec, kind){
   const upd = {}; const meta = Object.assign({}, rec.photos || {});
   (packPanel.photos||[]).forEach((p,i)=>{
-    const pid = 'ph' + Date.now().toString(36) + i + Math.random().toString(36).slice(2,6);
-    upd[`packPhotos/${invId}/${pid}`] = {data: p.data, kind, at: Date.now(), byName: rec.staffName || ''};
-    meta[pid] = {kind, at: Date.now(), byName: rec.staffName || ''};
+    const pid = 'ph' + nowMs().toString(36) + i + Math.random().toString(36).slice(2,6);
+    upd[`packPhotos/${invId}/${pid}`] = {data: p.data, kind, at: nowMs(), byName: rec.staffName || ''};
+    meta[pid] = {kind, at: nowMs(), byName: rec.staffName || ''};
   });
   rec.photos = Object.keys(meta).length ? meta : null;
   upd[`packStatus/${invId}`] = rec;
@@ -7740,7 +7761,7 @@ function packStartShort(){
 }
 function packBaseRecord(inv){
   const me = currentUser() || {};
-  return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: Date.now(),
+  return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: nowMs(),
     staffId: packPanel.staffId, staffName: packStaffName(packPanel.staffId), byUser: me.id||'', byUserName: me.name||'', bySale: packIsSale(me) || null,
     qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0)};
 }
@@ -7764,7 +7785,7 @@ function packDoPackedSave(){
   const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
   const old = packStatusMap()[inv.id];
   const kind = (old && (old.state==='short' || old.state==='partial')) ? 'refill' : 'packed';
-  const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: Date.now()}, packIsUrgent(inv.id) ? {wasUrgent: true, urgentKind: packUrgKind(packUrgentMap()[inv.id])} : {});
+  const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: nowMs()}, packIsUrgent(inv.id) ? {wasUrgent: true, urgentKind: packUrgKind(packUrgentMap()[inv.id])} : {});
   packPhotosWrite(inv.id, rec, kind).then(()=>{
     if(old && (old.state==='short' || old.state==='partial')) packChatPost(inv.id, old.state==='partial' ? '✅ Kho đã gửi bù phần còn nợ — đơn đã đủ.' : '✅ Kho đã bù đủ hàng và đóng đơn.', inv.saleId);
     packUrgentDone(inv.id);
@@ -7784,7 +7805,7 @@ function packDoShort(){
   if(!items.length){ packBeep(false); showToast('Chưa chọn dòng nào thiếu — bấm + ở dòng bị thiếu.'); return; }
   packNeedPhotos(()=>{
   const old = packStatusMap()[inv.id];
-  const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: Date.now(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
+  const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: nowMs(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
   rec.shortStaffId = rec.staffId; rec.shortStaffName = rec.staffName; // người BÁO thiếu (không đổi khi người khác xử lý tiếp)
   rec.missOrig = items.reduce((a,x)=>a+(Number(x.missing)||0), 0); rec.shortItemsOrig = items; rec.refills = null; // số thiếu BAN ĐẦU (để tính sp đã nhặt)
   packPhotosWrite(inv.id, rec, 'short').then(()=>{
@@ -7916,7 +7937,7 @@ function renderPackStats(){
   const all = state.packStatus || [];
   const doneToday = all.filter(p=>p.state==='packed' && !p.legacy && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===today);
   const byStaff = {}; doneToday.forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff[k] = (byStaff[k]||0) + 1; });
-  const d7 = Date.now() - 7*86400000;
+  const d7 = nowMs() - 7*86400000;
   const byStaff7 = {}; all.filter(p=>p.state==='packed' && !p.legacy && Number(p.packedAt||p.at) >= d7).forEach(p=>{ const k = p.staffName || '(không rõ)'; byStaff7[k] = (byStaff7[k]||0) + 1; });
   const [pa, pb] = packPeriodRange(packStatsPeriod);
   const miss = {}; all.filter(p=>p && !p.legacy && Number(p.shortAt||0)>=pa && Number(p.shortAt||0)<pb).forEach(p=>(p.shortItemsOrig||p.shortItems||[]).forEach(x=>{ const k = `${x.code}${x.design ? ' · ' + x.design : ''}${x.color ? ' · ' + x.color : ''}${x.size ? ' · ' + x.size : ''}`; const m = miss[k] || (miss[k] = {times:0, qty:0}); m.times++; m.qty += Number(x.missing)||0; }));
@@ -7942,7 +7963,7 @@ function packQtyOf(p){
   return inv ? (Number(inv.totalQty) || packInvLines(inv).reduce((a,l)=>a+l.qty, 0)) : 0;
 }
 function packPeriodRange(per){
-  const d0 = new Date(); d0.setHours(0,0,0,0); const t0 = d0.getTime();
+  const d0 = new Date(nowMs()); d0.setHours(0,0,0,0); const t0 = d0.getTime();
   if(per==='today') return [t0, Infinity];
   if(per==='yesterday') return [t0 - 86400000, t0];
   if(per==='7d') return [t0 - 6*86400000, Infinity];
@@ -8127,7 +8148,7 @@ function packReplySubmit(){
   const me = currentUser() || {};
   const ps = (state.packStatus||[]).find(p=>p && p.id===packReplyInvId); if(!ps) return;
   const note = String(document.getElementById('packReplyNote').value || '').trim();
-  const reply = {choice: packReplyChoice, note, at: Date.now(), by: me.id||'', byName: me.name||''};
+  const reply = {choice: packReplyChoice, note, at: nowMs(), by: me.id||'', byName: me.name||''};
   fbPackStatus.child(packReplyInvId).child('saleReply').set(reply).then(()=>{
     packChatPost(packReplyInvId, `↩ Sale trả lời: ${PACK_REPLY[reply.choice]}${note ? ' — ' + note : ''}`, ps.byUser || null);
     document.getElementById('packReplyModal').classList.remove('show');
@@ -8153,7 +8174,7 @@ function packOpenChat(invId){
 }
 function packChatPost(invId, text, toUserId){
   const me = currentUser(); if(!me || !fbChats) return;
-  const conv = packChatConv(invId); const msgId = uid(); const sentAt = Date.now();
+  const conv = packChatConv(invId); const msgId = uid(); const sentAt = nowMs();
   fbChats.child(conv).child(msgId).set({id:msgId, senderId:me.id, senderName:me.name, text, sentAt}).catch(()=>{});
   if(toUserId && toUserId!==me.id){
     fbChatNotify.child(toUserId).set({senderId:me.id, senderName:me.name, text, sentAt, convId:conv}).catch(()=>{});
@@ -8189,7 +8210,7 @@ function packDoPartial(){
   const go = ()=>packNeedPhotos(()=>{
     const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
     const plan = packDeductShortPlan(inv, ps.shortItems);
-    const rec = Object.assign({}, ps, packBaseRecord(inv), {state:'packed', shortSent:true, packedAt: Date.now(), partialAt: Date.now()},
+    const rec = Object.assign({}, ps, packBaseRecord(inv), {state:'packed', shortSent:true, packedAt: nowMs(), partialAt: nowMs()},
       plan ? {deductAmount: plan.amount, finalBefore: plan.finalBefore, finalAfter: plan.finalAfter} : {});
     if(plan) rec.qty = plan.nv.totalQty;
     packPhotosWrite(inv.id, rec, 'partial').then(()=>{
@@ -8238,10 +8259,10 @@ function handlePackQrParam(){
   if(!me) return; // chưa đăng nhập: giữ nguyên đường dẫn, đăng nhập xong enterApp gọi lại
   try{ const u = new URL(location.href); u.searchParams.delete('hd'); history.replaceState(null, '', u.pathname + u.search + u.hash); }catch(e){}
   if(!packCanUse(me)){ showToast('Mã QR này dành cho Kho — tài khoản của bạn không mở được.'); return; }
-  const t0 = Date.now();
+  const t0 = nowMs();
   const tryOpen = ()=>{
     if(!packInvoicesLoaded){
-      if(Date.now()-t0 < 20000){ setTimeout(tryOpen, 300); return; }
+      if(nowMs()-t0 < 20000){ setTimeout(tryOpen, 300); return; }
       showToast('Chưa tải được hoá đơn — kiểm tra mạng rồi quét lại.'); return;
     }
     if(!packIsSale(me)) goPage(me.role==='packer' ? 'packDesk' : 'packInvoices');
@@ -8314,7 +8335,7 @@ document.addEventListener('keydown', e=>{
   const el = document.activeElement;
   if(el && (el.id==='packScanInput' || el.id==='packDeskScanInput')) return; // ô quét tự xử lý
   if(el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA' || el.tagName==='SELECT' || el.isContentEditable)) return; // đang gõ ô khác
-  const now = Date.now();
+  const now = nowMs();
   if(now - packKeyLast > 60) packKeyBuf = '';
   packKeyLast = now;
   if(e.key==='Enter'){
@@ -8377,8 +8398,8 @@ async function packScanTick(){
       if(r && r.data) text = r.data;
     }
     // Bỏ qua phiếu VỪA xử lý (phiếu cũ còn nằm trước camera khi camera tự mở lại) trong 6 giây
-    if(text && packParseScan(text)===packLastCamCode && Date.now()-packLastCamAt < 6000){ text = ''; }
-    if(text){ packLastCamCode = packParseScan(text); packLastCamAt = Date.now(); packScanStop(); packOpenedByCam = true; packOpenInvoiceByCode(text); packOpenedByCam = false; }
+    if(text && packParseScan(text)===packLastCamCode && nowMs()-packLastCamAt < 6000){ text = ''; }
+    if(text){ packLastCamCode = packParseScan(text); packLastCamAt = nowMs(); packScanStop(); packOpenedByCam = true; packOpenInvoiceByCode(text); packOpenedByCam = false; }
   }catch(e){ console.error('scan', e); }
   packScanBusy = false;
 }
@@ -8391,7 +8412,7 @@ function packScanStop(){
 function packMarkPrinted(invs){
   if(!fbPackPrints) return;
   const me = currentUser() || {};
-  const map = packPrintMap(); const now = Date.now(); const upd = {};
+  const map = packPrintMap(); const now = nowMs(); const upd = {};
   invs.forEach(inv=>{
     const old = map[inv.id];
     upd[inv.id] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: now, first: (old && old.first) || now,
@@ -8629,7 +8650,7 @@ function toggleEnforceUnprocessedLock(checked){
 function setTodayRotationBranches(branchIds){
   const today = todayStr();
   const u = currentUser();
-  const rotation = {branchIds: branchIds.slice(), computedAt: Date.now(), setBy: (u && u.name) || ''};
+  const rotation = {branchIds: branchIds.slice(), computedAt: nowMs(), setBy: (u && u.name) || ''};
   state.dailyRotation = rotation;
   fbSetDailyRotation(today, rotation);
   showToast('Đã cập nhật team nhận data hôm nay');
@@ -8711,13 +8732,13 @@ function runDistribution(){
 
     lead.assignedTo = person.id;
     lead.assignedToName = person.name;
-    lead.assignedAt = Date.now();
+    lead.assignedAt = nowMs();
     lead.distributedDate = today;
     fbSetLead(lead);
     if(String(lead.id).startsWith('manual_')){
       sendMktLeadToExternalSheet(lead, person); // chỉ ghi sang Sheet ngoài với data MKT nhập tay
     }
-    person.lastDataAt = Date.now();
+    person.lastDataAt = nowMs();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
     todayCount[person.id] = countOf(person.id) + 1;
     pool.splice(personIndex,1);
@@ -8749,7 +8770,7 @@ function tryAutoDistribute(){
 function runDistributionWithLock(onDone){
   if(!fbDistributionLock){ runDistribution(); if(onDone) onDone(); return; }
   fbDistributionLock.transaction(current=>{
-    const now = Date.now();
+    const now = nowMs();
     if(current && (now - current) < 8000) return; // co tab khac vua chay trong 8s gan day -> nhuong, khong tranh
     return now;
   }, (error, committed)=>{
@@ -8818,7 +8839,7 @@ function updateLeadStatus(leadId, newStatus){
   if(newStatus==='Đã chốt' && !lead.closedDate){
     updates.closedDate = todayStr();
   }
-  if(newStatus==='Đã chốt' && !lead.closedAt) updates.closedAt = Date.now();
+  if(newStatus==='Đã chốt' && !lead.closedAt) updates.closedAt = nowMs();
   Object.assign(lead, updates);
   fbUpdateLead(leadId, updates);
 }
@@ -8958,7 +8979,7 @@ function mrUpdateLinks(){
 function mrNum(id){ const el = document.getElementById(id); return el && el.value!=='' ? (Number(el.value)||0) : 0; }
 // ---- Tuần: tuần cần cập nhật = tuần gần nhất đã kết thúc (Chủ nhật tính luôn tuần đang kết thúc hôm nay) ----
 function mrWeekTarget(){
-  const t = new Date(); t.setHours(0,0,0,0);
+  const t = new Date(nowMs()); t.setHours(0,0,0,0);
   const dow = t.getDay(); // 0 = CN
   const monThis = new Date(t); monThis.setDate(t.getDate() - ((dow+6)%7));
   const start = new Date(monThis); if(dow!==0) start.setDate(monThis.getDate()-7);
@@ -9013,7 +9034,7 @@ function mrSaveWeekly(){
   if(!any){ showToast('Điền ít nhất 1 kênh (kênh không có thì để 0).'); return; }
   const existing = mrWeekRecord(u.id, wk.start);
   const rec = {id: wk.start+'_'+u.id, userId:u.id, userName:u.name, mktBranchId:u.mktBranchId||null,
-    weekStart:wk.start, weekEnd:wk.end, reach, createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
+    weekStart:wk.start, weekEnd:wk.end, reach, createdAt: existing ? existing.createdAt : nowMs(), updatedAt: nowMs()};
   state.mktWeekly = state.mktWeekly.filter(w=>w.id!==rec.id).concat([rec]);
   fbMktWeekly.child(rec.id).set(rec).catch(e=>{ console.error(e); showToast('Lưu cập nhật tuần thất bại — thử lại.'); });
   mrWeeklyEditing = false;
@@ -9111,7 +9132,7 @@ function mrLoadForDate(){
 const MKT_REPORT_OPEN_MINUTES = 16*60 + 30;
 function mktReportSubmitLockedFor(date){
   if(!date || date!==todayStr()) return false;
-  const n = new Date(); return (n.getHours()*60 + n.getMinutes()) < MKT_REPORT_OPEN_MINUTES;
+  const n = new Date(nowMs()); return (n.getHours()*60 + n.getMinutes()) < MKT_REPORT_OPEN_MINUTES;
 }
 function updateMktReportSubmitLock(){
   const btn = document.getElementById('mrSubmitBtn'); if(!btn) return;
@@ -9145,7 +9166,7 @@ function mrSubmit(){
     linkCounts: {tiktok: parsedLinks.byCh.tiktok.length, facebook: parsedLinks.byCh.facebook.length, zalo: parsedLinks.byCh.zalo.length},
     linkWarnings: lp.warn.map(t=>t.replace(/<[^>]+>/g,'')),   // để trang Quản lý hiện lại
     note: (document.getElementById('mr_note').value||'').trim(),
-    createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now(),
+    createdAt: existing ? existing.createdAt : nowMs(), updatedAt: nowMs(),
   };
   state.mktReports = state.mktReports.filter(x=>x.id!==rec.id).concat([rec]);
   fbMktReports.child(rec.id).set(rec).then(()=>{
@@ -9187,7 +9208,7 @@ function renderMktReportPage(){
 // =========================== QUẢN LÝ: BÁO CÁO MKT ===========================
 // CHỈ ĐỌC báo cáo MKT (mktReports / mktWeekly) + đếm data trên app từ kho data. Không ghi gì.
 let mraFrom = null, mraTo = null, mraTeam = '', mraMember = '', mraOnlyIssues = false, mraTab = 'people', mraOpen = null;
-function mraDefault(){ if(mraFrom===null){ const d=new Date(); d.setDate(d.getDate()-1); mraFrom = mraTo = toLocalDateStr(d); } }
+function mraDefault(){ if(mraFrom===null){ const d=new Date(nowMs()); d.setDate(d.getDate()-1); mraFrom = mraTo = toLocalDateStr(d); } }
 function mraSet(field, v){
   if(field==='preset'){ const [f,t] = (v==='thismonth'||v==='lastmonth') ? calendarMonthRangeFor(v) : dateRangeFor(v); mraFrom = f||todayStr(); mraTo = t||todayStr(); }
   if(field==='from') mraFrom = v || mraFrom;
@@ -9474,8 +9495,8 @@ function poAddBatch(el, orderId, idx){
   it.printed = (Number(it.printed)||0) + qty;
   o.meters = Math.round(((Number(o.meters)||0) + meters)*100)/100;
   const u = currentUser();
-  const upd = {items: o.items, meters: o.meters, metersByName: u ? u.name : '', updatedAt: Date.now()};
-  if(o.items.every(x=>(Number(x.printed)||0) >= (Number(x.qty)||0))){ upd.status='done'; upd.doneAt=Date.now(); o.status='done'; o.doneAt=upd.doneAt; showToast('✅ Đã in xong đơn ' + (o.code||'')); }
+  const upd = {items: o.items, meters: o.meters, metersByName: u ? u.name : '', updatedAt: nowMs()};
+  if(o.items.every(x=>(Number(x.printed)||0) >= (Number(x.qty)||0))){ upd.status='done'; upd.doneAt=nowMs(); o.status='done'; o.doneAt=upd.doneAt; showToast('✅ Đã in xong đơn ' + (o.code||'')); }
   else showToast(`Đã ghi: ${it.design} · ${qty} cái · ${cm} cm (${fmtMeters(meters)} m)`);
   fbPrintOrders.child(o.id).update(upd).catch(e=>{ console.error(e); showToast('Lưu tiến độ thất bại — kiểm tra mạng.'); });
   renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
@@ -9484,8 +9505,8 @@ function poMarkDone(orderId){
   const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
   const pg = poOrderProgress(o);
   askConfirm('Đánh dấu đơn đã xong?', pg.done<pg.need ? `Đơn mới in ${pg.done}/${pg.need}. Vẫn đánh dấu xong (phần còn thiếu sẽ không in nữa)?` : 'Xác nhận đơn đã in xong.', ()=>{
-    o.status='done'; o.doneAt=Date.now();
-    fbPrintOrders.child(o.id).update({status:'done', doneAt:o.doneAt, updatedAt:Date.now()});
+    o.status='done'; o.doneAt=nowMs();
+    fbPrintOrders.child(o.id).update({status:'done', doneAt:o.doneAt, updatedAt:nowMs()});
     renderPrintOrdersForPrinter(); updatePrintOrdersBadge();
   });
 }
@@ -9539,9 +9560,9 @@ function poCreate(){
   const assignee = document.getElementById('po_assignee').value;
   const ass = assignee ? state.users.find(u=>u.id===assignee) : null;
   const n = (state.printOrders||[]).filter(o=>toLocalDateStr(new Date(o.createdAt))===todayStr()).length + 1;
-  const d = new Date(); const code = 'IN' + String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0') + '-' + String(n).padStart(2,'0');
+  const d = new Date(nowMs()); const code = 'IN' + String(d.getDate()).padStart(2,'0') + String(d.getMonth()+1).padStart(2,'0') + '-' + String(n).padStart(2,'0');
   const o = {id: 'po_' + uid(), code, items, note:(document.getElementById('po_note').value||'').trim(), dueDate: document.getElementById('po_due').value || todayStr(),
-    assignedTo: assignee || '', assignedToName: ass ? ass.name : '', status:'open', createdBy: me.id, createdByName: me.name, createdAt: Date.now(), updatedAt: Date.now()};
+    assignedTo: assignee || '', assignedToName: ass ? ass.name : '', status:'open', createdBy: me.id, createdByName: me.name, createdAt: nowMs(), updatedAt: nowMs()};
   state.printOrders = (state.printOrders||[]).concat([o]);
   fbPrintOrders.child(o.id).set(o).catch(e=>{ console.error(e); showToast('Gửi đơn thất bại — thử lại.'); });
   document.querySelectorAll('#poDesignList input[data-design]').forEach(i=>{ i.value=''; i.closest('.pr-row').classList.remove('has'); });
@@ -9759,7 +9780,7 @@ function prApplyBatch(code, design, qty, meters, extra){
   row.classList.toggle('has', q>0);
   row.querySelector('.pr-done').innerHTML = q ? `Đã in <b>${q}</b> · ${fmtMeters(m)} m${m?` · <span style="color:#8DB4FF;">${perMeter(q,m)} hình/m</span>`:''}` : '';
   row.classList.remove('pr-flash'); void row.offsetWidth; row.classList.add('pr-flash');
-  prLog.push(Object.assign({t: Date.now(), code: inp.dataset.code, design: inp.dataset.design, qty, meters}, extra||{})); prLogDirty = true;
+  prLog.push(Object.assign({t: nowMs(), code: inp.dataset.code, design: inp.dataset.design, qty, meters}, extra||{})); prLogDirty = true;
   prUpdateTotal(); renderPrLog(); prUpdateMeterTotal(); prScheduleSave();
   return true;
 }
@@ -9785,7 +9806,7 @@ function prUndoLast(){
   // Mẻ in thuộc đơn in → trả lại tiến độ đơn
   if(last.orderId){ const o = (state.printOrders||[]).find(x=>x.id===last.orderId); const it = o && o.items[last.itemIdx];
     if(it){ it.printed = Math.max(0, (Number(it.printed)||0) - (Number(last.qty)||0)); o.meters = Math.max(0, Math.round(((Number(o.meters)||0) - (Number(last.meters)||0))*100)/100);
-      const upd = {items:o.items, meters:o.meters, updatedAt:Date.now()}; if(o.status==='done'){ o.status='open'; upd.status='open'; upd.doneAt=null; }
+      const upd = {items:o.items, meters:o.meters, updatedAt:nowMs()}; if(o.status==='done'){ o.status='open'; upd.status='open'; upd.doneAt=null; }
       fbPrintOrders.child(o.id).update(upd); renderPrintOrdersForPrinter(); updatePrintOrdersBadge(); } }
   prUpdateTotal(); renderPrLog(); prUpdateMeterTotal(); prScheduleSave();
   showToast('Đã hoàn tác: ' + last.design + ' −' + last.qty + (last.meters?` · −${fmtCm(last.meters)} cm`:''));
@@ -9821,7 +9842,7 @@ function poSetMeters(orderId, val){
   const o = (state.printOrders||[]).find(x=>x.id===orderId); if(!o) return;
   const u = currentUser();
   const m = Math.max(0, Math.round((Number(val)||0)*10)/10);
-  o.meters = m; o.metersBy = u ? u.id : ''; o.metersByName = u ? u.name : ''; o.metersAt = Date.now();
+  o.meters = m; o.metersBy = u ? u.id : ''; o.metersByName = u ? u.name : ''; o.metersAt = nowMs();
   fbPrintOrders.child(o.id).update({meters:m, metersBy:o.metersBy, metersByName:o.metersByName, metersAt:o.metersAt}).catch(()=>showToast('Lưu số mét thất bại — kiểm tra mạng.'));
   prUpdateMeterTotal(); prScheduleSave();
   showToast(`Đã lưu ${fmtMeters(m)} m cho đơn ${o.code||''}`);
@@ -9847,13 +9868,13 @@ function prSave(submit){
     meters: Math.round(items.reduce((t,x)=>t+(x.meters||0),0)*100)/100,
     batchCount: prLog.length, note: (document.getElementById('pr_note').value||'').trim(),
     submitted: submit ? true : !!(existing && existing.submitted),
-    submittedAt: submit ? Date.now() : (existing && existing.submittedAt) || null,
-    createdAt: existing ? existing.createdAt : Date.now(), updatedAt: Date.now()};
+    submittedAt: submit ? nowMs() : (existing && existing.submittedAt) || null,
+    createdAt: existing ? existing.createdAt : nowMs(), updatedAt: nowMs()};
   state.printReports = state.printReports.filter(x=>x.id!==rec.id).concat([rec]);
   if(prLogDirty || prLogLoadedFor===rec.id){ fbPrintLogs.child(rec.id).set(prLog.slice(-500)).catch(()=>{}); prLogDirty = false; }
   fbPrintReports.child(rec.id).set(rec).then(()=>{
     const msg = document.getElementById('prMsg');
-    if(msg){ msg.style.color='var(--success)'; msg.textContent = (submit ? '✓ Đã chốt báo cáo' : '✓ Đã tự lưu') + ' lúc ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); }
+    if(msg){ msg.style.color='var(--success)'; msg.textContent = (submit ? '✓ Đã chốt báo cáo' : '✓ Đã tự lưu') + ' lúc ' + new Date(nowMs()).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}); }
   }).catch(e=>{ console.error(e); showToast('Lưu thất bại — kiểm tra mạng rồi thử lại.'); });
   renderPrHistory(); prRenderStatus();
   return rec;
@@ -9930,7 +9951,7 @@ function poComputeRows(){
   });
   (state.printReports||[]).forEach(r=>{ if(!inRange(r.date)) return; (r.items||[]).forEach(it=>{ const g = get(it.code, it.design); g.printed += Number(it.qty)||0; g.meters = (g.meters||0) + (Number(it.meters)||0); g.mQty = (g.mQty||0) + (Number(it.meters)>0 ? Number(it.qty)||0 : 0); }); });
   // Trung bình hình/mét của từng hình: lấy theo 30 ngày gần nhất (đủ mẫu để ước tính), không chỉ khoảng đang xem
-  const avg = {}; const d30 = toLocalDateStr(new Date(Date.now()-30*86400000));
+  const avg = {}; const d30 = toLocalDateStr(new Date(nowMs()-30*86400000));
   (state.printReports||[]).forEach(r=>{ if(!r.date || r.date<d30) return; (r.items||[]).forEach(it=>{ if(!(Number(it.meters)>0)) return; const k = prKey(it.code, it.design); const a = avg[k] || (avg[k] = {q:0, m:0}); a.q += Number(it.qty)||0; a.m += Number(it.meters)||0; }); });
   return Object.values(rows).map(r=>{ const a = avg[prKey(r.code, r.design)]; const per = a && a.m ? a.q/a.m : 0;
     const remain = Math.max(0, r.need - r.printed);
@@ -10085,7 +10106,7 @@ function createLeadFromMkt(phone, source, customerName){
     id: 'manual_' + uid(),
     phone: String(phone).trim(),
     source: String(source).trim(),
-    importedAt: Date.now(),
+    importedAt: nowMs(),
     createdBy: u ? u.id : null,
     createdByName: u ? u.name : '',
   };
@@ -10266,7 +10287,7 @@ function submitMktBulk(){
       phone: String(r.phone).trim(),
       phoneNorm: normalizePhone(r.phone),
       source: String(source).trim(),
-      importedAt: Date.now(),
+      importedAt: nowMs(),
       createdBy: u ? u.id : null,
       createdByName: u ? u.name : '',
     };
@@ -10509,7 +10530,7 @@ function renderMktMyLeadsList(){
 }
 
 // ===== Khoá Nhập data khi chưa nộp báo cáo hôm trước =====
-function mktYesterday(){ const d = new Date(); d.setDate(d.getDate()-1); return toLocalDateStr(d); }
+function mktYesterday(){ const d = new Date(nowMs()); d.setDate(d.getDate()-1); return toLocalDateStr(d); }
 // Các ngày MKT PHẢI có báo cáo: từ ngày bắt đầu tính (01/10/2026, hoặc NGÀY TẠO TÀI KHOẢN nếu là người
 // mới vào sau) cho tới HÔM QUA. Thiếu bất kỳ ngày nào → khoá Nhập data.
 function mktMissingReportDates(user){
@@ -10517,7 +10538,7 @@ function mktMissingReportDates(user){
   if(!mktReportsLoaded) return []; // chưa tải xong báo cáo → không khoá vội
   let start = MKT_REPORT_LOCK_FROM;
   if(user.createdAt){ const c = toLocalDateStr(new Date(user.createdAt)); if(c > start) start = c; }
-  { const c60 = toLocalDateStr(new Date(Date.now() - 60*86400000)); if(c60 > start) start = c60; } // chỉ xét 60 ngày gần nhất
+  { const c60 = toLocalDateStr(new Date(nowMs() - 60*86400000)); if(c60 > start) start = c60; } // chỉ xét 60 ngày gần nhất
   const y = mktYesterday();
   if(start > y) return [];
   const done = new Set(state.mktReports.filter(r=>r.userId===user.id).map(r=>r.date));
@@ -10653,8 +10674,8 @@ function migrateRecallSplit(){
 function recallSummaryBadge(userId){
   const u = state.users.find(x=>x.id===userId); if(!u) return '';
   const total = u.recallByDay || {}, auto = u.recallAutoByDay || {};
-  const today = todayStr(), y = toLocalDateStr(new Date(Date.now()-86400000));
-  const d7 = toLocalDateStr(new Date(Date.now()-6*86400000)), m1 = today.slice(0,7)+'-01';
+  const today = todayStr(), y = toLocalDateStr(new Date(nowMs()-86400000));
+  const d7 = toLocalDateStr(new Date(nowMs()-6*86400000)), m1 = today.slice(0,7)+'-01';
   const sum = (map, from, to)=>Object.entries(map).reduce((t,[d,v])=>t + ((d>=from && d<=to) ? (Number(v)||0) : 0), 0);
   const calc = map=>({t: sum(map,today,today), y: sum(map,y,y), w: sum(map,d7,today), m: sum(map,m1,today)});
   const A = calc(auto), T = calc(total);
@@ -10838,7 +10859,7 @@ function isReturningCustomerFor(userId, phone, excludeLeadId, excludeInvoiceId){
 // → rất tốn dung lượng tải. Giờ chỉ tra đúng SĐT đang nhập (truy vấn theo phoneNorm, đã có chỉ mục), lưu tạm 10 phút.
 const closedPhoneCache = {}, closedPhonePending = {};
 function closedPhoneNeedsLookup(){ return typeof leadsSubKey==='string' && leadsSubKey.startsWith('sale:'); }
-function closedPhoneCacheGet(norm){ const c = closedPhoneCache[norm]; return (c && Date.now()-c.at < 600000) ? c.list : null; }
+function closedPhoneCacheGet(norm){ const c = closedPhoneCache[norm]; return (c && nowMs()-c.at < 600000) ? c.list : null; }
 function closedPhoneLookup(phoneOrNorm){
   const norm = normalizePhone(phoneOrNorm);
   if(!norm || !closedPhoneNeedsLookup() || !fbLeads) return Promise.resolve(false);
@@ -10850,7 +10871,7 @@ function closedPhoneLookup(phoneOrNorm){
   ]).then(snaps=>{
     const list = [], seen = new Set();
     snaps.forEach(snap=>snap.forEach(ch=>{ const v = ch.val() || {}; if(v.status==='Đã chốt' && !seen.has(ch.key)){ seen.add(ch.key); list.push({id: ch.key, assignedTo: v.assignedTo || '', invoiceId: v.invoiceId || null}); } }));
-    closedPhoneCache[norm] = {at: Date.now(), list};
+    closedPhoneCache[norm] = {at: nowMs(), list};
     delete closedPhonePending[norm];
     return list.length > 0;
   }).catch(()=>{ delete closedPhonePending[norm]; return false; });
@@ -10918,11 +10939,11 @@ function addManualClosedLead(){
     source: '',
     status: 'Đã chốt',
     closedDate: todayStr(),
-    closedAt: Date.now(),
+    closedAt: nowMs(),
     closedAmount: null,
     assignedTo: u.id,
     assignedToName: u.name,
-    assignedAt: Date.now(),
+    assignedAt: nowMs(),
     createdBy: u.id,
     createdByName: u.name,
     manualEntry: true, // đánh dấu để phân biệt với data hệ thống tự chia — chỉ dòng này mới xoá được
@@ -10946,7 +10967,7 @@ let myClosedMonthView = null;   // 'YYYY-MM' hoặc '' (= tất cả)
 let myClosedLastQuery = '';
 const MY_CLOSED_PER_PAGE = 50;
 function monthKeyOffset(offset){
-  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()+offset);
+  const d = new Date(nowMs()); d.setDate(1); d.setMonth(d.getMonth()+offset);
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
 }
 function setMyClosedView(mode){
@@ -11198,7 +11219,7 @@ function addSelfLeadRow(){
     source: '',
     status: '',
     note: '',
-    createdAt: Date.now(),
+    createdAt: nowMs(),
   };
   state.selfLeads.push(row);
   fbSetSelfLead(row);
@@ -11321,7 +11342,7 @@ function isLeadRecallable(l){
   if(l.status) return false;                                   // đã chọn tình trạng → đang chăm sóc
   const nameByMkt = l.mktName && String(l.customerName||'').trim()===String(l.mktName).trim();
   if(l.customerName && !nameByMkt) return false;               // Sale đã điền tên
-  if(!l.assignedAt || Date.now() - Number(l.assignedAt) < RECALL_MIN_HOURS*3600000) return false;
+  if(!l.assignedAt || nowMs() - Number(l.assignedAt) < RECALL_MIN_HOURS*3600000) return false;
   return true;
 }
 // Thu hồi TỰ ĐỘNG: data nhận từ HÔM QUA trở về trước → không xét mốc 3 giờ
@@ -11341,7 +11362,7 @@ function recallLeads(ids, onDone, opts){
   // Thu hồi tay: chỉ Quản lý chung / Quản lý Data. Thu hồi TỰ ĐỘNG (opts.system) là việc của hệ thống.
   if(!opts.system && !canRecallRole(me)) { showToast('Bạn không có quyền thu hồi data.'); return; }
   const byName = opts.system ? 'Tự động (1h sáng)' : me.name;
-  const now = Date.now(); const upd = {}; const byPerson = {}; const byPersonDay = {};
+  const now = nowMs(); const upd = {}; const byPerson = {}; const byPersonDay = {};
   ids.forEach(id=>{
     const l = state.leads.find(x=>x.id===id);
     if(!(opts.system ? isLeadRecallableAuto(l) : isLeadRecallable(l))) return; // kiểm tra lại lần cuối: Sale vừa cập nhật thì BỎ QUA
@@ -11390,20 +11411,20 @@ function recallLeads(ids, onDone, opts){
 const LEAD_ARCHIVE_DAYS = 90;
 const LEAD_ARCHIVE_STATUSES = ['Không có nhu cầu','k liên lạc được','k tìm thấy tk'];
 let leadsArchiveList = [], leadsArchiveState = 'none'; // none | loading | loaded
-function leadArchiveCutoffStr(){ return toLocalDateStr(new Date(Date.now() - LEAD_ARCHIVE_DAYS*86400000)); }
+function leadArchiveCutoffStr(){ return toLocalDateStr(new Date(nowMs() - LEAD_ARCHIVE_DAYS*86400000)); }
 function leadLastActivityTs(l){ return Math.max(Number(l.assignedAt)||0, Number(l.importedAt)||0, Number(l.closedAt)||0, Number(l.statusAt)||0, Number(l.updatedAt)||0); }
 function isLeadArchivable(l){
   if(!l || l.archived || l.invoiceId || l.manualEntry) return false;
   if(!LEAD_ARCHIVE_STATUSES.includes(l.status)) return false;
   const t = leadLastActivityTs(l);
-  return t > 0 && t < Date.now() - LEAD_ARCHIVE_DAYS*86400000;
+  return t > 0 && t < nowMs() - LEAD_ARCHIVE_DAYS*86400000;
 }
 // Máy Quản lý chung chạy 1 lần/ngày (khoá theo ngày trên Firebase), mỗi lượt tối đa 1500 data
 let leadArchiveTriedDay = '';
 function archiveOldLeadsIfDue(){
   const me = currentUser(); if(!me || me.role!=='general_manager' || !fbRoot || !leadsDataReady) return;
   const today = todayStr(); if(leadArchiveTriedDay===today) return; leadArchiveTriedDay = today;
-  fbRoot.child('system/leadArchive/'+today).transaction(cur=>{ if(cur && cur.done) return; return {done:true, at:Date.now(), by:me.name}; }, (err, committed)=>{
+  fbRoot.child('system/leadArchive/'+today).transaction(cur=>{ if(cur && cur.done) return; return {done:true, at:nowMs(), by:me.name}; }, (err, committed)=>{
     if(err || !committed) return;
     const list = state.leads.filter(isLeadArchivable).slice(0, 1500);
     if(!list.length){ fbRoot.child('system/leadArchive/'+today).update({count:0}); return; }
@@ -11411,7 +11432,7 @@ function archiveOldLeadsIfDue(){
     let moved = 0;
     const next = ()=>{
       const c = chunks.shift(); if(!c){ fbRoot.child('system/leadArchive/'+today).update({count:moved}); return; }
-      const upd = {}; c.forEach(l=>{ const v = Object.assign({}, l, {archivedAt: Date.now()}); delete v.archived; upd['leadsArchive/'+l.id] = v; upd['leads/'+l.id] = null; });
+      const upd = {}; c.forEach(l=>{ const v = Object.assign({}, l, {archivedAt: nowMs()}); delete v.archived; upd['leadsArchive/'+l.id] = v; upd['leads/'+l.id] = null; });
       fbRoot.update(upd).then(()=>{ moved += c.length; next(); }).catch(e=>console.error('archive leads', e));
     };
     next();
@@ -11487,9 +11508,9 @@ function runAutoRecallIfDue(){
   const me = currentUser();
   if(!me || !['general_manager','data_manager','team_manager'].includes(me.role)) return; // máy có đủ kho data
   if(!leadsDataReady || !fbAutoRecall) return;
-  if(new Date().getHours() < AUTO_RECALL_HOUR) return;
+  if(new Date(nowMs()).getHours() < AUTO_RECALL_HOUR) return;
   const today = todayStr();
-  const nowMs = Date.now();
+  const nowMs = nowMs();
   if(autoRecallTriedDay===today && nowMs - autoRecallLastTry < 10*60000) return; // mỗi máy kiểm tra tối đa 10 phút/lần
   autoRecallTriedDay = today; autoRecallLastTry = nowMs;
   if(!autoRecallCandidates().length) return; // không còn data cũ chưa làm → khỏi ghi gì
@@ -11500,7 +11521,7 @@ function runAutoRecallIfDue(){
     if(err || !committed) return;
     const prev = (snap && snap.val && snap.val()) || {};
     const ids = autoRecallCandidates().map(l=>l.id);
-    const finish = n=>fbAutoRecall.child(today).update({count: (Number(prev.count)||0) + (n||0), runs: (Number(prev.runs)||0) + 1, finishedAt: Date.now(), runningAt: null});
+    const finish = n=>fbAutoRecall.child(today).update({count: (Number(prev.count)||0) + (n||0), runs: (Number(prev.runs)||0) + 1, finishedAt: nowMs(), runningAt: null});
     if(!ids.length){ finish(0); return; }
     recallLeads(ids, n=>finish(n), {system:true, silent:true});
   });
@@ -11515,7 +11536,7 @@ function openRecallModal(userIds){
   if(!list.length){ showToast('Không có data nào đủ điều kiện thu hồi.'); return; }
   list.sort((a,b)=>(a.assignedTo||'').localeCompare(b.assignedTo||'') || (a.assignedAt||0)-(b.assignedAt||0));
   const nameOf = id => ((state.users.find(u=>u.id===id)||{}).name) || '—';
-  const ago = t => { const h = (Date.now()-t)/3600000; return h>=24 ? Math.floor(h/24)+' ngày' : Math.floor(h)+' giờ'; };
+  const ago = t => { const h = (nowMs()-t)/3600000; return h>=24 ? Math.floor(h/24)+' ngày' : Math.floor(h)+' giờ'; };
   let el = document.getElementById('recallModal');
   if(!el){ el = document.createElement('div'); el.id = 'recallModal'; el.className = 'rc-overlay'; document.body.appendChild(el); }
   const persons = Array.from(new Set(list.map(l=>l.assignedTo)));
@@ -12274,7 +12295,7 @@ function applyBulkConfirm(value){
   renderMgrLeads();
 }
 
-function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function uid(){ return nowMs().toString(36)+Math.random().toString(36).slice(2,7); }
 // Luôn tính ngày theo giờ ĐỊA PHƯƠNG của máy đang mở app (không dùng toISOString vì đó là giờ UTC —
 // nếu dùng UTC, ở Việt Nam (UTC+7) ngày mới sẽ chỉ đổi lúc 7 giờ sáng thay vì đúng 0 giờ, gây lệch ngày).
 function toLocalDateStr(d){
@@ -12283,7 +12304,7 @@ function toLocalDateStr(d){
   const day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-function todayStr(){ return toLocalDateStr(new Date()); }
+function todayStr(){ return toLocalDateStr(new Date(nowMs())); }
 function fmtMoney(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 function fmtDate(s){ const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
 function fmtDateTimeShort(ts){
@@ -12346,7 +12367,7 @@ function openChatModal(conversationId, title, readOnly, otherUserId){
     const msgs = Object.values(snap.val()||{}).sort((a,b)=>a.sentAt-b.sentAt);
     renderChatMessages(msgs);
     // Đánh dấu đã đọc theo đúng người đang xem (không ảnh hưởng trạng thái đọc của người kia)
-    if(me) fbChatReads.child(me.id).child(conversationId).set(Date.now());
+    if(me) fbChatReads.child(me.id).child(conversationId).set(nowMs());
     if(me && !readOnly && fbChatUnread && chatUnreadMap[conversationId]){ fbChatUnread.child(me.id).child(conversationId).remove().catch(()=>{}); }
     if(!readOnly){ delete chatDotCache[conversationId]; }
   });
@@ -12375,7 +12396,7 @@ function sendChatMessage(){
   if(!text || !currentChatConversationId) return;
   const me = currentUser();
   const msgId = uid();
-  const msg = {id:msgId, senderId:me.id, senderName:me.name, text, sentAt:Date.now()};
+  const msg = {id:msgId, senderId:me.id, senderName:me.name, text, sentAt:nowMs()};
   fbChats.child(currentChatConversationId).child(msgId).set(msg);
   // Ghi 1 bản tin "thông báo" nhẹ cho đúng người nhận — để họ được báo (tiếng ting + toast) ngay
   // cả khi đang KHÔNG mở khung chat này, mà không cần tải toàn bộ lịch sử chat để so sánh.
@@ -12438,7 +12459,7 @@ function refreshUnreadChatDots(){
   const convIds = Array.from(new Set(Array.from(buttons).map(b=>b.dataset.conv)));
   // Mỗi lần trang vẽ lại (rất thường xuyên) KHÔNG đọc lại Firebase cho từng cuộc chat nữa — dùng kết quả
   // đã nhớ; chỉ đọc lại cuộc chat vừa có tin mới (qua chatNotify), vừa đóng khung chat, hoặc đã quá 10 phút.
-  const now = Date.now();
+  const now = nowMs();
   Promise.all(convIds.map(convId=>{
     const c = chatDotCache[convId];
     if(c && now - c.at < 10*60*1000) return Promise.resolve({convId, isUnread:c.isUnread, lastSentAt:c.lastSentAt});
@@ -12451,7 +12472,7 @@ function refreshUnreadChatDots(){
       const lastReadAt = readSnap.val() || 0;
       const isUnread = !!(last && last.senderId!==me.id && last.sentAt > lastReadAt);
       const res = {convId, isUnread, lastSentAt: last ? (last.sentAt||0) : 0};
-      chatDotCache[convId] = {isUnread:res.isUnread, lastSentAt:res.lastSentAt, at:Date.now()};
+      chatDotCache[convId] = {isUnread:res.isUnread, lastSentAt:res.lastSentAt, at:nowMs()};
       return res;
     }).catch(()=>({convId, isUnread:false, lastSentAt:0}));
   })).then(results=>{
@@ -12820,7 +12841,7 @@ function selectRole(role){
   }
 }
 function createUserAndLogin(branchId){
-  const user = {id:uid(), name:pendingName.normalize('NFC'), pin:pendingPin, role:loginRole, branchId:branchId, createdAt:Date.now()};
+  const user = {id:uid(), name:pendingName.normalize('NFC'), pin:pendingPin, role:loginRole, branchId:branchId, createdAt:nowMs()};
   state.users.push(user);
   fbSetUser(user);
   state.session = {userId:user.id};
@@ -13075,12 +13096,12 @@ function setupRoleScopedListeners(user){
   // Hoá đơn
   // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
   // Nhân viên đóng gói chỉ cần hoá đơn ĐÃ CỌC (INVOICE_KEEP_DAYS ngày) → truy vấn theo depositLink/markedAt, bỏ đơn chờ cọc
-  const packerCut = Date.now() - INVOICE_KEEP_DAYS*86400000;
+  const packerCut = nowMs() - INVOICE_KEEP_DAYS*86400000;
   const invKey = !user ? 'none' : (r==='packer' ? 'deposited:' + todayStr() : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id)));
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : (invKey.startsWith('deposited:') ? fbInvoices.orderByChild('depositLink/markedAt').startAt(packerCut) : fbInvoices.orderByChild('saleId').equalTo(user.id))),
     (arr)=>{
-      if(isWarehouse){ const cutoff = Date.now() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
+      if(isWarehouse){ const cutoff = nowMs() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
       else state.invoices = purgeExpiredInvoices(arr);
       packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:') || invKey.startsWith('mine:'); cleanupPackPrints(); packCheckChangeNotices();
       onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
@@ -13477,7 +13498,7 @@ function saveMktLegacyCount(userId, sourceIdx){
     count,
     fromDate: fromEl.value || null,
     toDate: toEl.value || null,
-    updatedAt: Date.now(),
+    updatedAt: nowMs(),
     updatedByName: currentUser().name,
   };
   // Xoá các mục trùng Nguồn (tên viết khác) của người này, chỉ giữ đúng 1 mục vừa lưu
@@ -13741,7 +13762,7 @@ const MKT_REVENUE_PRESET_IDS = ['today','yesterday','week','thismonth','lastmont
 // "Tháng này" / "Tháng trước" tính theo ĐÚNG mốc lịch (ngày 1 tới hôm nay / cả tháng trước đó),
 // khác với "Tuần qua" (7 ngày gần nhất) — phù hợp hơn khi cần xem doanh thu theo tháng dương lịch.
 function calendarMonthRangeFor(preset){
-  const now = new Date();
+  const now = new Date(nowMs());
   if(preset==='thismonth'){
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     return [toLocalDateStr(start), todayStr()];
@@ -14010,7 +14031,7 @@ function saveCompanyRules(){
   if(!canEditCompanyRules()) return;
   const u = currentUser();
   const content = document.getElementById('companyRulesEditor').innerHTML;
-  const payload = {content, updatedAt: Date.now(), updatedByName: u.name};
+  const payload = {content, updatedAt: nowMs(), updatedByName: u.name};
   state.companyRules = payload;
   fbCompanyRules.set(payload);
   showToast('Đã lưu Nội quy & Văn hoá công ty');
@@ -14122,7 +14143,7 @@ function keyFor(f){
 const REPORT_OPEN_MINUTES = 16*60 + 58;
 function reportSubmitLockedFor(date){
   if(!date || date!==todayStr()) return false;
-  const n = new Date(); return (n.getHours()*60 + n.getMinutes()) < REPORT_OPEN_MINUTES;
+  const n = new Date(nowMs()); return (n.getHours()*60 + n.getMinutes()) < REPORT_OPEN_MINUTES;
 }
 function updateReportSubmitLock(){
   const btn = document.getElementById('reportSubmitBtn'); if(!btn) return;
@@ -14163,14 +14184,14 @@ function submitReport(){
   let confirmText;
   if(existing){
     Object.assign(existing, data);
-    existing.editedAt = Date.now();
+    existing.editedAt = nowMs();
     if(!existing.history) existing.history = [{at: existing.submittedAt, label:'Nộp lần đầu'}];
     existing.history.push({at: existing.editedAt, label:'Chỉnh sửa'});
     fbSetReport(existing);
-    confirmText = '✓ Đã cập nhật báo cáo ngày '+fmtDate(date)+' lúc '+new Date().toLocaleTimeString('vi-VN');
+    confirmText = '✓ Đã cập nhật báo cáo ngày '+fmtDate(date)+' lúc '+new Date(nowMs()).toLocaleTimeString('vi-VN');
     showToast('Đã cập nhật báo cáo ngày '+fmtDate(date));
   } else {
-    const submittedAt = Date.now();
+    const submittedAt = nowMs();
     const newReport = {
       id:uid(), date, userId:user.id, branchId: user.branchId===undefined ? null : user.branchId,
       submittedAt, editedAt:null,
@@ -14179,7 +14200,7 @@ function submitReport(){
     };
     state.reports.push(newReport);
     fbSetReport(newReport);
-    confirmText = '✓ Đã lưu báo cáo ngày '+fmtDate(date)+' lúc '+new Date().toLocaleTimeString('vi-VN');
+    confirmText = '✓ Đã lưu báo cáo ngày '+fmtDate(date)+' lúc '+new Date(nowMs()).toLocaleTimeString('vi-VN');
     showToast('Đã nộp báo cáo ngày '+fmtDate(date));
   }
   renderStaffReport();
@@ -14288,7 +14309,7 @@ function updateReportDeadlineBar(){
   const today = todayStr();
   if(myReportForDate(u.id, today)) return hide();        // đã nộp → không nhắc nữa
   if(currentPageId==='staffReport') return hide();         // đang ở trang nộp báo cáo
-  const now = new Date(), mins = now.getHours()*60 + now.getMinutes();
+  const now = new Date(nowMs()), mins = now.getHours()*60 + now.getMinutes();
   if(mins < 20*60) return hide();                          // trước 20:00 chưa nhắc
   const left = reportDeadlineTs(today) - now.getTime();
   const lh = Math.floor(left/3600000), lm = Math.ceil((left%3600000)/60000);
@@ -14316,10 +14337,10 @@ function renderReportDeadlineStats(scope){
   const [y, mo] = rdlStatsMonth.split('-').map(Number);
   const first = `${rdlStatsMonth}-01`;
   const lastDay = new Date(y, mo, 0).getDate();
-  const nowPastDeadline = Date.now() >= reportLateCutoffTs(todayStr()); // (luôn false trong ngày) → chỉ tính tới hôm qua
+  const nowPastDeadline = nowMs() >= reportLateCutoffTs(todayStr()); // (luôn false trong ngày) → chỉ tính tới hôm qua
   // Chỉ tính các ngày ĐÃ QUA HẠN: hết hôm nay nếu đã quá 22:00, còn không thì tới hôm qua
   let end = `${rdlStatsMonth}-${String(lastDay).padStart(2,'0')}`;
-  const capEnd = nowPastDeadline ? todayStr() : toLocalDateStr(new Date(Date.now()-86400000));
+  const capEnd = nowPastDeadline ? todayStr() : toLocalDateStr(new Date(nowMs()-86400000));
   if(end > capEnd) end = capEnd;
   const users = reportableUsersInBranch(scope);
   const rows = users.map(u=>{
@@ -14503,7 +14524,7 @@ function renderMgrDashboard(){
   // biểu đồ doanh số 14 ngày gần nhất (giới hạn theo phạm vi)
   const days=[]; const chartTotals=[];
   for(let i=13;i>=0;i--){
-    const d=new Date(); d.setDate(d.getDate()-i);
+    const d=new Date(nowMs()); d.setDate(d.getDate()-i);
     const ds=toLocalDateStr(d);
     days.push(ds.slice(5));
     chartTotals.push(state.reports.filter(r=>r.date===ds && (!scope || r.branchId===scope)).reduce((s,r)=>s+r.revenue,0));
@@ -14725,7 +14746,7 @@ function resetFilters(){
 // Trả về [từ, đến] dạng YYYY-MM-DD theo mốc chọn nhanh
 function dateRangeFor(preset){
   const today=todayStr();
-  const d=(offset)=>{ const x=new Date(); x.setDate(x.getDate()-offset); return toLocalDateStr(x); };
+  const d=(offset)=>{ const x=new Date(nowMs()); x.setDate(x.getDate()-offset); return toLocalDateStr(x); };
   if(preset==='today') return [today, today];
   if(preset==='yesterday') return [d(1), d(1)];
   if(preset==='week') return [d(6), today];   // 7 ngày gần nhất, kể cả hôm nay
@@ -14934,7 +14955,7 @@ function deleteReport(id){
     if(idx===-1) return;
     const [r]=state.reports.splice(idx,1);
     const manager=currentUser();
-    const trashed = {...r, deletedBy:manager.name, deletedAt:Date.now()};
+    const trashed = {...r, deletedBy:manager.name, deletedAt:nowMs()};
     state.trash.push(trashed);
     fbRemoveReport(id);
     fbSetTrash(trashed);
@@ -15225,7 +15246,7 @@ function actuallyDeleteTeam(type, team){
     state.mktBranches = state.mktBranches.filter(b=>b.id!==team.id);
     fbMktBranches.child(team.id).remove();
   }
-  const trashEntry = {id:team.id, name:team.name, type, deletedAt:Date.now()};
+  const trashEntry = {id:team.id, name:team.name, type, deletedAt:nowMs()};
   state.teamsTrash.push(trashEntry);
   fbTeamsTrash.child(team.id).set(trashEntry);
   renderMgrSettings();
@@ -15495,7 +15516,7 @@ function renderDataAudit(){
 let rdFrom = null, rdTo = null, rdUser = '', rdOnlyDiff = true, rdOpenUser = null, rdOpenDay = null;
 function rdDefaultRange(){
   // Mặc định: HÔM QUA (ngày gần nhất mà Sale đã nộp đủ báo cáo)
-  if(rdFrom===null){ const d=new Date(); d.setDate(d.getDate()-1); rdFrom = toLocalDateStr(d); rdTo = rdFrom; }
+  if(rdFrom===null){ const d=new Date(nowMs()); d.setDate(d.getDate()-1); rdFrom = toLocalDateStr(d); rdTo = rdFrom; }
 }
 // Mỗi dòng = 1 Sale × 1 ngày có báo cáo hoặc có đơn chốt trong khoảng ngày đang lọc
 function computeReportDiffRows(){
@@ -16078,7 +16099,7 @@ function createAccountByManager(){
     }
   }
 
-  const user = {id:uid(), name, pin, role, branchId, mktBranchId, assignedSources, createdAt:Date.now()};
+  const user = {id:uid(), name, pin, role, branchId, mktBranchId, assignedSources, createdAt:nowMs()};
   state.users.push(user);
   fbSetUser(user);
   showToast(`Đã tạo tài khoản cho ${name} — đưa tên và mã PIN "${pin}" cho họ để đăng nhập.`);
@@ -16164,10 +16185,10 @@ function settingsAddBranch(){
 // Tải quá lâu (thường do máy chủ Firebase từ chối/chậm kết nối, không phải do app) → báo rõ phần nào
 // chưa tải xong + nút tải lại, thay vì để màn "Đang tải" quay mãi không biết lý do.
 const LOADED_LABELS = {branches:'Chi nhánh', users:'Người dùng', trash:'Thùng rác', leads:'Data', checkins:'Điểm danh hôm nay', dailyRotation:'Vòng chia data', managerConfirms:'Xác nhận quản lý', mktBranches:'Team MKT'};
-const loadStartedAt = Date.now();
+const loadStartedAt = nowMs();
 const slowLoadTimer = setInterval(()=>{
   if(appReady){ clearInterval(slowLoadTimer); return; }
-  const secs = Math.round((Date.now()-loadStartedAt)/1000);
+  const secs = Math.round((nowMs()-loadStartedAt)/1000);
   if(secs < 15) return;
   const pending = Object.keys(loaded).filter(k=>!loaded[k]).map(k=>LOADED_LABELS[k]||k);
   const box = document.getElementById('loadingSlowNote');
