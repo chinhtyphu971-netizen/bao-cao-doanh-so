@@ -1560,15 +1560,20 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl.s100x150{ width:100mm; height:150mm; }
   .lbl.sa4{ width:100mm; height:140mm; }
   .lbl-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:3mm; border-bottom:0.6mm solid #000; padding-bottom:2mm; }
-  .lbl-cust{ font-size:21pt; font-weight:900; line-height:1.1; word-break:break-word; flex:1; min-width:0; }
+  .lbl-cust{ font-size:34pt; font-weight:900; line-height:1.08; word-break:break-word; flex:1; min-width:0; }
+  .lbl-cust.n-s{ font-size:46pt; } .lbl-cust.n-m{ font-size:38pt; } .lbl-cust.n-l{ font-size:31pt; }
+  .s100x150 .lbl-cust.n-s, .sa4 .lbl-cust.n-s{ font-size:54pt; } .s100x150 .lbl-cust.n-m, .sa4 .lbl-cust.n-m{ font-size:44pt; } .s100x150 .lbl-cust.n-l, .sa4 .lbl-cust.n-l{ font-size:36pt; }
+  .lbl-sale{ font-size:26pt !important; }
   .lbl-sale{ flex:0 0 auto; border:0.8mm solid #000; border-radius:2mm; padding:1mm 2.5mm; font-size:22pt; font-weight:900; line-height:1.05; text-align:center; }
   .lbl-sale small{ display:block; font-size:7.5pt; font-weight:700; }
-  .lbl-mid{ display:flex; gap:3mm; align-items:center; }
-  .lbl-qr{ flex:0 0 auto; width:34mm; height:34mm; }
-  .s100x150 .lbl-qr, .sa4 .lbl-qr{ width:40mm; height:40mm; }
+  .lbl-mid{ display:flex; gap:4mm; align-items:flex-end; margin-top:auto; }
+  .lbl-qr{ flex:0 0 auto; width:30mm; height:30mm; }
+  .s100x150 .lbl-qr, .sa4 .lbl-qr{ width:34mm; height:34mm; }
   .lbl-qr svg{ width:100%; height:100%; display:block; }
   .lbl-info{ flex:1; min-width:0; font-size:10pt; line-height:1.35; }
-  .lbl-hd{ font-size:20pt; font-weight:900; letter-spacing:0.3mm; }
+  .lbl-hd{ font-size:22pt; font-weight:900; letter-spacing:0.3mm; }
+  .s100x150 .lbl-hd, .sa4 .lbl-hd{ font-size:24pt; }
+  .lbl-info{ font-size:11pt !important; }
   .lbl-urg{ display:inline-block; margin-top:1mm; border:0.6mm solid #000; padding:0.5mm 2mm; font-weight:900; font-size:11pt; }
   .lbl-items{ font-size:8.5pt; line-height:1.3; border-top:0.3mm solid #000; padding-top:1.5mm; overflow:hidden; flex:1; }
   .lbl-items b{ font-size:9pt; }
@@ -6689,15 +6694,13 @@ function packLabelHtml(inv, size){
   const lines = packInvLines(inv);
   const qty = lines.reduce((a,l)=>a+l.qty,0);
   const u = packUrgentMap()[inv.id];
-  const items = lines.map(l=>`${escHtml(l.code)}${l.design ? ' ' + escHtml(l.design) : ''}${[l.color,l.size].filter(Boolean).length ? ' ' + escHtml([l.color,l.size].filter(Boolean).join(' ')) : ''} <b>×${l.qty}</b>`).join(' · ');
   return `<div class="lbl s${size}">
-    <div class="lbl-top"><div class="lbl-cust">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
+    <div class="lbl-top"><div class="lbl-cust ${(()=>{ const n = String(inv.customerName||'').trim().length; return n<=10 ? 'n-s' : (n<=18 ? 'n-m' : 'n-l'); })()}">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
     <div class="lbl-mid"><div class="lbl-qr">${packQrSvg(packQrUrl(inv))}</div>
       <div class="lbl-info"><div class="lbl-hd">${escHtml(inv.invoiceNumber||'')}</div>
         <div><b>${qty} sp</b> · ${lines.length} dòng</div>
         <div>Cọc ${escHtml(packTimeShort(packDepositMs(inv)))}${isOldCustomerInvoice(inv) ? ' · khách cũ' : ''}</div>
         ${u ? `<div class="lbl-urg">${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short.toUpperCase()}</div>` : ''}</div></div>
-    <div class="lbl-items">${items}</div>
   </div>`;
 }
 function packLabelPrint(ids){
