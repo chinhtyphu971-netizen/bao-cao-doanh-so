@@ -1496,6 +1496,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-notice-item.urgent{ border-left-color:#E5484D; background:rgba(229,72,77,0.10); }
   .inv-urgent-btn{ color:#FF8A8D !important; border-color:rgba(229,72,77,0.5) !important; }
   .inv-urgent-on{ background:#E5484D !important; color:#fff !important; border-color:#E5484D !important; }
+  .inv-one-line{ display:flex !important; flex-wrap:wrap; align-items:center; gap:2px 6px; line-height:1.35; }
+  .inv-ol-dim{ color:var(--ink-soft); font-weight:600; }
+  .inv-ol-ship{ color:#6FD99A; font-size:12.5px; font-weight:700; }
+  .inv-one-line .pack-chat-btn, .inv-one-line .pack-zalo-btn{ padding:1px 8px !important; min-height:0 !important; font-size:12px !important; }
+  .ship-inline{ padding:1px 9px !important; min-height:0 !important; font-size:12px !important; line-height:1.6; }
   .ship-btn{ background:#2EA05A !important; border-color:#2EA05A !important; }
   .inv-chip-toship:not(.on){ border-color:#2EA05A; color:#6FD99A; }
   .pack-notice-item.ok{ border-left-color:#2EA05A; background:rgba(46,160,90,0.08); }
@@ -6246,6 +6251,10 @@ function shipKhoLine(ps){
   const h = (Date.now() - Number(ps.packedAt||ps.at||Date.now()))/3600000;
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">⏳ Sale chưa lên vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
 }
+// Tên hãng ngắn cho danh sách
+function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Post':'Viettel', 'J&T Express':'J&T', 'Khách lấy tại cửa hàng':'Lấy tại cửa hàng', 'Grab / Be giao':'Grab/Be'}; return m[c] || c || ''; }
+// Giờ ngắn: "13:55" nếu hôm nay, "13:55 25/10" nếu ngày khác
+function packTimeShort(t){ const d = new Date(Number(t||0)); if(!t) return ''; const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); return toLocalDateStr(d)===todayStr() ? hm : hm + ' ' + d.getDate() + '/' + (d.getMonth()+1); }
 function shipLineHtml(inv, ps){
   if(!ps || ps.legacy) return '';
   if(ps.ship) return `<div class="pack-sale-badge ship-ok">🚚 Đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml(ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
@@ -7861,8 +7870,19 @@ function packSaleBadgeHtml(inv){
   const ph = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)} ảnh</a>` : '';
   if(ps.state==='packed' && ps.legacy) return '';
   const shipHtml = shipLineHtml(inv, ps);
-  if(ps.state==='partial' || (ps.state==='packed' && ps.shortSent)) return `<div class="pack-sale-badge warn">📦 Đã đóng · GỬI THIẾU ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)} — đã trừ: ${escHtml(packShortText(ps.shortItems))}. Báo khách &amp; sửa hoá đơn bỏ món thiếu.${ph}</div>${shipHtml}<div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
-  if(ps.state==='packed') return `<div class="pack-sale-badge ok" title="Đã đóng hàng">📦 ${ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn đã tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : 'Đã đóng'} ${packTimeStr(ps.packedAt||ps.at)}${ph}</div>${shipHtml}`;
+  if(ps.state==='partial' || (ps.state==='packed' && ps.shortSent)){ // GỌN: 1 dòng gửi thiếu + 1 dòng vận đơn
+    const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
+    const shipPart = ps.ship
+      ? `<span class="inv-ol-ship">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · <b>' + escHtml(ps.ship.code) + '</b>' : ''} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></span>`
+      : `<button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button>`;
+    return `<div class="pack-sale-badge warn inv-one-line" title="Kho gửi thiếu — báo khách & sửa hoá đơn bỏ món thiếu">📦 Gửi thiếu ${packTimeShort(ps.packedAt||ps.partialAt||ps.at)} · <span>trừ ${escHtml(packShortText(ps.shortItems))}</span>${phS}</div><div class="inv-one-line" style="margin-top:2px;">${shipPart}${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
+  }
+  if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
+    const who = ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : 'Đóng';
+    const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
+    if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · <b>' + escHtml(ps.ship.code) + '</b>' : ''} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
+    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button></div>`;
+  }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='short') return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu (cần bù ${packMissTotal(ps)} sp): ${escHtml(packShortText(ps.shortItems))}${ph}</div>${packReplyHtml(ps, false)}
     <div class="pack-sale-actions"><button class="btn-small ${packHasReply(ps) ? 'btn-ghost' : 'btn-primary'} pack-reply-open" onclick="event.stopPropagation(); packOpenReply('${inv.id}')">${packHasReply(ps) ? '✏️ Sửa trả lời' : '↩ Trả lời kho'}</button>${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
