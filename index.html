@@ -216,6 +216,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-todo-chip.ok{ border-color:#2EA05A; color:#6FD99A; }
   .inv-todo-chip.warn{ border-color:#F0A63A; color:#F6C27A; }
   .inv-todo-chip.info{ color:#A9C4FF; border-color:rgba(79,140,255,0.5); }
+  .inv-todo-chip.zero{ opacity:0.4; cursor:default; animation:none; }
   .inv-todo-all{ margin-left:auto; background:transparent !important; border:none !important; color:#8DB4FF; font-weight:800; cursor:pointer; min-height:0 !important; }
   .inv-chip.inv-zalo-nudge{ border-style:dashed; border-color:#F0A63A; color:#F0A63A; margin-left:auto; }
   .sb-pin-link{ display:inline-block; margin-top:8px; color:#8B96B4 !important; }
@@ -10463,10 +10464,10 @@ function renderMyInvTodoBar(){
     if(invNeedsReprint(inv, maps)) c.reprint++;
   });
   const total = c.pending + c.short + c.reprint + c.toship;
-  if(!total){ el.style.display = 'none'; return; }
-  const chip = (n, label, cls, f)=> n ? `<button class="inv-todo-chip ${cls}" onclick="goInvFilter('${f}')">${label} <b>${n}</b></button>` : '';
-  el.innerHTML = `<div class="inv-todo-title">🔔 Việc cần làm với hoá đơn <span>(${total})</span></div>
-    <div class="inv-todo-chips">${chip(c.short, '⚠ Kho báo thiếu — trả lời kho', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in — báo kho', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc — nhắc khách', 'info', 'pending')}
+  // Luôn hiện đủ 4 nhóm (nhóm 0 làm mờ) để Sale nhìn là biết đủ tình hình
+  const chip = (n, label, cls, f)=> `<button class="inv-todo-chip ${n ? cls : 'zero'}" ${n ? `onclick="goInvFilter('${f}')"` : 'disabled'}>${label} <b>${n}</b></button>`;
+  el.innerHTML = `<div class="inv-todo-title">${total ? '🔔 Việc cần làm với hoá đơn <span>(' + total + ')</span>' : '✅ Không có việc cần làm với hoá đơn'}</div>
+    <div class="inv-todo-chips">${chip(c.short, '⚠ Kho báo thiếu', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc', 'info', 'pending')}
       <button class="inv-todo-all" onclick="goInvFilter('todo')">Xem tất cả →</button></div>`;
   el.style.display = '';
 }
