@@ -1633,6 +1633,20 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .lbl-done-mark{ display:inline-block; font-size:11px; font-weight:700; color:#6FD99A; background:rgba(46,160,90,0.15); border:1px solid rgba(46,160,90,0.45); border-radius:6px; padding:0 4px; margin-left:3px; vertical-align:middle; cursor:help; }
+  /* Các mục phụ: ô nhỏ 3 ô / hàng, bấm mở thì ô đó trải rộng cả hàng */
+  .pack-tiles{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:14px; }
+  .pack-tiles > details.card{ margin:0 !important; padding:0; min-width:0; }
+  .pack-tiles > details > summary{ list-style:none; cursor:pointer; padding:14px 16px; font-weight:800; font-size:14.5px; line-height:1.35; display:flex; flex-direction:column; gap:3px; min-height:68px; justify-content:center; position:relative; }
+  .pack-tiles > details > summary::-webkit-details-marker{ display:none; }
+  .pack-tiles > details > summary::after{ content:'▸'; position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--ink-soft); font-size:14px; }
+  .pack-tiles > details > summary .pack-note{ font-weight:500; font-size:12px; }
+  .pack-tiles > details:hover{ border-color:var(--accent); }
+  .pack-tiles > details[open]{ grid-column:1 / -1; }
+  .pack-tiles > details[open] > summary{ min-height:0; flex-direction:row; align-items:center; justify-content:flex-start; gap:10px; border-bottom:1px solid var(--line); }
+  .pack-tiles > details[open] > summary::after{ content:'▾ Thu gọn'; font-size:12px; }
+  .pack-tiles > details[open] > *:not(summary){ margin-left:16px; margin-right:16px; }
+  .pack-tiles > details[open]{ padding-bottom:14px; }
+  @media (max-width:560px){ .pack-tiles{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; } .pack-tiles > details > summary{ font-size:13px; padding:12px; min-height:60px; } }
   .pack-label-two{ display:inline-flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; white-space:nowrap; }
   .pack-label-two input{ width:auto !important; min-height:0 !important; }
   .lbl-a4page{ display:grid; grid-template-columns:100mm 100mm; grid-auto-rows:140mm; gap:0; justify-content:center; break-after:page; page-break-after:always; }
@@ -2305,20 +2319,21 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="table-wrap"><table id="packTable"></table></div>
           <div id="packPager"></div>
         </div>
+        <div class="pack-tiles">
         <details class="card pack-details" id="refillHistDetails" style="display:none;" ontoggle="if(this.open) refillHistoryRender()">
-          <summary>🕕 Cần bù cả kho lúc 18h <span class="pack-note">(tự chụp hằng ngày — gửi Zalo)</span></summary>
+          <summary>🕕 Cần bù cả kho 18h <span class="pack-note">Tự chụp hằng ngày · gửi Zalo</span></summary>
           <div id="refillHistBox"></div>
         </details>
         <details class="card pack-details" id="packHistDetails" ontoggle="if(this.open) renderPackPrintHistory()">
-          <summary>🕘 Lịch sử in <span class="pack-note">(in lại khi máy in kẹt giấy)</span></summary>
+          <summary>🕘 Lịch sử in <span class="pack-note">In lại khi máy in kẹt giấy</span></summary>
           <div id="packHistBox"></div>
         </details>
         <details class="card pack-details" id="packStatsDetails" ontoggle="if(this.open) renderPackStats()">
-          <summary>📊 Thống kê đóng hàng</summary>
+          <summary>📊 Thống kê đóng hàng <span class="pack-note">Theo người · mẫu hay thiếu</span></summary>
           <div id="packStatsBox"></div>
         </details>
         <details class="card pack-details" id="pimgDetails" ontoggle="if(this.open) renderPimgManager()">
-          <summary>🖼️ Ảnh mẫu sản phẩm (hiện khi nhặt hàng)</summary>
+          <summary>🖼️ Ảnh mẫu sản phẩm <span class="pack-note">Hiện khi nhặt hàng</span></summary>
           <div class="pack-toolbar" style="margin-top:10px;">
             <input id="pimgSearch" type="search" placeholder="🔍 Mã / tên mẫu (VD: A55, mèo)" oninput="clearTimeout(window.__pimgT); window.__pimgT=setTimeout(()=>{ pagerPages.pimg=1; renderPimgManager(); }, 250)" style="flex:1; min-width:200px;">
             <label class="pack-note" style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="pimgMissing" onchange="pagerPages.pimg=1; renderPimgManager()" style="width:auto; min-height:0;"> Chỉ hiện mục chưa có ảnh</label>
@@ -2326,13 +2341,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="pimgBox"></div>
         </details>
         <details class="card pack-details" id="packStaffDetails" ontoggle="if(this.open) renderPackStaffBox()">
-          <summary>👥 Người đóng chưa có tài khoản (thêm tay)</summary>
+          <summary>👥 Người đóng thêm tay <span class="pack-note">Chưa có tài khoản</span></summary>
           <div class="pack-staff-add">
             <input id="packStaffNewName" placeholder="Tên nhân viên kho (VD: Hùng)" onkeydown="if(event.key==='Enter') packStaffAdd()">
             <button class="btn-primary btn-small" onclick="packStaffAdd()">+ Thêm</button>
           </div>
           <div id="packStaffBox"></div>
         </details>
+        </div>
       </div>
 
       <div class="pack-fab" id="packFab"><button class="pack-fab-claim" id="packFabClaim" onclick="packClaimNext()">📥 NHẬN ĐƠN</button><button class="pack-fab-scan" onclick="packScanStart()">📷 Quét</button></div>
