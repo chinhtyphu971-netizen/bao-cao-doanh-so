@@ -2268,7 +2268,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <span id="packCustomRange" class="pack-range" style="display:none;">
               <input id="packFrom" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Từ ngày"> → <input id="packTo" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Đến ngày">
             </span>
-            <select id="packTeamSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👥 Tất cả team</option></select>
+            <select id="packShipSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo việc Sale lên vận đơn"><option value="">🚚 Vận đơn: tất cả</option></select>
             <select id="packSaleSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👤 Tất cả Sale</option></select>
             <select id="packSortSel" onchange="pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="asc">↑ Cọc cũ trước</option>
@@ -6119,6 +6119,22 @@ function packCurrentList(){
     teamSel.innerHTML = `<option value="">👥 Tất cả team</option>` + opts.map(o=>`<option value="${escHtml(o.k||'__none')}" ${(o.k||'__none')===teamF?'selected':''}>${escHtml(o.name)} (${teamCount[o.k]||0})</option>`).join('');
   }
   if(teamF) base = base.filter(inv=>(teamKey(inv)||'__none')===teamF);
+  // ===== Lọc theo việc SALE LÊN VẬN ĐƠN (chỉ áp cho đơn đã đóng) =====
+  const shipF = (document.getElementById('packShipSel')||{}).value || '';
+  const smapS = packStatusMap();
+  const shipStateOf = inv=>{
+    const ps = smapS[inv.id]; if(!ps || ps.legacy || !(ps.state==='packed' || ps.state==='partial')) return '';
+    if(ps.ship) return ((shipNeedCode(ps.ship.carrier) || !ps.ship.carrier) && !shipCodesOf(ps.ship).length) ? 'nocode' : 'shipped';
+    return (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000 >= SHIP_LATE_HOURS ? 'late' : 'wait';
+  };
+  const shipCount = {wait:0, late:0, shipped:0, nocode:0}; base.forEach(inv=>{ const k = shipStateOf(inv); if(k) shipCount[k]++; });
+  const shipSel = document.getElementById('packShipSel');
+  if(shipSel){
+    const opts = [['','🚚 Vận đơn: tất cả'], ['notship', `⏳ Sale chưa lên vận đơn (${shipCount.wait + shipCount.late})`], ['late', `🔴 Chưa lên quá ${SHIP_LATE_HOURS} giờ (${shipCount.late})`], ['shipped', `✅ Đã lên vận đơn (${shipCount.shipped + shipCount.nocode})`], ['nocode', `⚠ Đã lên nhưng thiếu mã (${shipCount.nocode})`]];
+    shipSel.innerHTML = opts.map(([v,l])=>`<option value="${v}" ${v===shipF ? 'selected' : ''}>${l}</option>`).join('');
+  }
+  if(shipF) base = base.filter(inv=>{ const k = shipStateOf(inv);
+    return shipF==='notship' ? (k==='wait' || k==='late') : (shipF==='shipped' ? (k==='shipped' || k==='nocode') : k===shipF); });
   // Danh sách Sale (đếm theo bộ lọc hiện tại, trước khi lọc Sale)
   const saleCount = {}; base.forEach(inv=>{ const k = inv.saleId || ''; saleCount[k] = (saleCount[k]||0) + 1; });
   const saleSel = document.getElementById('packSaleSel');
@@ -6263,6 +6279,7 @@ function packResetFilters(){
   const cr = document.getElementById('packCustomRange'); if(cr) cr.style.display = 'none';
   const sl = document.getElementById('packSaleSel'); if(sl) sl.value = '';
   const tl = document.getElementById('packTeamSel'); if(tl) tl.value = '';
+  const shl = document.getElementById('packShipSel'); if(shl) shl.value = '';
   const so = document.getElementById('packSortSel'); if(so) so.value = 'desc';
   packSelected.clear(); pagerPages.packInv = 1; renderPackInvoicesPage();
 }
