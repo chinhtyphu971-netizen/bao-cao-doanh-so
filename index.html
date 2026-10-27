@@ -1549,6 +1549,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-urgent-on{ background:#E5484D !important; color:#fff !important; border-color:#E5484D !important; }
   .inv-one-line{ display:flex !important; flex-wrap:wrap; align-items:center; gap:2px 6px; line-height:1.35; }
   .inv-ol-dim{ color:var(--ink-soft); font-weight:600; }
+  textarea.ship-req-err{ border-color:#E5484D !important; box-shadow:0 0 0 2px rgba(229,72,77,0.35); }
   .ship-pkgs{ color:#F6C27A; font-weight:800; font-size:12px; }
   .ship-code-link{ color:#8DB4FF !important; font-weight:800; text-decoration:underline dotted; white-space:nowrap; }
   .inv-ol-ship{ color:#6FD99A; font-size:12.5px; font-weight:700; }
@@ -3173,9 +3174,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div id="shipInfo" style="font-size:13.5px; margin-bottom:10px;"></div>
     <div class="field"><label>Hãng vận chuyển</label>
       <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button><button type="button" onclick="shipPick('Gửi xe khách')">Gửi xe</button></div>
-      <input id="shipCarrier" list="shipCarrierList" placeholder="VD: GHTK, J&amp;T…" autocomplete="off">
+      <input id="shipCarrier" list="shipCarrierList" oninput="shipQuickMark(); shipCodePreview()" placeholder="VD: GHTK, J&amp;T…" autocomplete="off">
       <datalist id="shipCarrierList"></datalist></div>
-    <div class="field"><label>Mã vận đơn <span class="pack-note">(không bắt buộc — đơn chia <b>nhiều kiện</b>: mỗi mã 1 dòng hoặc cách nhau dấu phẩy)</span></label>
+    <div class="field"><label>Mã vận đơn <span class="pack-note" id="shipCodeReqNote"><b style="color:#FF8A8D;">bắt buộc</b> với hãng vận chuyển — đơn chia <b>nhiều kiện</b>: mỗi mã 1 dòng hoặc cách nhau dấu phẩy</span></label>
       <textarea id="shipCode" rows="2" placeholder="VD: SPXVN0123456789&#10;SPXVN0987654321" autocomplete="off" oninput="shipCodePreview()" style="width:100%; font-size:15px; resize:vertical;"></textarea>
       <div id="shipCodePrev" class="pack-note" style="margin-top:3px;"></div></div>
     <div class="actions"><button class="btn-ghost" id="shipUndo" onclick="shipUndo()" style="margin-right:auto;">Bỏ đánh dấu</button><button class="btn-ghost" onclick="document.getElementById('shipModal').classList.remove('show')">Huỷ</button><button class="btn-primary" onclick="shipSave()">✅ Đã lên vận đơn</button></div>
@@ -6403,7 +6404,7 @@ const SHIP_LATE_HOURS = 4;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
-  if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">🚚 Sale đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : ''}</div>`;
+  if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">🚚 Sale đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">⏳ Sale chưa lên vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
 }
@@ -6458,7 +6459,7 @@ function shipLineHtml(inv, ps){
   return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Đã lên vận đơn</button></div>`;
 }
 let shipInvId = null;
-function shipPick(v){ document.getElementById('shipCarrier').value = v; shipQuickMark(); const c = document.getElementById('shipCode'); if(c) c.focus(); }
+function shipPick(v){ document.getElementById('shipCarrier').value = v; shipQuickMark(); shipCodePreview(); const c = document.getElementById('shipCode'); if(c) c.focus(); }
 function shipQuickMark(){ const v = document.getElementById('shipCarrier').value; document.querySelectorAll('.ship-quick button').forEach(b=>{ b.classList.toggle('on', b.getAttribute('onclick').indexOf("'" + v + "'")>=0 || (v==='J&T Express' && b.textContent==='J&T')); }); }
 function shipFillCarriers(){ const dl = document.getElementById('shipCarrierList'); if(dl && !dl.children.length) dl.innerHTML = SHIP_CARRIERS.map(c=>`<option value="${escHtml(c)}">`).join(''); }
 function shipOpen(invId){
@@ -6481,6 +6482,11 @@ function shipSave(){
   const me = currentUser() || {};
   const carrier = String(document.getElementById('shipCarrier').value||'').trim();
   const codes = shipParseCodes(document.getElementById('shipCode').value);
+  if(!carrier){ showToast('Chọn hãng vận chuyển trước (hoặc "Lấy tại cửa hàng").'); document.getElementById('shipCarrier').focus(); return; }
+  if(shipNeedCode(carrier) && !codes.length){
+    const el = document.getElementById('shipCode'); el.classList.add('ship-req-err'); el.focus();
+    showToast(`⚠ Đơn gửi ${carrier} phải điền MÃ VẬN ĐƠN — dán mã từ Abit / app hãng.`); return;
+  }
   const ship = {at: nowMs(), by: me.id||'', byName: me.name||'', carrier: carrier || null, code: codes.join(', ') || null, codes: codes.length ? codes : null};
   const ps = packStatusMap()[shipInvId]; if(ps) ps.ship = ship;
   try{ if(carrier) localStorage.setItem('ship_last_carrier', carrier); }catch(e){}
@@ -6489,8 +6495,13 @@ function shipSave(){
     if(currentPageId==='invoices') renderInvoicesPage();
   }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
 }
+// Hãng vận chuyển thật (SPX, Viettel, J&T, GHTK…) → BẮT BUỘC có mã vận đơn. Lấy tại cửa hàng / gửi xe / tự giao thì không cần.
+function shipNeedCode(carrier){ const c = String(carrier||'').trim(); return !!c && !/khách lấy|lấy tại|gửi xe|tự giao/i.test(c); }
 function shipCodePreview(){
   const el = document.getElementById('shipCodePrev'); if(!el) return;
+  const ci = document.getElementById('shipCode'); if(ci) ci.classList.remove('ship-req-err');
+  const nt = document.getElementById('shipCodeReqNote'); const car = (document.getElementById('shipCarrier')||{}).value || '';
+  if(nt) nt.innerHTML = shipNeedCode(car) || !car ? '<b style="color:#FF8A8D;">bắt buộc</b> với hãng vận chuyển — đơn chia <b>nhiều kiện</b>: mỗi mã 1 dòng hoặc cách nhau dấu phẩy' : '(không cần với ' + escHtml(car) + ')';
   const codes = shipParseCodes(document.getElementById('shipCode').value);
   el.innerHTML = codes.length ? `✓ ${codes.length} kiện: <b>${codes.map(escHtml).join(' · ')}</b>` : '';
 }
@@ -8437,7 +8448,7 @@ function packSaleBadgeHtml(inv){
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''));
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
-    if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : ''} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
+    if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
     return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button></div>`;
   }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
