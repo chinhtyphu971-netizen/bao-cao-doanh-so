@@ -1720,14 +1720,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="nav-item" data-page="printReport" onclick="goPage('printReport')"><span class="label" id="navPrintReportLabel">🖨️ Báo cáo in hình</span></div>
       </div>
       <div id="navWarehouse" style="display:none;">
-        <div class="nav-item" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">🧾 In hoá đơn đóng hàng</span></div>
+        <div class="nav-item" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">📦 Quản lý đóng hàng</span></div>
         <div class="nav-item" id="navItem_invOverviewWh" data-page="invoicesOverview" onclick="goPage('invoicesOverview')" style="display:none;"><span class="label">💰 Hoá đơn đã cọc</span></div>
         <div class="nav-item" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">📦 Hàng cần in</span></div>
-        <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📦 Bàn đóng gói</span></div>
+        <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📷 Bàn đóng gói</span></div>
         <div class="nav-item" id="navItem_packAccountsWh" data-page="packAccounts" onclick="goPage('packAccounts')" style="display:none;"><span class="label">🔑 Tài khoản đóng gói</span></div>
       </div>
       <div id="navPacker" style="display:none;">
-        <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📦 Bàn đóng gói</span></div>
+        <div class="nav-item" data-page="packDesk" onclick="goPage('packDesk')"><span class="label">📷 Bàn đóng gói</span></div>
       </div>
       <div id="navPrintOrder" style="display:none;">
         <div class="nav-item" data-page="printOrders" onclick="goPage('printOrders')"><span class="label">📝 Đặt đơn in hình</span></div>
@@ -1766,7 +1766,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_printOverview" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">🖨️ Báo cáo in hình</span></div>
-        <div class="nav-item" id="navItem_packInvoices" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">🧾 In hoá đơn đóng hàng</span></div>
+        <div class="nav-item" id="navItem_packInvoices" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">📦 Quản lý đóng hàng</span></div>
         <div class="nav-item" id="navItem_packAccounts" data-page="packAccounts" onclick="goPage('packAccounts')"><span class="label">🔑 Tài khoản đóng gói</span></div>
         <div class="nav-item" id="navItem_invoicesOverview" data-page="invoicesOverview" onclick="goPage('invoicesOverview')"><span class="label">🧾 Tổng hợp hoá đơn</span></div>
         <div class="nav-section-label" id="navSectionLabel_mkt">Quản lý MKT</div>
@@ -2233,7 +2233,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       </div>
 
       <div id="page-packInvoices" class="page" style="display:none;">
-        <div class="page-head"><div><h1>In hoá đơn đóng hàng</h1><p>Hoá đơn đã cọc / đã chốt · in đúng mẫu hoá đơn Sale đã lên, mỗi hoá đơn 1 trang A4</p></div></div>
+        <div class="page-head"><div><h1>Quản lý đóng hàng</h1><p>Đơn đã cọc / đã chốt · in phiếu &amp; tem · theo dõi nhận đơn, chờ bù, đã đóng, vận đơn</p></div></div>
         <div class="card">
           <div class="pack-scanbar">
             <button class="btn-primary pack-cam-btn" onclick="packScanStart()">📷 Quét mã</button>
@@ -7442,7 +7442,7 @@ function packStaffRemove(id){
 }
 function packPresenceChipsHtml(){
   const all = packActiveStaff();
-  if(!all.length) return '<div class="pack-note">Chưa có tên nhân viên kho nào — Kho trưởng vào trang "In hoá đơn đóng hàng" → mục 👥 Nhân viên kho để thêm.</div>';
+  if(!all.length) return '<div class="pack-note">Chưa có tên nhân viên kho nào — Kho trưởng vào trang "Quản lý đóng hàng" → mục 👥 Nhân viên kho để thêm.</div>';
   const pr = state.packPresence || {};
   return '<div class="pack-chips">' + all.map(x=>`<button class="pack-chip ${pr[x.id] ? 'on' : ''}" onclick="packTogglePresence('${x.id}')">${pr[x.id] ? '✔ ' : ''}${escHtml(x.name)}</button>`).join('') + '</div>';
 }
@@ -8158,7 +8158,7 @@ function renderPackDeskPresence(){
   const box = document.getElementById('packDeskPresence'), sum = document.getElementById('packDeskPresenceSummary'), btn = document.getElementById('packDeskPresenceEditBtn'), card = document.getElementById('packDeskPresenceCard');
   if(!box || !sum) return;
   const present = packPresentStaff(), open = packDeskPresenceIsOpen();
-  if(!packActiveStaff().length) sum.innerHTML = '👥 <b>Chưa có tên nhân viên kho</b> — Kho trưởng thêm ở trang "In hoá đơn đóng hàng" → 👥 Nhân viên kho';
+  if(!packActiveStaff().length) sum.innerHTML = '👥 <b>Chưa có tên nhân viên kho</b> — Kho trưởng thêm ở trang "Quản lý đóng hàng" → 👥 Nhân viên kho';
   else if(!present.length) sum.innerHTML = '👥 <b style="color:#F0A63A;">Đầu buổi: chạm tên những người có mặt hôm nay</b>';
   else sum.innerHTML = `👥 Có mặt hôm nay: <b>${present.map(x=>escHtml(x.name)).join(', ')}</b>`;
   card.classList.toggle('pack-presence-warn', packActiveStaff().length>0 && !present.length);
