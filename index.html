@@ -1070,7 +1070,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-act-cell .btn-small{ padding:5px 9px; margin:1px 0; }
   .inv-view-cell{ white-space:nowrap; }
   .inv-view-btn{ padding:5px 10px; }
-  @media (max-width:720px){ .pack-act-cell{ white-space:normal; min-width:84px; } .pack-act-cell .btn-small{ display:block; width:100%; margin:3px 0; } }
+  @media (max-width:720px){
+    /* Điện thoại: 3 nút ICON nhỏ trên 1 hàng */
+    #packTable td.pack-act-cell{ white-space:nowrap !important; min-width:0 !important; padding:4px 2px !important; }
+    .pack-act-cell .btn-small{ display:inline-flex !important; width:36px; height:34px; min-height:0 !important; padding:0 !important; margin:0 1px !important; align-items:center; justify-content:center; font-size:16px !important; }
+    .pack-act-cell .act-t{ display:none; }
+    /* nút in phiếu / in tem đứng chung 1 hàng */
+    #page-packInvoices .pack-toolbar{ gap:6px; }
+    #page-packInvoices .pack-toolbar > button, #page-packInvoices .pack-toolbar > select{ font-size:13.5px !important; padding:8px 10px !important; }
+  }
   .pack-cb{ width:18px; height:18px; min-height:0 !important; cursor:pointer; }
   #packTable td[data-label="Trạng thái"]{ white-space:normal !important; min-width:210px; max-width:330px; }
   #packTable td.pack-items{ white-space:normal !important; min-width:180px; max-width:360px; }
@@ -6177,9 +6185,9 @@ function renderPackInvoicesPage(){
       return `<tr class="${packSelected.has(inv.id) ? 'pack-row-sel' : ''}">
         <td><input type="checkbox" class="pack-cb" ${packSelected.has(inv.id)?'checked':''} onchange="packToggleOne('${inv.id}', this.checked)"></td>
         <td class="pack-act-cell">
-          <button class="btn-primary btn-small" onclick="packPanelOpen('${inv.id}', true)" title="Xem đơn — muốn đóng hàng thì quét mã hoặc vào Bàn đóng gói">📦 Mở</button>
-          <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
-          <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
+          <button class="btn-primary btn-small" onclick="packPanelOpen('${inv.id}', true)" title="Mở đơn (xem tiến độ) — muốn đóng hàng thì quét mã hoặc vào Bàn đóng gói">📦<span class="act-t"> Mở</span></button>
+          <button class="btn-ghost btn-small" title="Xem hoá đơn" onclick="viewInvoiceReadonly('${inv.id}')">👁<span class="act-t"> Xem</span></button>
+          <button class="btn-ghost btn-small" title="${stt==='new' ? 'In phiếu' : 'In lại phiếu'}" onclick="packPrintInvoices(['${inv.id}'])">🖨️<span class="act-t">${stt==='new' ? ' In' : ' In lại'}</span></button>
         </td>
         <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${(()=>{ const lb = (state.packLabels||[]).find(x=>x && x.id===inv.id); return lb ? ` <span class="lbl-done-mark" title="Đã in tem ${lb.n||1} lần · lần cuối ${packTimeStr(lb.at)}${lb.byName ? ' · ' + escHtml(lb.byName) : ''}">🏷️${(lb.n||1) > 1 ? '×' + lb.n : ''}</span>` : ''; })()}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
         <td data-label="Trạng thái">${stHtml}</td>
