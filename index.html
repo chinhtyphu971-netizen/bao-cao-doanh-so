@@ -2271,7 +2271,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <select id="packSaleSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👤 Tất cả Sale</option></select>
             <select id="packSortSel" onchange="pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="asc">↑ Cọc cũ trước</option>
-              <option value="desc">↓ Cọc mới trước</option>
+              <option value="desc" selected>↓ Cọc mới trước</option>
             </select>
           </div>
           <div class="pack-toolbar">
@@ -6088,7 +6088,7 @@ function packCurrentList(){
   const q = searchEl ? searchEl.value : '';
   const pq = normalizeSearchText((document.getElementById('packProdSearch')||{}).value || '');
   const saleF = (document.getElementById('packSaleSel')||{}).value || '';
-  const sortDir = (document.getElementById('packSortSel')||{}).value || 'asc';
+  const sortDir = (document.getElementById('packSortSel')||{}).value || 'desc'; // mặc định cọc MỚI nhất lên trước
   const from = (document.getElementById('packFrom')||{}).value || '', to = (document.getElementById('packTo')||{}).value || '';
   const today = todayStr();
   const yd = new Date(nowMs()); yd.setDate(yd.getDate()-1); const yesterday = toLocalDateStr(yd);
@@ -6259,7 +6259,7 @@ function packResetFilters(){
   const cr = document.getElementById('packCustomRange'); if(cr) cr.style.display = 'none';
   const sl = document.getElementById('packSaleSel'); if(sl) sl.value = '';
   const tl = document.getElementById('packTeamSel'); if(tl) tl.value = '';
-  const so = document.getElementById('packSortSel'); if(so) so.value = 'asc';
+  const so = document.getElementById('packSortSel'); if(so) so.value = 'desc';
   packSelected.clear(); pagerPages.packInv = 1; renderPackInvoicesPage();
 }
 // Đơn cũ (đã gửi trước khi áp dụng quy trình kho): đánh dấu "đã xử lý" hàng loạt → ra khỏi danh sách tồn,
