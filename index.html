@@ -1594,6 +1594,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl-kien .lbl-copytag{ flex:1 1 100%; margin-top:1mm; }
   .lbl-copytag1{ margin-top:1mm; text-align:center; border-top:0.3mm solid #000; padding-top:1mm; }
   .lbl-copy2 .lbl-info{ font-size:12pt !important; }
+  .lbl-done-mark{ display:inline-block; font-size:11px; font-weight:700; color:#6FD99A; background:rgba(46,160,90,0.15); border:1px solid rgba(46,160,90,0.45); border-radius:6px; padding:0 4px; margin-left:3px; vertical-align:middle; cursor:help; }
   .pack-label-two{ display:inline-flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; white-space:nowrap; }
   .pack-label-two input{ width:auto !important; min-height:0 !important; }
   .lbl-a4page{ display:grid; grid-template-columns:100mm 100mm; grid-auto-rows:140mm; gap:0; justify-content:center; break-after:page; page-break-after:always; }
@@ -3349,7 +3350,7 @@ const LocalDB = {
 })();
 let printOrdersLoadedOnce = false;
 let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null, fbPackUrgent = null, fbPackPicks = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null, fbPackUrgent = null, fbPackPicks = null, fbPackLabels = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
 function reportWindowStart(){ const d = new Date(nowMs()); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
@@ -3470,6 +3471,7 @@ function startFirebaseListeners(){
   fbPackPrintBatches = db.ref('packPrintBatches');
   fbPackClaims = db.ref('packClaims');
   fbPackPicks = db.ref('packPicks');
+  fbPackLabels = db.ref('packLabels'); // Đã in tem dán gói: packLabels/{hoáĐơn} = {at, n, byName}
   db.ref('.info/serverTimeOffset').on('value', snap=>{
     appServerOffset = Number(snap.val())||0;
     const bar = document.getElementById('clockWarnBar');
@@ -6160,7 +6162,7 @@ function renderPackInvoicesPage(){
           <button class="btn-ghost btn-small" onclick="viewInvoiceReadonly('${inv.id}')">👁 Xem</button>
           <button class="btn-ghost btn-small" onclick="packPrintInvoices(['${inv.id}'])">${stt==='new' ? '🖨️ In' : '🖨️ In lại'}</button>
         </td>
-        <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
+        <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${(()=>{ const lb = (state.packLabels||[]).find(x=>x && x.id===inv.id); return lb ? ` <span class="lbl-done-mark" title="Đã in tem ${lb.n||1} lần · lần cuối ${packTimeStr(lb.at)}${lb.byName ? ' · ' + escHtml(lb.byName) : ''}">🏷️${(lb.n||1) > 1 ? '×' + lb.n : ''}</span>` : ''; })()}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
         <td data-label="Trạng thái">${stHtml}</td>
         <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
         <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
@@ -6761,6 +6763,12 @@ function packLabelPrint(ids){
   const done = ()=>{ window.removeEventListener('afterprint', done); document.body.classList.remove('printing-label'); st.textContent = ''; };
   document.body.classList.add('printing-label');
   window.addEventListener('afterprint', done);
+  { // ghi lại: đơn đã in tem (hiện ký hiệu 🏷️ ở bảng kho)
+    const me = currentUser() || {}; const lm = {}; (state.packLabels||[]).forEach(x=>{ if(x && x.id) lm[x.id] = x; });
+    const upd = {}; invs.forEach(inv=>{ const old = lm[inv.id]; upd[inv.id] = {id: inv.id, at: nowMs(), n: ((old && old.n)||0) + 1, byName: me.name||''}; });
+    state.packLabels = (state.packLabels||[]).filter(x=>!upd[x.id]).concat(Object.values(upd));
+    if(fbPackLabels) fbPackLabels.update(upd).catch(()=>{});
+  }
   showToast(`Đang in ${two ? invs.length*2 : invs.length} tem (${invs.length} đơn${two ? ' × 2' : ''})…`);
   setTimeout(()=>window.print(), 80);
 }
@@ -13382,6 +13390,10 @@ function setupRoleScopedListeners(user){
     if(['packDesk','packInvoices','invoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
   }, false);
   const pbKey = (user && (r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
+  attachScoped('packLabels', pbKey, pbKey==='on' ? fbPackLabels : null, (arr)=>{
+    state.packLabels = arr;
+    if(currentPageId==='packInvoices' && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
+  }, false);
   attachScoped('packPrintBatches', pbKey, pbKey==='on' ? fbPackPrintBatches.orderByKey().limitToLast(60) : null, (arr)=>{
     state.packPrintBatches = arr;
     const d = document.getElementById('packHistDetails'); if(currentPageId==='packInvoices' && d && d.open) renderPackPrintHistory();
