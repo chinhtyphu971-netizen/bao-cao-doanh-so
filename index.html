@@ -1103,6 +1103,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-presence-edit{ color:var(--accent); font-weight:700; white-space:nowrap; font-size:13px; }
   .pack-presence-warn{ border:1.5px solid #F0A63A !important; }
   .pack-who-tag{ display:inline-block; font-size:11.5px; font-weight:800; color:#fff; background:rgba(79,140,255,0.35); border:1px solid rgba(79,140,255,0.6); border-radius:999px; padding:0 7px; margin:0 2px; white-space:nowrap; }
+  tr.pack-sec-row td{ font-size:12.5px; font-weight:800; padding:7px 8px !important; white-space:normal !important; }
+  tr.pack-sec-row.need td{ background:rgba(240,166,58,0.16); color:#F6C27A; }
+  tr.pack-sec-row.done td{ background:rgba(46,160,90,0.10); color:#6FD99A; }
+  tr.pack-prev-ok{ opacity:0.5; }
+  tr.pack-sec-row.out td{ background:rgba(229,72,77,0.16); color:#FF8A8D; }
+  tr.pack-out-row td{ color:#FF8A8D; font-weight:700; font-size:13.5px; padding:6px 10px !important; white-space:normal !important; }
+  tr.pack-prev-ok .pack-pimg{ width:34px !important; height:34px !important; }
   .pack-miss-tag{ display:inline-block; font-size:12px; font-weight:800; color:#fff; background:#E08A1E; border-radius:999px; padding:1px 8px; margin-right:4px; white-space:nowrap; }
   .pack-sale-tag{ display:inline-block; font-size:12px; font-weight:700; color:#C9B8FF; background:rgba(124,77,204,0.18); border-radius:999px; padding:1px 8px; margin:0 2px; white-space:nowrap; }
   .pack-row-go{ float:right; color:var(--accent); font-weight:700; font-size:13px; }
@@ -1581,6 +1588,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl-urg{ display:inline-block; margin-top:1mm; border:0.6mm solid #000; padding:0.5mm 2mm; font-weight:900; font-size:11pt; }
   .lbl-items{ font-size:8.5pt; line-height:1.3; border-top:0.3mm solid #000; padding-top:1.5mm; overflow:hidden; flex:1; }
   .lbl-items b{ font-size:9pt; }
+  .lbl-kien{ margin-top:auto; display:flex; align-items:center; gap:2mm; flex-wrap:wrap; font-size:14pt; font-weight:800; border-top:0.6mm solid #000; padding-top:2mm; }
+  .lbl-box{ display:inline-block; width:12mm; height:9mm; border:0.6mm solid #000; border-radius:1mm; }
+  .lbl-copytag{ font-size:8pt; font-weight:700; color:#333; }
+  .lbl-kien .lbl-copytag{ flex:1 1 100%; margin-top:1mm; }
+  .lbl-copytag1{ margin-top:1mm; text-align:center; border-top:0.3mm solid #000; padding-top:1mm; }
+  .lbl-copy2 .lbl-info{ font-size:12pt !important; }
+  .pack-label-two{ display:inline-flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; white-space:nowrap; }
+  .pack-label-two input{ width:auto !important; min-height:0 !important; }
   .lbl-a4page{ display:grid; grid-template-columns:100mm 100mm; grid-auto-rows:140mm; gap:0; justify-content:center; break-after:page; page-break-after:always; }
   .lbl-a4page:last-child{ break-after:auto; page-break-after:auto; }
   @media print{
@@ -2243,6 +2258,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <select id="packLabelSize" onchange="try{localStorage.setItem('pack_label_size', this.value)}catch(e){}" title="Khổ giấy tem" style="width:auto;">
               <option value="100x150" selected>Giấy nhiệt 100×150 (như tem vận chuyển)</option><option value="100x100">Tem 100×100</option><option value="a4">A4 (4 tem/trang)</option>
             </select>
+            <label class="pack-label-two" title="Mỗi đơn in 2 tem liên tiếp: ① dán ngoài bao, ② để trong túi dán lại sau khi quấn băng dính"><input type="checkbox" id="packLabelTwo" checked onchange="try{localStorage.setItem('pack_label_two', this.checked ? '1' : '0')}catch(e){}"> 2 tem/đơn</label>
             <span id="packCountNote" class="pack-note"></span>
           </div>
           <div id="packWarnBox"></div>
@@ -6097,7 +6113,7 @@ function renderPackInvoicesPage(){
   if(!packInvoicesLoaded){ table.innerHTML = '<tr><td class="empty-note">Đang tải hoá đơn…</td></tr>'; return; }
   packAttachPresence();
   const {list, counts, map, smap, status} = packCurrentList();
-  { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; }catch(e){} } }
+  { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
     const lab = {new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
@@ -6693,19 +6709,36 @@ function packSaleInitials(name){
   const pick = w.length >= 2 ? w.slice(-2) : w;
   return pick.map(x=>x.charAt(0).toUpperCase()).join('.');
 }
-function packLabelHtml(inv, size){
+function packLabelHtml(inv, size, copy){
   const sale = inv.saleName || (inv.saleId ? userName(inv.saleId) : '');
   const lines = packInvLines(inv);
   const qty = lines.reduce((a,l)=>a+l.qty,0);
   const u = packUrgentMap()[inv.id];
+  const nameCls = (()=>{ const n = String(inv.customerName||'').trim().length; return n<=10 ? 'n-s' : (n<=18 ? 'n-m' : 'n-l'); })();
+  const phone4 = String(inv.customerPhone||'').replace(/\D/g,'').slice(-4);
+  const urgHtml = u ? `<div class="lbl-urg">${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short.toUpperCase()}</div>` : '';
+  if(copy===2){
+    // TEM 2 — để trong túi, quấn băng dính xong (tem 1 bị che) thì dán ra ngoài
+    return `<div class="lbl s${size} lbl-copy2">
+      <div class="lbl-top"><div class="lbl-cust ${nameCls}">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
+      <div class="lbl-mid"><div class="lbl-qr">${packQrSvg(packQrUrl(inv))}</div>
+        <div class="lbl-info"><div class="lbl-hd">${escHtml(inv.invoiceNumber||'')}</div>
+          <div>Sale: <b>${escHtml(sale)}</b></div>
+          ${phone4 ? `<div>SĐT khách: …${escHtml(phone4)}</div>` : ''}
+          <div><b>${qty} sp</b>${isOldCustomerInvoice(inv) ? ' · khách cũ' : ''}</div>
+          ${urgHtml}</div></div>
+      <div class="lbl-kien">Kiện <span class="lbl-box"></span> / <span class="lbl-box"></span><span class="lbl-copytag">TEM ② — dán ngoài sau khi quấn băng dính</span></div>
+    </div>`;
+  }
   return `<div class="lbl s${size}">
-    <div class="lbl-top"><div class="lbl-cust ${(()=>{ const n = String(inv.customerName||'').trim().length; return n<=10 ? 'n-s' : (n<=18 ? 'n-m' : 'n-l'); })()}">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
+    <div class="lbl-top"><div class="lbl-cust ${nameCls}">${escHtml(inv.customerName||'(chưa có tên)')}</div><div class="lbl-sale">${escHtml(packSaleInitials(sale)) || '—'}<small>${escHtml(sale)}</small></div></div>
     <div class="lbl-mid"><div class="lbl-qr">${packQrSvg(packQrUrl(inv))}</div>
       <div class="lbl-info"><div class="lbl-hd">${escHtml(inv.invoiceNumber||'')}</div>
         <div><b>${qty} sp</b> · ${lines.length} dòng</div>
         <div>Cọc ${escHtml(packTimeShort(packDepositMs(inv)))}${isOldCustomerInvoice(inv) ? ' · khách cũ' : ''}</div>
-        ${u ? `<div class="lbl-urg">${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short.toUpperCase()}</div>` : ''}</div></div>
+        ${urgHtml}</div></div>
     <div class="lbl-write"><div class="lbl-wline"><span>Người đóng:</span></div><div class="lbl-wline"><span>Thiếu / ghi chú:</span></div>${'<div class="lbl-wline"></div>'.repeat(size==='100x150' ? 9 : (size==='a4' ? 7 : 2))}</div>
+    ${copy===1 ? '<div class="lbl-copytag lbl-copytag1">TEM ① — dán ngoài bao · tem ② để trong túi</div>' : ''}
   </div>`;
 }
 function packLabelPrint(ids){
@@ -6714,10 +6747,13 @@ function packLabelPrint(ids){
   if(!invs.length){ showToast('Chọn hoá đơn đã cọc để in tem.'); return; }
   let area = document.getElementById('packLabelArea');
   if(!area){ area = document.createElement('div'); area.id = 'packLabelArea'; document.body.appendChild(area); }
+  const two = (()=>{ const c = document.getElementById('packLabelTwo'); return c ? c.checked : true; })();
+  // Mỗi đơn in LIÊN TIẾP: tem ① (dán ngoài bao) rồi tem ② (để trong túi, dán lại sau khi quấn băng dính)
+  const cards = []; invs.forEach(inv=>{ cards.push(packLabelHtml(inv, size==='a4' ? 'a4' : size, two ? 1 : 0)); if(two) cards.push(packLabelHtml(inv, size==='a4' ? 'a4' : size, 2)); });
   if(size==='a4'){
-    const pages = []; for(let i=0; i<invs.length; i+=4) pages.push(invs.slice(i, i+4));
-    area.innerHTML = pages.map(pg=>`<div class="lbl-a4page">${pg.map(inv=>packLabelHtml(inv, 'a4')).join('')}</div>`).join('');
-  } else area.innerHTML = invs.map(inv=>packLabelHtml(inv, size)).join('');
+    const pages = []; for(let i=0; i<cards.length; i+=4) pages.push(cards.slice(i, i+4));
+    area.innerHTML = pages.map(pg=>`<div class="lbl-a4page">${pg.join('')}</div>`).join('');
+  } else area.innerHTML = cards.join('');
   packLabelFitNames(area, size);
   let st = document.getElementById('packLabelPageStyle');
   if(!st){ st = document.createElement('style'); st.id = 'packLabelPageStyle'; document.head.appendChild(st); }
@@ -6725,7 +6761,7 @@ function packLabelPrint(ids){
   const done = ()=>{ window.removeEventListener('afterprint', done); document.body.classList.remove('printing-label'); st.textContent = ''; };
   document.body.classList.add('printing-label');
   window.addEventListener('afterprint', done);
-  showToast(`Đang in ${invs.length} tem…`);
+  showToast(`Đang in ${two ? invs.length*2 : invs.length} tem (${invs.length} đơn${two ? ' × 2' : ''})…`);
   setTimeout(()=>window.print(), 80);
 }
 // Tự thu nhỏ chữ tên khách cho VỪA khung: không cắt đôi chữ (VD "Phương" → "Phươn / g"), tối đa 3 dòng
@@ -7480,13 +7516,13 @@ function renderPackPanel(){
     const chgTag = chgMap[l.key] ? ` <span class="pack-chg-tag">${chgMap[l.key]}</span>` : '';
     const tgt = prog.t[l.key] || 0, got = Math.min(tgt, (packPanel.picked||{})[l.key]||0), done = tgt>0 && got>=tgt;
     const pickCell = tickMode ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
-      : `<td class="pack-pick-cell"><span class="pack-pick sent" title="Đã gửi ở lần trước">✓</span></td>`) : '';
+      : `<td class="pack-pick-cell"><span class="pack-pick sent" title="${ps && ps.state==='short' ? 'Đã có đủ từ lần nhặt trước' : 'Đã gửi ở lần trước'}">✓</span></td>`) : '';
     const meta = `${[l.color, l.size].filter(Boolean).map(escHtml).join(' · ') || '—'} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}${chgTag}`;
     const prodCell = inGroup
       ? `<td class="pack-l-prod pack-sub-cell"><span class="pack-sub-arrow">↳</span>${chgTag}<span class="pack-sub-meta"><b class="pack-sub-color">${escHtml(l.color)||'—'}</b>${l.size ? ' · ' + escHtml(l.size) : ''} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}</span></td>`
       : `<td class="pack-l-prod"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l.code, l.design), 'pack-pimg')}<div class="pack-l-txt"><span class="pack-l-code">${codeWithMarkHtml(l.code)}</span>${l.design ? ` <i class="iv-design">${escHtml(l.design)}</i>` : (l.name ? ' <span class="pack-sub">' + escHtml(l.name) + '</span>' : '')}
         <div class="pack-l-meta">${meta}</div></div></div></td>`;
-    return `<tr class="${miss ? 'pack-line-miss' : ''}${chgMap[l.key] ? ' pack-line-chg' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}${inGroup ? ' pack-sub-row' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
+    return `<tr class="${miss ? 'pack-line-miss' : ''}${chgMap[l.key] ? ' pack-line-chg' : ''}${tickMode && !tgt && ps && ps.state==='short' ? ' pack-prev-ok' : ''}${tickMode && tgt ? ' pack-pickable' : ''}${done ? ' pack-picked' : ''}${inGroup ? ' pack-sub-row' : ''}"${tickMode && tgt ? ` onclick="packPickTap('${l.key}', 1)"` : ''}>
       ${pickCell}
       ${prodCell}
       <td class="pack-l-col">${escHtml(l.color)||'—'}</td><td class="pack-l-col">${escHtml(l.size)||'—'}</td>
@@ -7497,7 +7533,12 @@ function renderPackPanel(){
   };
   const groups = [];
   lines.forEach(l=>{ const gk = l.code + '|' + normalizeSearchText(l.design); let g = groups.find(x=>x.gk===gk); if(!g){ g = {gk, items:[]}; groups.push(g); } g.items.push(l); });
-  const rows = groups.map(g=>{
+  const refillMode = tickMode && ps && ps.state==='short';
+  const sChg = refillMode ? packShortChanges(inv, ps) : {tag:{}, remove:[]};
+  Object.keys(sChg.tag).forEach(k=>{ if(!chgMap[k]) chgMap[k] = sChg.tag[k]; });
+  if(refillMode && !ps.linesAtShort && Number(inv.updatedAt||0) > Number(ps.shortAt||0) + 60000)
+    banner = `<div class="pack-banner warn">✏️ Sale đã <b>sửa hoá đơn sau khi báo thiếu</b> — kiểm lại TOÀN BỘ đơn theo danh sách dưới đây.</div>` + banner;
+  const groupRow = g=>{
     if(g.items.length===1) return lineRow(g.items[0], false);
     const l0 = g.items[0];
     const qty = g.items.reduce((a,l)=>a+l.qty, 0);
@@ -7509,7 +7550,15 @@ function renderPackPanel(){
         <div class="pack-grp-sum">${g.items.length} màu/size · tổng <b>${qty}</b> cái${tickMode && need ? ` · đã nhặt <b>${got}/${need}</b>` : ''}</div></div>
       ${tickMode && need && got<need ? `<button class="btn-ghost btn-small pack-grp-all" onclick="event.stopPropagation(); packPickGroup('${keys}')">✓ <span class="pack-grp-all-long">Đủ cả nhóm</span><span class="pack-grp-all-short">Đủ hết</span></button>` : ''}</div></td></tr>` +
       g.items.map(l=>lineRow(l, true)).join('');
-  }).join('');
+  };
+  let rows;
+  if(refillMode){
+    const needL = lines.filter(l=>(prog.t[l.key]||0) > 0), doneL = lines.filter(l=>!(prog.t[l.key]||0));
+    const grp = arr=>{ const gs = []; arr.forEach(l=>{ const gk = l.code + '|' + normalizeSearchText(l.design); let g = gs.find(x=>x.gk===gk); if(!g){ g = {gk, items:[]}; gs.push(g); } g.items.push(l); }); return gs; };
+    rows = (sChg.remove.length ? `<tr class="pack-sec-row out"><td colspan="${nCols}">↩ LẤY RA khỏi gói — Sale đã đổi / bớt:</td></tr>` + sChg.remove.map(r=>`<tr class="pack-out-row"><td colspan="${nCols}">❌ Bỏ ra <b>${r.qty}</b> ${escHtml(r.label)}${r.gone ? ' <span class="pack-chg-tag">ĐÃ BỎ</span>' : ' <span class="pack-chg-tag">GIẢM SL</span>'}</td></tr>`).join('') : '')
+      + `<tr class="pack-sec-row need"><td colspan="${nCols}">🔁 CẦN BÙ — chỉ nhặt các món này (${needL.reduce((a,l)=>a+(prog.t[l.key]||0),0)} sp)</td></tr>` + (needL.length ? grp(needL).map(groupRow).join('') : `<tr><td colspan="${nCols}" class="pack-note">Không còn món nào phải nhặt thêm.</td></tr>`)
+      + (doneL.length ? `<tr class="pack-sec-row done"><td colspan="${nCols}">✓ Đã có đủ từ lần nhặt trước (${doneL.reduce((a,l)=>a+l.qty,0)} sp) — chỉ cần kiểm lại khi đóng</td></tr>` + grp(doneL).map(g=>g.items.map(l=>lineRow(l, false)).join('')).join('') : '');
+  } else rows = groups.map(groupRow).join('');
   const staffList = packActiveStaff(); // không cần điểm danh: hiện TẤT CẢ người đóng đã đăng ký để chọn
   // ---- Thanh GHIM trên cùng: Số HĐ · người đóng · ảnh · nút hành động — cuộn xuống vẫn thấy ----
   const ph = packPanel.photos || [];
@@ -7549,7 +7598,7 @@ function renderPackPanel(){
     ${canAct && ph.length ? `<div class="pack-st-thumbs">${ph.map((p,i)=>`<div class="pack-thumb sm"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="packPhotoRemove(${i})">×</button></div>`).join('')}<span class="pack-note">ảnh ${photoHint}</span></div>` : ''}
     <div id="packPhotoBusy" class="pack-note" style="display:none;">⏳ Đang xử lý ảnh…</div>
     ${canAct && short ? `<input class="pack-note-input pack-st-note" placeholder="Ghi chú thêm cho Sale (không bắt buộc)" value="${escHtml(packPanel.note)}" oninput="packPanel.note=this.value; packDraftSave()">` : ''}
-    ${tickMode && prog.need ? `<div class="pack-progress-row"><div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>${prog.got<prog.need ? `<button class="pack-pick-all" onclick="packPickAllLines()">✓ Đã nhặt đủ cả đơn</button>` : ''}</div>` : ''}
+    ${tickMode && prog.need ? `<div class="pack-progress-row"><div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>${prog.got<prog.need ? `<button class="pack-pick-all" onclick="packPickAllLines()">✓ ${ps && ps.state==='short' ? 'Đã nhặt đủ phần bù' : 'Đã nhặt đủ cả đơn'}</button>` : ''}</div>` : ''}
   </div>`;
   body.innerHTML = `${sticky}
     ${banner}
@@ -7747,8 +7796,31 @@ function packPickLoad(invId){ let m = {}; try{ m = JSON.parse(localStorage.getIt
 function packPickSave(){ if(!packPanel) return; try{ localStorage.setItem(packPickKey(packPanel.invId), JSON.stringify(packPanel.picked||{})); }catch(e){} }
 function packPickClear(invId){ try{ localStorage.removeItem(packPickKey(invId)); }catch(e){} }
 // Số cần nhặt của từng dòng: bình thường = SL; đơn "đã gửi 1 phần" = chỉ phần còn nợ
+// So hoá đơn hiện tại với lúc báo thiếu → món MỚI / TĂNG SL (phải nhặt thêm), món BỎ / GIẢM SL (phải lấy RA khỏi gói)
+function packShortChanges(inv, ps){
+  const out = {tag:{}, remove:[]};
+  if(!inv || !ps || ps.state!=='short' || !ps.linesAtShort) return out;
+  const snap = ps.linesAtShort; const cur = {}; packInvLines(inv).forEach(l=>{ cur[l.key] = l; });
+  const miss = {}; (ps.shortItems||[]).forEach(x=>{ if(x.key) miss[x.key] = (miss[x.key]||0) + (Number(x.missing)||0); });
+  Object.keys(cur).forEach(k=>{ const o = snap[k]; const oq = o ? (Number(o[0])||0) : 0; const l = cur[k];
+    if(!o) out.tag[k] = 'MỚI'; else if(l.qty > oq) out.tag[k] = `SL ${oq}→${l.qty}`; });
+  Object.keys(snap).forEach(k=>{ const oq = Number(snap[k][0])||0; const pickedBefore = Math.max(0, oq - (miss[k]||0)); const nq = cur[k] ? cur[k].qty : 0;
+    const takeOut = Math.max(0, pickedBefore - nq);
+    if(takeOut > 0) out.remove.push({key:k, label: snap[k][1], qty: takeOut, gone: !cur[k]}); });
+  return out;
+}
 function packPickTargets(lines, ps){
   const t = {};
+  if(ps && ps.state==='short'){
+    // Đơn đang thiếu → lúc bù chỉ cần nhặt PHẦN THIẾU; các món khác coi như đã đủ (đã nhặt ở lần trước)
+    const miss = {}; (ps.shortItems||[]).forEach(x=>{ if(x.key) miss[x.key] = (miss[x.key]||0) + (Number(x.missing)||0); });
+    const snap = ps.linesAtShort || null; // {key:[sl, nhãn]} lúc báo thiếu — Sale thêm / tăng SL sau đó thì phải nhặt thêm
+    if(!snap){ const iv = packInvById(ps.id); if(iv && Number(iv.updatedAt||0) > Number(ps.shortAt||0) + 60000){ lines.forEach(l=>{ t[l.key] = l.qty; }); return t; } }
+    lines.forEach(l=>{ let v = miss[l.key]||0;
+      if(snap){ const o = snap[l.key]; const oq = o ? (Number(o[0])||0) : 0; if(l.qty > oq) v += l.qty - oq; }
+      t[l.key] = Math.min(l.qty, v); });
+    return t;
+  }
   if(ps && ps.state==='partial'){ const owed = {}; (ps.shortItems||[]).forEach(x=>{ if(x.key) owed[x.key] = Number(x.missing)||0; }); lines.forEach(l=>{ t[l.key] = owed[l.key] || 0; }); }
   else lines.forEach(l=>{ t[l.key] = l.qty; });
   return t;
@@ -7939,6 +8011,14 @@ function packBaseRecord(inv){
     qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0)};
 }
 function packDoPacked(){
+  if(packPanel && !packPanel._outOk){
+    const inv0 = packInvById(packPanel.invId); const ps0 = packStatusMap()[packPanel.invId];
+    const ch = packShortChanges(inv0, ps0);
+    if(ch.remove.length){
+      askConfirm('Đã lấy món thừa ra khỏi gói chưa?', 'Sale đã đổi / bớt: ' + ch.remove.map(r=>`${r.qty} ${r.label}`).join(', ') + '. Lấy ra rồi mới đóng.', ()=>{ packPanel._outOk = true; packDoPacked(); });
+      return;
+    }
+  }
   if(!packOnline){ packBeep(false); showToast('📴 Đang mất mạng — tick và ảnh vẫn giữ trên máy. Có mạng lại rồi bấm lưu.'); return; }
   if(packSaving) return; // đang lưu → chặn bấm 2 lần
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
@@ -7980,7 +8060,8 @@ function packDoShort(){
   const old = packStatusMap()[inv.id];
   const rec = Object.assign(packBaseRecord(inv), {state:'short', shortAt: nowMs(), shortItems: items, note: String(packPanel.note||'').trim(), packedAt: null, photos: (old && old.photos) || null});
   rec.shortStaffId = rec.staffId; rec.shortStaffName = rec.staffName; // người BÁO thiếu (không đổi khi người khác xử lý tiếp)
-  rec.missOrig = items.reduce((a,x)=>a+(Number(x.missing)||0), 0); rec.shortItemsOrig = items; rec.refills = null; // số thiếu BAN ĐẦU (để tính sp đã nhặt)
+  rec.missOrig = items.reduce((a,x)=>a+(Number(x.missing)||0), 0); rec.shortItemsOrig = items; rec.refills = null;
+  try{ rec.linesAtShort = packLinesSnap(inv); }catch(e){} // số thiếu BAN ĐẦU (để tính sp đã nhặt)
   packPhotosWrite(inv.id, rec, 'short').then(()=>{
     packChatPost(inv.id, `⚠ Kho báo THIẾU HÀNG: ${packShortText(items)}${rec.note ? ' — ' + rec.note : ''}. Bạn hỏi khách rồi bấm "↩ Trả lời kho" nhé.`, inv.saleId);
     packBeep(true); packFlash(`📣 ĐÃ BÁO THIẾU<br><small>${escHtml(inv.invoiceNumber)} → Sale ${escHtml(inv.saleName || userName(inv.saleId))}</small>`, 'warn');
