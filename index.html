@@ -1110,6 +1110,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   tr.pack-sec-row.out td{ background:rgba(229,72,77,0.16); color:#FF8A8D; }
   tr.pack-out-row td{ color:#FF8A8D; font-weight:700; font-size:13.5px; padding:6px 10px !important; white-space:normal !important; }
   tr.pack-prev-ok .pack-pimg{ width:34px !important; height:34px !important; }
+  /* Cửa sổ dài (nhiều món thiếu) → cuộn được, nút luôn ở đáy */
+  #packReplyModal .modal, #packSaleNoticeModal .modal, #packDoneModal .modal, #packReplyNoticeModal .modal, #packUrgentModal .modal, #packChangeModal .modal{ max-height:92vh; overflow-y:auto; }
+  #packReplyModal .actions, #packSaleNoticeModal .actions, #packDoneModal .actions{ position:sticky; bottom:-1px; background:var(--panel); padding-top:10px; margin-top:10px; z-index:2; }
+  .reply-items{ max-height:22vh; overflow-y:auto; margin-top:6px; font-size:13px; line-height:1.45; border-top:1px dashed var(--line); padding-top:4px; }
+  .reply-items div{ padding:1px 0; }
+  #packSaleNoticeModal .pack-notice-item > div:not(.pack-sale-actions){ max-height:26vh; overflow-y:auto; }
   .pack-miss-tag{ display:inline-block; font-size:12px; font-weight:800; color:#fff; background:#E08A1E; border-radius:999px; padding:1px 8px; margin-right:4px; white-space:nowrap; }
   .pack-sale-tag{ display:inline-block; font-size:12px; font-weight:700; color:#C9B8FF; background:rgba(124,77,204,0.18); border-radius:999px; padding:1px 8px; margin:0 2px; white-space:nowrap; }
   .pack-row-go{ float:right; color:var(--accent); font-weight:700; font-size:13px; }
@@ -8397,7 +8403,10 @@ function packOpenReply(invId){
   packReplyInvId = invId;
   packReplyChoice = packHasReply(ps) ? ps.saleReply.choice : '';
   document.getElementById('packReplyNote').value = packHasReply(ps) ? (ps.saleReply.note || '') : '';
-  document.getElementById('packReplyInfo').innerHTML = `<div class="pack-notice-item"><b>HĐ ${escHtml(ps.invoiceNumber)}</b><div>${escHtml(packShortText(ps.shortItems))}</div>${ps.note ? `<div class="pack-sub">Ghi chú kho: ${escHtml(ps.note)}</div>` : ''}</div><div class="pack-note">Khách chọn cách nào?</div>`;
+  const itemsS = (ps.shortItems||[]).filter(x=>Number(x.missing)>0);
+  document.getElementById('packReplyInfo').innerHTML = `<div class="pack-notice-item"><b>HĐ ${escHtml(ps.invoiceNumber)}</b> · <span class="pack-miss-tag">Thiếu ${packMissTotal(ps)} sp · ${itemsS.length} món</span>
+      <div class="reply-items">${itemsS.map(x=>`<div>${escHtml([x.code, x.design, x.color, x.size].filter(Boolean).join(' '))} <b>×${Number(x.missing)||0}</b></div>`).join('')}</div>
+      ${ps.note ? `<div class="pack-sub">Ghi chú kho: ${escHtml(ps.note)}</div>` : ''}</div><div class="pack-note">Khách chọn cách nào?</div>`;
   packRenderReplyChoices();
   document.getElementById('packSaleNoticeModal').classList.remove('show');
   document.getElementById('packReplyModal').classList.add('show');
