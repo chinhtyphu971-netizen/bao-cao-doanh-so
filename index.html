@@ -8584,7 +8584,7 @@ function renderPackStats(){
     <div class="pack-stats-grid">
       <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
         <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
-        ${rows.length ? `<table class="pack-mini pack-stat-tbl"><thead><tr><th>Người</th><th class="num">Đơn</th><th class="num" title="Sản phẩm của các đơn ĐỦ hàng">SP<br>đơn đủ</th><th class="num" title="Sản phẩm ĐÃ NHẶT được ở các đơn có báo thiếu (người báo: tổng − thiếu; người bù: phần bù)">Đã nhặt<br>đơn thiếu</th><th class="num">Tổng<br>SP</th><th class="num" title="TOÀN BỘ số sp còn phải bù (tới hiện tại, không theo ngày) của các đơn người này báo thiếu — bấm số để xem mã">Cần bù<br><small>(tới nay)</small></th><th class="num">Báo<br>thiếu</th><th class="num">%<br>thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="8">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num">${r.qtyFull||0}</td><td class="num" style="color:${r.qtyShort ? '#F0A63A' : 'var(--ink-soft)'};">${r.qtyShort||0}</td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.needRefill ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.needRefill ? 800 : 400};">${r.needRefill ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('${escHtml(r.key)}')">${r.needRefill}</a>` : 0}</td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
+        ${rows.length ? `<table class="pack-mini pack-stat-tbl"><thead><tr><th>Người</th><th class="num">Đơn</th><th class="num" title="Sản phẩm của các đơn ĐỦ hàng">SP<br>đơn đủ</th><th class="num" title="Sản phẩm ĐÃ NHẶT được ở các đơn có báo thiếu (người báo: tổng − thiếu; người bù: phần bù)">Đã nhặt<br>đơn thiếu</th><th class="num">Tổng<br>SP</th><th class="num" title="Số sp còn phải bù của các đơn người này báo thiếu trong khoảng ngày đang xem (đơn chưa xong) — bấm số để xem mã">Cần<br>bù</th><th class="num">Báo<br>thiếu</th><th class="num">%<br>thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="8">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num">${r.qtyFull||0}</td><td class="num" style="color:${r.qtyShort ? '#F0A63A' : 'var(--ink-soft)'};">${r.qtyShort||0}</td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.needRefill ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.needRefill ? 800 : 400};">${r.needRefill ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('${escHtml(r.key)}')">${r.needRefill}</a>` : 0}</td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
           <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQF}</td><td class="num">${sumQS}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.needRefill||0),0) ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('')">${rows.reduce((a,r)=>a+(r.needRefill||0),0)}</a>` : 0}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td><td></td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
         <div class="pack-note" style="margin-top:6px;">Đơn báo thiếu: người báo được tính số sp đã nhặt (tổng − thiếu), người bù được phần bù, gửi thiếu thì phần thiếu không tính. % thiếu trên 30% tô đỏ. Không tính đơn cũ "đã xử lý".</div></div>
       <div><h4>Mẫu hay thiếu <span class="pack-note">(${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()})</span></h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
@@ -8630,8 +8630,8 @@ function packStaffTotals(per){
       const q = Math.max(0, total - missOrig); r.qty += q; r.qtyShort += q; r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
 
     }
-    // CẦN BÙ: toàn bộ đơn đang thiếu tới hiện tại của người báo (không lọc theo ngày)
-    if(p.state==='short' && miss>0 && (repId || repName)) row(repId, repName, false).needRefill += miss;
+    // CẦN BÙ: đơn đang thiếu (chưa xong) mà người này BÁO THIẾU trong khoảng ngày đang xem
+    if(p.state==='short' && miss>0 && (repId || repName) && inR(p.shortAt)) row(repId, repName, false).needRefill += miss;
     // phần BÙ DẦN (mỗi lần cập nhật thiếu)
     (p.refills||[]).forEach(f=>{ if(f && Number(f.qty)>0 && inR(f.at)){ const r = row(f.by, f.byName, false); r.qty += Number(f.qty); r.qtyShort += Number(f.qty); r.ids.add(p.id); } });
     // phần người ĐÓNG
@@ -8658,9 +8658,11 @@ function packIsPrintCode(code){
   return !!(pr && parseDesignOptions(pr.designs).length);
 }
 function packShowRefill(staffKey){
+  const [a, b] = packPeriodRange(packStatsPeriod); // bấm từ bảng thống kê → đúng khoảng ngày đang xem
   const groups = {}; let total = 0; const orders = new Set(); let who = 'Cả kho';
   (state.packStatus||[]).forEach(p=>{
-    if(!p || p.legacy || p.state!=='short' || !p.shortAt) return; // TOÀN BỘ đơn đang thiếu tới lúc xem
+    if(!p || p.legacy || p.state!=='short' || !p.shortAt) return;
+    const t = Number(p.shortAt); if(!(t>=a && t<b)) return;
     const sid = p.shortStaffId || p.staffId || ''; const sname = p.shortStaffName || p.staffName || '';
     const k = sid || ('n:' + sname);
     if(staffKey && k!==staffKey) return;
@@ -8679,7 +8681,7 @@ function packShowRefill(staffKey){
   const list = Object.values(groups).sort((x,y)=>String(x.code).localeCompare(String(y.code),'vi',{numeric:true}) || String(x.design).localeCompare(String(y.design),'vi'));
   document.getElementById('packPhotosTitle').textContent = `📋 Cần bù · ${who}`;
   document.getElementById('packPhotosBody').innerHTML = list.length
-    ? `<div class="rf-sum"><span>Toàn bộ đơn đang thiếu tới ${packTimeShort(nowMs())} · ${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
+    ? `<div class="rf-sum"><span>Đơn báo thiếu ${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()} còn chưa bù · ${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
        <div class="rf-list" id="rfList">${list.map(g=>`<div class="rf-row">
          <div class="rf-code">${escHtml(g.code)}${g.design ? `<i>${escHtml(g.design)}</i>` : (g.isPrint ? '<i class="rf-phoi">áo phôi (mọi mẫu)</i>' : '')}</div>
          <div class="rf-vars">${Object.entries(g.vars).map(([v,q])=>`<span class="rf-chip">${escHtml(v)} <b>${q}</b></span>`).join('')}
