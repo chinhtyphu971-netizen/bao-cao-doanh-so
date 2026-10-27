@@ -6063,6 +6063,8 @@ function cleanupPackPrints(){
   if(Object.keys(upd2).length && fbPackStatus) fbPackStatus.update(upd2).catch(()=>{});
   const smapC0 = packStatusMap();
   if(fbPackPicks) fbPackPicks.once('value').then(sn=>{ const v = sn.val()||{}; const u = {}; Object.keys(v).forEach(k=>{ const st2 = smapC0[k]; if(!ids.has(k) || (st2 && (st2.state==='packed' || st2.state==='partial')) || (nowMs()-Number(v[k].at||0) > 2*86400000 && !packActiveClaimOf(k))) u[k] = null; }); if(Object.keys(u).length) fbPackPicks.update(u).catch(()=>{}); }).catch(()=>{});
+  if(fbPackUrgent){ const updU = {}; (state.packUrgent||[]).forEach(u=>{ const st = smapC0[u.id]; if(u && u.id && (!ids.has(u.id) || (st && (st.state==='packed' || st.state==='partial')))) updU[u.id] = null; });
+    if(Object.keys(updU).length){ fbPackUrgent.update(updU).catch(()=>{}); state.packUrgent = (state.packUrgent||[]).filter(u=>!(u.id in updU)); } }
   // Dọn "nhận đơn" cũ: đơn đã xong / không còn / giữ quá 1 ngày
   const updC = {}; const smapC = packStatusMap();
   (state.packClaims||[]).forEach(c=>{ if(c && c.id && (!ids.has(c.id) || (smapC[c.id] && (smapC[c.id].state==='packed' || smapC[c.id].state==='partial')))) updC[c.id] = null; }); // chỉ dọn khi đơn đã xong / không còn
@@ -6129,8 +6131,9 @@ function packCurrentList(){
   const counts = {new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
   base.forEach(inv=>{ counts[packFlowStatus(inv, map[inv.id], smap[inv.id])]++; });
   const list = status==='all' ? base : base.filter(inv=>packFlowStatus(inv, map[inv.id], smap[inv.id])===status);
-  const umapL = packUrgentMap();
-  list.sort((a,b)=>((umapL[b.id] ? 1 : 0) - (umapL[a.id] ? 1 : 0)) // 🏃 khách lấy trực tiếp LUÔN lên đầu
+  const umapL = packUrgentMap(); const smapL = packStatusMap();
+  const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
+  list.sort((a,b)=>((isUrgOpen(b.id) ? 1 : 0) - (isUrgOpen(a.id) ? 1 : 0)) // 🏃 / 🚌 đơn ưu tiên CHƯA đóng lên đầu
     || (sortDir==='desc' ? packDepositMs(b)-packDepositMs(a) : packDepositMs(a)-packDepositMs(b))); // mặc định cọc trước → in trước
   return {list, counts, map, smap, status};
 }
