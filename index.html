@@ -7352,21 +7352,26 @@ function packPanelOpen(invId, viewOnly){
   packOpenedByCam = false;
   renderPackPanel();
   document.getElementById('packPanelModal').classList.add('show');
-  if(!viewOnly) packClaimAutoForSale(invId); // Sale mở đơn để đóng → tự "nhận đơn" (kho không nhận trùng)
+  // Sale mở đơn: KHÔNG tự nhận nữa — phải bấm "📥 Nhận đơn này" (có xác nhận) mới bắt đầu nhặt
   if(!viewOnly) packDraftRestore(invId);       // khôi phục tick / ảnh đang làm dở (mất mạng, tắt app…)
   if(!viewOnly && ['warehouse','packer'].includes((currentUser()||{}).role)) packSnapEnsure(packInvById(invId)); // bản gốc để phát hiện Sale sửa
 }
 function packPanelClose(){
   if(packCamStream || document.getElementById('packCamModal').classList.contains('show')){ packCamStop(); document.getElementById('packCamModal').classList.remove('show'); }
   // Sale đóng màn hình mà CHƯA đóng đơn → trả đơn về hàng chờ ngay (không bắt kho đợi 60 phút)
-  if(packPanel && packSaleAutoClaimId===packPanel.invId){
-    const st = packStatusMap()[packPanel.invId];
-    if(!(st && (st.state==='packed' || st.state==='partial'))) packClaimRelease(packPanel.invId, true);
-    packSaleAutoClaimId = null;
-  }
+  // (Sale nhận đơn bằng nút xác nhận → giữ đơn tới khi đóng xong / bấm ↩ Trả đơn, giống kho)
   packPanel = null; document.getElementById('packPanelModal').classList.remove('show');
 }
 let packSaleAutoClaimId = null;
+function packSaleClaim(invId){
+  const inv = packInvById(invId) || {};
+  askConfirm('Nhận đơn này để tự nhặt?', `Bạn nhận HĐ ${inv.invoiceNumber||''} để tự nhặt & đóng. Kho sẽ không thấy đơn trong hàng chờ cho tới khi bạn đóng xong hoặc bấm ↩ Trả đơn.`, async ()=>{
+    await packClaimAutoForSale(invId);
+    if(!packMyClaimIs(invId)){ const c = packActiveClaimOf(invId); showToast(c ? `${c.byName} đã nhận đơn này rồi.` : 'Không nhận được đơn — thử lại.'); }
+    else { packBeep(true); showToast('📥 Đã nhận đơn — bắt đầu nhặt'); }
+    if(packPanel && packPanel.invId===invId) renderPackPanel();
+  });
+}
 async function packClaimAutoForSale(invId){
   const me = currentUser(); if(!me || !packIsSale(me) || !fbPackClaims) return;
   const inv = packInvById(invId); if(!inv || !inv.depositLink) return;
@@ -7433,6 +7438,11 @@ function renderPackPanel(){
     banner += `<div class="pack-banner warn">📱 <b>${escHtml(claimO.byName||'Người khác')}</b> đang nhận đơn này (từ ${packTimeStr(claimO.at)}) — không đóng trùng.${isBoss ? ` <button class="btn-ghost btn-small" onclick="packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</button>` : ''}</div>`;
   }
   if(packMyClaimIs(inv.id)) packClaimTouch(inv.id);
+  // Sale tự đóng / đóng hộ: phải bấm NHẬN ĐƠN (xác nhận) trước → đơn biến khỏi hàng chờ của kho, không ai làm trùng
+  if(packIsSale(me) && canAct && !packPanel.viewOnly && !packMyClaimIs(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'))){
+    canAct = false;
+    banner += `<div class="pack-banner view sale-claim-banner">Bạn muốn tự nhặt &amp; đóng đơn này?<div style="margin-top:8px;"><button class="btn-primary" onclick="packSaleClaim('${inv.id}')">📥 Nhận đơn này để nhặt</button></div><div class="pack-note" style="margin-top:6px;">Nhận xong, kho sẽ KHÔNG thấy đơn này trong hàng chờ (không nhặt trùng) cho tới khi bạn đóng xong hoặc bấm ↩ Trả đơn.</div></div>`;
+  }
   // Quản lý chung: CHỈ XEM — không tick, không chụp, không bấm Đã đóng / Thiếu (tránh bấm nhầm)
   const viewOnly = me.role==='general_manager' || !!packPanel.viewOnly;
   if(viewOnly){ canAct = false; banner += me.role==='general_manager'
@@ -8229,6 +8239,7 @@ function packSaleBadgeHtml(inv){
   const clS = packActiveClaimOf(inv.id);
   if(!ps){
     const pp = (state.packPrints||[]).find(p=>p && p.id===inv.id);
+    if(clS && clS.by===(currentUser()||{}).id) return `<div class="pack-sale-badge printed">📱 <b>Bạn đang nhận đơn này</b> — bấm 📦 Đóng để làm tiếp</div>`;
     if(clS && !(clS.bySale && clS.by===inv.saleId)) return `<div class="pack-sale-badge printed">📱 Kho đang nhặt ${packWhoTag(clS.byName, 'Người đang nhặt')} <span class="inv-ol-dim">từ ${packTimeShort(clS.at)}</span></div>`;
     if(!pp) return '';
     if(pp.sig!==packSig(inv)) return `<div class="pack-sale-badge warn" title="Bạn sửa hoá đơn sau khi Kho đã in phiếu — báo Kho in lại">⚠ Sửa sau khi kho in (${packTimeStr(pp.at)}) — báo Kho in lại</div>`;
