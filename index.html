@@ -12154,13 +12154,13 @@ function runAutoRecallIfDue(){
   if(!leadsDataReady || !fbAutoRecall) return;
   if(new Date(nowMs()).getHours() < AUTO_RECALL_HOUR) return;
   const today = todayStr();
-  const nowMs = nowMs();
-  if(autoRecallTriedDay===today && nowMs - autoRecallLastTry < 10*60000) return; // mỗi máy kiểm tra tối đa 10 phút/lần
-  autoRecallTriedDay = today; autoRecallLastTry = nowMs;
+  const tNow = nowMs(); // (đổi tên biến: trước đây trùng tên hàm nowMs → lỗi, thu hồi tự động không chạy)
+  if(autoRecallTriedDay===today && tNow - autoRecallLastTry < 10*60000) return; // mỗi máy kiểm tra tối đa 10 phút/lần
+  autoRecallTriedDay = today; autoRecallLastTry = tNow;
   if(!autoRecallCandidates().length) return; // không còn data cũ chưa làm → khỏi ghi gì
   fbAutoRecall.child(today).transaction(cur=>{
-    if(cur && cur.runningAt && nowMs - Number(cur.runningAt) < 10*60000) return; // máy khác đang chạy
-    return Object.assign({}, cur || {}, {done:true, startedAt: (cur && cur.startedAt) || nowMs, runningAt: nowMs, by: me.name});
+    if(cur && cur.runningAt && tNow - Number(cur.runningAt) < 10*60000) return; // máy khác đang chạy
+    return Object.assign({}, cur || {}, {done:true, startedAt: (cur && cur.startedAt) || tNow, runningAt: tNow, by: me.name});
   }, (err, committed, snap)=>{
     if(err || !committed) return;
     const prev = (snap && snap.val && snap.val()) || {};
