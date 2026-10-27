@@ -1337,6 +1337,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .swap-move{ font-size:13.5px; padding:4px 0 4px 6px; border-left:3px solid #F0A63A; margin:4px 0; }
   .deduct-line{ margin-top:4px; font-size:13px; background:rgba(240,166,58,0.10); border-radius:8px; padding:5px 8px; }
   .deduct-line s{ opacity:0.6; }
+  .refill-snap-img{ width:100%; border-radius:8px; border:1px solid var(--line); background:#fff; }
+  .refill-hist{ display:flex; flex-direction:column; gap:6px; }
+  .refill-hist-row{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+  .refill-hist-row:hover{ border-color:var(--accent); }
   .rf-sum{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:-4px 0 8px; }
   .rf-sum b{ color:#F0A63A; font-size:16px; }
   .rf-toggle{ margin-left:auto; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:12.5px; }
@@ -2301,6 +2305,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="table-wrap"><table id="packTable"></table></div>
           <div id="packPager"></div>
         </div>
+        <details class="card pack-details" id="refillHistDetails" style="display:none;" ontoggle="if(this.open) refillHistoryRender()">
+          <summary>🕕 Cần bù cả kho lúc 18h <span class="pack-note">(tự chụp hằng ngày — gửi Zalo)</span></summary>
+          <div id="refillHistBox"></div>
+        </details>
         <details class="card pack-details" id="packHistDetails" ontoggle="if(this.open) renderPackPrintHistory()">
           <summary>🕘 Lịch sử in <span class="pack-note">(in lại khi máy in kẹt giấy)</span></summary>
           <div id="packHistBox"></div>
@@ -3183,6 +3191,17 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('shipHoldModal').classList.remove('show')">Huỷ</button><button class="btn-primary" onclick="shipHoldSave()">⏸ Hoãn gửi</button></div>
   </div>
 </div>
+<div class="modal-backdrop" id="refillSnapModal" onclick="if(event.target===this) this.classList.remove('show')">
+  <div class="modal" style="max-width:560px; max-height:92vh; overflow-y:auto;">
+    <h2 id="refillSnapTitle">🕕 Cần bù cả kho</h2>
+    <div id="refillSnapBody"></div>
+    <div class="actions" style="position:sticky; bottom:-1px; background:var(--panel); padding-top:10px;">
+      <button class="btn-ghost" onclick="copyText(refillSnapText(refillSnapCur.sn), '📋 Đã copy danh sách')">📋 Copy chữ</button>
+      <button class="btn-ghost" onclick="document.getElementById('refillSnapModal').classList.remove('show')">Đóng</button>
+      <button class="btn-primary" onclick="refillSnapShare()">📤 Gửi Zalo (ảnh)</button>
+    </div>
+  </div>
+</div>
 <!-- Sale: Kho đã đóng đơn → lên vận đơn -->
 <div class="modal-backdrop" id="packDoneModal">
   <div class="modal" style="max-width:440px; max-height:90vh; overflow-y:auto;">
@@ -3402,7 +3421,7 @@ const LocalDB = {
 })();
 let printOrdersLoadedOnce = false;
 let fbAutoRecall = null, fbLeadsArchive = null, fbRoot = null;
-let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null, fbPackUrgent = null, fbPackPicks = null, fbPackLabels = null;
+let fbMktReports = null, fbMktWeekly = null, mktReportsLoaded = false, fbPrintReports = null, fbPrintOrders = null, fbInvoiceItems = null, fbPrintLogs = null, fbPackPrints = null, fbPackStatus = null, fbPackStaff = null, fbPackPresence = null, fbPackPhotos = null, fbProductImages = null, fbProductImagesIndex = null, fbPackPrintBatches = null, fbPackClaims = null, fbPackUrgent = null, fbPackPicks = null, fbPackLabels = null, fbRefillSnaps = null;
 // Quản lý chỉ tải báo cáo MKT / báo cáo in của 70 NGÀY GẦN NHẤT (đủ cho mọi bộ lọc, kể cả "Tháng trước") — không tải lại toàn bộ lịch sử mỗi lần mở app
 const REPORT_WINDOW_DAYS = 70;
 function reportWindowStart(){ const d = new Date(nowMs()); d.setDate(d.getDate()-REPORT_WINDOW_DAYS); return toLocalDateStr(d); }
@@ -3523,7 +3542,8 @@ function startFirebaseListeners(){
   fbPackPrintBatches = db.ref('packPrintBatches');
   fbPackClaims = db.ref('packClaims');
   fbPackPicks = db.ref('packPicks');
-  fbPackLabels = db.ref('packLabels'); // Đã in tem dán gói: packLabels/{hoáĐơn} = {at, n, byName}
+  fbPackLabels = db.ref('packLabels');
+  fbRefillSnaps = db.ref('packRefillSnaps'); // Ảnh chụp "Cần bù · cả kho" lúc 18h hằng ngày: packRefillSnaps/{ngày} // Đã in tem dán gói: packLabels/{hoáĐơn} = {at, n, byName}
   db.ref('.info/serverTimeOffset').on('value', snap=>{
     appServerOffset = Number(snap.val())||0;
     const bar = document.getElementById('clockWarnBar');
@@ -6189,6 +6209,8 @@ function renderPackInvoicesPage(){
   packAttachPresence();
   const {list, counts, map, smap, status} = packCurrentList();
   { const lc = document.getElementById('shipLockedBox'); if(lc) lc.innerHTML = shipLockedSalesHtml(); }
+  { const rh = document.getElementById('refillHistDetails'); if(rh) rh.style.display = (currentUser()||{}).role==='general_manager' ? '' : 'none'; }
+  setTimeout(()=>{ try{ refillSnapCheck(); }catch(e){} }, 500);
   { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
@@ -6967,6 +6989,110 @@ function packLabelPrintSelected(){
   if(!packSelected.size){ showToast('Tick chọn các hoá đơn cần in tem trước.'); return; }
   packLabelPrint(Array.from(packSelected));
 }
+
+// ===================== 18H HẰNG NGÀY: CHỤP "CẦN BÙ · CẢ KHO" → QUẢN LÝ CHUNG GỬI ZALO =====================
+// Máy Quản lý chung đang mở app (hoặc mở app sau 18h) → tự chụp TOÀN BỘ hàng còn thiếu lúc đó, lưu lịch sử,
+// hiện popup có ẢNH bảng + nút 📤 Gửi Zalo (chọn nhóm rồi gửi). Mỗi ngày 1 lần.
+const REFILL_SNAP_HOUR = 18;
+function packRefillCompute(){
+  const groups = {}; let total = 0; const orders = new Set();
+  (state.packStatus||[]).forEach(p=>{
+    if(!p || p.legacy || p.state!=='short' || !p.shortAt) return;
+    (p.shortItems||[]).forEach(x=>{
+      const m = Number(x.missing)||0; if(!m) return;
+      const isPrint = packIsPrintCode(x.code);
+      const gk = (x.code||'') + '|' + (isPrint ? '' : (x.design||''));
+      const g = groups[gk] || (groups[gk] = {code:x.code||'', design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}});
+      const vk = [x.color, x.size].filter(Boolean).join(' ') || '—';
+      g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m; orders.add(p.id);
+    });
+  });
+  const list = Object.values(groups).sort((x,y)=>String(x.code).localeCompare(String(y.code),'vi',{numeric:true}) || String(x.design).localeCompare(String(y.design),'vi'));
+  return {list, total, orders: orders.size, at: nowMs()};
+}
+function refillAbsTime(ms){ const d = new Date(ms); const p2 = n=>String(n).padStart(2,'0'); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`; }
+function refillSnapText(sn){
+  return `📋 CẦN BÙ · CẢ KHO — ${refillAbsTime(sn.at)}\n${sn.orders} đơn · ${sn.list.length} mã · ${sn.total} sp\n` +
+    sn.list.map(g=>`${g.code}${g.design ? ' ' + packDesignShort(g.design) : ''}: ${Object.entries(g.vars).map(([v,q])=>`${v} ${q}`).join(' · ')} = ${g.qty}`).join('\n');
+}
+// Vẽ bảng thành ẢNH (canvas) để gửi Zalo
+function refillSnapCanvas(sn){
+  const W = 900, pad = 28, codeW = 170, totW = 80;
+  const cv = document.createElement('canvas'); const cx = cv.getContext('2d');
+  const font = (w, sz)=>`${w} ${sz}px Arial, 'Segoe UI', sans-serif`;
+  cx.font = font(600, 22);
+  const wrap = (text, maxW)=>{ const words = text.split(' '); const lines = []; let cur = '';
+    words.forEach(w=>{ const t = cur ? cur + ' ' + w : w; if(cx.measureText(t).width > maxW && cur){ lines.push(cur); cur = w; } else cur = t; }); if(cur) lines.push(cur); return lines; };
+  const rows = sn.list.map(g=>{ cx.font = font(600, 22); const txt = Object.entries(g.vars).map(([v,q])=>`${v} ×${q}`).join('   ');
+    const lines = wrap(txt, W - pad*2 - codeW - totW - 20); return {g, lines, h: Math.max(lines.length * 30, g.isPrint || g.design ? 52 : 30) + 16}; });
+  const H = pad + 50 + 40 + rows.reduce((a,r)=>a+r.h,0) + pad + 10;
+  cv.width = W; cv.height = H;
+  cx.fillStyle = '#ffffff'; cx.fillRect(0,0,W,H);
+  cx.fillStyle = '#111'; cx.font = font(800, 32); cx.fillText('📋 Cần bù · Cả kho', pad, pad + 32);
+  cx.font = font(600, 22); cx.fillStyle = '#555';
+  cx.fillText(`${refillAbsTime(sn.at)} · ${sn.orders} đơn · ${sn.list.length} mã`, pad, pad + 68);
+  cx.fillStyle = '#D9730D'; cx.font = font(800, 30); const tt = `${sn.total} sp`; cx.fillText(tt, W - pad - cx.measureText(tt).width, pad + 34);
+  let y = pad + 90;
+  cx.strokeStyle = '#ddd'; cx.lineWidth = 1;
+  rows.forEach(r=>{
+    cx.beginPath(); cx.moveTo(pad, y); cx.lineTo(W - pad, y); cx.stroke();
+    cx.fillStyle = '#111'; cx.font = font(800, 24); cx.fillText(r.g.code, pad, y + 30);
+    if(r.g.isPrint || r.g.design){ cx.fillStyle = '#6B3FB5'; cx.font = font(600, 17); cx.fillText(r.g.isPrint ? 'áo phôi (mọi mẫu)' : packDesignShort(r.g.design), pad, y + 54); }
+    cx.fillStyle = '#222'; cx.font = font(600, 22); r.lines.forEach((ln,i)=>cx.fillText(ln, pad + codeW, y + 30 + i*30));
+    cx.fillStyle = '#D9730D'; cx.font = font(800, 26); const q = String(r.g.qty); cx.fillText(q, W - pad - cx.measureText(q).width, y + 32);
+    y += r.h;
+  });
+  cx.beginPath(); cx.moveTo(pad, y); cx.lineTo(W - pad, y); cx.stroke();
+  return cv;
+}
+function refillSnapShow(sn, title){
+  const cv = refillSnapCanvas(sn); const url = cv.toDataURL('image/png');
+  refillSnapCur = {sn, url};
+  document.getElementById('refillSnapTitle').textContent = title || `🕕 Cần bù cả kho lúc ${packTimeStr(sn.at)}`;
+  document.getElementById('refillSnapBody').innerHTML = sn.list.length ? `<img src="${url}" class="refill-snap-img" alt="Bảng cần bù">` : '<div class="pack-note">🎉 Không còn hàng nào cần bù.</div>';
+  document.getElementById('refillSnapModal').classList.add('show');
+}
+let refillSnapCur = null;
+async function refillSnapShare(){
+  if(!refillSnapCur) return;
+  const text = refillSnapText(refillSnapCur.sn);
+  try{
+    const blob = await (await fetch(refillSnapCur.url)).blob();
+    const file = new File([blob], `can-bu-${todayStr()}.png`, {type:'image/png'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], text}); return; }
+    if(navigator.share){ await navigator.share({text}); return; }
+  }catch(e){ if(e && e.name==='AbortError') return; }
+  // Máy tính: tải ảnh về + copy chữ → mở Zalo dán vào nhóm
+  const a = document.createElement('a'); a.href = refillSnapCur.url; a.download = `can-bu-${todayStr()}.png`; document.body.appendChild(a); a.click(); a.remove();
+  copyText(text, '📋 Đã tải ảnh bảng + copy chữ — mở Zalo, gửi ảnh (hoặc dán chữ) vào nhóm');
+}
+// Mỗi phút: máy Quản lý chung sau 18h → chụp (1 lần / ngày cho cả hệ thống) + hiện popup (1 lần / ngày / máy)
+function refillSnapCheck(){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || !fbRefillSnaps || !packStatusLoaded) return;
+  const now = new Date(nowMs()); if(now.getHours() < REFILL_SNAP_HOUR) return;
+  const day = todayStr(); const seenKey = 'refill_snap_seen_' + me.id;
+  let seen = ''; try{ seen = localStorage.getItem(seenKey) || ''; }catch(e){}
+  if(seen===day) return;
+  if(document.querySelector('.modal-backdrop.show')) return; // đợi đóng cửa sổ khác
+  try{ localStorage.setItem(seenKey, day); }catch(e){}
+  fbRefillSnaps.child(day).transaction(cur=>{ if(cur) return; const sn = packRefillCompute(); return {at: sn.at, by: me.name||'', total: sn.total, orders: sn.orders, list: sn.list}; })
+    .then(res=>{ const v = res && res.snapshot && res.snapshot.val ? res.snapshot.val() : null; const sn = v ? Object.assign({list: []}, v) : packRefillCompute(); refillSnapShow(sn, `🕕 Cần bù cả kho lúc ${packTimeStr(sn.at)} — gửi vào nhóm Zalo`); })
+    .catch(()=>{ refillSnapShow(packRefillCompute()); });
+}
+setInterval(()=>{ try{ refillSnapCheck(); }catch(e){} }, 60000);
+// Lịch sử các lần chụp 18h (trang Quản lý đóng hàng, chỉ Quản lý chung)
+function refillHistoryRender(){
+  const box = document.getElementById('refillHistBox'); if(!box || !fbRefillSnaps) return;
+  box.innerHTML = '<div class="pack-note">Đang tải…</div>';
+  fbRefillSnaps.orderByKey().limitToLast(30).once('value').then(snap=>{
+    const v = snap.val() || {}; const days = Object.keys(v).sort().reverse();
+    box.innerHTML = `<div style="margin:8px 0;"><button class="btn-small btn-primary" onclick="refillSnapShow(packRefillCompute(), '📋 Cần bù cả kho — ngay bây giờ')">📸 Chụp ngay bây giờ</button></div>` +
+      (days.length ? `<div class="refill-hist">${days.map(d=>`<div class="refill-hist-row" onclick="refillHistOpen('${d}')"><b>${d.split('-').reverse().join('/')}</b> <span class="pack-sub">lúc ${packTimeShort(v[d].at)}</span><span class="pack-miss-tag">${v[d].total||0} sp</span><span class="pack-sub">${v[d].orders||0} đơn</span></div>`).join('')}</div>` : '<div class="pack-note">Chưa có lần chụp nào — từ 18h hôm nay app tự chụp.</div>');
+    refillHistCache = v;
+  }).catch(()=>{ box.innerHTML = '<div class="pack-note">Lỗi tải lịch sử.</div>'; });
+}
+let refillHistCache = {};
+function refillHistOpen(d){ const v = refillHistCache[d]; if(v) refillSnapShow(Object.assign({list: []}, v), `🕕 Cần bù cả kho ngày ${d.split('-').reverse().join('/')}`); }
 // ===================== LỊCH SỬ IN PHIẾU =====================
 // Mỗi lần bấm In (nhiều đơn hay 1 đơn) → ghi 1 lượt: giờ, người in, danh sách Số HĐ theo ĐÚNG THỨ TỰ in.
 // Máy in kẹt giữa chừng → mở lượt đó, bấm "⤵ từ đây" ở đơn bị kẹt để chọn từ đơn đó đến hết rồi In lại.
@@ -8431,7 +8557,7 @@ function renderPackStats(){
     <div class="pack-stats-grid">
       <div><h4>Đơn &amp; sản phẩm đã đóng theo người</h4>
         <div class="pack-period">${PACK_PERIODS.map(([k,l])=>`<button class="inv-chip ${packStatsPeriod===k ? 'on' : ''}" onclick="packStatsPeriod='${k}'; renderPackStats()">${l}</button>`).join('')}</div>
-        ${rows.length ? `<table class="pack-mini pack-stat-tbl"><thead><tr><th>Người</th><th class="num">Đơn</th><th class="num" title="Sản phẩm của các đơn ĐỦ hàng">SP<br>đơn đủ</th><th class="num" title="Sản phẩm ĐÃ NHẶT được ở các đơn có báo thiếu (người báo: tổng − thiếu; người bù: phần bù)">Đã nhặt<br>đơn thiếu</th><th class="num">Tổng<br>SP</th><th class="num" title="Số sp còn phải bù của các đơn thiếu người này báo (chưa xong) — bấm số để xem mã">Cần<br>bù</th><th class="num">Báo<br>thiếu</th><th class="num">%<br>thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="8">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num">${r.qtyFull||0}</td><td class="num" style="color:${r.qtyShort ? '#F0A63A' : 'var(--ink-soft)'};">${r.qtyShort||0}</td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.needRefill ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.needRefill ? 800 : 400};">${r.needRefill ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('${escHtml(r.key)}')">${r.needRefill}</a>` : 0}</td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
+        ${rows.length ? `<table class="pack-mini pack-stat-tbl"><thead><tr><th>Người</th><th class="num">Đơn</th><th class="num" title="Sản phẩm của các đơn ĐỦ hàng">SP<br>đơn đủ</th><th class="num" title="Sản phẩm ĐÃ NHẶT được ở các đơn có báo thiếu (người báo: tổng − thiếu; người bù: phần bù)">Đã nhặt<br>đơn thiếu</th><th class="num">Tổng<br>SP</th><th class="num" title="TOÀN BỘ số sp còn phải bù (tới hiện tại, không theo ngày) của các đơn người này báo thiếu — bấm số để xem mã">Cần bù<br><small>(tới nay)</small></th><th class="num">Báo<br>thiếu</th><th class="num">%<br>thiếu</th></tr></thead><tbody>${rows.map((r,i)=>`${r.bySale && (i===0 || !rows[i-1].bySale) ? '<tr class="pack-sale-sep"><td colspan="8">Sale tự đóng / đóng hộ</td></tr>' : ''}<tr><td>${escHtml(r.name)}</td><td class="num"><b>${r.orders}</b></td><td class="num">${r.qtyFull||0}</td><td class="num" style="color:${r.qtyShort ? '#F0A63A' : 'var(--ink-soft)'};">${r.qtyShort||0}</td><td class="num"><b>${r.qty}</b></td><td class="num" style="color:${r.needRefill ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.needRefill ? 800 : 400};">${r.needRefill ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('${escHtml(r.key)}')">${r.needRefill}</a>` : 0}</td><td class="num" style="color:${r.shorts ? '#F0A63A' : 'inherit'};">${r.shorts||0}</td><td class="num" style="color:${r.shortRate>30 ? '#FF8A8D' : 'var(--ink-soft)'}; font-weight:${r.shortRate>30 ? 800 : 400};">${r.ids.size ? r.shortRate + '%' : '—'}</td></tr>`).join('')}
           <tr class="pack-total-row"><td>Tổng</td><td class="num">${sumO}</td><td class="num">${sumQF}</td><td class="num">${sumQS}</td><td class="num">${sumQ}</td><td class="num">${rows.reduce((a,r)=>a+(r.needRefill||0),0) ? `<a href="#" class="pack-refill-link" onclick="event.preventDefault(); packShowRefill('')">${rows.reduce((a,r)=>a+(r.needRefill||0),0)}</a>` : 0}</td><td class="num">${rows.reduce((a,r)=>a+(r.shorts||0),0)}</td><td></td></tr></tbody></table>` : '<div class="pack-note">Chưa có đơn nào đóng trong khoảng này.</div>'}
         <div class="pack-note" style="margin-top:6px;">Đơn báo thiếu: người báo được tính số sp đã nhặt (tổng − thiếu), người bù được phần bù, gửi thiếu thì phần thiếu không tính. % thiếu trên 30% tô đỏ. Không tính đơn cũ "đã xử lý".</div></div>
       <div><h4>Mẫu hay thiếu <span class="pack-note">(${(PACK_PERIODS.find(x=>x[0]===packStatsPeriod)||['',''])[1].toLowerCase()})</span></h4>${missRows.length ? `<table class="pack-mini"><thead><tr><th>Mã · mẫu · màu · size</th><th class="num">Số lần</th><th class="num">Tổng thiếu</th></tr></thead><tbody>${missRows.map(([k,v])=>`<tr><td>${escHtml(k)}</td><td class="num"><b>${v.times}</b></td><td class="num">${v.qty}</td></tr>`).join('')}</tbody></table>` : '<div class="pack-note">Chưa có lần thiếu nào 🎉</div>'}</div>
@@ -8475,8 +8601,10 @@ function packStaffTotals(per){
     if(p.shortAt && missOrig>0 && (repId || repName) && inR(p.shortAt)){
       const r = row(repId, repName, false);
       const q = Math.max(0, total - missOrig); r.qty += q; r.qtyShort += q; r.shorts++; r.ids.add(p.id); r.shortIds.add(p.id);
-      if(p.state==='short') r.needRefill += miss; // còn CẦN BÙ (đơn chưa xong)
+
     }
+    // CẦN BÙ: toàn bộ đơn đang thiếu tới hiện tại của người báo (không lọc theo ngày)
+    if(p.state==='short' && miss>0 && (repId || repName)) row(repId, repName, false).needRefill += miss;
     // phần BÙ DẦN (mỗi lần cập nhật thiếu)
     (p.refills||[]).forEach(f=>{ if(f && Number(f.qty)>0 && inR(f.at)){ const r = row(f.by, f.byName, false); r.qty += Number(f.qty); r.qtyShort += Number(f.qty); r.ids.add(p.id); } });
     // phần người ĐÓNG
@@ -8503,11 +8631,9 @@ function packIsPrintCode(code){
   return !!(pr && parseDesignOptions(pr.designs).length);
 }
 function packShowRefill(staffKey){
-  const [a, b] = packPeriodRange(packStatsPeriod);
   const groups = {}; let total = 0; const orders = new Set(); let who = 'Cả kho';
   (state.packStatus||[]).forEach(p=>{
-    if(!p || p.legacy || p.state!=='short' || !p.shortAt) return;
-    const t = Number(p.shortAt); if(!(t>=a && t<b)) return;
+    if(!p || p.legacy || p.state!=='short' || !p.shortAt) return; // TOÀN BỘ đơn đang thiếu tới lúc xem
     const sid = p.shortStaffId || p.staffId || ''; const sname = p.shortStaffName || p.staffName || '';
     const k = sid || ('n:' + sname);
     if(staffKey && k!==staffKey) return;
@@ -8526,7 +8652,7 @@ function packShowRefill(staffKey){
   const list = Object.values(groups).sort((x,y)=>String(x.code).localeCompare(String(y.code),'vi',{numeric:true}) || String(x.design).localeCompare(String(y.design),'vi'));
   document.getElementById('packPhotosTitle').textContent = `📋 Cần bù · ${who}`;
   document.getElementById('packPhotosBody').innerHTML = list.length
-    ? `<div class="rf-sum"><span>${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
+    ? `<div class="rf-sum"><span>Toàn bộ đơn đang thiếu tới ${packTimeShort(nowMs())} · ${orders.size} đơn · ${list.length} mã</span><b>${total} sp</b><label class="rf-toggle"><input type="checkbox" onchange="document.getElementById('rfList').classList.toggle('show-nums', this.checked)"> Hiện số HĐ</label></div>
        <div class="rf-list" id="rfList">${list.map(g=>`<div class="rf-row">
          <div class="rf-code">${escHtml(g.code)}${g.design ? `<i>${escHtml(g.design)}</i>` : (g.isPrint ? '<i class="rf-phoi">áo phôi (mọi mẫu)</i>' : '')}</div>
          <div class="rf-vars">${Object.entries(g.vars).map(([v,q])=>`<span class="rf-chip">${escHtml(v)} <b>${q}</b></span>`).join('')}
