@@ -7017,32 +7017,43 @@ function refillSnapText(sn){
 }
 // Vẽ bảng thành ẢNH (canvas) để gửi Zalo
 function refillSnapCanvas(sn){
-  const W = 900, pad = 28, codeW = 170, totW = 80;
+  // Ảnh rõ nét: vẽ gấp 2 lần, chữ to, mỗi màu/size 1 Ô (3 ô / hàng), dòng xen kẽ nền
+  const S = 2, W = 960, pad = 28, codeW = 190, totW = 90, gap = 10, cols = 3;
+  const chipW = Math.floor((W - pad*2 - codeW - totW - gap*(cols-1)) / cols), chipH = 44;
   const cv = document.createElement('canvas'); const cx = cv.getContext('2d');
-  const font = (w, sz)=>`${w} ${sz}px Arial, 'Segoe UI', sans-serif`;
-  cx.font = font(600, 22);
-  const wrap = (text, maxW)=>{ const words = text.split(' '); const lines = []; let cur = '';
-    words.forEach(w=>{ const t = cur ? cur + ' ' + w : w; if(cx.measureText(t).width > maxW && cur){ lines.push(cur); cur = w; } else cur = t; }); if(cur) lines.push(cur); return lines; };
-  const rows = sn.list.map(g=>{ cx.font = font(600, 22); const txt = Object.entries(g.vars).map(([v,q])=>`${v} ×${q}`).join('   ');
-    const lines = wrap(txt, W - pad*2 - codeW - totW - 20); return {g, lines, h: Math.max(lines.length * 30, g.isPrint || g.design ? 52 : 30) + 16}; });
-  const H = pad + 50 + 40 + rows.reduce((a,r)=>a+r.h,0) + pad + 10;
-  cv.width = W; cv.height = H;
+  const font = (w, sz)=>`${w} ${sz}px Arial, 'Segoe UI', Roboto, sans-serif`;
+  const rows = sn.list.map(g=>{ const vars = Object.entries(g.vars); const nRow = Math.max(1, Math.ceil(vars.length / cols)); return {g, vars, h: Math.max(nRow*(chipH+gap) - gap, 58) + 22}; });
+  const headH = 120;
+  const H = headH + rows.reduce((a,r)=>a+r.h,0) + pad;
+  cv.width = W*S; cv.height = H*S; cx.scale(S, S);
   cx.fillStyle = '#ffffff'; cx.fillRect(0,0,W,H);
-  cx.fillStyle = '#111'; cx.font = font(800, 32); cx.fillText('📋 Cần bù · Cả kho', pad, pad + 32);
-  cx.font = font(600, 22); cx.fillStyle = '#555';
-  cx.fillText(`${refillAbsTime(sn.at)} · ${sn.orders} đơn · ${sn.list.length} mã`, pad, pad + 68);
-  cx.fillStyle = '#D9730D'; cx.font = font(800, 30); const tt = `${sn.total} sp`; cx.fillText(tt, W - pad - cx.measureText(tt).width, pad + 34);
-  let y = pad + 90;
-  cx.strokeStyle = '#ddd'; cx.lineWidth = 1;
-  rows.forEach(r=>{
-    cx.beginPath(); cx.moveTo(pad, y); cx.lineTo(W - pad, y); cx.stroke();
-    cx.fillStyle = '#111'; cx.font = font(800, 24); cx.fillText(r.g.code, pad, y + 30);
-    if(r.g.isPrint || r.g.design){ cx.fillStyle = '#6B3FB5'; cx.font = font(600, 17); cx.fillText(r.g.isPrint ? 'áo phôi (mọi mẫu)' : packDesignShort(r.g.design), pad, y + 54); }
-    cx.fillStyle = '#222'; cx.font = font(600, 22); r.lines.forEach((ln,i)=>cx.fillText(ln, pad + codeW, y + 30 + i*30));
-    cx.fillStyle = '#D9730D'; cx.font = font(800, 26); const q = String(r.g.qty); cx.fillText(q, W - pad - cx.measureText(q).width, y + 32);
+  // tiêu đề
+  cx.fillStyle = '#111'; cx.font = font(800, 36); cx.textBaseline = 'alphabetic';
+  cx.fillText('CẦN BÙ · CẢ KHO', pad, 52);
+  cx.fillStyle = '#444'; cx.font = font(700, 22);
+  cx.fillText(`${refillAbsTime(sn.at)}  ·  ${sn.orders} đơn  ·  ${sn.list.length} mã`, pad, 88);
+  cx.fillStyle = '#C2410C'; cx.font = font(900, 44); const tt = `${sn.total} sp`; cx.fillText(tt, W - pad - cx.measureText(tt).width, 60);
+  cx.fillStyle = '#111'; cx.fillRect(pad, headH - 14, W - pad*2, 3);
+  let y = headH;
+  const rr = (x0, y0, w, h, r)=>{ cx.beginPath(); cx.moveTo(x0+r, y0); cx.arcTo(x0+w, y0, x0+w, y0+h, r); cx.arcTo(x0+w, y0+h, x0, y0+h, r); cx.arcTo(x0, y0+h, x0, y0, r); cx.arcTo(x0, y0, x0+w, y0, r); cx.closePath(); };
+  rows.forEach((r, idx)=>{
+    if(idx % 2 === 0){ cx.fillStyle = '#F4F6FA'; cx.fillRect(pad - 8, y, W - pad*2 + 16, r.h); }
+    const top = y + 11;
+    cx.fillStyle = '#111'; cx.font = font(900, 30); cx.fillText(r.g.code, pad, top + 32);
+    if(r.g.isPrint || r.g.design){ cx.fillStyle = '#6B3FB5'; cx.font = font(700, 17); cx.fillText(r.g.isPrint ? 'áo phôi (mọi mẫu)' : packDesignShort(r.g.design), pad, top + 56); }
+    r.vars.forEach(([v,q], k)=>{
+      const cxp = pad + codeW + (k % cols) * (chipW + gap), cyp = top + Math.floor(k / cols) * (chipH + gap);
+      rr(cxp, cyp, chipW, chipH, 8); cx.fillStyle = '#FFF4E6'; cx.fill(); cx.strokeStyle = '#F0A63A'; cx.lineWidth = 1.5; cx.stroke();
+      const qs = '×' + q; cx.font = font(900, 24); const qw = cx.measureText(qs).width;
+      cx.fillStyle = '#C2410C'; cx.fillText(qs, cxp + chipW - 10 - qw, cyp + 31);
+      cx.fillStyle = '#111'; let lab = v; let fs = 22; cx.font = font(800, fs);
+      while(cx.measureText(lab).width > chipW - qw - 26 && fs > 14){ fs -= 1; cx.font = font(800, fs); }
+      while(cx.measureText(lab).width > chipW - qw - 26 && lab.length > 3) lab = lab.slice(0, -2) + '…';
+      cx.fillText(lab, cxp + 10, cyp + 30);
+    });
+    cx.fillStyle = '#C2410C'; cx.font = font(900, 34); const qt = String(r.g.qty); cx.fillText(qt, W - pad - cx.measureText(qt).width, top + 34);
     y += r.h;
   });
-  cx.beginPath(); cx.moveTo(pad, y); cx.lineTo(W - pad, y); cx.stroke();
   return cv;
 }
 function refillSnapShow(sn, title){
