@@ -1560,7 +1560,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl.s100x150{ width:100mm; height:150mm; }
   .lbl.sa4{ width:100mm; height:140mm; }
   .lbl-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:3mm; border-bottom:0.6mm solid #000; padding-bottom:2mm; }
-  .lbl-cust{ font-size:34pt; font-weight:900; line-height:1.08; word-break:break-word; flex:1; min-width:0; }
+  .lbl-cust{ font-size:34pt; font-weight:700; line-height:1.1; word-break:keep-all; overflow-wrap:normal; flex:1; min-width:0; font-family:Arial, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
   .lbl-cust.n-s{ font-size:46pt; } .lbl-cust.n-m{ font-size:38pt; } .lbl-cust.n-l{ font-size:31pt; }
   .s100x150 .lbl-cust.n-s, .sa4 .lbl-cust.n-s{ font-size:54pt; } .s100x150 .lbl-cust.n-m, .sa4 .lbl-cust.n-m{ font-size:44pt; } .s100x150 .lbl-cust.n-l, .sa4 .lbl-cust.n-l{ font-size:36pt; }
   .lbl-sale{ font-size:26pt !important; }
@@ -6718,6 +6718,7 @@ function packLabelPrint(ids){
     const pages = []; for(let i=0; i<invs.length; i+=4) pages.push(invs.slice(i, i+4));
     area.innerHTML = pages.map(pg=>`<div class="lbl-a4page">${pg.map(inv=>packLabelHtml(inv, 'a4')).join('')}</div>`).join('');
   } else area.innerHTML = invs.map(inv=>packLabelHtml(inv, size)).join('');
+  packLabelFitNames(area, size);
   let st = document.getElementById('packLabelPageStyle');
   if(!st){ st = document.createElement('style'); st.id = 'packLabelPageStyle'; document.head.appendChild(st); }
   st.textContent = size==='a4' ? '@media print{ @page{ size:A4; margin:6mm; } }' : `@media print{ @page{ size:${size==='100x150' ? '100mm 150mm' : '100mm 100mm'}; margin:0; } }`;
@@ -6726,6 +6727,21 @@ function packLabelPrint(ids){
   window.addEventListener('afterprint', done);
   showToast(`Đang in ${invs.length} tem…`);
   setTimeout(()=>window.print(), 80);
+}
+// Tự thu nhỏ chữ tên khách cho VỪA khung: không cắt đôi chữ (VD "Phương" → "Phươn / g"), tối đa 3 dòng
+function packLabelFitNames(area, size){
+  const old = area.getAttribute('style') || '';
+  area.style.cssText = 'display:block; position:absolute; left:-9999px; top:0; visibility:hidden;';
+  const maxH = (size==='100x100' ? 30 : 46) * 3.78; // mm → px (chiều cao tối đa vùng tên)
+  area.querySelectorAll('.lbl-cust').forEach(el=>{
+    let pt = parseFloat(getComputedStyle(el).fontSize) * 0.75; // px → pt
+    el.style.fontSize = pt + 'pt';
+    let guard = 40;
+    while(guard-- > 0 && pt > 14 && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > maxH)){
+      pt -= 2; el.style.fontSize = pt + 'pt';
+    }
+  });
+  area.setAttribute('style', old);
 }
 function packLabelPrintSelected(){
   if(!packSelected.size){ showToast('Tick chọn các hoá đơn cần in tem trước.'); return; }
