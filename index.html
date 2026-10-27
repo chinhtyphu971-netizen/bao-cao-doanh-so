@@ -1600,6 +1600,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl-kien .lbl-copytag{ flex:1 1 100%; margin-top:1mm; }
   .lbl-copytag1{ margin-top:1mm; text-align:center; border-top:0.3mm solid #000; padding-top:1mm; }
   .lbl-copy2 .lbl-info{ font-size:12pt !important; }
+  .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
+  .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .lbl-done-mark{ display:inline-block; font-size:11px; font-weight:700; color:#6FD99A; background:rgba(46,160,90,0.15); border:1px solid rgba(46,160,90,0.45); border-radius:6px; padding:0 4px; margin-left:3px; vertical-align:middle; cursor:help; }
   .pack-label-two{ display:inline-flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; white-space:nowrap; }
   .pack-label-two input{ width:auto !important; min-height:0 !important; }
@@ -6942,7 +6944,7 @@ function packPicksSync(){ // gửi tiến độ tick lên máy chủ (gộp 1,5 
   if(!packPanel || !fbPackPicks) return;
   const id = packPanel.invId, picked = Object.assign({}, packPanel.picked||{}); const me = currentUser() || {};
   clearTimeout(packPicksTimer);
-  packPicksTimer = setTimeout(()=>{ fbPackPicks.child(id).set({picked, by: me.id||'', byName: me.name||'', at: nowMs()}).catch(()=>{}); }, 1500);
+  packPicksTimer = setTimeout(()=>{ fbPackPicks.child(id).set({id, picked, by: me.id||'', byName: me.name||'', at: nowMs()}).catch(()=>{}); }, 1500);
 }
 async function packDraftRestore(invId){
   if(!packPanel || packPanel.invId!==invId || packPanel.viewOnly) return;
@@ -7049,6 +7051,26 @@ async function appCheckUpdate(force){
 setTimeout(()=>appCheckUpdate(true), 3000);
 setInterval(()=>appCheckUpdate(true), 10*60000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') appCheckUpdate(false); });
+
+// ===== Quản lý / Kho trưởng XEM tiến độ tick của người đang nhặt (thời gian thực) =====
+function packViewingOthers(){
+  if(!packPanel) return false;
+  const me = currentUser() || {};
+  if(packPanel.viewOnly || me.role==='general_manager') return true;
+  const c = packActiveClaimOf(packPanel.invId); return !!(c && c.by!==me.id);
+}
+function packRemotePicksOf(invId){ const m = state.packPicksAll || {}; return m[invId] || null; }
+function packApplyRemotePicks(){
+  if(!packPanel) return;
+  const r = packRemotePicksOf(packPanel.invId);
+  if(r && r.picked){ packPanel.picked = Object.assign({}, r.picked); packPanel.remoteBy = r.byName || ''; packPanel.remoteAt = r.at || 0; }
+}
+function packPickProgressOf(invId){
+  const r = packRemotePicksOf(invId); const inv = packInvById(invId); if(!r || !inv) return null;
+  const t = packPickTargets(packInvLines(inv), packStatusMap()[invId]);
+  let got = 0, need = 0; Object.keys(t).forEach(k=>{ need += t[k]; got += Math.min(t[k], Number(r.picked[k])||0); });
+  return {got, need, by: r.byName||'', at: r.at||0};
+}
 // ===================== THAO TÁC TRÊN ĐIỆN THOẠI: phản hồi rõ ràng =====================
 let packSaving = false;
 function packSetBusy(on){
@@ -7334,7 +7356,7 @@ function packStatusBadgeInner(inv, pp, ps){
 }
 function packStatusBadgeInner2(inv, pp, ps){
   const cl = (!pp && !(ps && ps.state)) ? packActiveClaimOf(inv.id) : null;
-  if(cl){ const me = currentUser() || {}; return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span><div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
+  if(cl){ const me = currentUser() || {}; const pg = packPickProgressOf(inv.id); return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span>${pg && pg.need ? ` <span class="pick-prog ${pg.got>=pg.need ? 'full' : ''}">✓ ${pg.got}/${pg.need}</span>` : ''}<div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
   if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Gửi thiếu</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
@@ -7420,6 +7442,10 @@ function packPanelOpen(invId, viewOnly){
   document.getElementById('packPanelModal').classList.add('show');
   // Sale mở đơn: KHÔNG tự nhận nữa — phải bấm "📥 Nhận đơn này" (có xác nhận) mới bắt đầu nhặt
   if(!viewOnly) packDraftRestore(invId);       // khôi phục tick / ảnh đang làm dở (mất mạng, tắt app…)
+  if(packViewingOthers()){ // xem đơn người khác đang nhặt → hiện đúng các món họ đã tick
+    if(!state.packPicksAll && fbPackPicks) fbPackPicks.child(invId).once('value').then(sn=>{ const v = sn.val(); if(v){ state.packPicksAll = Object.assign({}, state.packPicksAll||{}, {[invId]: v}); } if(packPanel && packPanel.invId===invId){ packApplyRemotePicks(); renderPackPanel(); } }).catch(()=>{});
+    packApplyRemotePicks(); renderPackPanel();
+  }
   if(!viewOnly && ['warehouse','packer'].includes((currentUser()||{}).role)) packSnapEnsure(packInvById(invId)); // bản gốc để phát hiện Sale sửa
 }
 function packPanelClose(){
@@ -7504,6 +7530,8 @@ function renderPackPanel(){
     banner += `<div class="pack-banner warn">📱 <b>${escHtml(claimO.byName||'Người khác')}</b> đang nhận đơn này (từ ${packTimeStr(claimO.at)}) — không đóng trùng.${isBoss ? ` <button class="btn-ghost btn-small" onclick="packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</button>` : ''}</div>`;
   }
   if(packMyClaimIs(inv.id)) packClaimTouch(inv.id);
+  if(packViewingOthers() && packPanel.remoteAt){ const pg = packPickProgressOf(inv.id);
+    if(pg) banner += `<div class="pack-banner view">👀 Tiến độ của <b>${escHtml(pg.by)}</b>: đã nhặt <b>${pg.got}/${pg.need}</b> món · cập nhật ${packTimeShort(pg.at)} <span class="pack-note">(tự cập nhật khi bạn ấy tick)</span></div>`; }
   // Sale tự đóng / đóng hộ: phải bấm NHẬN ĐƠN (xác nhận) trước → đơn biến khỏi hàng chờ của kho, không ai làm trùng
   if(packIsSale(me) && canAct && !packPanel.viewOnly && !packMyClaimIs(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'))){
     canAct = false;
@@ -7521,15 +7549,18 @@ function renderPackPanel(){
   const chgMap = {}; chgDiff.add.forEach(x=>{ chgMap[x.key] = 'MỚI'; }); chgDiff.chg.forEach(x=>{ chgMap[x.key] = `SL ${x.from}→${x.to}`; });
   if(chgDiff.any) banner = `<div class="pack-banner warn pack-chg-banner">✏️ <b>Sale đã sửa đơn</b> sau khi bạn bắt đầu: ${escHtml(packDiffText(chgDiff))}. Các dòng tô vàng là dòng mới / đổi số lượng. <button class="btn-ghost btn-small" onclick="packSnapAccept('${inv.id}')">✓ Đã xem</button></div>` + banner;
   const tickMode = canAct && !short;
+  // Quản lý / Kho trưởng xem đơn người khác đang nhặt → hiện tick của họ (chỉ xem, không bấm được)
+  const viewTicks = !canAct && !short && packViewingOthers() && !!packPanel.remoteAt;
+  const showTick = tickMode || viewTicks;
   const prog = packPickProgress(lines, ps);
   // Gom các dòng CÙNG mã + mẫu in (khác màu / size) thành 1 nhóm: ảnh + tên mẫu hiện 1 lần, bên dưới là từng màu để tick
   const extraCol = short || Object.keys(prevMiss).length > 0;
-  const nCols = (tickMode ? 1 : 0) + 4 + (extraCol ? 1 : 0);
+  const nCols = (showTick ? 1 : 0) + 4 + (extraCol ? 1 : 0);
   const lineRow = (l, inGroup)=>{
     const miss = short ? (packPanel.miss[l.key]||0) : (prevMiss[l.key]||0);
     const chgTag = chgMap[l.key] ? ` <span class="pack-chg-tag">${chgMap[l.key]}</span>` : '';
     const tgt = prog.t[l.key] || 0, got = Math.min(tgt, (packPanel.picked||{})[l.key]||0), done = tgt>0 && got>=tgt;
-    const pickCell = tickMode ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
+    const pickCell = showTick ? (tgt ? `<td class="pack-pick-cell"><span class="pack-pick ${done ? 'done' : (got ? 'part' : '')}">${done ? '✓' : got + '/' + tgt}</span>${got && tickMode ? `<button class="pack-pick-minus" onclick="event.stopPropagation(); packPickTap('${l.key}', -1)">−</button>` : ''}</td>`
       : `<td class="pack-pick-cell"><span class="pack-pick sent" title="${ps && ps.state==='short' ? 'Đã có đủ từ lần nhặt trước' : 'Đã gửi ở lần trước'}">✓</span></td>`) : '';
     const meta = `${[l.color, l.size].filter(Boolean).map(escHtml).join(' · ') || '—'} · <b class="pack-l-sl">SL ${l.qty}</b>${!short && miss ? ` · <b style="color:#F0A63A;">thiếu ${miss}</b>` : ''}${chgTag}`;
     const prodCell = inGroup
@@ -7547,7 +7578,7 @@ function renderPackPanel(){
   };
   const groups = [];
   lines.forEach(l=>{ const gk = l.code + '|' + normalizeSearchText(l.design); let g = groups.find(x=>x.gk===gk); if(!g){ g = {gk, items:[]}; groups.push(g); } g.items.push(l); });
-  const refillMode = tickMode && ps && ps.state==='short';
+  const refillMode = showTick && ps && ps.state==='short';
   const sChg = refillMode ? packShortChanges(inv, ps) : {tag:{}, remove:[]};
   Object.keys(sChg.tag).forEach(k=>{ if(!chgMap[k]) chgMap[k] = sChg.tag[k]; });
   if(refillMode && !ps.linesAtShort && Number(inv.updatedAt||0) > Number(ps.shortAt||0) + 60000)
@@ -7561,7 +7592,7 @@ function renderPackPanel(){
     const keys = g.items.map(l=>l.key).join(',');
     return `<tr class="pack-grp-head${tickMode && need && got>=need ? ' pack-picked' : ''}"><td colspan="${nCols}"><div class="pack-l-prodwrap">${pimgImgHtml(pimgKeyFor(l0.code, l0.design), 'pack-pimg')}
       <div class="pack-l-txt" style="flex:1;"><span class="pack-l-code">${codeWithMarkHtml(l0.code)}</span>${l0.design ? ` <i class="iv-design">${escHtml(l0.design)}</i>` : (l0.name ? ' <span class="pack-sub">' + escHtml(l0.name) + '</span>' : '')}
-        <div class="pack-grp-sum">${g.items.length} màu/size · tổng <b>${qty}</b> cái${tickMode && need ? ` · đã nhặt <b>${got}/${need}</b>` : ''}</div></div>
+        <div class="pack-grp-sum">${g.items.length} màu/size · tổng <b>${qty}</b> cái${showTick && need ? ` · đã nhặt <b>${got}/${need}</b>` : ''}</div></div>
       ${tickMode && need && got<need ? `<button class="btn-ghost btn-small pack-grp-all" onclick="event.stopPropagation(); packPickGroup('${keys}')">✓ <span class="pack-grp-all-long">Đủ cả nhóm</span><span class="pack-grp-all-short">Đủ hết</span></button>` : ''}</div></td></tr>` +
       g.items.map(l=>lineRow(l, true)).join('');
   };
@@ -7612,14 +7643,14 @@ function renderPackPanel(){
     ${canAct && ph.length ? `<div class="pack-st-thumbs">${ph.map((p,i)=>`<div class="pack-thumb sm"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="packPhotoRemove(${i})">×</button></div>`).join('')}<span class="pack-note">ảnh ${photoHint}</span></div>` : ''}
     <div id="packPhotoBusy" class="pack-note" style="display:none;">⏳ Đang xử lý ảnh…</div>
     ${canAct && short ? `<input class="pack-note-input pack-st-note" placeholder="Ghi chú thêm cho Sale (không bắt buộc)" value="${escHtml(packPanel.note)}" oninput="packPanel.note=this.value; packDraftSave()">` : ''}
-    ${tickMode && prog.need ? `<div class="pack-progress-row"><div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>${prog.got<prog.need ? `<button class="pack-pick-all" onclick="packPickAllLines()">✓ ${ps && ps.state==='short' ? 'Đã nhặt đủ phần bù' : 'Đã nhặt đủ cả đơn'}</button>` : ''}</div>` : ''}
+    ${showTick && prog.need ? `<div class="pack-progress-row"><div class="pack-progress ${prog.got>=prog.need ? 'full' : ''}"><div class="pack-progress-bar" style="width:${Math.round(prog.got*100/prog.need)}%"></div><span>${prog.got>=prog.need ? '✅ Đã nhặt đủ' : '👆 Đã nhặt'} <b>${prog.got}/${prog.need}</b> món</span></div>${prog.got<prog.need && tickMode ? `<button class="pack-pick-all" onclick="packPickAllLines()">✓ ${ps && ps.state==='short' ? 'Đã nhặt đủ phần bù' : 'Đã nhặt đủ cả đơn'}</button>` : ''}</div>` : ''}
   </div>`;
   body.innerHTML = `${sticky}
     ${banner}
     ${short ? (ps && ps.state==='short'
       ? '<div class="pack-banner warn">Bù được món nào thì bấm <b>−</b> giảm số thiếu ở dòng đó, rồi bấm <b>💾 Lưu cập nhật thiếu</b> (không cần ảnh, sửa được nhiều lần). Bù hết thì chụp ảnh và bấm <b>Bù đủ · Đóng</b>.</div>'
       : '<div class="pack-banner warn">Bấm <b>+</b> ở dòng bị thiếu (số cái thiếu), chụp ảnh rồi bấm "📣 Gửi báo thiếu".</div>') : ''}
-    <div class="table-wrap"><table class="pack-lines"><thead><tr>${tickMode ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th class="pack-l-col">Màu</th><th class="pack-l-col">Size</th><th class="num pack-l-col">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th class="pack-l-col"></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
+    <div class="table-wrap"><table class="pack-lines"><thead><tr>${showTick ? '<th style="width:1%;">Nhặt</th>' : ''}<th>Sản phẩm</th><th class="pack-l-col">Màu</th><th class="pack-l-col">Size</th><th class="num pack-l-col">SL</th>${short ? '<th>Thiếu</th>' : (Object.keys(prevMiss).length ? '<th class="pack-l-col"></th>' : '')}</tr></thead><tbody>${rows || '<tr><td colspan="4">Không có sản phẩm.</td></tr>'}</tbody></table></div>
     ${packSavedPhotosHtml(inv.id, ps)}
     ${(packZaloBtnHtml(inv.id) || packZaloShareBtnsHtml(inv.id)) ? `<div class="pack-p-msg">${packZaloShareBtnsHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>` : ''}`;
   pimgHydrate(body);
@@ -13399,6 +13430,12 @@ function setupRoleScopedListeners(user){
     if(['packDesk','packInvoices','invoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
   }, false);
   const pbKey = (user && (r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
+  attachScoped('packPicksAll', pbKey, pbKey==='on' ? fbPackPicks : null, (arr, raw)=>{
+    const m = {}; Object.entries(raw||{}).forEach(([k,x])=>{ if(x && x.picked) m[k] = Object.assign({id:k}, x); }); state.packPicksAll = m;
+    // đang mở xem đơn của người khác → cập nhật tick theo thời gian thực
+    if(packPanel && packViewingOthers()){ packApplyRemotePicks(); renderPackPanel(); }
+    else if(currentPageId==='packInvoices' && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
+  }, false);
   attachScoped('packLabels', pbKey, pbKey==='on' ? fbPackLabels : null, (arr)=>{
     state.packLabels = arr;
     if(currentPageId==='packInvoices' && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
