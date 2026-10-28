@@ -13660,11 +13660,11 @@ function attachScoped(name, key, query, apply, childMode, onFirstLoad){
     return;
   }
   const map = {}; let ready = false;
-  const sync = ()=>{ if(ready) apply(Object.values(map)); };
+  const sync = ()=>{ if(ready) apply(Object.values(map), map); };
   query.on('child_added',   s=>{ map[s.key]=s.val(); sync(); });
   query.on('child_changed', s=>{ map[s.key]=s.val(); sync(); });
   query.on('child_removed', s=>{ delete map[s.key]; sync(); });
-  query.once('value').then(()=>{ ready = true; apply(Object.values(map)); if(onFirstLoad) onFirstLoad(); });
+  query.once('value').then(()=>{ ready = true; apply(Object.values(map), map); if(onFirstLoad) onFirstLoad(); });
 }
 // ===== KHO DATA (leads) TẢI THEO VAI TRÒ =====
 //  - Sale (nhân viên): data được chia cho CHÍNH MÌNH + mọi data "Đã chốt" (cần để nhận biết "Khách cũ"
@@ -13770,7 +13770,7 @@ function setupRoleScopedListeners(user){
 
   // Thùng rác (báo cáo đã xoá): chỉ Quản lý chung / Quản lý Data
   const trashKey = (r==='general_manager' || r==='data_manager') ? 'on' : 'none';
-  attachScoped('trash', trashKey, trashKey==='on' ? fbTrash : null, setAndRender('trash'), false);
+  attachScoped('trash', trashKey, trashKey==='on' ? fbTrash : null, setAndRender('trash'), true);
 
   // Báo cáo MKT (ngày + tuần): MKT chỉ tải của mình; Quản lý MKT / Quản lý chung tải hết
   // MKT tải báo cáo của CẢ TEAM mình (để biết đồng đội đã nộp chưa — 1 người thiếu thì cả team bị khoá nhập data)
@@ -13779,7 +13779,7 @@ function setupRoleScopedListeners(user){
   attachScoped('mktReports', mrKey==='all' ? 'all:'+winStart : mrKey,
     mrKey==='none' ? null : (mrKey==='all' ? fbMktReports.orderByChild('date').startAt(winStart)
       : (mrKey.startsWith('team:') ? fbMktReports.orderByChild('mktBranchId').equalTo(user.mktBranchId) : fbMktReports.orderByChild('userId').equalTo(user.id))),
-    (arr)=>{ state.mktReports = arr; mktReportsLoaded = true; onDataChanged(); if(currentPageId==='mktInput') renderMktInputLock(); }, false);
+    (arr)=>{ state.mktReports = arr; mktReportsLoaded = true; onDataChanged(); if(currentPageId==='mktInput') renderMktInputLock(); }, true);
   attachScoped('mktWeekly', mrKey.startsWith('team:') ? 'mine:'+user.id : mrKey,
     mrKey==='none' ? null : (mrKey==='all' ? fbMktWeekly : fbMktWeekly.orderByChild('userId').equalTo(user.id)),
     setAndRender('mktWeekly'), false);
@@ -13789,7 +13789,7 @@ function setupRoleScopedListeners(user){
   // Thợ in cũng chỉ tải 70 ngày gần nhất (rồi lọc báo cáo của mình) — không tải cả lịch sử từ ngày đầu
   attachScoped('printReports', prKey==='none' ? 'none' : (prKey==='all' ? 'all:' : prKey+':') + winStart,
     prKey==='none' ? null : fbPrintReports.orderByChild('date').startAt(winStart),
-    (arr)=>{ state.printReports = prKey==='all' ? arr : arr.filter(x=>x.userId===user.id); onDataChanged(); if(r==='general_manager') migratePrintLogsOut(arr); }, false);
+    (arr)=>{ state.printReports = prKey==='all' ? arr : arr.filter(x=>x.userId===user.id); onDataChanged(); if(r==='general_manager') migratePrintLogsOut(arr); }, true);
 
   // Bản rút gọn hoá đơn: Nhân viên in (xem tổng hợp mẫu cần in) + Quản lý chung (đồng bộ)
   const iiKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
@@ -13798,7 +13798,7 @@ function setupRoleScopedListeners(user){
     if(r==='general_manager') backfillInvoiceItems();
     if(currentPageId==='printReport') renderPrSummary();
     if(currentPageId==='printOverview') renderPrintOverview();
-  }, false);
+  }, true);
 
   // Đơn đặt in: Nhân viên in + Quản lý chung + người được giao đặt đơn in (không chứa dữ liệu khách)
   const poKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse' || user.canOrderPrint)) ? 'on' : 'none';
@@ -13814,7 +13814,7 @@ function setupRoleScopedListeners(user){
     updatePrintOrdersBadge();
     if(currentPageId==='printReport'){ renderPrintOrdersForPrinter(); prUpdateMeterTotal(); }
     if(currentPageId==='printOrders') renderPrintOrdersPage();
-  }, false);
+  }, true);
 
   // Hoá đơn
   // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
@@ -13828,7 +13828,7 @@ function setupRoleScopedListeners(user){
       else state.invoices = purgeExpiredInvoices(arr);
       packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:') || invKey.startsWith('mine:'); cleanupPackPrints(); packCheckChangeNotices();
       onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
-    }, false);
+    }, true);
 
   // Trạng thái đóng hàng: Kho / Bàn đóng gói / Quản lý chung tải hết; Sale chỉ tải của hoá đơn mình (để nhận báo thiếu)
   const psKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
@@ -13837,44 +13837,44 @@ function setupRoleScopedListeners(user){
     if(psKey.startsWith('mine:')){ packCheckSaleNotices(); packCheckDoneNotices(); setTimeout(shipRemindCheck, 1500); }
     else packCheckReplyNotices();
     onDataChanged();
-  }, false);
+  }, true);
   const kKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
   const pcKey = (user && (r==='general_manager' || isWarehouse || PACK_SALE_ROLES.includes(r))) ? 'on' : 'none';
   attachScoped('packClaims', pcKey, pcKey==='on' ? fbPackClaims : null, (arr)=>{
     state.packClaims = arr;
     if(['packDesk','packInvoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
-  }, false);
+  }, true);
   attachScoped('packUrgent', pcKey, pcKey==='on' ? fbPackUrgent : null, (arr)=>{
     state.packUrgent = arr;
     packCheckUrgentNotices();
     if(['packDesk','packInvoices','invoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
-  }, false);
+  }, true);
   const pbKey = (user && (r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
   attachScoped('packPicksAll', pbKey, pbKey==='on' ? fbPackPicks : null, (arr, raw)=>{
     const m = {}; Object.entries(raw||{}).forEach(([k,x])=>{ if(x && x.picked) m[k] = Object.assign({id:k}, x); }); state.packPicksAll = m;
     // đang mở xem đơn của người khác → cập nhật tick theo thời gian thực
     if(packPanel && packViewingOthers()){ packApplyRemotePicks(); renderPackPanel(); }
     else if(currentPageId==='packInvoices' && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
-  }, false);
+  }, true);
   attachScoped('packLabels', pbKey, pbKey==='on' ? fbPackLabels : null, (arr)=>{
     state.packLabels = arr;
     if(currentPageId==='packInvoices' && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
-  }, false);
+  }, true);
   attachScoped('packPrintBatches', pbKey, pbKey==='on' ? fbPackPrintBatches.orderByKey().limitToLast(60) : null, (arr)=>{
     state.packPrintBatches = arr;
     const d = document.getElementById('packHistDetails'); if(currentPageId==='packInvoices' && d && d.open) renderPackPrintHistory();
     packCleanupOldBatches();
-  }, false);
+  }, true);
   const piKey = (kKey==='on' || (user && PACK_SALE_ROLES.includes(r))) ? 'on' : 'none';
   attachScoped('productImagesIndex', piKey, piKey==='on' ? fbProductImagesIndex : null, (arr, raw)=>{
     state.pimgIndex = (raw && typeof raw==='object') ? raw : {};
     if(packPanel && document.getElementById('packPanelModal').classList.contains('show')) renderPackPanel();
     const pd = document.getElementById('pimgDetails'); if(pd && pd.open) renderPimgManager();
-  }, false);
+  }, true);
   attachScoped('packStaff', kKey, kKey==='on' ? fbPackStaff : null, (arr)=>{
     state.packStaff = arr; onDataChanged();
     const kd = document.getElementById('packStaffDetails'); if(currentPageId==='packInvoices' && kd && kd.open) renderPackStaffBox(); // vẽ ngay dù con trỏ còn ở ô nhập tên
-  }, false);
+  }, true);
   packAttachPresence();
 
   // Đánh dấu "Đã in" hoá đơn đóng hàng (nhánh packPrints, mỗi hoá đơn 1 dòng): Kho + Quản lý chung
@@ -13884,7 +13884,7 @@ function setupRoleScopedListeners(user){
     state.packPrints = arr; packPrintsLoaded = ppKey==='on'; cleanupPackPrints();
     if(currentPageId==='packInvoices' && !isUserActivelyEditing()) renderPackInvoicesPage();
     if(ppKey.startsWith('mine:')) onDataChanged();
-  }, false);
+  }, true);
 
   // Sản phẩm / cài đặt hoá đơn / data Sale tự thêm — MKT không dùng
   const saleSide = user && !isMkt ? 'on' : 'none';
@@ -13897,13 +13897,13 @@ function setupRoleScopedListeners(user){
       const typed = Array.from(document.querySelectorAll('#prProducts input[data-design]')).some(i=>i.value!=='');
       if(!typed) prLoadForDate();
     }
-  }, false);
+  }, true);
   attachScoped('productSheetUrl', saleSide, saleSide==='on' ? fbProductSheetUrl : null,
     (arr, raw)=>{ state.productSheetUrl = (typeof raw==='string') ? raw : ''; onDataChanged(); }, false);
   const invSetKey = (saleSide==='on' || isWarehouse) ? 'on' : 'none'; // Kho cần tên cửa hàng / STK / QR để in hoá đơn đóng hàng
   attachScoped('invoiceSettings', invSetKey, invSetKey==='on' ? fbInvoiceSettings : null,
     (arr, raw)=>{ state.invoiceSettings = (raw && typeof raw==='object') ? raw : {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); }, false);
-  attachScoped('selfLeads', saleSide, saleSide==='on' ? fbSelfLeads : null, setAndRender('selfLeads'), false);
+  attachScoped('selfLeads', saleSide, saleSide==='on' ? fbSelfLeads : null, setAndRender('selfLeads'), true);
 
   // Quay video / diễn viên / số liệu MKT cũ — chỉ phía MKT + Quản lý Data + Quản lý chung
   const vKey = needVideo ? 'on' : 'none';
