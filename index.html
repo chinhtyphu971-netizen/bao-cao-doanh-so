@@ -6497,10 +6497,20 @@ function shipPendingOf(saleId){
   (state.packStatus||[]).forEach(ps=>{
     if(!ps || ps.legacy || ps.ship || ps.saleId!==saleId || !(ps.state==='packed' || ps.state==='partial')) return;
     if(shipHoldActive(ps)){ out.hold.push(ps); return; }
-    const from = Math.max(Number(ps.packedAt||ps.at||0), SHIP_LOCK_START, shipHoldEndMs(ps));
-    ((nowMs() - from)/3600000 >= SHIP_LOCK_HOURS ? out.late : out.wait).push(ps);
+    out[shipIsLate(ps) ? 'late' : 'wait'].push(ps);
   });
   return out;
+}
+// Quá hạn khi: (1) đơn đóng từ HÔM TRƯỚC (hoặc hết hạn hoãn từ hôm trước) mà đã qua 10h sáng hôm nay;
+//               (2) đơn đóng HÔM NAY mà đã quá 8 giờ.
+const SHIP_LOCK_DAY_HOUR = 10;
+function shipIsLate(ps){
+  const tNow = nowMs(); if(tNow < SHIP_LOCK_START) return false;
+  const base = Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps));
+  const today0 = new Date(tNow); today0.setHours(0,0,0,0);
+  const at10 = new Date(today0); at10.setHours(SHIP_LOCK_DAY_HOUR, 0, 0, 0);
+  if(base < today0.getTime()) return tNow >= at10.getTime();         // đơn từ hôm trước → khoá từ 10h
+  return (tNow - base)/3600000 >= SHIP_LOCK_HOURS;                   // đơn hôm nay → quá 8 giờ
 }
 function shipLockUnlockedUntil(u){ return Number((u||{}).shipUnlockUntil||0); }
 function shipLockedFor(u){ if(!u || !['staff','team_manager'].includes(u.role)) return []; if(shipLockUnlockedUntil(u) > nowMs()) return []; return shipPendingOf(u.id).late; }
@@ -6514,8 +6524,8 @@ function shipLockShow(list, blocked){
   const body = document.getElementById('shipLockBody');
   document.getElementById('shipLockTitle').textContent = blocked ? `🔒 Chưa tạo được hoá đơn mới — còn ${list.length} đơn chưa lên vận đơn` : `🚚 Còn ${list.length} đơn kho đã đóng chưa lên vận đơn`;
   document.getElementById('shipLockNote').innerHTML = blocked
-    ? `Kho đã đóng quá <b>${SHIP_LOCK_HOURS} giờ</b> mà chưa lên vận đơn. Lên vận đơn (hoặc bấm <b>⏸ Hoãn gửi</b> nếu khách hẹn ngày khác) rồi mới tạo hoá đơn mới được.`
-    : `Lên vận đơn sớm nhé — quá <b>${SHIP_LOCK_HOURS} giờ</b> chưa lên sẽ bị khoá tạo hoá đơn mới.`;
+    ? `Đơn kho đóng <b>từ hôm trước</b> (khoá từ ${SHIP_LOCK_DAY_HOUR}h sáng) hoặc đóng hôm nay <b>quá ${SHIP_LOCK_HOURS} giờ</b> mà chưa lên vận đơn. Lên vận đơn (hoặc bấm <b>⏸ Hoãn gửi</b> nếu khách hẹn ngày khác) rồi mới tạo hoá đơn mới được.`
+    : `Lên vận đơn sớm nhé — đơn từ hôm trước chưa lên sẽ bị khoá tạo hoá đơn từ <b>${SHIP_LOCK_DAY_HOUR}h sáng</b>, đơn trong ngày khoá sau <b>${SHIP_LOCK_HOURS} giờ</b>.`;
   body.innerHTML = list.map(ps=>{ const inv = packInvById(ps.id) || {}; const h = Math.floor((nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000);
     return `<div class="pack-notice-item ${blocked ? 'urgent' : ''}"><b>HĐ ${escHtml(ps.invoiceNumber||inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}<div class="pack-sub">Kho đóng ${packTimeStr(ps.packedAt||ps.at)} (${h} giờ trước)${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}</div>
       <div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="document.getElementById('shipLockModal').classList.remove('show'); shipOpen('${ps.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost" onclick="shipHoldOpen('${ps.id}')">⏸ Hoãn gửi</button></div></div>`; }).join('');
@@ -6560,7 +6570,7 @@ function shipLockedSalesHtml(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return '';
   const rows = (state.users||[]).filter(u=>u && ['staff','team_manager'].includes(u.role)).map(u=>({u, late: shipPendingOf(u.id).late, open: shipLockUnlockedUntil(u) > nowMs()})).filter(x=>x.late.length);
   if(!rows.length) return '';
-  return `<div class="ship-lock-card"><b>🔒 Sale đang bị khoá tạo hoá đơn</b> <span class="pack-note">(đơn đã đóng quá ${SHIP_LOCK_HOURS} giờ chưa lên vận đơn)</span>
+  return `<div class="ship-lock-card"><b>🔒 Sale đang bị khoá tạo hoá đơn</b> <span class="pack-note">(đơn hôm trước chưa lên vận đơn từ ${SHIP_LOCK_DAY_HOUR}h · đơn hôm nay quá ${SHIP_LOCK_HOURS} giờ)</span>
     <div class="ship-lock-rows">${rows.map(x=>`<div class="ship-lock-row"><span>👤 <b>${escHtml(x.u.name)}</b> · ${x.late.length} đơn</span>${x.open ? `<span class="pack-note">đã mở tạm tới ${packTimeShort(shipLockUnlockedUntil(x.u))}</span>` : `<button class="btn-small btn-ghost" onclick="shipUnlockTemp('${x.u.id}')">🔓 Mở khoá tạm 1 giờ</button>`}</div>`).join('')}</div></div>`;
 }
 function shipUnlockTemp(uid){
@@ -8754,8 +8764,8 @@ function packSaleBadgeHtml(inv){
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
     if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
     if(shipHoldActive(ps)) return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <span class="hold-tag" title="${escHtml(ps.shipHold.reason||'')}">⏸ Hoãn tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
-    const lateH = (nowMs() - Math.max(Number(ps.packedAt||ps.at||0), SHIP_LOCK_START))/3600000;
-    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${lateH >= SHIP_LOCK_HOURS ? ' <span class="hold-tag late">🔒 quá 8 giờ</span>' : ''}</div>`;
+    const isLate = shipIsLate(ps); const oldDay = Number(ps.packedAt||ps.at||0) < new Date(new Date(nowMs()).setHours(0,0,0,0)).getTime();
+    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${isLate ? ` <span class="hold-tag late">🔒 ${oldDay ? 'đơn hôm trước' : 'quá 8 giờ'}</span>` : (oldDay ? ` <span class="hold-tag late">⚠ hôm trước — khoá từ ${SHIP_LOCK_DAY_HOUR}h</span>` : '')}</div>`;
   }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='short'){
@@ -11373,7 +11383,7 @@ function renderMyInvTodoBar(){
   const total = c.pending + c.short + c.reprint + c.toship;
   // Luôn hiện đủ 4 nhóm (nhóm 0 làm mờ) để Sale nhìn là biết đủ tình hình
   const chip = (n, label, cls, f)=> `<button class="inv-todo-chip ${n ? cls : 'zero'}" ${n ? `onclick="goInvFilter('${f}')"` : 'disabled'}>${label} <b>${n}</b></button>`;
-  el.innerHTML = `<div class="inv-todo-title">${total ? '🔔 Việc cần làm với hoá đơn <span>(' + total + ')</span>' : '✅ Không có việc cần làm với hoá đơn'}</div>${lockN ? `<div class="inv-lock-warn" onclick="shipLockShow(shipLockedFor(currentUser()), true)">🔒 Đang KHOÁ tạo hoá đơn mới — ${lockN} đơn đã đóng quá ${SHIP_LOCK_HOURS} giờ chưa lên vận đơn. Bấm để xử lý.</div>` : ''}
+  el.innerHTML = `<div class="inv-todo-title">${total ? '🔔 Việc cần làm với hoá đơn <span>(' + total + ')</span>' : '✅ Không có việc cần làm với hoá đơn'}</div>${lockN ? `<div class="inv-lock-warn" onclick="shipLockShow(shipLockedFor(currentUser()), true)">🔒 Đang KHOÁ tạo hoá đơn mới — ${lockN} đơn kho đã đóng chưa lên vận đơn. Bấm để xử lý.</div>` : ''}
     <div class="inv-todo-chips">${chip(c.short, '⚠ Kho báo thiếu', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc', 'info', 'pending')}
       <button class="inv-todo-all" onclick="goInvFilter('todo')">Xem tất cả →</button></div>`;
   el.style.display = '';
