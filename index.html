@@ -6495,7 +6495,8 @@ function shipHoldEndMs(ps){ if(!ps || !ps.shipHold || !ps.shipHold.until) return
 function shipPendingOf(saleId){
   const out = {late:[], wait:[], hold:[]};
   (state.packStatus||[]).forEach(ps=>{
-    if(!ps || ps.legacy || ps.ship || ps.saleId!==saleId || !(ps.state==='packed' || ps.state==='partial')) return;
+    if(!ps || ps.legacy || ps.saleId!==saleId || !(ps.state==='packed' || ps.state==='partial')) return;
+    if(ps.ship && !shipMissingCode(ps)) return; // đã lên vận đơn đủ mã (hoặc lấy tại cửa hàng / gửi xe)
     if(shipHoldActive(ps)){ out.hold.push(ps); return; }
     out[shipIsLate(ps) ? 'late' : 'wait'].push(ps);
   });
@@ -6503,7 +6504,9 @@ function shipPendingOf(saleId){
 }
 // Quá hạn khi: (1) đơn đóng từ HÔM TRƯỚC (hoặc hết hạn hoãn từ hôm trước) mà đã qua 10h sáng hôm nay;
 //               (2) đơn đóng HÔM NAY mà đã quá 8 giờ.
-const SHIP_LOCK_DAY_HOUR = 10;
+const SHIP_LOCK_DAY_HOUR = 8; // đơn từ hôm trước chưa lên vận đơn / thiếu mã → khoá từ 8h sáng
+// Đã bấm lên vận đơn bằng hãng vận chuyển nhưng CHƯA có mã → vẫn tính là chưa cập nhật
+function shipMissingCode(ps){ return !!(ps && ps.ship && (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier) && !shipCodesOf(ps.ship).length); }
 function shipIsLate(ps){
   const tNow = nowMs(); if(tNow < SHIP_LOCK_START) return false;
   const base = Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps));
@@ -6524,11 +6527,11 @@ function shipLockShow(list, blocked){
   const body = document.getElementById('shipLockBody');
   document.getElementById('shipLockTitle').textContent = blocked ? `🔒 Chưa tạo được hoá đơn mới — còn ${list.length} đơn chưa lên vận đơn` : `🚚 Còn ${list.length} đơn kho đã đóng chưa lên vận đơn`;
   document.getElementById('shipLockNote').innerHTML = blocked
-    ? `Đơn kho đóng <b>từ hôm trước</b> (khoá từ ${SHIP_LOCK_DAY_HOUR}h sáng) hoặc đóng hôm nay <b>quá ${SHIP_LOCK_HOURS} giờ</b> mà chưa lên vận đơn. Lên vận đơn (hoặc bấm <b>⏸ Hoãn gửi</b> nếu khách hẹn ngày khác) rồi mới tạo hoá đơn mới được.`
+    ? `Đơn kho đóng <b>từ hôm trước</b> (khoá từ ${SHIP_LOCK_DAY_HOUR}h sáng) hoặc đóng hôm nay <b>quá ${SHIP_LOCK_HOURS} giờ</b> mà chưa lên vận đơn / <b>chưa có mã vận đơn</b>. Lên vận đơn (hoặc bấm <b>⏸ Hoãn gửi</b> nếu khách hẹn ngày khác) rồi mới tạo hoá đơn mới được.`
     : `Lên vận đơn sớm nhé — đơn từ hôm trước chưa lên sẽ bị khoá tạo hoá đơn từ <b>${SHIP_LOCK_DAY_HOUR}h sáng</b>, đơn trong ngày khoá sau <b>${SHIP_LOCK_HOURS} giờ</b>.`;
   body.innerHTML = list.map(ps=>{ const inv = packInvById(ps.id) || {}; const h = Math.floor((nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000);
-    return `<div class="pack-notice-item ${blocked ? 'urgent' : ''}"><b>HĐ ${escHtml(ps.invoiceNumber||inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}<div class="pack-sub">Kho đóng ${packTimeStr(ps.packedAt||ps.at)} (${h} giờ trước)${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}</div>
-      <div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="document.getElementById('shipLockModal').classList.remove('show'); shipOpen('${ps.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost" onclick="shipHoldOpen('${ps.id}')">⏸ Hoãn gửi</button></div></div>`; }).join('');
+    return `<div class="pack-notice-item ${blocked ? 'urgent' : ''}"><b>HĐ ${escHtml(ps.invoiceNumber||inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}${shipMissingCode(ps) ? ` · <b style="color:#FF8A8D;">thiếu mã vận đơn ${escHtml(shipShortName(ps.ship.carrier)||'')}</b>` : ''}<div class="pack-sub">Kho đóng ${packTimeStr(ps.packedAt||ps.at)} (${h} giờ trước)${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}</div>
+      <div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="document.getElementById('shipLockModal').classList.remove('show'); shipOpen('${ps.id}')">${shipMissingCode(ps) ? '✏️ Dán mã vận đơn' : '🚚 Lên vận đơn'}</button><button class="btn-small btn-ghost" onclick="shipHoldOpen('${ps.id}')">⏸ Hoãn gửi</button></div></div>`; }).join('');
   document.getElementById('shipLockModal').classList.add('show');
 }
 // Nhắc khi Sale mở app: còn đơn chờ lên vận đơn quá 4 giờ (1 lần / phiên, lặp lại sau mỗi 2 giờ)
