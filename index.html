@@ -1632,6 +1632,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lbl-kien .lbl-copytag{ flex:1 1 100%; margin-top:1mm; }
   .lbl-copytag1{ margin-top:1mm; text-align:center; border-top:0.3mm solid #000; padding-top:1mm; }
   .lbl-copy2 .lbl-info{ font-size:12pt !important; }
+  .sale-short-line{ font-size:12.5px; font-weight:600; color:var(--ink); margin:2px 0 4px; max-width:340px; line-height:1.4; }
   .tbl-line{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
   .tbl-reply{ color:var(--ink-soft); font-weight:600; }
   .tbl-reply.ok{ color:#6FD99A; }
@@ -8774,7 +8775,7 @@ function packSaleBadgeHtml(inv){
   if(ps.state==='short'){
     const rep0 = ps.shortStaffName || ps.staffName || '';
     const holder = clS && clS.byName && clS.byName!==rep0 ? ` · đang xử lý: ${packWhoTag(clS.byName, 'Người đang xử lý đơn bù')}` : (clS ? ' · đang xử lý' : '');
-    return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu (cần bù ${packMissTotal(ps)} sp) ${packWhoTag(rep0, 'Người báo thiếu')}${holder}${ph}</div>${packShortGrid(ps.shortItems, 'sm scroll')}${packReplyHtml(ps, false)}
+    return `<div class="pack-sale-badge warn" title="${escHtml(packShortText(ps.shortItems))}">⚠ Kho báo thiếu (cần bù ${packMissTotal(ps)} sp) ${packWhoTag(rep0, 'Người báo thiếu')}${holder}${ph}</div><div class="sale-short-line pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">${escHtml(packShortText(ps.shortItems))}</div>${packReplyHtml(ps, false)}
     <div class="pack-sale-actions"><button class="btn-small ${packHasReply(ps) ? 'btn-ghost' : 'btn-primary'} pack-reply-open" onclick="event.stopPropagation(); packOpenReply('${inv.id}')">${packHasReply(ps) ? '✏️ Sửa trả lời' : '↩ Trả lời kho'}</button>${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   }
   return '';
