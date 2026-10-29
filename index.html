@@ -1568,6 +1568,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .ship-lock-row > span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ship-lock-row .btn-small{ flex:0 0 auto; padding:3px 8px !important; font-size:12px !important; min-height:0 !important; }
   @media (max-width:720px){ .ship-lock-rows{ grid-template-columns:1fr; } }
+  .abit-tag{ display:inline-block; font-size:11.5px; font-weight:800; color:#A9C4FF; background:rgba(79,140,255,0.14); border:1px solid rgba(79,140,255,0.4); border-radius:6px; padding:0 6px; margin-left:3px; white-space:nowrap; text-decoration:none !important; }
+  .abit-tag.ok{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
+  .abit-tag.bad{ color:#FF8A8D; background:rgba(229,72,77,0.14); border-color:rgba(229,72,77,0.5); }
+  .dep-pickup{ display:flex; align-items:center; gap:6px; margin-top:6px; font-size:13px; cursor:pointer; }
+  .dep-pickup input{ width:auto !important; min-height:0 !important; }
   .chat-mini{ text-decoration:none !important; font-size:14px; position:relative; margin-left:2px; }
   .chat-mini .pack-dot{ position:absolute; top:-2px; right:-5px; }
   .ship-pkgs{ color:#F6C27A; font-weight:800; font-size:12px; }
@@ -3123,6 +3128,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="pack-thumbs" id="depProofThumbs" style="margin-top:8px;"></div>
     <div class="pack-note" id="depProofBusy" style="display:none; margin-top:6px;">⏳ Đang nén ảnh…</div>
     <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
+    <div id="depAddrWrap" style="margin-top:12px;">
+      <label class="pack-p-label">🏠 Địa chỉ giao hàng <span class="pack-note">— bắt buộc (tự đẩy sang Abit khi kho đóng xong)</span></label>
+      <textarea id="depAddr" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP" style="width:100%; margin-top:4px; font-size:14.5px;"></textarea>
+      <label class="dep-pickup"><input type="checkbox" id="depPickup" onchange="depAddrPickup(this.checked)"> Khách lấy tại cửa hàng / gửi xe (không cần địa chỉ)</label>
+    </div>
     <div class="actions"><button class="btn-ghost" onclick="depProofClose()">Huỷ</button><button class="btn-primary" id="depProofOk" onclick="depProofSubmit()">Xác nhận</button></div>
   </div>
 </div>
@@ -5152,6 +5162,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
+  if(prevInv){ ['shipAddress','abit','shortDeducted'].forEach(k=>{ if(prevInv[k]!=null) finalInvoice[k] = prevInv[k]; }); } // giữ địa chỉ giao, liên kết Abit, lịch sử tự trừ khi Sale sửa
   if(prevInv && prevInv.depositProof) finalInvoice.depositProof = prevInv.depositProof; // giữ ảnh chuyển khoản / ảnh chat khi sửa hoá đơn
   const syncedCount = syncLeadsForInvoice(finalInvoice);
   finalInvoice.leadStatusSynced = true;
@@ -5298,9 +5309,15 @@ function depProofOpen(inv, oldCust, msg, onOk){
   document.getElementById('depProofLabel').innerHTML = oldCust
     ? '📎 Tải <b>ảnh chụp đoạn chat</b> khách đồng ý đặt hàng <span class="pack-note">— bắt buộc, tối đa 3 ảnh</span>'
     : '📎 Tải <b>ảnh chuyển khoản</b> của khách <span class="pack-note">— bắt buộc, tối đa 3 ảnh</span>';
+  // Địa chỉ: điền sẵn từ hoá đơn này / đơn trước của cùng SĐT
+  const prevAddr = inv.shipAddress || ((state.invoices||[]).filter(x=>x && x.id!==inv.id && x.shipAddress && normalizePhone(cleanPhone(x.customerPhone))===normalizePhone(cleanPhone(inv.customerPhone))).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0] || {}).shipAddress || '';
+  const pick = prevAddr==='Khách lấy tại cửa hàng';
+  document.getElementById('depAddr').value = pick ? '' : prevAddr;
+  document.getElementById('depPickup').checked = pick; depAddrPickup(pick);
   depProofRender();
   document.getElementById('depProofModal').classList.add('show');
 }
+function depAddrPickup(on){ const t = document.getElementById('depAddr'); t.disabled = on; t.style.opacity = on ? 0.4 : 1; }
 function depProofClose(){ depProof = null; document.getElementById('depProofModal').classList.remove('show'); }
 function depProofRender(){
   if(!depProof) return;
@@ -5348,6 +5365,12 @@ document.addEventListener('paste', e=>{
 function depProofSubmit(){
   if(!depProof) return;
   if(!depProof.imgs.length){ showToast('📎 Chọn ảnh ' + (depProof.oldCust ? 'đoạn chat' : 'chuyển khoản') + ' trước.'); return; }
+  const pickup = document.getElementById('depPickup').checked;
+  const addr = pickup ? 'Khách lấy tại cửa hàng' : String(document.getElementById('depAddr').value||'').trim().replace(/\s+/g,' ');
+  if(!pickup && addr.length < 10){ showToast('🏠 Nhập địa chỉ giao hàng đầy đủ (hoặc tick "Khách lấy tại cửa hàng").'); document.getElementById('depAddr').focus(); return; }
+  depProof.addr = addr;
+  const invA = (state.invoices||[]).find(x=>x.id===depProof.invId);
+  if(invA){ invA.shipAddress = addr; fbRoot.update({[`invoices/${invA.id}/shipAddress`]: addr}).catch(()=>{}); }
   const fn = depProof.onOk; document.getElementById('depProofModal').classList.remove('show');
   fn(); depProof = null;
 }
@@ -6659,6 +6682,44 @@ function shipUnlockTemp(uid){
     if(currentPageId==='packInvoices') renderPackInvoicesPage();
   });
 }
+
+// ===================== ĐẨY ĐƠN SANG ABIT (qua máy chủ /api/abit-push trên Vercel) =====================
+// Kho bấm Đã đóng / Gửi thiếu → app gọi máy chủ → máy chủ đọc hoá đơn trong Firebase, tạo đơn bên Abit
+// (gộp theo MÃ SP, màu/mẫu ghi vào ghi chú). Mã vận đơn + trạng thái giao do Abit tự gửi về (webhook) → app tự điền.
+const ABIT_API = '/api/abit-push';
+async function abitPush(invId, force){
+  try{
+    const u = firebase.auth().currentUser; if(!u) return {ok:false, error:'chưa đăng nhập'};
+    const idToken = await u.getIdToken();
+    const r = await fetch(ABIT_API, {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + idToken}, body: JSON.stringify({invoiceId: invId, force: !!force})});
+    const j = await r.json().catch(()=>({}));
+    return j && j.ok ? j : {ok:false, error: (j && j.error) || ('HTTP ' + r.status)};
+  }catch(e){ return {ok:false, error: String(e && e.message || e)}; }
+}
+function abitPushAfterPack(invId){
+  setTimeout(async ()=>{
+    const res = await abitPush(invId, false);
+    if(res.ok) showToast(`🔗 Đã tạo đơn trên Abit · ${res.invoice_no || ''}`);
+    else console.warn('Abit push lỗi:', res.error);
+  }, 2500); // chờ hoá đơn / trạng thái ghi xong
+}
+async function abitRetry(invId){
+  showToast('🔗 Đang đẩy sang Abit…');
+  const res = await abitPush(invId, true);
+  showToast(res.ok ? `✅ Đã tạo đơn trên Abit · ${res.invoice_no || ''}` : `⚠ Không đẩy được sang Abit: ${res.error}`);
+  if(currentPageId==='packInvoices') renderPackInvoicesPage(); if(currentPageId==='invoices') renderInvoicesPage();
+}
+// Nhãn Abit (hoá đơn / bảng kho)
+const ABIT_STATUS_NAME = {Daguibuudien:'Đã gửi BĐ', Sent:'Đã gửi', Chuaphatduoc:'Chưa phát được', Giaohangcovande:'Giao có vấn đề', Daphatthanhcong:'Phát thành công',
+  Tuchoinhan:'Từ chối nhận', Chuyenhoan:'Chuyển hoàn', Daphathoanthanhcong:'Đã hoàn về', CODDathutien:'COD đã thu', Dathutien:'Đã thu tiền', Dadoisoat:'Đã đối soát',
+  Huyvandon:'Huỷ vận đơn', Dadonggoi:'Đã đóng gói', Dain:'Đã in', AutoCreated:'Mới tạo', Matdonhang:'Mất đơn', Khonglayduochang:'Không lấy được hàng'};
+const ABIT_BAD = ['Chuaphatduoc','Giaohangcovande','Tuchoinhan','Chuyenhoan','Daphathoanthanhcong','Huyvandon','Matdonhang','Khonglayduochang'];
+function abitTagHtml(inv){
+  const a = inv && inv.abit; if(!a) return '';
+  if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
+  const st = a.status ? (ABIT_STATUS_NAME[a.status] || a.status) : '';
+  return ` <span class="abit-tag ${ABIT_BAD.includes(a.status) ? 'bad' : (a.status==='Daphatthanhcong' || a.status==='CODDathutien' || a.status==='Dadoisoat' ? 'ok' : '')}" title="Đơn trên Abit ${escHtml(a.invoice_no||'')}${a.statusAt ? ' · cập nhật ' + packTimeStr(a.statusAt) : ''}">🔗 ${escHtml(a.invoice_no||'Abit')}${st ? ' · ' + escHtml(st) : ''}</span>`;
+}
 // ===================== ĐÃ ĐÓNG → SALE LÊN VẬN ĐƠN =====================
 // Kho bấm Đã đóng (đủ hoặc gửi thiếu) → máy Sale hiện POPUP + tiếng ting (gộp nhiều đơn).
 // Đơn vào "🚚 Chờ lên vận đơn" (trong Cần xử lý) tới khi Sale bấm "Đã lên vận đơn" (kèm hãng + mã vận đơn nếu có).
@@ -6667,6 +6728,13 @@ const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khá
 const SHIP_LATE_HOURS = 1;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
+  if(!ps || ps.legacy) return '';
+  const invK = packInvById(ps.id); const abitH = invK ? abitTagHtml(invK) : '';
+  if(abitH && !ps.ship) return `<div class="pack-sub">${abitH}</div>` + shipKhoLine2(ps);
+  if(abitH && ps.ship) return shipKhoLine2(ps).replace(/<\/div>$/, abitH + '</div>');
+  return shipKhoLine2(ps);
+}
+function shipKhoLine2(ps){
   if(!ps || ps.legacy) return '';
   if(!ps.ship && shipHoldActive(ps)) return `<div class="pack-sub" style="color:#A9C4FF;" title="${escHtml(ps.shipHold.reason||'')}">⏸ Sale hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))} — ${escHtml(ps.shipHold.reason||'')}</div>`;
   if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 Sale đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
@@ -8114,7 +8182,7 @@ function packAfterActionNoCam(){ if(packPanel){ packPickClear(packPanel.invId); 
 function packAfterAction(){
   const fromCam = packPanel && packPanel.fromCam;
   const fromClaim = packPanel && !!packMyClaimIs(packPanel.invId) && !packIsSale(currentUser());
-  if(packPanel){ packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packSnapClear(packPanel.invId); packClaimDoneFor(packPanel.invId); }
+  if(packPanel){ abitPushAfterPack(packPanel.invId); packPickClear(packPanel.invId); packDraftClear(packPanel.invId); packSnapClear(packPanel.invId); packClaimDoneFor(packPanel.invId); } // đóng xong → tự đẩy đơn sang Abit (máy chủ chỉ tạo khi đơn đã đóng)
   if(fromClaim){ packPanelClose(); setTimeout(()=>showToast('✅ Xong đơn — bấm 📥 Nhận đơn để nhận đơn tiếp'), 600); return; }
   packPanelClose();
   if(fromCam){ packLastCamAt = nowMs(); setTimeout(()=>{ if(!document.getElementById('packPanelModal').classList.contains('show')) packScanStart(); }, 700); }
@@ -8857,6 +8925,11 @@ function packSaleBadgeHtml(inv){
       : `<button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button>`;
     return `<div class="pack-sale-badge warn inv-one-line" title="Kho gửi thiếu — báo khách & sửa hoá đơn bỏ món thiếu">📦 Gửi thiếu ${packTimeShort(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} · <span>trừ ${escHtml(packShortText(ps.shortItems))}${ps.deductAmount ? ` (−${fmtMoney(ps.deductAmount)} đ, HĐ đã tự trừ)` : ''}</span>${phS}</div><div class="inv-one-line" style="margin-top:2px;">${shipPart}${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   }
+  if(ps.state==='packed' && !ps.legacy && inv.abit){ const base0 = packSaleBadgeHtmlPacked(inv, ps); return base0.replace(/<\/div>/, abitTagHtml(inv) + '</div>'); }
+  return packSaleBadgeHtmlPacked(inv, ps);
+}
+function packSaleBadgeHtmlPacked(inv, ps){
+  const ph = '';
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = (ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''))) + (ps.pkgs ? ` · <b class="pkgs-tag">${ps.pkgs} kiện</b>` : '');
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
