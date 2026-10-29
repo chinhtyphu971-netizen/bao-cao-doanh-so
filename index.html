@@ -1571,6 +1571,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .abit-tag{ display:inline-block; font-size:11.5px; font-weight:800; color:#A9C4FF; background:rgba(79,140,255,0.14); border:1px solid rgba(79,140,255,0.4); border-radius:6px; padding:0 6px; margin-left:3px; white-space:nowrap; text-decoration:none !important; }
   .abit-tag.ok{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .abit-tag.bad{ color:#FF8A8D; background:rgba(229,72,77,0.14); border-color:rgba(229,72,77,0.5); }
+  .dep-addr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+  .dep-addr-grid #depWard{ grid-column:1 / -1; }
+  .dep-addr-grid select{ width:100%; font-size:13.5px; min-width:0; }
+  @media (max-width:560px){ .dep-addr-grid{ grid-template-columns:1fr; } }
   .dep-pickup{ display:flex; align-items:center; gap:6px; margin-top:6px; font-size:13px; cursor:pointer; }
   .dep-pickup input{ width:auto !important; min-height:0 !important; }
   .chat-mini{ text-decoration:none !important; font-size:14px; position:relative; margin-left:2px; }
@@ -3129,8 +3133,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="pack-note" id="depProofBusy" style="display:none; margin-top:6px;">⏳ Đang nén ảnh…</div>
     <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
     <div id="depAddrWrap" style="margin-top:12px;">
-      <label class="pack-p-label">🏠 Địa chỉ giao hàng <span class="pack-note">— bắt buộc (tự đẩy sang Abit khi kho đóng xong)</span></label>
-      <textarea id="depAddr" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP" style="width:100%; margin-top:4px; font-size:14.5px;"></textarea>
+      <label class="pack-p-label">🏠 Địa chỉ giao hàng <span class="pack-note">— bắt buộc · theo địa giới <b>cũ (trước sáp nhập)</b></span></label>
+      <div id="depAddrSel" class="dep-addr-grid">
+        <select id="depProv" onchange="depAddrFill('prov')"><option value="">— Tỉnh / Thành phố —</option></select>
+        <select id="depDist" onchange="depAddrFill('dist')"><option value="">— Quận / Huyện —</option></select>
+        <select id="depWard"><option value="">— Phường / Xã —</option></select>
+      </div>
+      <input id="depStreet" placeholder="Số nhà, tên đường / thôn, xóm" style="width:100%; margin-top:6px; font-size:14.5px;">
+      <textarea id="depAddr" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP" style="width:100%; margin-top:4px; font-size:14.5px; display:none;"></textarea>
       <label class="dep-pickup"><input type="checkbox" id="depPickup" onchange="depAddrPickup(this.checked)"> Khách lấy tại cửa hàng / gửi xe (không cần địa chỉ)</label>
     </div>
     <div class="actions"><button class="btn-ghost" onclick="depProofClose()">Huỷ</button><button class="btn-primary" id="depProofOk" onclick="depProofSubmit()">Xác nhận</button></div>
@@ -5162,7 +5172,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
-  if(prevInv){ ['shipAddress','abit','shortDeducted'].forEach(k=>{ if(prevInv[k]!=null) finalInvoice[k] = prevInv[k]; }); } // giữ địa chỉ giao, liên kết Abit, lịch sử tự trừ khi Sale sửa
+  if(prevInv){ ['shipAddress','shipAddr','abit','shortDeducted'].forEach(k=>{ if(prevInv[k]!=null) finalInvoice[k] = prevInv[k]; }); } // giữ địa chỉ giao, liên kết Abit, lịch sử tự trừ khi Sale sửa
   if(prevInv && prevInv.depositProof) finalInvoice.depositProof = prevInv.depositProof; // giữ ảnh chuyển khoản / ảnh chat khi sửa hoá đơn
   const syncedCount = syncLeadsForInvoice(finalInvoice);
   finalInvoice.leadStatusSynced = true;
@@ -5312,12 +5322,67 @@ function depProofOpen(inv, oldCust, msg, onOk){
   // Địa chỉ: điền sẵn từ hoá đơn này / đơn trước của cùng SĐT
   const prevAddr = inv.shipAddress || ((state.invoices||[]).filter(x=>x && x.id!==inv.id && x.shipAddress && normalizePhone(cleanPhone(x.customerPhone))===normalizePhone(cleanPhone(inv.customerPhone))).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0] || {}).shipAddress || '';
   const pick = prevAddr==='Khách lấy tại cửa hàng';
+  const prevObj = inv.shipAddr || ((state.invoices||[]).filter(x=>x && x.id!==inv.id && x.shipAddr && normalizePhone(cleanPhone(x.customerPhone))===normalizePhone(cleanPhone(inv.customerPhone))).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0] || {}).shipAddr || null;
   document.getElementById('depAddr').value = pick ? '' : prevAddr;
+  document.getElementById('depStreet').value = prevObj ? (prevObj.street||'') : '';
   document.getElementById('depPickup').checked = pick; depAddrPickup(pick);
+  depAddrLoad().then(()=>depAddrSet(prevObj));
   depProofRender();
   document.getElementById('depProofModal').classList.add('show');
 }
-function depAddrPickup(on){ const t = document.getElementById('depAddr'); t.disabled = on; t.style.opacity = on ? 0.4 : 1; }
+function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
+// ===== Địa giới hành chính CŨ (63 tỉnh / quận-huyện / phường-xã, trước sáp nhập) — tệp dvhc-cu.json, tải khi cần =====
+let DVHC = null, dvhcLoading = null;
+function depAddrLoad(){
+  if(DVHC) return Promise.resolve(DVHC);
+  if(!dvhcLoading) dvhcLoading = fetch('dvhc-cu.json', {cache:'force-cache'}).then(r=>r.ok ? r.json() : Promise.reject()).then(d=>{ DVHC = d; return d; })
+    .catch(()=>{ DVHC = null; dvhcLoading = null; return null; });
+  return dvhcLoading.then(d=>{
+    const sel = document.getElementById('depAddrSel'), free = document.getElementById('depAddr'), st = document.getElementById('depStreet');
+    if(!d){ sel.style.display = 'none'; st.style.display = 'none'; free.style.display = ''; return null; } // không tải được → nhập tay
+    sel.style.display = ''; st.style.display = ''; free.style.display = 'none';
+    const pv = document.getElementById('depProv');
+    if(pv.options.length <= 1) pv.innerHTML = '<option value="">— Tỉnh / Thành phố —</option>' + d.map((p,i)=>`<option value="${i}">${escHtml(p[0])}</option>`).join('');
+    return d;
+  });
+}
+function depAddrFill(level){
+  if(!DVHC) return;
+  const pi = document.getElementById('depProv').value, dv = document.getElementById('depDist'), wv = document.getElementById('depWard');
+  if(level==='prov'){
+    dv.innerHTML = '<option value="">— Quận / Huyện —</option>' + (pi!=='' ? DVHC[pi][1].map((x,i)=>`<option value="${i}">${escHtml(x[0])}</option>`).join('') : '');
+    wv.innerHTML = '<option value="">— Phường / Xã —</option>';
+  }
+  if(level==='dist' || level==='prov'){
+    const di = dv.value;
+    const wards = (pi!=='' && di!=='') ? DVHC[pi][1][di][1] : [];
+    wv.innerHTML = '<option value="">— Phường / Xã —</option>' + wards.map(w=>`<option value="${escHtml(w)}">${escHtml(w)}</option>`).join('');
+  }
+}
+function depAddrSet(o){
+  if(!DVHC || !o) return;
+  const pi = DVHC.findIndex(p=>p[0]===o.province); if(pi<0) return;
+  document.getElementById('depProv').value = String(pi); depAddrFill('prov');
+  const di = DVHC[pi][1].findIndex(x=>x[0]===o.district); if(di<0) return;
+  document.getElementById('depDist').value = String(di); depAddrFill('dist');
+  if(o.ward) document.getElementById('depWard').value = o.ward;
+}
+// Đọc địa chỉ đã chọn → {ok, text, obj, err}
+function depAddrRead(){
+  if(!DVHC || document.getElementById('depAddrSel').style.display==='none'){
+    const t = String(document.getElementById('depAddr').value||'').trim().replace(/\s+/g,' ');
+    return t.length >= 10 ? {ok:true, text:t, obj:null} : {ok:false, err:'🏠 Nhập địa chỉ giao hàng đầy đủ.'};
+  }
+  const pi = document.getElementById('depProv').value, di = document.getElementById('depDist').value;
+  const ward = document.getElementById('depWard').value, street = String(document.getElementById('depStreet').value||'').trim().replace(/\s+/g,' ');
+  if(pi==='') return {ok:false, err:'🏠 Chọn Tỉnh / Thành phố.'};
+  if(di==='') return {ok:false, err:'🏠 Chọn Quận / Huyện.'};
+  const hasWards = DVHC[pi][1][di][1].length > 0;
+  if(hasWards && !ward) return {ok:false, err:'🏠 Chọn Phường / Xã.'};
+  if(street.length < 2) return {ok:false, err:'🏠 Nhập số nhà, tên đường / thôn, xóm.'};
+  const province = DVHC[pi][0], district = DVHC[pi][1][di][0];
+  return {ok:true, text:[street, ward, district, province].filter(Boolean).join(', '), obj:{street, ward, district, province}};
+}
 function depProofClose(){ depProof = null; document.getElementById('depProofModal').classList.remove('show'); }
 function depProofRender(){
   if(!depProof) return;
@@ -5366,11 +5431,11 @@ function depProofSubmit(){
   if(!depProof) return;
   if(!depProof.imgs.length){ showToast('📎 Chọn ảnh ' + (depProof.oldCust ? 'đoạn chat' : 'chuyển khoản') + ' trước.'); return; }
   const pickup = document.getElementById('depPickup').checked;
-  const addr = pickup ? 'Khách lấy tại cửa hàng' : String(document.getElementById('depAddr').value||'').trim().replace(/\s+/g,' ');
-  if(!pickup && addr.length < 10){ showToast('🏠 Nhập địa chỉ giao hàng đầy đủ (hoặc tick "Khách lấy tại cửa hàng").'); document.getElementById('depAddr').focus(); return; }
-  depProof.addr = addr;
+  const ra = pickup ? {ok:true, text:'Khách lấy tại cửa hàng', obj:null} : depAddrRead();
+  if(!ra.ok){ showToast(ra.err + ' (hoặc tick "Khách lấy tại cửa hàng")'); return; }
+  depProof.addr = ra.text;
   const invA = (state.invoices||[]).find(x=>x.id===depProof.invId);
-  if(invA){ invA.shipAddress = addr; fbRoot.update({[`invoices/${invA.id}/shipAddress`]: addr}).catch(()=>{}); }
+  if(invA){ invA.shipAddress = ra.text; invA.shipAddr = ra.obj; fbRoot.update({[`invoices/${invA.id}/shipAddress`]: ra.text, [`invoices/${invA.id}/shipAddr`]: ra.obj}).catch(()=>{}); }
   const fn = depProof.onOk; document.getElementById('depProofModal').classList.remove('show');
   fn(); depProof = null;
 }
