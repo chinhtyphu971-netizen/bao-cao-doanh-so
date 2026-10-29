@@ -6238,8 +6238,10 @@ function packCurrentList(){
   const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
   // Mục "Chờ bù hàng": đơn báo thiếu LÂU NHẤT lên đầu (chờ lâu cần xử lý trước), không theo ô sắp xếp cọc
   const shortAtOf = id=>{ const p = smapL[id]; return p ? Number(p.shortAt||p.at||0) : 0; };
+  const packedAtOf = id=>{ const p = smapL[id]; return p ? Number(p.packedAt||p.at||0) : 0; };
   list.sort((a,b)=>((isUrgOpen(b.id) ? 1 : 0) - (isUrgOpen(a.id) ? 1 : 0)) // 🏃 / 🚌 đơn ưu tiên CHƯA đóng lên đầu
     || (status==='short' ? shortAtOf(a.id) - shortAtOf(b.id) : 0)
+    || (status==='packed' ? packedAtOf(b.id) - packedAtOf(a.id) : 0) // "Đã đóng": kho đóng MỚI NHẤT lên đầu
     || (sortDir==='desc' ? packDepositMs(b)-packDepositMs(a) : packDepositMs(a)-packDepositMs(b))); // mặc định cọc mới trước
   return {list, counts, map, smap, status};
 }
