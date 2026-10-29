@@ -1677,6 +1677,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-tiles > details[open] > *:not(summary){ margin-left:16px; margin-right:16px; }
   .pack-tiles > details[open]{ padding-bottom:14px; }
   @media (max-width:560px){ .pack-tiles{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; } .pack-tiles > details > summary{ font-size:13px; padding:12px; min-height:60px; } }
+  #packTable td.pack-sale-col{ white-space:nowrap; font-weight:600; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
   .pack-label-two{ display:inline-flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; white-space:nowrap; }
   .pack-label-two input{ width:auto !important; min-height:0 !important; }
   .lbl-a4page{ display:grid; grid-template-columns:100mm 100mm; grid-auto-rows:140mm; gap:0; justify-content:center; break-after:page; page-break-after:always; }
@@ -6533,7 +6534,7 @@ function renderPackInvoicesPage(){
     table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : (status==='short' ? 'Không có đơn nào chờ bù hàng 🎉' : 'Không có hoá đơn nào phù hợp.'))}</td></tr>`;
     return;
   }
-  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th>Trạng thái</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sale</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th>Trạng thái</th><th>Sale</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
     pageSlice('packInv', list, PACK_PER_PAGE).map(inv=>{
       const pp = map[inv.id]; const stt = packStatusOf(inv, pp);
       const stHtml = packStatusBadgeHtml(inv, pp, smap[inv.id]);
@@ -6546,9 +6547,9 @@ function renderPackInvoicesPage(){
         </td>
         <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${(()=>{ const lb = (state.packLabels||[]).find(x=>x && x.id===inv.id); return lb ? ` <span class="lbl-done-mark" title="Đã in tem ${lb.n||1} lần · lần cuối ${packTimeStr(lb.at)}${lb.byName ? ' · ' + escHtml(lb.byName) : ''}">🏷️${(lb.n||1) > 1 ? '×' + lb.n : ''}</span>` : ''; })()}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
         <td data-label="Trạng thái">${stHtml}</td>
+        <td data-label="Sale" class="pack-sale-col">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
         <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
         <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
-        <td data-label="Sale">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
         <td data-label="Sản phẩm" class="pack-items"><div class="pack-items-clamp" title="Bấm để xem đủ / thu gọn" onclick="this.classList.toggle('open')">${packItemsSummaryHtml(inv)}</div></td>
         <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
       </tr>`;
