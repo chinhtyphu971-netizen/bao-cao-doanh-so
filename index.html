@@ -12894,7 +12894,7 @@ function renderMgrSelfLeadsList(){
       return `<tr>
       <td data-label="Ngày">${fmtDateTimeShort(l.createdAt)}</td>
       <td data-label="Sale">${owner ? owner.name : '—'}</td>
-      <td data-label="SĐT / Link FB"><span class="self-link-cell" title="${escHtml(l.phone||'')}">${/^https?:\/\//i.test(String(l.phone||'')) ? `<a href="${escHtml(l.phone)}" target="_blank" rel="noopener">${escHtml(shortFbLink(l.phone))}</a>` : escHtml(l.phone||'—')}</span> ${l.phone?`<span class="copy-icon" onclick="copyText('${String(l.phone).replace(/'/g,"\\'")}','Đã copy')">📋</span>`:''}</td>
+      <td data-label="SĐT / Link FB"><span class="self-link-cell">${/^https?:\/\//i.test(String(l.phone||'')) ? `<a href="${escHtml(l.phone)}" target="_blank" rel="noopener">${escHtml(shortFbLink(l.phone))}</a>` : (l.phone ? escHtml(maskPhone(l.phone) || l.phone) : '—')}</span> ${l.phone?`<span class="copy-icon" onclick="copyText('${String(l.phone).replace(/'/g,"\\'")}','Đã copy')">📋</span>`:''}</td>
       <td data-label="Tên khách">${l.customerName||'—'}</td>
       <td data-label="Nguồn">${l.source||'—'}</td>
       <td data-label="Trạng thái">${l.status||'—'}</td>
