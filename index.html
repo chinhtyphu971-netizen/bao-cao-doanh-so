@@ -17068,7 +17068,7 @@ function openEditUserModal(userId){
   document.getElementById('editUserPin').value = u.pin;
   document.getElementById('editUserZalo').value = u.zaloPhone || '';
   const me0 = currentUser();
-  document.getElementById('editUserAbitRow').style.display = (me0 && me0.role==='general_manager' && packIsSale(u)) ? 'block' : 'none';
+  document.getElementById('editUserAbitRow').style.display = (me0 && me0.role==='general_manager') ? 'block' : 'none'; // mọi tài khoản tự lên hoá đơn (Sale, Quản lý team, Quản lý chung…)
   document.getElementById('editUserAbit').value = u.abitAccount || '';
   document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
   document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
