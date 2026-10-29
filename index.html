@@ -1574,6 +1574,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .dep-paste{ display:flex; gap:6px; align-items:stretch; margin-top:6px; }
   .dep-paste textarea{ flex:1; font-size:13.5px; min-height:44px; }
   .dep-paste button{ flex:0 0 auto; white-space:nowrap; }
+  /* Cửa sổ xác nhận cọc dài (ảnh + địa chỉ + người nhận) → cuộn được, nút Xác nhận luôn ghim ở đáy */
+  #depProofModal .modal{ max-height:94vh; overflow-y:auto; }
+  #depProofModal .actions{ position:sticky; bottom:-1px; background:var(--panel); padding:10px 0 4px; margin-top:10px; z-index:3; box-shadow:0 -8px 12px -8px rgba(0,0,0,0.5); }
   .dep-recv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
   @media (max-width:420px){ .dep-recv-grid{ grid-template-columns:1fr; } }
   .dep-addr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
