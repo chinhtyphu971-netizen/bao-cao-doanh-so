@@ -2323,7 +2323,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="pack-actions">
             <button class="btn-ghost btn-small" onclick="packToggleAll()" id="packToggleAllBtn">☑ Chọn tất cả</button>
             <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
-            <button class="btn-ghost pack-clean-btn" onclick="packCleanupOpen()" title="Đánh dấu hàng loạt đơn cũ (cọc trước 1 ngày) là đã xử lý ngoài quy trình">🧹 Dọn đơn cũ</button>
             <button class="btn-ghost" onclick="packLabelPrintSelected()" title="In tem dán gói: tên khách to, Sale, Số HĐ, mã QR">🏷️ In tem đã chọn</button>
             <select id="packLabelSize" onchange="try{localStorage.setItem('pack_label_size', this.value)}catch(e){}" title="Khổ giấy tem" style="width:auto;">
               <option value="100x150" selected>Giấy nhiệt 100×150 (như tem vận chuyển)</option><option value="100x100">Tem 100×100</option><option value="a4">A4 (4 tem/trang)</option>
@@ -6232,7 +6231,7 @@ function packCurrentList(){
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
   const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
-  const OPEN = ['new','claimed','changed','done'];
+  const OPEN = ['new','claimed','changed','done','short']; // "Chưa đóng" gồm cả đơn đang CHỜ BÙ
   base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; });
   const list = status==='all' ? base : base.filter(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
   const umapL = packUrgentMap(); const smapL = packStatusMap();
