@@ -6544,7 +6544,7 @@ async function packFetchInvoiceByNumber(code){
 // Đơn kho đã đóng quá 8 GIỜ mà Sale chưa lên vận đơn → KHOÁ nút tạo hoá đơn mới (không khoá cọc / data / báo cáo).
 // Bắt đầu tính từ 07:00 sáng 28/10/2026 (đơn đóng trước đó được tính 8 giờ kể từ mốc này).
 // Ngoại lệ: "⏸ Hoãn gửi" (lý do + ngày dự kiến) · Quản lý chung "Mở khoá tạm 1 giờ" cho từng Sale.
-const SHIP_LOCK_HOURS = 4; // 4 GIỜ LÀM VIỆC (không tính giờ nghỉ 18h → 7h sáng)
+const SHIP_LOCK_HOURS = 1; // 1 GIỜ LÀM VIỆC (không tính giờ nghỉ 18h → 7h sáng)
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
 function shipHoldActive(ps){ if(!ps || !ps.shipHold || !ps.shipHold.until) return false; return todayStr() <= ps.shipHold.until; }
@@ -6658,7 +6658,7 @@ function shipUnlockTemp(uid){
 // Đơn vào "🚚 Chờ lên vận đơn" (trong Cần xử lý) tới khi Sale bấm "Đã lên vận đơn" (kèm hãng + mã vận đơn nếu có).
 // Lưu ở packStatus/{hoáĐơn}/ship = {at, by, byName, carrier, code}.
 const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','Gửi xe khách','GHTK','GHN','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao']; // 3 hãng hay dùng nhất lên đầu
-const SHIP_LATE_HOURS = 4;
+const SHIP_LATE_HOURS = 1;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
@@ -8857,7 +8857,7 @@ function packSaleBadgeHtml(inv){
     if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
     if(shipHoldActive(ps)) return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <span class="hold-tag" title="${escHtml(ps.shipHold.reason||'')}">⏸ Hoãn tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
     const isLate = shipIsLate(ps); const oldDay = Number(ps.packedAt||ps.at||0) < new Date(new Date(nowMs()).setHours(0,0,0,0)).getTime();
-    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${isLate ? ` <span class="hold-tag late">🔒 quá ${SHIP_LOCK_HOURS} giờ</span>` : ` <span class="hold-tag" title="Giờ làm việc 7h–18h">⏳ còn ${Math.max(0, SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs())).toFixed(1)} giờ</span>`}</div>`;
+    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${isLate ? ` <span class="hold-tag late">🔒 quá ${SHIP_LOCK_HOURS} giờ chưa lên</span>` : ` <span class="hold-tag" title="Tính giờ làm việc 7h–18h">⏳ còn ${Math.max(1, Math.round((SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs()))*60))} phút</span>`}</div>`;
   }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='short'){
