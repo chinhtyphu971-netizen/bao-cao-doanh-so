@@ -2286,6 +2286,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="shipLockedBox"></div>
           <div class="pack-toolbar">
             <select id="packStatusSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
+              <option value="open" selected>📦 Chưa đóng</option>
               <option value="new">🆕 Chưa in</option>
               <option value="claimed">📱 Đang được nhận</option>
               <option value="changed">⚠ Đã sửa sau khi in</option>
@@ -2319,6 +2320,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="pack-actions">
             <button class="btn-ghost btn-small" onclick="packToggleAll()" id="packToggleAllBtn">☑ Chọn tất cả</button>
             <button class="btn-primary" onclick="packPrintSelected()" id="packPrintBtn">🖨️ In hoá đơn đã chọn</button>
+            <button class="btn-ghost pack-clean-btn" onclick="packCleanupOpen()" title="Đánh dấu hàng loạt đơn cũ (cọc trước 1 ngày) là đã xử lý ngoài quy trình">🧹 Dọn đơn cũ</button>
             <button class="btn-ghost" onclick="packLabelPrintSelected()" title="In tem dán gói: tên khách to, Sale, Số HĐ, mã QR">🏷️ In tem đã chọn</button>
             <select id="packLabelSize" onchange="try{localStorage.setItem('pack_label_size', this.value)}catch(e){}" title="Khổ giấy tem" style="width:auto;">
               <option value="100x150" selected>Giấy nhiệt 100×150 (như tem vận chuyển)</option><option value="100x100">Tem 100×100</option><option value="a4">A4 (4 tem/trang)</option>
@@ -3227,6 +3229,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <button class="btn-ghost" onclick="document.getElementById('refillSnapModal').classList.remove('show')">Đóng</button>
       <button class="btn-primary" onclick="refillSnapShare()">📤 Gửi Zalo (ảnh)</button>
     </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="packCleanModal" onclick="if(event.target===this) this.classList.remove('show')">
+  <div class="modal" style="max-width:460px;">
+    <h2>🧹 Dọn đơn cũ</h2>
+    <div class="field"><label>Đơn cọc TRƯỚC ngày</label><input type="date" id="packCleanDate" onchange="packCleanupPreview()"></div>
+    <div id="packCleanInfo" class="pack-note"></div>
+    <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packCleanModal').classList.remove('show')">Huỷ</button><button class="btn-danger" id="packCleanOk" onclick="packCleanupRun()">🧹 Dọn</button></div>
   </div>
 </div>
 <!-- Sale: Kho đã đóng đơn → lên vận đơn -->
@@ -6159,7 +6169,7 @@ function packCurrentList(){
   const statusSel = document.getElementById('packStatusSel');
   const rangeSel = document.getElementById('packRangeSel');
   const searchEl = document.getElementById('packSearch');
-  const status = statusSel ? statusSel.value : 'new';
+  const status = statusSel ? statusSel.value : 'open';
   const range = rangeSel ? rangeSel.value : 'all';
   const q = searchEl ? searchEl.value : '';
   const pq = normalizeSearchText((document.getElementById('packProdSearch')||{}).value || '');
@@ -6218,9 +6228,10 @@ function packCurrentList(){
   }
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
-  const counts = {new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
-  base.forEach(inv=>{ counts[packFlowStatus(inv, map[inv.id], smap[inv.id])]++; });
-  const list = status==='all' ? base : base.filter(inv=>packFlowStatus(inv, map[inv.id], smap[inv.id])===status);
+  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
+  const OPEN = ['new','claimed','changed','done'];
+  base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; });
+  const list = status==='all' ? base : base.filter(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
   const umapL = packUrgentMap(); const smapL = packStatusMap();
   const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
   // Mục "Chờ bù hàng": đơn báo thiếu LÂU NHẤT lên đầu (chờ lâu cần xử lý trước), không theo ô sắp xếp cọc
@@ -6239,12 +6250,13 @@ function renderPackInvoicesPage(){
   packAttachPresence();
   const {list, counts, map, smap, status} = packCurrentList();
   { const lc = document.getElementById('shipLockedBox'); if(lc) lc.innerHTML = shipLockedSalesHtml(); }
+  { const cb = document.querySelector('.pack-clean-btn'); if(cb) cb.style.display = ['general_manager','warehouse'].includes((currentUser()||{}).role) ? '' : 'none'; }
   { const rh = document.getElementById('refillHistDetails'); if(rh) rh.style.display = (currentUser()||{}).role==='general_manager' ? '' : 'none'; }
   setTimeout(()=>{ try{ refillSnapCheck(); }catch(e){} }, 500);
   { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
-    const lab = {new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
+    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
     Array.from(statusSel.options).forEach(o=>{ if(lab[o.value]) o.textContent = lab[o.value]; });
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
@@ -6382,6 +6394,42 @@ function packMarkLegacySelected(){
   });
 }
 
+
+// ===== 🧹 DỌN ĐƠN CŨ: đơn đã cọc trước 1 ngày chọn, chưa đóng (đã in / chưa in) → đánh dấu "đơn cũ — đã xử lý ngoài quy trình" =====
+function packCleanupOpen(){
+  const me = currentUser() || {}; if(!['general_manager','warehouse'].includes(me.role)) return;
+  const d = new Date(nowMs()); d.setDate(d.getDate()-3);
+  document.getElementById('packCleanDate').value = toLocalDateStr(d);
+  packCleanupPreview();
+  document.getElementById('packCleanModal').classList.add('show');
+}
+function packCleanupList(){
+  const day = document.getElementById('packCleanDate').value; if(!day) return [];
+  const smap = packStatusMap();
+  return (state.invoices||[]).filter(inv=>inv && inv.depositLink && !smap[inv.id] && toLocalDateStr(new Date(packDepositMs(inv))) < day && !packActiveClaimOf(inv.id));
+}
+function packCleanupPreview(){
+  const list = packCleanupList(); const pmap = packPrintMap();
+  const printed = list.filter(inv=>pmap[inv.id]).length;
+  document.getElementById('packCleanInfo').innerHTML = list.length
+    ? `Sẽ dọn <b>${list.length} đơn</b> cọc trước ngày đã chọn mà kho chưa đóng: <b>${printed}</b> đã in phiếu · <b>${list.length - printed}</b> chưa in.<div class="pack-note" style="margin-top:6px;">Các đơn này chuyển thành <b>"✅ Đơn cũ — đã xử lý ngoài quy trình"</b>: ra khỏi danh sách chờ, không vào hàng Nhận đơn, không tính thống kê, không khoá vận đơn của Sale. Đơn đang có người nhận / chờ bù / đã đóng thì KHÔNG bị đụng.</div>`
+    : 'Không có đơn nào cần dọn trước ngày này.';
+  document.getElementById('packCleanOk').disabled = !list.length;
+}
+function packCleanupRun(){
+  const list = packCleanupList(); if(!list.length) return;
+  askConfirm(`Dọn ${list.length} đơn cũ?`, 'Đánh dấu các đơn này là đã xử lý ngoài quy trình. Chỉ dùng cho đơn THỰC SỰ đã gửi / đã xử lý từ trước.', ()=>{
+    const me = currentUser() || {}; const now = nowMs(); const upd = {};
+    list.forEach(inv=>{ upd[`packStatus/${inv.id}`] = {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), state:'packed', legacy:true,
+      at: now, packedAt: now, staffId:'', staffName:'Đơn cũ', byUser: me.id||'', byUserName: me.name||'', cleanedBefore: document.getElementById('packCleanDate').value}; });
+    const keys = Object.keys(upd); const chunks = [];
+    for(let i=0;i<keys.length;i+=300){ const c = {}; keys.slice(i,i+300).forEach(k=>{ c[k] = upd[k]; }); chunks.push(c); }
+    Promise.all(chunks.map(c=>fbRoot.update(c))).then(()=>{
+      document.getElementById('packCleanModal').classList.remove('show');
+      showToast(`🧹 Đã dọn ${list.length} đơn cũ`); renderPackInvoicesPage();
+    }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi thử lại.'); });
+  });
+}
 // ===================== TÀI KHOẢN NHÂN VIÊN ĐÓNG GÓI =====================
 // Quản lý chung, hoặc người được tick "🔑 Được tạo / quản lý tài khoản Nhân viên đóng gói" (canManagePackers).
 // CHỈ tạo / sửa / cho nghỉ được tài khoản vai trò Nhân viên đóng gói — không đụng được tài khoản khác.
@@ -6875,7 +6923,7 @@ function packClaimQueue(){
   const me = currentUser() || {};
   const smap = packStatusMap(), pmap = packPrintMap(), umap = packUrgentMap();
   const invs = (state.invoices||[]).filter(inv=>inv && inv.depositLink && !packActiveClaimOf(inv.id));
-  const normal = invs.filter(inv=>!smap[inv.id] && (!pmap[inv.id] || umap[inv.id]));
+  const normal = invs.filter(inv=>!smap[inv.id]); // mọi đơn đã cọc chưa đóng (in phiếu hay chưa đều vào hàng chờ)
   const ready = invs.filter(inv=>{
     const ps = smap[inv.id]; if(!packReadyShort(ps)) return false;
     return packShortReporter(ps)===me.id || (nowMs() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
@@ -9025,6 +9073,11 @@ function packOpenInvoiceByCode(raw){
   if(!inv){ packBeep(false); showToast(me.role==='packer' ? `⛔ Không tìm thấy hoá đơn ${code} trong các đơn ĐÃ CỌC — đơn chưa cọc / đã huỷ cọc / quá ${INVOICE_KEEP_DAYS} ngày. KHÔNG đóng, đưa phiếu cho Kho trưởng.` : `Không tìm thấy hoá đơn ${code} (có thể đã quá ${INVOICE_KEEP_DAYS} ngày hoặc đã bị xoá).`); return false; }
   closeInvoiceView();
   packPanelOpen(inv.id);
+  // Kho quét phiếu / tem → TỰ NHẬN đơn (đơn mới, còn trống) → người khác không làm trùng
+  if(['packer','warehouse'].includes(me.role) && !packIsSale(me)){
+    const ps0 = packStatusMap()[inv.id]; const c0 = packActiveClaimOf(inv.id);
+    if(!ps0 && inv.depositLink && !c0) packClaimSpecific(inv.id);
+  }
   const ps = packStatusMap()[inv.id], pp = packPrintMap()[inv.id];
   const bad = !inv.depositLink || (ps && ps.state==='packed') || (pp && pp.sig!==packSig(inv));
   packBeep(!bad);
