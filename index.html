@@ -1568,6 +1568,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .ship-lock-row > span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ship-lock-row .btn-small{ flex:0 0 auto; padding:3px 8px !important; font-size:12px !important; min-height:0 !important; }
   @media (max-width:720px){ .ship-lock-rows{ grid-template-columns:1fr; } }
+  .chat-mini{ text-decoration:none !important; font-size:14px; position:relative; margin-left:2px; }
+  .chat-mini .pack-dot{ position:absolute; top:-2px; right:-5px; }
   .ship-pkgs{ color:#F6C27A; font-weight:800; font-size:12px; }
   .ship-code-link{ color:#8DB4FF !important; font-weight:800; text-decoration:underline dotted; white-space:nowrap; }
   .inv-ol-ship{ color:#6FD99A; font-size:12.5px; font-weight:700; }
@@ -7793,8 +7795,8 @@ function packStatusBadgeInner2(inv, pp, ps){
   if(cl){ const me = currentUser() || {}; const pg = packPickProgressOf(inv.id); return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span>${pg && pg.need ? ` <span class="pick-prog ${pg.got>=pg.need ? 'full' : ''}">✓ ${pg.got}/${pg.need}</span>` : ''}<div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
-  if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Gửi thiếu</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
-  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}</span>${shipKhoLine(ps)}`;
+  if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Gửi thiếu</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}${packChatLinkHtml(inv.id)}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
+  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}${packChatLinkHtml(inv.id)}</span>${shipKhoLine(ps)}`;
   if(ps && ps.state==='short'){ const rep0 = ps.shortStaffName || ps.staffName || ''; const clK = packActiveClaimOf(inv.id);
     // GỌN trong bảng: chi tiết món thiếu xem khi bấm Mở
     const unreadC = chatUnreadMap && chatUnreadMap[packChatConv(inv.id)];
@@ -8858,10 +8860,10 @@ function packSaleBadgeHtml(inv){
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = (ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''))) + (ps.pkgs ? ` · <b class="pkgs-tag">${ps.pkgs} kiện</b>` : '');
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
-    if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
+    if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a>${packChatLinkHtml(inv.id)}</div>`;
     if(shipHoldActive(ps)) return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <span class="hold-tag" title="${escHtml(ps.shipHold.reason||'')}">⏸ Hoãn tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
     const isLate = shipIsLate(ps); const oldDay = Number(ps.packedAt||ps.at||0) < new Date(new Date(nowMs()).setHours(0,0,0,0)).getTime();
-    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${isLate ? ` <span class="hold-tag late">🔒 quá ${SHIP_LOCK_HOURS} giờ chưa lên</span>` : ` <span class="hold-tag" title="Tính giờ làm việc 7h–18h">⏳ còn ${Math.max(1, Math.round((SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs()))*60))} phút</span>`}</div>`;
+    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${packChatLinkHtml(inv.id)}${isLate ? ` <span class="hold-tag late">🔒 quá ${SHIP_LOCK_HOURS} giờ chưa lên</span>` : ` <span class="hold-tag" title="Tính giờ làm việc 7h–18h">⏳ còn ${Math.max(1, Math.round((SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs()))*60))} phút</span>`}</div>`;
   }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='short'){
@@ -8952,6 +8954,11 @@ function packChatPost(invId, text, toUserId){
     fbChatNotify.child(toUserId).set({senderId:me.id, senderName:me.name, text, sentAt, convId:conv}).catch(()=>{});
     if(fbChatUnread) fbChatUnread.child(toUserId).child(conv).set(sentAt).catch(()=>{});
   }
+}
+// Link 💬 nhỏ (dùng trong bảng / dòng gọn) — đơn ĐÃ ĐÓNG vẫn nhắn được
+function packChatLinkHtml(invId){
+  const unread = chatUnreadMap && chatUnreadMap[packChatConv(invId)];
+  return ` <a href="#" class="pack-ph-link chat-mini" title="Xem / nhắn trao đổi kho ↔ Sale về đơn này" onclick="event.preventDefault(); event.stopPropagation(); packOpenChat('${invId}')">💬${unread ? '<span class="pack-dot"></span>' : ''}</a>`;
 }
 function packChatBtnHtml(invId, small){
   const unread = chatUnreadMap && chatUnreadMap[packChatConv(invId)];
