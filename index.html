@@ -1563,8 +1563,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .hold-tag.late{ color:#FF8A8D; background:rgba(229,72,77,0.14); border-color:rgba(229,72,77,0.5); }
   .inv-lock-warn{ margin:-2px 0 8px; padding:7px 10px; border-radius:10px; background:rgba(229,72,77,0.14); border:1px solid rgba(229,72,77,0.5); color:#FF8A8D; font-weight:700; font-size:13px; cursor:pointer; }
   .ship-lock-card{ border:1.5px solid rgba(229,72,77,0.5); background:rgba(229,72,77,0.08); border-radius:12px; padding:10px 12px; margin-bottom:12px; }
-  .ship-lock-rows{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
-  .ship-lock-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .ship-lock-rows{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px 10px; margin-top:8px; }
+  .ship-lock-row{ display:flex; align-items:center; justify-content:space-between; gap:6px; padding:5px 8px; border:1px solid rgba(229,72,77,0.3); border-radius:8px; background:rgba(0,0,0,0.12); min-width:0; font-size:13px; }
+  .ship-lock-row > span:first-child{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ship-lock-row .btn-small{ flex:0 0 auto; padding:3px 8px !important; font-size:12px !important; min-height:0 !important; }
+  @media (max-width:720px){ .ship-lock-rows{ grid-template-columns:1fr; } }
   .ship-pkgs{ color:#F6C27A; font-weight:800; font-size:12px; }
   .ship-code-link{ color:#8DB4FF !important; font-weight:800; text-decoration:underline dotted; white-space:nowrap; }
   .inv-ol-ship{ color:#6FD99A; font-size:12.5px; font-weight:700; }
@@ -6643,7 +6646,7 @@ function shipLockedSalesHtml(){
   const rows = (state.users||[]).filter(u=>u && ['staff','team_manager'].includes(u.role)).map(u=>({u, late: shipPendingOf(u.id).late, open: shipLockUnlockedUntil(u) > nowMs()})).filter(x=>x.late.length);
   if(!rows.length) return '';
   return `<div class="ship-lock-card"><b>🔒 Sale đang bị khoá tạo hoá đơn</b> <span class="pack-note">(đơn đã đóng quá ${SHIP_LOCK_HOURS} giờ làm việc chưa lên vận đơn / thiếu mã)</span>
-    <div class="ship-lock-rows">${rows.map(x=>`<div class="ship-lock-row"><span>👤 <b>${escHtml(x.u.name)}</b> · ${x.late.length} đơn</span>${x.open ? `<span class="pack-note">đã mở tạm tới ${packTimeShort(shipLockUnlockedUntil(x.u))}</span>` : `<button class="btn-small btn-ghost" onclick="shipUnlockTemp('${x.u.id}')">🔓 Mở khoá tạm 1 giờ</button>`}</div>`).join('')}</div></div>`;
+    <div class="ship-lock-rows">${rows.map(x=>`<div class="ship-lock-row"><span>👤 <b>${escHtml(x.u.name)}</b> · ${x.late.length} đơn</span>${x.open ? `<span class="pack-note">đã mở tạm tới ${packTimeShort(shipLockUnlockedUntil(x.u))}</span>` : `<button class="btn-small btn-ghost" title="Mở khoá tạm 1 giờ" onclick="shipUnlockTemp('${x.u.id}')">🔓 Mở 1 giờ</button>`}</div>`).join('')}</div></div>`;
 }
 function shipUnlockTemp(uid){
   const u = (state.users||[]).find(x=>x.id===uid); if(!u) return;
