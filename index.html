@@ -1571,6 +1571,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .abit-tag{ display:inline-block; font-size:11.5px; font-weight:800; color:#A9C4FF; background:rgba(79,140,255,0.14); border:1px solid rgba(79,140,255,0.4); border-radius:6px; padding:0 6px; margin-left:3px; white-space:nowrap; text-decoration:none !important; }
   .abit-tag.ok{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .abit-tag.bad{ color:#FF8A8D; background:rgba(229,72,77,0.14); border-color:rgba(229,72,77,0.5); }
+  .dep-recv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  @media (max-width:420px){ .dep-recv-grid{ grid-template-columns:1fr; } }
   .dep-addr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
   .dep-addr-grid #depWard{ grid-column:1 / -1; }
   .dep-addr-grid select{ width:100%; font-size:13.5px; min-width:0; }
@@ -3140,6 +3142,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <select id="depWard"><option value="">— Phường / Xã —</option></select>
       </div>
       <input id="depStreet" placeholder="Số nhà, tên đường / thôn, xóm" style="width:100%; margin-top:6px; font-size:14.5px;">
+      <div class="dep-recv-grid">
+        <div><label class="pack-p-label">👤 Tên người nhận</label>
+          <input id="depShipName" placeholder="Tên người nhận hàng" style="width:100%; margin-top:4px; font-size:15px;"></div>
+        <div><label class="pack-p-label">📞 SĐT nhận hàng</label>
+          <input id="depShipPhone" type="tel" inputmode="numeric" placeholder="VD 0912345678" style="width:100%; margin-top:4px; font-size:15px;"></div>
+      </div>
+      <div class="pack-note" style="margin-top:3px;">Mặc định là tên / SĐT khách — sửa nếu người nhận khác (khách đặt hộ).</div>
       <textarea id="depAddr" rows="2" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP" style="width:100%; margin-top:4px; font-size:14.5px; display:none;"></textarea>
       <label class="dep-pickup"><input type="checkbox" id="depPickup" onchange="depAddrPickup(this.checked)"> Khách lấy tại cửa hàng / gửi xe (không cần địa chỉ)</label>
     </div>
@@ -5172,7 +5181,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
   const prevInv = state.invoices.find(x=>x.id===id);
   const depositLink = prevInv && prevInv.depositLink;
-  if(prevInv){ ['shipAddress','shipAddr','abit','shortDeducted'].forEach(k=>{ if(prevInv[k]!=null) finalInvoice[k] = prevInv[k]; }); } // giữ địa chỉ giao, liên kết Abit, lịch sử tự trừ khi Sale sửa
+  if(prevInv){ ['shipAddress','shipAddr','shipPhone','shipName','abit','shortDeducted'].forEach(k=>{ if(prevInv[k]!=null) finalInvoice[k] = prevInv[k]; }); } // giữ địa chỉ giao, liên kết Abit, lịch sử tự trừ khi Sale sửa
   if(prevInv && prevInv.depositProof) finalInvoice.depositProof = prevInv.depositProof; // giữ ảnh chuyển khoản / ảnh chat khi sửa hoá đơn
   const syncedCount = syncLeadsForInvoice(finalInvoice);
   finalInvoice.leadStatusSynced = true;
@@ -5325,12 +5334,14 @@ function depProofOpen(inv, oldCust, msg, onOk){
   const prevObj = inv.shipAddr || ((state.invoices||[]).filter(x=>x && x.id!==inv.id && x.shipAddr && normalizePhone(cleanPhone(x.customerPhone))===normalizePhone(cleanPhone(inv.customerPhone))).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0))[0] || {}).shipAddr || null;
   document.getElementById('depAddr').value = pick ? '' : prevAddr;
   document.getElementById('depStreet').value = prevObj ? (prevObj.street||'') : '';
+  document.getElementById('depShipPhone').value = inv.shipPhone || cleanPhone(inv.customerPhone) || '';
+  document.getElementById('depShipName').value = inv.shipName || inv.customerName || '';
   document.getElementById('depPickup').checked = pick; depAddrPickup(pick);
   depAddrLoad().then(()=>depAddrSet(prevObj));
   depProofRender();
   document.getElementById('depProofModal').classList.add('show');
 }
-function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
+function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard','depShipPhone','depShipName'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
 // ===== Địa giới hành chính CŨ (63 tỉnh / quận-huyện / phường-xã, trước sáp nhập) — tệp dvhc-cu.json, tải khi cần =====
 let DVHC = null, dvhcLoading = null;
 function depAddrLoad(){
@@ -5433,9 +5444,13 @@ function depProofSubmit(){
   const pickup = document.getElementById('depPickup').checked;
   const ra = pickup ? {ok:true, text:'Khách lấy tại cửa hàng', obj:null} : depAddrRead();
   if(!ra.ok){ showToast(ra.err + ' (hoặc tick "Khách lấy tại cửa hàng")'); return; }
+  const shipPhone = pickup ? '' : String(document.getElementById('depShipPhone').value||'').replace(/\D/g,'');
+  if(!pickup && !/^0\d{9}$/.test(shipPhone)){ showToast('📞 SĐT nhận hàng phải đủ 10 số, bắt đầu bằng 0.'); document.getElementById('depShipPhone').focus(); return; }
+  const shipName = pickup ? '' : String(document.getElementById('depShipName').value||'').trim().replace(/\s+/g,' ');
+  if(!pickup && shipName.length < 2){ showToast('👤 Nhập tên người nhận hàng.'); document.getElementById('depShipName').focus(); return; }
   depProof.addr = ra.text;
   const invA = (state.invoices||[]).find(x=>x.id===depProof.invId);
-  if(invA){ invA.shipAddress = ra.text; invA.shipAddr = ra.obj; fbRoot.update({[`invoices/${invA.id}/shipAddress`]: ra.text, [`invoices/${invA.id}/shipAddr`]: ra.obj}).catch(()=>{}); }
+  if(invA){ invA.shipAddress = ra.text; invA.shipAddr = ra.obj; invA.shipPhone = shipPhone || null; invA.shipName = shipName || null; fbRoot.update({[`invoices/${invA.id}/shipAddress`]: ra.text, [`invoices/${invA.id}/shipAddr`]: ra.obj, [`invoices/${invA.id}/shipPhone`]: shipPhone || null, [`invoices/${invA.id}/shipName`]: shipName || null}).catch(()=>{}); }
   const fn = depProof.onOk; document.getElementById('depProofModal').classList.remove('show');
   fn(); depProof = null;
 }
