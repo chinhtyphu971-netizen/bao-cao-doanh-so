@@ -1137,6 +1137,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-pkgs b{ min-width:24px; text-align:center; font-size:17px; }
   .pkgs-tag{ color:#8DB4FF; }
   .pkgs-note{ margin-top:6px; padding:6px 10px; border-radius:8px; background:rgba(79,140,255,0.12); border:1px solid rgba(79,140,255,0.4); font-size:13px; }
+  .pack-st-btn.pack-btn-off{ opacity:0.45; }
   .pack-miss-tag{ display:inline-block; font-size:12px; font-weight:800; color:#fff; background:#E08A1E; border-radius:999px; padding:1px 8px; margin-right:4px; white-space:nowrap; }
   .pack-sale-tag{ display:inline-block; font-size:12px; font-weight:700; color:#C9B8FF; background:rgba(124,77,204,0.18); border-radius:999px; padding:1px 8px; margin:0 2px; white-space:nowrap; }
   .pack-row-go{ float:right; color:var(--accent); font-weight:700; font-size:13px; }
@@ -7821,16 +7822,22 @@ function packSaveShortEdit(inv, old, items){
   const newMap = {}; items.forEach(x=>{ newMap[x.key] = Number(x.missing)||0; });
   let refilled = 0, more = 0;
   Object.keys(Object.assign({}, oldMap, newMap)).forEach(k=>{ const d = (oldMap[k]||0) - (newMap[k]||0); if(d>0) refilled += d; else more += -d; });
-  if(!refilled && !more && String(packPanel.note||'').trim()===String(old.note||'')){ packPanel.mode = 'view'; renderPackPanel(); showToast('Không có gì thay đổi.'); return; }
+  const invChanged = packShortInvChanged(inv, old);
+  if(!invChanged && !refilled && !more && String(packPanel.note||'').trim()===String(old.note||'')){ packPanel.mode = 'view'; renderPackPanel(); showToast('Không có gì thay đổi.'); return; }
   const now = nowMs();
   const missOrig = (old.missOrig!=null ? Number(old.missOrig) : (old.shortItems||[]).reduce((a,x)=>a+(Number(x.missing)||0),0)) + more;
   const rec = Object.assign({}, old, {shortItems: items, note: String(packPanel.note||'').trim(), at: now, missOrig});
   if(!rec.shortItemsOrig) rec.shortItemsOrig = old.shortItems || items;
+  if(invChanged){ // hoá đơn đã sửa → xác nhận thiếu THEO HOÁ ĐƠN MỚI, câu trả lời cũ của Sale hết hiệu lực
+    rec.sig = packSig(inv); try{ rec.linesAtShort = packLinesSnap(inv); }catch(e){}
+    rec.saleReply = null; rec.reconfirmedAt = now;
+  }
   if(refilled) rec.refills = (old.refills||[]).concat([{at: now, by: packPanel.staffId || me.id || '', byName: packStaffName(packPanel.staffId) || me.name || '', qty: refilled}]);
   packSetBusy(true);
   fbPackStatus.child(inv.id).set(rec).then(()=>{
     packSetBusy(false);
     if(refilled) packChatPost(inv.id, `🔁 Kho đã bù thêm ${refilled} sp. Còn thiếu: ${packShortText(items)}`, inv.saleId);
+    if(invChanged) packChatPost(inv.id, `⚠ Kho xác nhận lại THIẾU theo hoá đơn đã sửa: ${packShortText(items)}. Bạn trả lời lại kho giúp (chờ hàng / đổi mẫu / gửi thiếu).`, inv.saleId);
     packBeep(true); packFlash(`💾 ĐÃ CẬP NHẬT THIẾU<br><small>${refilled ? 'Bù thêm ' + refilled + ' sp · ' : ''}còn thiếu ${items.reduce((a,x)=>a+x.missing,0)}</small>`, 'warn');
     packPanel.mode = 'view'; renderPackPanel();
     if(packMyClaimIs(inv.id)) setTimeout(()=>{
@@ -8317,6 +8324,8 @@ function renderPackPanel(){
   const groups = [];
   lines.forEach(l=>{ const gk = l.code + '|' + normalizeSearchText(l.design); let g = groups.find(x=>x.gk===gk); if(!g){ g = {gk, items:[]}; groups.push(g); } g.items.push(l); });
   const refillMode = showTick && ps && ps.state==='short';
+  if(ps && ps.state==='short' && packShortInvChanged(inv, ps))
+    banner = `<div class="pack-banner bad">✏️ Sale đã <b>SỬA HOÁ ĐƠN</b> sau khi báo thiếu — nhặt lại theo hoá đơn mới. <b>Chưa được Gửi thiếu.</b> Vẫn thiếu thì bấm <b>✏️ Bù dần / sửa thiếu</b> để báo lại cho Sale.</div>` + banner;
   const sChg = refillMode ? packShortChanges(inv, ps) : {tag:{}, remove:[]};
   Object.keys(sChg.tag).forEach(k=>{ if(!chgMap[k]) chgMap[k] = sChg.tag[k]; });
   if(refillMode && !ps.linesAtShort && Number(inv.updatedAt||0) > Number(ps.shortAt||0) + 60000)
@@ -8362,8 +8371,9 @@ function renderPackPanel(){
     acts = `<button class="pack-st-btn green" onclick="packDoPacked()">✅ Đã gửi bù</button>`;
   } else if(canAct){
     const isShort = ps && ps.state==='short';
-    const wantPartial = isShort && packHasReply(ps) && ps.saleReply.choice==='partial';
-    const partialBtn = isShort ? `<button class="pack-st-btn blue ${wantPartial ? 'hl' : ''}" onclick="packDoPartial()">📦 Gửi thiếu</button>` : '';
+    const pchk = isShort ? packPartialCheck(inv, ps) : {ok:false};
+    const wantPartial = isShort && pchk.ok;
+    const partialBtn = isShort ? `<button class="pack-st-btn blue ${wantPartial ? 'hl' : 'pack-btn-off'}" title="${escHtml(pchk.ok ? 'Sale đã đồng ý gửi thiếu' : (pchk.why||''))}" onclick="packDoPartial()">📦 Gửi thiếu${wantPartial ? '' : ' 🔒'}</button>` : '';
     // (đang thiếu) nút "Sửa thiếu" = cập nhật bù dần, không cần ảnh
     acts = (wantPartial ? partialBtn : '') + `<button class="pack-st-btn green" onclick="packDoPacked()">✅ ${isShort ? 'Bù đủ · Đóng' : 'Đã đóng'}</button>` + (wantPartial ? '' : partialBtn) +
       `<button class="pack-st-btn orange" onclick="packStartShort()">${isShort ? '✏️ Bù dần / sửa thiếu' : '⚠ Thiếu'}</button>`;
@@ -8790,6 +8800,23 @@ function packStartShort(){
   renderPackPanel();
 }
 function packSetPkgs(d){ if(!packPanel) return; const n = Math.max(0, Math.min(20, (Number(packPanel.pkgs)||0) + d)); packPanel.pkgs = n || null; renderPackPanel(); }
+// Hoá đơn có bị Sale SỬA sau lúc kho báo thiếu không (so chữ ký / danh sách dòng lúc báo thiếu)
+function packShortInvChanged(inv, ps){
+  if(!inv || !ps || ps.state!=='short') return false;
+  if(ps.sig) return packSig(inv) !== ps.sig;
+  if(ps.linesAtShort){ const cur = packLinesSnap(inv), old = ps.linesAtShort;
+    const ks = new Set(Object.keys(cur).concat(Object.keys(old)));
+    for(const k of ks){ if(!cur[k] || !old[k] || Number(cur[k][0]) !== Number(old[k][0])) return true; } }
+  return false;
+}
+// Được phép "Gửi thiếu" khi: Sale đã chọn "Gửi thiếu, không bù" CHO ĐÚNG hoá đơn hiện tại, và hoá đơn KHÔNG bị sửa sau lúc báo thiếu
+function packPartialCheck(inv, ps){
+  if(!inv || !ps || ps.state!=='short') return {ok:false, why:'Đơn không ở trạng thái chờ bù.'};
+  if(packShortInvChanged(inv, ps)) return {ok:false, why:'Sale đã SỬA HOÁ ĐƠN sau khi kho báo thiếu → phải nhặt lại theo hoá đơn mới. Nếu vẫn thiếu, bấm "✏️ Bù dần / sửa thiếu" để báo thiếu lại cho Sale trả lời.'};
+  if(!(packHasReply(ps) && ps.saleReply.choice==='partial')) return {ok:false, why:'Sale CHƯA chọn "Gửi thiếu, không bù" → chưa được gửi thiếu. Nhắn Sale trả lời trước.'};
+  if(ps.saleReply.sig && ps.saleReply.sig !== packSig(inv)) return {ok:false, why:'Sale trả lời "Gửi thiếu" cho bản hoá đơn CŨ, sau đó đã sửa hoá đơn → Sale phải trả lời lại.'};
+  return {ok:true};
+}
 function packBaseRecord(inv){
   const me = currentUser() || {};
   return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: nowMs(),
@@ -8812,6 +8839,13 @@ function packDoPacked(){
   if(!packPanel || !packNeedStaff()) return;
   const inv = packInvById(packPanel.invId); if(!inv) return;
   const prog = packPickProgress(packInvLines(inv), packStatusMap()[inv.id]);
+  const psX = packStatusMap()[inv.id];
+  if(prog.need && prog.got < prog.need && psX && psX.state==='short' && packShortInvChanged(inv, psX)){
+    packBeep(false);
+    askConfirm('⛔ Chưa tick đủ hàng', `Sale đã SỬA HOÁ ĐƠN sau khi báo thiếu. Phải nhặt & tick đủ theo hoá đơn mới (${prog.got}/${prog.need}) mới được đóng. Còn thiếu thì bấm "✏️ Bù dần / sửa thiếu" để báo lại.`, ()=>{});
+    const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Đã hiểu';
+    return;
+  }
   if(prog.need && prog.got < prog.need){
     packBeep(false);
     askConfirm('Chưa tick đủ hàng', `Mới nhặt ${prog.got}/${prog.need} món. Kiểm tra lại từng dòng — nếu thật sự thiếu thì bấm "⚠ Thiếu hàng". Vẫn đóng đơn?`, ()=>packNeedPhotos(packDoPackedSave));
@@ -9205,7 +9239,8 @@ function packReplySubmit(){
   const me = currentUser() || {};
   const ps = (state.packStatus||[]).find(p=>p && p.id===packReplyInvId); if(!ps) return;
   const note = String(document.getElementById('packReplyNote').value || '').trim();
-  const reply = {choice: packReplyChoice, note, at: nowMs(), by: me.id||'', byName: me.name||''};
+  const invR = packInvById(packReplyInvId);
+  const reply = {choice: packReplyChoice, note, at: nowMs(), by: me.id||'', byName: me.name||'', sig: invR ? packSig(invR) : null}; // trả lời cho ĐÚNG phiên bản hoá đơn này
   fbPackStatus.child(packReplyInvId).child('saleReply').set(reply).then(()=>{
     packChatPost(packReplyInvId, `↩ Sale trả lời: ${PACK_REPLY[reply.choice]}${note ? ' — ' + note : ''}`, ps.byUser || null);
     document.getElementById('packReplyModal').classList.remove('show');
@@ -9295,8 +9330,9 @@ function packDoPartial(){
       setTimeout(()=>packAskShareZalo(shareId), 400);
     }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
   });
-  if(!(packHasReply(ps) && ps.saleReply.choice==='partial')) askConfirm('Sale chưa đồng ý gửi thiếu', 'Sale chưa chọn "Gửi thiếu, không bù". Vẫn đóng gửi phần đang có và TRỪ phần thiếu (không gửi bù)?', go);
-  else go();
+  const chk = packPartialCheck(packInvById(packPanel.invId), ps);
+  if(!chk.ok){ packBeep(false); askConfirm('⛔ Chưa được gửi thiếu', chk.why, ()=>{}); const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Đã hiểu'; return; }
+  go();
 }
 // ===== MÃ QR ĐÓNG HÀNG =====
 // Mỗi hoá đơn Kho in ra có thêm 1 mã QR riêng (khác mã QR chuyển khoản ở góc trên).
