@@ -1,0 +1,8 @@
+{
+  "name": "bao-cao-doanh-so",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

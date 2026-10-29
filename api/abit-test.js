@@ -1,5 +1,6 @@
 // MỞ TRÊN TRÌNH DUYỆT để thử tạo 1 đơn mẫu bên Abit (không cần Firebase):
 //   https://bao-cao-doanh-so.vercel.app/api/abit-test?key=<ABIT_WEBHOOK_KEY>&code=A55
+//   Thêm &user=<tên đăng nhập Abit> để thử gán đơn cho đúng nhân viên, VD &user=demo
 // Đơn mẫu ghi rõ "ĐƠN THỬ API — XOÁ GIÚP". Thử xong vào Abit xoá / huỷ đơn này.
 module.exports = async (req, res)=>{
   const q = req.query || {};
@@ -19,7 +20,14 @@ module.exports = async (req, res)=>{
   };
   try{
     // mode: arr = mảng JSON (theo tài liệu) · obj = 1 đối tượng JSON · form = dạng form (như Ladipage gửi)
-    const mode = String(q.mode || 'arr');
+    const mode = String(q.mode || 'obj');
+    // ID kho (Abit: Quản lý kho hàng → "ID kho"), VD chinhbad = 25875
+    const store = Number(q.store || process.env.ABIT_STORE_ID || 0);
+    if(store){ order.listProduct.forEach(pd=>{ pd.storeId = store; }); order.storeid = String(store); order.productstoreid = store; }
+    // num=1 → gửi giá / số lượng dạng SỐ thay vì chữ
+    if(String(q.num || '') === '1') order.listProduct.forEach(pd=>{ pd.price = Number(pd.price); pd.amount = Number(pd.amount); pd.weight = 0; pd.tax1 = 0; pd.qtyinstock = 0; pd.discount_percent_product = 0; pd.discount_amount_product = 0; });
+    if(q.user) order.username = String(q.user).trim().slice(0, 100); // tên đăng nhập Abit của nhân viên
+    order.name = order.name + (store ? ' kho' + store : '') + (String(q.num||'')==='1' ? ' so' : '');
     order.name = order.name + ' [' + mode + ']';
     let opt;
     if(mode === 'obj') opt = {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(order)};
