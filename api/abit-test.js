@@ -18,7 +18,19 @@ module.exports = async (req, res)=>{
     listProduct: [{price: '1000', amount: '2', productName: code, productcode: code, weight: '0', discount_percent_product: '0', discount_amount_product: '0', tax1: '0', qtyinstock: '0'}]
   };
   try{
-    const r = await fetch(process.env.ABIT_CREATE_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify([order])});
+    // mode: arr = mảng JSON (theo tài liệu) · obj = 1 đối tượng JSON · form = dạng form (như Ladipage gửi)
+    const mode = String(q.mode || 'arr');
+    order.name = order.name + ' [' + mode + ']';
+    let opt;
+    if(mode === 'obj') opt = {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(order)};
+    else if(mode === 'form'){
+      const f = new URLSearchParams();
+      Object.entries(order).forEach(([k,v])=>f.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v)));
+      f.append('phone', order.telephone);
+      opt = {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: f.toString()};
+    }
+    else opt = {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify([order])};
+    const r = await fetch(process.env.ABIT_CREATE_URL, opt);
     const text = await r.text();
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(`<h2>Kết quả thử tạo đơn Abit</h2><p>Mã HTTP: <b>${r.status}</b></p><p>Abit trả về:</p><pre style="white-space:pre-wrap;background:#f4f4f4;padding:10px;">${text.replace(/</g,'&lt;')}</pre><h3>Dữ liệu đã gửi:</h3><pre style="white-space:pre-wrap;background:#f4f4f4;padding:10px;">${JSON.stringify(order, null, 2).replace(/</g,'&lt;')}</pre>`);
