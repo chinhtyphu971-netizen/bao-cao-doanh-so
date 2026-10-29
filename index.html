@@ -1571,6 +1571,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .abit-tag{ display:inline-block; font-size:11.5px; font-weight:800; color:#A9C4FF; background:rgba(79,140,255,0.14); border:1px solid rgba(79,140,255,0.4); border-radius:6px; padding:0 6px; margin-left:3px; white-space:nowrap; text-decoration:none !important; }
   .abit-tag.ok{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .abit-tag.bad{ color:#FF8A8D; background:rgba(229,72,77,0.14); border-color:rgba(229,72,77,0.5); }
+  .dep-paste{ display:flex; gap:6px; align-items:stretch; margin-top:6px; }
+  .dep-paste textarea{ flex:1; font-size:13.5px; min-height:44px; }
+  .dep-paste button{ flex:0 0 auto; white-space:nowrap; }
   .dep-recv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
   @media (max-width:420px){ .dep-recv-grid{ grid-template-columns:1fr; } }
   .dep-addr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
@@ -3136,6 +3139,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
     <div id="depAddrWrap" style="margin-top:12px;">
       <label class="pack-p-label">🏠 Địa chỉ giao hàng <span class="pack-note">— bắt buộc · theo địa giới <b>cũ (trước sáp nhập)</b></span></label>
+      <div class="dep-paste">
+        <textarea id="depPaste" rows="2" placeholder="📋 Dán nguyên địa chỉ khách gửi (có thể kèm tên, SĐT) → app tự tách Tỉnh / Huyện / Xã" onpaste="setTimeout(depPasteParse, 30)"></textarea>
+        <button type="button" class="btn-ghost btn-small" onclick="depPasteParse()">✨ Tự điền</button>
+      </div>
+      <div id="depPasteMsg" class="pack-note" style="margin-top:3px;"></div>
       <div id="depAddrSel" class="dep-addr-grid">
         <select id="depProv" onchange="depAddrFill('prov')"><option value="">— Tỉnh / Thành phố —</option></select>
         <select id="depDist" onchange="depAddrFill('dist')"><option value="">— Quận / Huyện —</option></select>
@@ -5336,12 +5344,132 @@ function depProofOpen(inv, oldCust, msg, onOk){
   document.getElementById('depStreet').value = prevObj ? (prevObj.street||'') : '';
   document.getElementById('depShipPhone').value = inv.shipPhone || cleanPhone(inv.customerPhone) || '';
   document.getElementById('depShipName').value = inv.shipName || inv.customerName || '';
+  document.getElementById('depPaste').value = ''; document.getElementById('depPasteMsg').textContent = '';
   document.getElementById('depPickup').checked = pick; depAddrPickup(pick);
   depAddrLoad().then(()=>depAddrSet(prevObj));
   depProofRender();
   document.getElementById('depProofModal').classList.add('show');
 }
-function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard','depShipPhone','depShipName'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
+function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard','depShipPhone','depShipName','depPaste'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
+// ===== DÁN NGUYÊN ĐỊA CHỈ → TỰ TÁCH Tỉnh / Huyện / Xã / số nhà + tên + SĐT =====
+function vnNormChar(c){ if(c==='đ'||c==='Đ') return 'd'; const b = c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return /[a-z0-9]/.test(b) ? b[0] : ' '; }
+function vnNorm1(s){ let o = ''; for(const ch of String(s||'')) o += vnNormChar(ch); return o; } // giữ đúng độ dài từng ký tự (để cắt chuỗi gốc)
+function vnNorm(s){ return vnNorm1(s).replace(/\s+/g,' ').trim(); }
+const DVHC_PREFIX = /^(thanh pho|tinh|quan|huyen|thi xa|phuong|xa|thi tran)\s+/;
+const PROV_ALIAS = {'ho chi minh':['hcm','tphcm','tp hcm','sai gon','sg','tp ho chi minh'], 'ha noi':['hn','tp ha noi'], 'thua thien hue':['hue','tt hue'], 'hue':['thua thien hue','tt hue','tp hue'], 'ba ria vung tau':['vung tau','brvt','ba ria'], 'da nang':['tp da nang'], 'hai phong':['tp hai phong'], 'can tho':['tp can tho']};
+function dvhcPatterns(name, level){
+  const full = vnNorm(name), short = full.replace(DVHC_PREFIX, '');
+  const pats = new Set([full, short]);
+  if(/^\d+$/.test(short)){
+    pats.delete(short); // số trơn dễ nhầm → chỉ nhận khi có chữ đi kèm
+    const k = level==='dist' ? ['quan','q'] : ['phuong','p'];
+    k.forEach(w=>{ pats.add(w + ' ' + short); pats.add(w + short); });
+    if(level==='dist') pats.add('q ' + short);
+  } else if(level==='prov'){ (PROV_ALIAS[short] || []).forEach(a=>pats.add(a)); }
+  else if(level==='dist'){ if(/^thi xa /.test(full)) pats.add('tx ' + short); if(/^thanh pho /.test(full)) pats.add('tp ' + short); }
+  else if(level==='ward'){ if(/^thi tran /.test(full)) pats.add('tt ' + short); }
+  return Array.from(pats).filter(p=>p && p.length >= 2);
+}
+// tìm vị trí xuất hiện CUỐI CÙNG của 1 trong các mẫu (đúng ranh giới từ) trong chuỗi đã chuẩn hoá t
+function dvhcFind(t, pats, before){
+  let best = null;
+  pats.forEach(p=>{
+    const re = new RegExp('(^| )' + p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '(?= |$)', 'g'); let m;
+    while((m = re.exec(t))){ const pos = m.index + m[1].length; if(before!=null && pos + p.length > before) break;
+      const end = pos + p.length;
+      if(!best || end > best.end || (end===best.end && p.length > best.len)) best = {pos, len: p.length, end}; }
+  });
+  return best;
+}
+function parseVnAddress(raw){
+  const res = {name:'', phone:'', street:'', pi:-1, di:-1, ward:'', notes:[]};
+  let text = String(raw||'').replace(/\r/g,'');
+  // SĐT
+  const pm = text.match(/(?:\+?84|0)[\s.\-]?\d{2,3}[\s.\-]?\d{3}[\s.\-]?\d{3,4}/);
+  if(pm){ let ph = pm[0].replace(/\D/g,''); if(ph.startsWith('84')) ph = '0' + ph.slice(2); if(/^0\d{9}$/.test(ph)) res.phone = ph; }
+  // Dạng có nhãn (Tên: … / SĐT: … / Địa chỉ: …)
+  const lines = text.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  let addrText = '';
+  lines.forEach(l=>{
+    const n = vnNorm(l);
+    const lab = n.match(/^(ho va ten|ho ten|ten nguoi nhan|nguoi nhan|ten khach|ten|sdt|so dien thoai|dien thoai|dt|dia chi nhan hang|dia chi|dc)\b/);
+    const val = l.replace(/^[^:：]*[:：]\s*/, '');
+    if(lab && /[:：]/.test(l)){
+      if(/ten|nguoi nhan/.test(lab[1]) && !res.name) res.name = val.trim();
+      else if(/dia chi|dc/.test(lab[1])) addrText += ' ' + val;
+    } else addrText += ' ' + l;
+  });
+  addrText = addrText.trim();
+  if(pm) addrText = addrText.replace(pm[0], ' ');
+  // Tên: phần chữ ở đầu (trước SĐT / trước dấu phẩy đầu) nếu không có số
+  if(!res.name){
+    const head = String(raw||'').split(/\n/)[0];
+    const idx = pm ? head.indexOf(pm[0]) : -1;
+    const cand = (idx > 0 ? head.slice(0, idx) : '').replace(/[,\-–:|]+$/,'').trim();
+    if(cand && cand.length <= 40 && !/\d/.test(cand)){ res.name = cand; addrText = addrText.replace(cand, ' '); }
+  }
+  addrText = addrText.replace(/\s+/g,' ').trim();
+  if(!DVHC) { res.street = addrText; return res; }
+  const t = vnNorm1(addrText);
+  // Tỉnh: lấy khớp xa nhất (địa chỉ VN đi từ nhỏ → lớn)
+  let bestP = null;
+  DVHC.forEach((p,i)=>{ const f = dvhcFind(t, dvhcPatterns(p[0],'prov')); if(f && (!bestP || f.end > bestP.end || (f.end===bestP.end && f.len > bestP.len))) bestP = {i, ...f}; });
+  // Huyện: trong tỉnh đã tìm; nếu chưa có tỉnh → tìm huyện duy nhất trên toàn quốc
+  let bestD = null;
+  const scanD = (pi, before)=>DVHC[pi][1].forEach((x,j)=>{ const f = dvhcFind(t, dvhcPatterns(x[0],'dist'), before); if(f && (!bestD || f.end > bestD.end || (f.end===bestD.end && f.len > bestD.len))) bestD = {pi, j, ...f}; });
+  if(bestP) scanD(bestP.i, bestP.pos);
+  else { const hits = []; DVHC.forEach((p,pi)=>{ const before = bestD; bestD = null; scanD(pi); if(bestD && !/^\d/.test(vnNorm(DVHC[pi][1][bestD.j][0]).replace(DVHC_PREFIX,''))) hits.push(bestD); bestD = before; });
+         if(hits.length===1){ bestD = hits[0]; bestP = {i: hits[0].pi, pos: t.length}; } }
+  if(bestP){ res.pi = bestP.i; }
+  // Không ghi Quận/Huyện (VD "Thị Trấn Phước Dân, Tỉnh Ninh Thuận") → dò Phường/Xã trong cả tỉnh, suy ra huyện
+  if(bestP && !bestD){
+    let bw = null, cnt = 0;
+    DVHC[bestP.i][1].forEach((x,j)=>x[1].forEach(w=>{
+      const f = dvhcFind(t, dvhcPatterns(w,'ward'), bestP.pos);
+      if(f){ const full = vnNorm(w); const strong = f.len >= full.replace(DVHC_PREFIX,'').length + 3; // khớp cả chữ "xã/phường/thị trấn" → chắc hơn
+        if(!bw || f.end > bw.end || (f.end===bw.end && f.len > bw.len)){ bw = {j, w, strong, ...f}; cnt = 1; } else if(f.end===bw.end && f.len===bw.len) cnt++; }
+    }));
+    if(bw && cnt===1){ bestD = {pi: bestP.i, j: bw.j, pos: bw.pos + bw.len, len: 0, end: bw.end}; res.di = bw.j; res.ward = bw.w; res.wardPos = bw.pos; }
+  }
+  let cut = bestP ? bestP.pos : t.length;
+  if(res.ward && res.wardPos!=null){ cut = res.wardPos; }
+  else if(bestD){ res.di = bestD.j; cut = bestD.pos;
+    // Xã: trong huyện, đứng trước huyện
+    let bestW = null;
+    DVHC[bestD.pi][1][bestD.j][1].forEach(w=>{ const f = dvhcFind(t, dvhcPatterns(w,'ward'), bestD.pos); if(f && (!bestW || f.end > bestW.end || (f.end===bestW.end && f.len > bestW.len))) bestW = {w, ...f}; });
+    if(bestW){ res.ward = bestW.w; cut = bestW.pos; }
+  }
+  let st = addrText.slice(0, cut).replace(/[\s,.;:\-–]+$/,'').replace(/^[\s,.;:\-–]+/,'').trim();
+  // bỏ chữ "P." / "xã" / "Q." … còn sót ở cuối (thuộc phần xã / huyện vừa tách)
+  for(let k=0; k<3; k++){ const m = st.match(/[\s,.]*([^\s,.]+(?:\s+[^\s,.]+)?)$/); if(!m) break;
+    const w = vnNorm(m[1]); const w1 = vnNorm(m[1].split(/\s+/).pop());
+    if(/^(phuong|p|xa|thi tran|tt|quan|q|huyen|h|thi xa|tx|tp|thanh pho|tinh)$/.test(w)){ st = st.slice(0, st.length - m[0].length).replace(/[\s,.;:\-–]+$/,''); continue; }
+    if(/^(phuong|p|xa|tt|quan|q|huyen|h|tx|tp|tinh)$/.test(w1)){ st = st.replace(/[\s,.]*[^\s,.]+$/,'').replace(/[\s,.;:\-–]+$/,''); continue; }
+    break; }
+  res.street = st;
+  if(res.pi < 0) res.notes.push('chưa nhận ra Tỉnh/TP');
+  else if(res.di < 0) res.notes.push('chưa nhận ra Quận/Huyện');
+  else if(!res.ward && DVHC[res.pi][1][res.di][1].length) res.notes.push('chưa nhận ra Phường/Xã');
+  return res;
+}
+
+async function depPasteParse(){
+  const raw = document.getElementById('depPaste').value; const msg = document.getElementById('depPasteMsg');
+  if(!String(raw).trim()){ msg.textContent = ''; return; }
+  await depAddrLoad();
+  const r = parseVnAddress(raw);
+  if(document.getElementById('depPickup').checked){ document.getElementById('depPickup').checked = false; depAddrPickup(false); }
+  if(DVHC && r.pi >= 0){
+    depAddrSet({province: DVHC[r.pi][0], district: r.di >= 0 ? DVHC[r.pi][1][r.di][0] : '', ward: r.ward});
+    if(r.di < 0){ document.getElementById('depProv').value = String(r.pi); depAddrFill('prov'); }
+  }
+  if(r.street) document.getElementById('depStreet').value = r.street;
+  if(!DVHC) document.getElementById('depAddr').value = String(raw).replace(/\s+/g,' ').trim();
+  if(r.phone) document.getElementById('depShipPhone').value = r.phone;
+  if(r.name) document.getElementById('depShipName').value = r.name;
+  const got = [r.name && 'tên', r.phone && 'SĐT', r.pi>=0 && 'tỉnh', r.di>=0 && 'huyện', r.ward && 'xã', r.street && 'số nhà/đường'].filter(Boolean);
+  msg.innerHTML = (got.length ? `✅ Đã tự điền: ${got.join(', ')}.` : '') + (r.notes.length ? ` <b style="color:#F0A63A;">⚠ ${r.notes.join(', ')} — chọn tay giúp.</b>` : ' Kiểm tra lại trước khi xác nhận.');
+}
 // ===== Địa giới hành chính CŨ (63 tỉnh / quận-huyện / phường-xã, trước sáp nhập) — tệp dvhc-cu.json, tải khi cần =====
 let DVHC = null, dvhcLoading = null;
 function depAddrLoad(){
