@@ -1418,6 +1418,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-flash-ov.ok .pack-flash-box{ background:#2EA05A; }
   .pack-flash-ov.warn .pack-flash-box{ background:#E08A1E; }
   @keyframes packFlashIn{ from{ transform:scale(0.85); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .data-err-bar{ position:fixed; left:50%; top:calc(10px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:140; max-width:94vw; background:#7A2A2D; color:#fff; border:1px solid #E5484D; border-radius:12px; padding:9px 14px; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,0.45); }
+  .data-err-bar a{ color:#FFD9DA; font-weight:800; margin-left:6px; }
   .clock-warn-bar{ position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:129; width:max-content; max-width:94vw; background:#7A4A12; color:#fff; border:1px solid #F0A63A; border-radius:12px; padding:8px 14px; font-size:13px; align-items:center; gap:8px; box-shadow:0 8px 24px rgba(0,0,0,0.45); }
   .clock-warn-bar a{ color:#FFE3B0; font-weight:800; margin-left:6px; }
   .app-update-bar{ position:fixed; left:50%; top:calc(10px + env(safe-area-inset-top, 0px)); transform:translateX(-50%); z-index:130; width:max-content; max-width:94vw; background:#2EA05A; color:#fff; border-radius:999px; padding:10px 18px; font-size:14.5px; align-items:center; gap:6px; box-shadow:0 8px 24px rgba(0,0,0,0.45); cursor:pointer; animation:packUrgPulse 1.6s ease-in-out infinite; }
@@ -14042,22 +14044,36 @@ function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'
    - videoShoots / actors / mktLegacyCounts: chỉ MKT, Quản lý MKT, Quản lý Data, Quản lý chung
    Lọc "chỉ của mình" dùng chỉ mục trong Firebase Rules (".indexOn": userId / saleId) để server lọc sẵn. */
 const scopedSubs = {};
+// ===== Báo RÕ khi không tải được dữ liệu (thay vì trang trống / "Đang tải…" mãi) =====
+const dataErrs = {};
+function dataLoadError(name, err){
+  const code = String((err && (err.code || err.message)) || err || 'lỗi');
+  dataErrs[name] = code; console.error('Không tải được dữ liệu "' + name + '":', err);
+  let bar = document.getElementById('dataErrBar');
+  if(!bar){ bar = document.createElement('div'); bar.id = 'dataErrBar'; bar.className = 'data-err-bar'; document.body.appendChild(bar); }
+  const perm = /permission|denied/i.test(code);
+  bar.innerHTML = `⚠ Không tải được dữ liệu (${Object.keys(dataErrs).join(', ')}): <b>${escHtml(code)}</b>. ${perm ? 'Máy chưa đăng nhập được máy chủ (có thể mạng chặn Google) — thử 4G / đổi mạng rồi tải lại.' : 'Kiểm tra mạng rồi tải lại trang.'} <a href="#" onclick="event.preventDefault(); appHardReload()">⟳ Tải lại</a>`;
+  bar.style.display = 'block';
+}
+function dataLoadOk(name){ if(dataErrs[name]){ delete dataErrs[name]; const bar = document.getElementById('dataErrBar'); if(bar && !Object.keys(dataErrs).length) bar.style.display = 'none'; } }
 function attachScoped(name, key, query, apply, childMode, onFirstLoad){
   const cur = scopedSubs[name];
   if(cur && cur.key===key) return;               // đã gắn đúng rồi (enterApp có thể gọi nhiều lần)
   if(cur && cur.query) cur.query.off();
   scopedSubs[name] = {key, query};
   if(!query){ apply([]); return; }
+  const fail = err=>dataLoadError(name, err);
+  const safe = fn=>(...a)=>{ try{ fn(...a); }catch(e){ console.error('Lỗi xử lý dữ liệu ' + name, e); dataLoadError(name, e); } };
   if(!childMode){
-    query.on('value', snap=>apply(Object.values(snap.val()||{}), snap.val()));
+    query.on('value', safe(snap=>apply(Object.values(snap.val()||{}), snap.val())), fail);
     return;
   }
   const map = {}; let ready = false;
-  const sync = ()=>{ if(ready) apply(Object.values(map), map); };
-  query.on('child_added',   s=>{ map[s.key]=s.val(); sync(); });
-  query.on('child_changed', s=>{ map[s.key]=s.val(); sync(); });
-  query.on('child_removed', s=>{ delete map[s.key]; sync(); });
-  query.once('value').then(()=>{ ready = true; apply(Object.values(map), map); if(onFirstLoad) onFirstLoad(); });
+  const sync = safe(()=>{ if(ready) apply(Object.values(map), map); });
+  query.on('child_added',   s=>{ map[s.key]=s.val(); sync(); }, fail);
+  query.on('child_changed', s=>{ map[s.key]=s.val(); sync(); }, fail);
+  query.on('child_removed', s=>{ delete map[s.key]; sync(); }, fail);
+  query.once('value').then(safe(()=>{ ready = true; apply(Object.values(map), map); if(onFirstLoad) onFirstLoad(); dataLoadOk(name); })).catch(fail);
 }
 // ===== KHO DATA (leads) TẢI THEO VAI TRÒ =====
 //  - Sale (nhân viên): data được chia cho CHÍNH MÌNH + mọi data "Đã chốt" (cần để nhận biết "Khách cũ"
