@@ -3403,11 +3403,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <label>SĐT Zalo (không bắt buộc)</label>
       <input id="editUserZalo" type="tel" inputmode="numeric" placeholder="VD 0912345678 — để Sale / kho bấm mở Zalo nhắn nhau">
     </div>
-    <div class="field" id="editUserAbitRow" style="display:none;">
-      <label>🔗 Tên đăng nhập Abit (không bắt buộc)</label>
-      <input id="editUserAbit" placeholder="Đúng tên Sale này dùng để đăng nhập Abit, VD: demo" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Có tài khoản → đơn của Sale này tự đẩy sang Abit khi kho đóng xong, đúng tên Sale. Để trống → không tự đẩy.</div>
-    </div>
     <label class="field" id="editUserCanPackersRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
       <input type="checkbox" id="editUserCanPackers" style="width:auto; min-height:0;">
       <span>🔑 Được tạo / quản lý tài khoản <b>Nhân viên đóng gói</b></span>
@@ -6921,13 +6916,7 @@ async function abitPush(invId, force){
     return j && j.ok ? j : {ok:false, error: (j && j.error) || ('HTTP ' + r.status)};
   }catch(e){ return {ok:false, error: String(e && e.message || e)}; }
 }
-function abitSaleAccount(invId){
-  const inv = packInvById(invId) || (state.invoices||[]).find(x=>x.id===invId);
-  const sale = inv && inv.saleId ? state.users.find(x=>x.id===inv.saleId) : null;
-  return sale && sale.abitAccount ? sale.abitAccount : '';
-}
 function abitPushAfterPack(invId){
-  if(!abitSaleAccount(invId)) return; // Sale chưa có tài khoản Abit → không tự đẩy (tránh Abit chia đơn ngẫu nhiên)
   setTimeout(async ()=>{
     const res = await abitPush(invId, false);
     if(res.ok) showToast(`🔗 Đã tạo đơn trên Abit · ${res.invoice_no || ''}`);
@@ -9193,7 +9182,8 @@ function packSaleBadgeHtml(inv){
   return packSaleBadgeHtmlPacked(inv, ps);
 }
 function packSaleBadgeHtmlPacked(inv, ps){
-  const ph = '';
+  const clS = packActiveClaimOf(inv.id); // (sửa lỗi "clS is not defined" sau khi tách hàm)
+  const ph = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)} ảnh</a>` : '';
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = (ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''))) + (ps.pkgs ? ` · <b class="pkgs-tag">${ps.pkgs} kiện</b>` : '');
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
@@ -17041,7 +17031,7 @@ function renderMgrSettings(){
     table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map((u,idx)=>`<tr>
         <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
-        <td data-label="Tên">${u.name}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
+        <td data-label="Tên">${u.name}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
         <td data-label="Mã PIN">
@@ -17068,8 +17058,6 @@ function openEditUserModal(userId){
   document.getElementById('editUserPin').value = u.pin;
   document.getElementById('editUserZalo').value = u.zaloPhone || '';
   const me0 = currentUser();
-  document.getElementById('editUserAbitRow').style.display = (me0 && me0.role==='general_manager') ? 'block' : 'none'; // mọi tài khoản tự lên hoá đơn (Sale, Quản lý team, Quản lý chung…)
-  document.getElementById('editUserAbit').value = u.abitAccount || '';
   document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
   document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
   document.getElementById('editUserCanDepositsRow').style.display = document.getElementById('editUserCanPackersRow').style.display;
@@ -17098,12 +17086,6 @@ function saveEditUser(){
   u.pin = newPin;
   u.zaloPhone = newZalo || '';
   const patch = {name:newName, pin:newPin, zaloPhone: newZalo || null};
-  if(document.getElementById('editUserAbitRow').style.display!=='none'){
-    const newAbit = (document.getElementById('editUserAbit').value || '').trim();
-    const abitTaken = newAbit && state.users.find(x=>x.id!==u.id && (x.abitAccount||'').trim().toLowerCase()===newAbit.toLowerCase());
-    if(abitTaken){ errEl.textContent = `Tài khoản Abit này đang gán cho ${abitTaken.name}.`; return; }
-    u.abitAccount = newAbit; patch.abitAccount = newAbit || null;
-  }
   if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
     u.canManagePackers = !!document.getElementById('editUserCanPackers').checked;
     patch.canManagePackers = u.canManagePackers || null;
