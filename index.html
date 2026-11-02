@@ -3402,6 +3402,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <label>SĐT Zalo (không bắt buộc)</label>
       <input id="editUserZalo" type="tel" inputmode="numeric" placeholder="VD 0912345678 — để Sale / kho bấm mở Zalo nhắn nhau">
     </div>
+    <div class="field" id="editUserAbitRow" style="display:none;">
+      <label>🔗 Tên đăng nhập Abit (không bắt buộc)</label>
+      <input id="editUserAbit" placeholder="Đúng tên người này dùng để đăng nhập Abit, VD: demo" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Có tài khoản → đơn của người này tự đẩy sang Abit khi kho đóng xong, đúng tên nhân viên. Để trống → không tự đẩy.</div>
+    </div>
     <label class="field" id="editUserCanPackersRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
       <input type="checkbox" id="editUserCanPackers" style="width:auto; min-height:0;">
       <span>🔑 Được tạo / quản lý tài khoản <b>Nhân viên đóng gói</b></span>
@@ -6915,7 +6920,13 @@ async function abitPush(invId, force){
     return j && j.ok ? j : {ok:false, error: (j && j.error) || ('HTTP ' + r.status)};
   }catch(e){ return {ok:false, error: String(e && e.message || e)}; }
 }
+function abitSaleAccount(invId){
+  const inv = packInvById(invId) || (state.invoices||[]).find(x=>x.id===invId);
+  const sale = inv && inv.saleId ? state.users.find(x=>x.id===inv.saleId) : null;
+  return sale && sale.abitAccount ? sale.abitAccount : '';
+}
 function abitPushAfterPack(invId){
+  if(!abitSaleAccount(invId)) return; // người lên hoá đơn chưa có tài khoản Abit → không tự đẩy
   setTimeout(async ()=>{
     const res = await abitPush(invId, false);
     if(res.ok) showToast(`🔗 Đã tạo đơn trên Abit · ${res.invoice_no || ''}`);
@@ -9634,7 +9645,7 @@ function fbSetReport(r){ fbReports.child(r.id).set(r); }
 function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
 function fbRemoveTrash(id){ fbTrash.child(id).remove(); }
-function fbSetLead(l){ const pn = normalizePhone(leadPhone(l)); if(pn && pn!=='—') l.phoneNorm = pn; const ref = leadRefFor(l.id); const v = Object.assign({}, l); delete v.archived; ref.child(l.id).set(v); }
+function fbSetLead(l){ const pn = normalizePhone(leadPhone(l)); if(pn && pn!=='—') l.phoneNorm = pn; const ref = leadRefFor(l.id); const v = Object.assign({}, l); delete v.archived; ref.child(l.id).set(v).catch(e=>{ console.error('Lưu data lỗi', l.id, e); try{ showToast('⚠ Không lưu được data lên máy chủ: ' + String(e.code || e.message || e)); }catch(_){} }); }
 function fbDeleteLead(id){ leadRefFor(id).child(id).remove(); }
 function fbSetSelfLead(l){ fbSelfLeads.child(l.id).set(l); }
 function fbDeleteSelfLead(id){ fbSelfLeads.child(id).remove(); }
@@ -9769,9 +9780,10 @@ function priorAssigneesForPhone(lead){
 function runDistribution(){
   const today=todayStr();
   const unassigned = state.leads.filter(l=>!l.assignedTo);
-  if(unassigned.length===0) return;
+  if(unassigned.length===0) return 0;
   const rotation = getOrComputeTodayRotation();
-  if(!rotation) return;
+  if(!rotation) return 0;
+  let assignedCount = 0;
 
   let pool = buildLeadPool(rotation.branchIds, today).concat(buildAdminPool(today));
   const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
@@ -9811,6 +9823,7 @@ function runDistribution(){
     lead.assignedAt = nowMs();
     lead.distributedDate = today;
     fbSetLead(lead);
+    assignedCount++;
     if(String(lead.id).startsWith('manual_')){
       sendMktLeadToExternalSheet(lead, person); // chỉ ghi sang Sheet ngoài với data MKT nhập tay
     }
@@ -9823,9 +9836,37 @@ function runDistribution(){
       sortPool(pool); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí cuối hàng đợi
     }
   }
+  return assignedCount;
 }
-function runDistributionManual(){
-  runDistributionWithLock(()=>{ showToast('Đã chạy phân bổ'); renderMgrLeads(); });
+// Giải thích VÌ SAO data đang chờ mà không chia được (hiện ở ô "Kho data chưa chia" + khi bấm chạy tay).
+// Trả về '' nếu vẫn có người đủ điều kiện nhận.
+function distributionDiagnosis(today){
+  const rotation = getOrComputeTodayRotation();
+  if(!rotation || !(rotation.branchIds||[]).length) return 'Chưa chọn team nhận data hôm nay — tích team rồi bấm “Lưu team hôm nay”.';
+  const otherIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
+  if(buildLeadPool(rotation.branchIds, today).length || buildAdminPool(today).length || buildLeadPool(otherIds, today).length) return '';
+  const people = state.users.filter(u=>isLeadEligibleRole(u) && rotation.branchIds.includes(u.branchId));
+  if(!people.length) return 'Các team đã chọn không có Sale nào đang hoạt động.';
+  const confirmed = people.filter(u=>isEligibleTodayByAttendance(u.id, today));
+  if(!confirmed.length) return `Chưa ai ở các team đã chọn được Quản lý XÁC NHẬN đi làm hôm nay (0/${people.length} người) — data chỉ chia cho người đã được xác nhận.`;
+  const locked = state.enforceUnprocessedLock ? confirmed.filter(u=>hasUnprocessedBacklog(u.id)).length : 0;
+  const capped = confirmed.filter(u=>dailyReceivedCount(u.id, today) >= DAILY_LEAD_CAP).length;
+  const parts = [`${confirmed.length} người đã xác nhận`];
+  if(capped) parts.push(`${capped} người đã đủ ${DAILY_LEAD_CAP}/ngày`);
+  if(locked) parts.push(`${locked} người bị khoá vì còn data chưa xử lý`);
+  return 'Không còn ai đủ điều kiện nhận: ' + parts.join(', ') + '.';
+}
+function runDistributionManual(retried){
+  runDistributionWithLock(n=>{
+    const left = state.leads.filter(l=>!l.assignedTo).length;
+    if(n>0) showToast(`Đã chia ${n} data` + (left ? ` · còn ${left} chờ` : ''));
+    else { const why = left ? distributionDiagnosis(todayStr()) : ''; showToast(left ? ('Chưa chia được: ' + (why || 'không rõ lý do, thử tải lại trang.')) : 'Không còn data nào chờ chia.'); }
+    renderMgrLeads();
+  }, err=>{
+    if(err){ showToast('Không chia được: lỗi máy chủ (' + String(err.code || err.message || err) + '). Kiểm tra mạng rồi thử lại.'); return; }
+    if(!retried){ showToast('Máy khác vừa chia xong, tự thử lại sau vài giây…'); setTimeout(()=>runDistributionManual(true), 8500); }
+    else showToast('Máy khác đang giữ lượt chia — thử lại sau ít phút.');
+  });
 }
 let autoDistributeTimer = null;
 function tryAutoDistribute(){
@@ -9843,16 +9884,19 @@ function tryAutoDistribute(){
 // người đó, khiến người này nhận liền 2-3 cái trong khi người khác chưa tới lượt (không còn 1-1-1 nữa).
 // Cách sửa: dùng transaction trên Firebase làm "khoá" — tại 1 thời điểm chỉ đúng 1 tab được thực sự
 // chạy vòng chia, các tab khác lỡ tranh trong lúc khoá đang giữ (trong vòng 8 giây) sẽ tự bỏ qua.
-function runDistributionWithLock(onDone){
-  if(!fbDistributionLock){ runDistribution(); if(onDone) onDone(); return; }
+function runDistributionWithLock(onDone, onFail){
+  if(!fbDistributionLock){ const n = runDistribution(); if(onDone) onDone(n); return; }
   fbDistributionLock.transaction(current=>{
     const now = nowMs();
-    if(current && (now - current) < 8000) return; // co tab khac vua chay trong 8s gan day -> nhuong, khong tranh
+    // Có máy khác vừa chạy trong 8s gần đây -> nhường. Dùng Math.abs: nếu 1 máy chỉnh SAI GIỜ (chạy nhanh)
+    // từng ghi khoá mang giờ ở tương lai, bản cũ coi như "vừa chạy" MÃI MÃI → không ai chia được nữa.
+    if(current && Math.abs(now - current) < 8000) return;
     return now;
   }, (error, committed)=>{
-    if(error || !committed) return; // khong gianh duoc khoa
-    runDistribution();
-    if(onDone) onDone();
+    if(error){ console.error('Khoá chia data lỗi:', error); if(onFail) onFail(error); return; }
+    if(!committed){ if(onFail) onFail(null); return; } // máy khác đang giữ lượt
+    const n = runDistribution();
+    if(onDone) onDone(n);
   });
 }
 function checkinToday(){
@@ -13263,7 +13307,9 @@ function renderMgrLeads(){
   const unassigned = state.leads.filter(l=>!l.assignedTo);
   document.getElementById('unassignedLeadsInfo').innerHTML = unassigned.length===0
     ? '<span class="badge badge-ok">Không còn data nào chờ chia</span>'
-    : `<span class="badge badge-warn">${unassigned.length} data đang chờ chia (có thể do chưa ai điểm danh, hoặc mọi người đã đủ ${DAILY_LEAD_CAP}/ngày)</span>`;
+    : (()=>{ const why = distributionDiagnosis(todayStr());
+        return `<span class="badge badge-warn">${unassigned.length} data đang chờ chia</span>` +
+          `<div style="font-size:12.5px; margin-top:6px; color:${why ? '#E0AB53' : 'var(--ink-soft)'};">${why ? '⚠ ' + escHtml(why) : 'Có người đủ điều kiện — bấm “Chạy phân bổ ngay”.'}</div>`; })();
 
   const relevantUsers = state.users.filter(u=>
     (isLeadEligibleRole(u) && (!scope || u.branchId===scope)) ||
@@ -16994,7 +17040,7 @@ function renderMgrSettings(){
     table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map((u,idx)=>`<tr>
         <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
-        <td data-label="Tên">${u.name}</td>
+        <td data-label="Tên">${u.name}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
         <td data-label="Mã PIN">
@@ -17021,6 +17067,8 @@ function openEditUserModal(userId){
   document.getElementById('editUserPin').value = u.pin;
   document.getElementById('editUserZalo').value = u.zaloPhone || '';
   const me0 = currentUser();
+  document.getElementById('editUserAbitRow').style.display = (me0 && me0.role==='general_manager') ? 'block' : 'none'; // mọi tài khoản tự lên hoá đơn
+  document.getElementById('editUserAbit').value = u.abitAccount || '';
   document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
   document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
   document.getElementById('editUserCanDepositsRow').style.display = document.getElementById('editUserCanPackersRow').style.display;
@@ -17049,6 +17097,12 @@ function saveEditUser(){
   u.pin = newPin;
   u.zaloPhone = newZalo || '';
   const patch = {name:newName, pin:newPin, zaloPhone: newZalo || null};
+  if(document.getElementById('editUserAbitRow').style.display!=='none'){
+    const newAbit = (document.getElementById('editUserAbit').value || '').trim();
+    const abitTaken = newAbit && state.users.find(x=>x.id!==u.id && (x.abitAccount||'').trim().toLowerCase()===newAbit.toLowerCase());
+    if(abitTaken){ errEl.textContent = `Tài khoản Abit này đang gán cho ${abitTaken.name}.`; return; }
+    u.abitAccount = newAbit; patch.abitAccount = newAbit || null;
+  }
   if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
     u.canManagePackers = !!document.getElementById('editUserCanPackers').checked;
     patch.canManagePackers = u.canManagePackers || null;
