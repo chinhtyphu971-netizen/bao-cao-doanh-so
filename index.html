@@ -3063,6 +3063,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <!-- ---------- MANAGER: chi nhánh & nhân sự ---------- -->
       <div id="page-mgrSettings" class="page" style="display:none;">
         <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
+        <div class="card" id="ringtoneCard" style="display:none;"></div>
         <div class="card" id="createAccountCard">
           <h2>Tạo tài khoản mới</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Nhân viên không thể tự đăng ký nữa — Quản lý tạo sẵn tài khoản rồi đưa tên + mã PIN cho họ để đăng nhập.</p>
@@ -5881,14 +5882,27 @@ function invoiceDaysLeft(inv){
   const expireAt = invoiceCreatedMs(inv) + INVOICE_KEEP_DAYS*86400000;
   return Math.max(0, Math.ceil((expireAt - nowMs())/86400000));
 }
+// Bản tóm tắt doanh số của 1 hoá đơn đã cọc (giữ lại vĩnh viễn khi hoá đơn tự xoá sau 60 ngày)
+function revenueArchiveRecord(inv){
+  if(!inv || !inv.saleId || !inv.depositLink) return null;
+  const at = Number(inv.depositLink.markedAt); if(!at) return null;
+  return {d: toLocalDateStr(new Date(at)), at, amt: Number(inv.totalAmount)||0, no: inv.invoiceNumber || null,
+    cust: inv.customerName || null, saleName: inv.saleName || null, branchId: inv.branchId || null};
+}
 function purgeExpiredInvoices(list){
   const cutoff = nowMs() - INVOICE_KEEP_DAYS*86400000;
   const keep = [];
   (list||[]).forEach(inv=>{
     if(inv && inv.id && invoiceCreatedMs(inv) < cutoff){
-      fbInvoices.child(inv.id).remove().catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại
-      removeInvoiceItems(inv.id);
-      if(inv.depositProof && fbRoot) fbRoot.update({[`depositProofs/${inv.id}`]: null, [`depositThumbs/${inv.id}`]: null}).catch(()=>{});
+      // Hoá đơn ĐÃ CỌC: ghi bản tóm tắt doanh số vào revenueArchive (lưu vĩnh viễn) và xoá hoá đơn trong
+      // CÙNG 1 lần ghi → không bao giờ xoá hoá đơn mà mất doanh số. Chỉ xoá hoá đơn, ảnh, chi tiết hàng.
+      const up = {[`invoices/${inv.id}`]: null};
+      const rec = revenueArchiveRecord(inv);
+      if(rec) up[`revenueArchive/${rec.d.slice(0,7)}/${inv.saleId}/${inv.id}`] = rec;
+      if(inv.depositProof){ up[`depositProofs/${inv.id}`] = null; up[`depositThumbs/${inv.id}`] = null; }
+      (fbRoot ? fbRoot.update(up) : fbInvoices.child(inv.id).remove())
+        .then(()=>removeInvoiceItems(inv.id))
+        .catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại (hoá đơn vẫn còn nguyên)
     } else keep.push(inv);
   });
   return keep;
@@ -9780,7 +9794,7 @@ function checkNewLeadNotifications(){
   const newOnes = myLeadIds.filter(id=>!notifiedLeadIds.has(id));
   if(newOnes.length>0){
     newOnes.forEach(id=>notifiedLeadIds.add(id));
-    playTingSound();
+    playNewLeadSound();
     showToast(newOnes.length===1 ? '🔔 Bạn vừa được chia 1 data mới!' : `🔔 Bạn vừa được chia ${newOnes.length} data mới!`);
   }
 }
@@ -9802,6 +9816,131 @@ function playTingSound(){
     o.start();
     o.stop(ctx.currentTime + 0.4);
   }catch(e){ /* trình duyệt chặn âm thanh tự động, bỏ qua */ }
+}
+
+// =========================== 🔔 NHẠC CHUÔNG DATA MỚI (Quản lý chung đặt 1 đoạn cho tất cả) ===========================
+// Lưu ở Firebase: appSettings/newLeadSound = {data (data:audio/...;base64), name, size, type, duration, volume, maxSec, by, byName, at}
+// Chưa đặt hoặc phát lỗi → dùng tiếng "ting" mặc định như cũ.
+const RINGTONE_MAX_BYTES = 800*1024;
+let appRingtone = null, ringtoneSub = null, ringtoneAudio = null, ringtoneUnlocked = false, ringtoneStopTimer = null;
+function ringtoneListen(){
+  if(ringtoneSub || !fbRoot) return;
+  ringtoneSub = fbRoot.child('appSettings/newLeadSound');
+  let lastKey = null;
+  ringtoneSub.on('value', snap=>{
+    appRingtone = snap.val() || null;
+    // Chỉ nạp lại khi FILE NHẠC đổi (đổi âm lượng / thời lượng không làm ngắt tiếng đang phát)
+    const key = appRingtone && appRingtone.data ? (appRingtone.at||0) + '|' + appRingtone.data.length : '';
+    if(key!==lastKey){
+      lastKey = key;
+      if(ringtoneAudio){ try{ ringtoneAudio.pause(); }catch(e){} }
+      ringtoneAudio = null; ringtoneUnlocked = false;
+    }
+    if(currentPageId==='mgrSettings') renderRingtoneCard();
+  });
+}
+function ringtoneAudioEl(){
+  if(!appRingtone || !appRingtone.data) return null;
+  if(!ringtoneAudio){ ringtoneAudio = new Audio(appRingtone.data); ringtoneAudio.preload = 'auto'; }
+  const v = Number(appRingtone.volume); ringtoneAudio.volume = isFinite(v) ? Math.max(0.05, Math.min(1, v)) : 0.9;
+  return ringtoneAudio;
+}
+function ringtoneStop(){
+  clearTimeout(ringtoneStopTimer);
+  if(ringtoneAudio){ try{ ringtoneAudio.pause(); ringtoneAudio.currentTime = 0; }catch(e){} }
+}
+function playNewLeadSound(){
+  const a = ringtoneAudioEl();
+  if(!a){ playTingSound(); return; }
+  try{
+    ringtoneStop();
+    const p = a.play();
+    if(p && p.catch) p.catch(()=>playTingSound()); // trình duyệt chặn / file lỗi → kêu "ting" thay
+    const sec = Number(appRingtone.maxSec) || 10;
+    ringtoneStopTimer = setTimeout(ringtoneStop, sec*1000);
+  }catch(e){ playTingSound(); }
+}
+// Trình duyệt (nhất là iPhone) chỉ cho phát tiếng sau khi người dùng chạm vào trang → lần chạm đầu tiên
+// "mở khoá" sẵn đoạn nhạc (phát câm rồi dừng ngay) để lúc có data mới kêu được.
+document.addEventListener('pointerdown', ()=>{
+  try{ if(window.__tingCtx && window.__tingCtx.state==='suspended') window.__tingCtx.resume(); }catch(e){}
+  const a = ringtoneAudioEl();
+  if(!a || ringtoneUnlocked) return;
+  ringtoneUnlocked = true;
+  a.muted = true;
+  const p = a.play();
+  const done = ()=>{ try{ a.pause(); a.currentTime = 0; }catch(e){} a.muted = false; };
+  if(p && p.then) p.then(done).catch(()=>{ a.muted = false; ringtoneUnlocked = false; }); else done();
+}, true);
+
+function renderRingtoneCard(){
+  const el = document.getElementById('ringtoneCard'); if(!el) return;
+  const u = currentUser();
+  if(!u || u.role!=='general_manager'){ el.style.display = 'none'; return; }
+  ringtoneListen();
+  el.style.display = '';
+  const r = appRingtone;
+  const vol = Math.round((r && isFinite(Number(r.volume)) ? Number(r.volume) : 0.9)*100);
+  const maxSec = (r && Number(r.maxSec)) || 10;
+  const info = r && r.data
+    ? `Đang dùng: <b>${escHtml(r.name || 'nhạc chuông')}</b> (${Math.round((r.size||0)/1024)} KB${r.duration ? ', dài ' + Math.round(r.duration) + ' giây' : ''}). Đặt bởi ${escHtml(r.byName || 'Quản lý chung')}${r.at ? ' lúc ' + fmtDateTimeShort(r.at) : ''}.`
+    : 'Đang dùng tiếng <b>"ting"</b> mặc định.';
+  el.innerHTML = `
+    <h2>🔔 Nhạc chuông khi có data mới</h2>
+    <p class="goal-hint">Áp dụng cho <b>tất cả</b> tài khoản. Khi Sale được chia data mới, máy sẽ phát đoạn nhạc này (app phải đang mở). File âm thanh mp3/m4a/wav, tối đa ${Math.round(RINGTONE_MAX_BYTES/1024)} KB — nên cắt một đoạn ngắn vài giây.</p>
+    <p style="margin:0 0 12px; font-size:13.5px;">${info}</p>
+    <div class="goal-actions" style="margin-top:0;">
+      <button class="btn-primary" onclick="document.getElementById('ringtoneFile').click()">🎵 ${r && r.data ? 'Đổi file nhạc…' : 'Chọn file nhạc…'}</button>
+      <input id="ringtoneFile" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg" style="display:none;" onchange="ringtoneUpload(this)">
+      <button class="btn-ghost" onclick="playNewLeadSound()">▶ Nghe thử</button>
+      <button class="btn-ghost" onclick="ringtoneStop()">■ Dừng</button>
+      ${r && r.data ? '<button class="btn-ghost" onclick="ringtoneReset()">Dùng lại tiếng "ting" mặc định</button>' : ''}
+    </div>
+    ${r && r.data ? `<div class="grid-2" style="margin-top:14px; max-width:560px;">
+      <div class="field"><label>Âm lượng: <b id="ringVolTxt">${vol}%</b></label><input type="range" min="10" max="100" step="5" value="${vol}" oninput="document.getElementById('ringVolTxt').textContent=this.value+'%'" onchange="ringtoneSetOpt('volume', this.value/100)"></div>
+      <div class="field"><label>Phát tối đa</label><select onchange="ringtoneSetOpt('maxSec', Number(this.value))">${[5,10,20,30].map(n=>`<option value="${n}" ${n===maxSec ? 'selected' : ''}>${n} giây</option>`).join('')}</select></div>
+    </div>` : ''}
+    <span class="login-error" id="ringtoneErr"></span>`;
+}
+function ringtoneUpload(input){
+  const f = input.files && input.files[0]; input.value = '';
+  const err = m=>{ const e = document.getElementById('ringtoneErr'); if(e) e.textContent = m; };
+  if(!f) return;
+  if(!(f.type||'').startsWith('audio/') && !/\.(mp3|m4a|wav|ogg|aac)$/i.test(f.name)){ err('File này không phải file âm thanh.'); return; }
+  if(f.size > RINGTONE_MAX_BYTES){ err(`File nặng ${Math.round(f.size/1024)} KB, vượt mức ${Math.round(RINGTONE_MAX_BYTES/1024)} KB. Anh/chị cắt ngắn đoạn nhạc rồi thử lại.`); return; }
+  err('');
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const data = String(reader.result||'');
+    const test = new Audio(); let settled = false;
+    const finish = (ok, duration)=>{
+      if(settled) return; settled = true;
+      if(!ok){ err('Máy không phát được file này. Anh/chị thử đổi sang file mp3.'); return; }
+      const u = currentUser();
+      const val = {data, name: f.name.slice(0,80), size: f.size, type: f.type || null, duration: isFinite(duration) ? Math.round(duration*10)/10 : null,
+        volume: appRingtone && isFinite(Number(appRingtone.volume)) ? Number(appRingtone.volume) : 0.9,
+        maxSec: (appRingtone && Number(appRingtone.maxSec)) || 10, by: u.id, byName: u.name, at: nowMs()};
+      fbRoot.child('appSettings/newLeadSound').set(val)
+        .then(()=>{ showToast('Đã đặt nhạc chuông mới cho tất cả'); })
+        .catch(e=>{ console.error(e); err('Chưa lưu được — kiểm tra mạng rồi thử lại.'); });
+    };
+    test.addEventListener('loadedmetadata', ()=>finish(true, test.duration));
+    test.addEventListener('error', ()=>finish(false));
+    setTimeout(()=>finish(true, NaN), 6000);
+    test.src = data;
+  };
+  reader.onerror = ()=>err('Không đọc được file.');
+  reader.readAsDataURL(f);
+}
+function ringtoneSetOpt(k, v){
+  if(!appRingtone || !appRingtone.data) return;
+  fbRoot.child('appSettings/newLeadSound/' + k).set(v).catch(e=>console.error(e));
+}
+function ringtoneReset(){
+  askConfirm('Dùng lại tiếng mặc định?', 'Tất cả tài khoản sẽ quay về tiếng "ting" ngắn khi có data mới.', ()=>{
+    ringtoneStop();
+    fbRoot.child('appSettings/newLeadSound').remove().then(()=>showToast('Đã chuyển về tiếng "ting" mặc định')).catch(e=>console.error(e));
+  });
 }
 
 // Ghi dữ liệu: mỗi thao tác chỉ ghi ĐÚNG PHẦN thay đổi (theo id), không ghi
@@ -14541,6 +14680,7 @@ function enterApp(){
   if(!user){ logout(); return; }
   setupRoleScopedListeners(user);
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
+  try{ ringtoneListen(); }catch(e){ console.error(e); } // 🔔 nhạc chuông data mới (dùng chung)
   checkNewLeadNotifications();
   setupChatNotifyListener();
   setupChatUnreadListener();
@@ -14754,6 +14894,7 @@ function goPage(pageId){
   try{ updateReportDeadlineBar(); }catch(e){}
   try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
   if(pageId==='goals') renderGoalsPage();
+  if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
@@ -14824,6 +14965,7 @@ let goalDraft = null;         // đang nhập/sửa số mục tiêu: {month, di
 let goalTaskDraft = null;     // đang soạn danh sách việc: {month, items:[{id,text,done,doneAt,createdAt}]}
 let goalOpenTasks = {};       // Quản lý chung: đang mở xem việc của ai
 const goalTeamInv = {}, goalTeamInvSubs = {}, goalTeamInvLoaded = {}; // Quản lý team: hoá đơn của từng thành viên
+const goalArchive = {}, goalArchSubs = {}; // {tháng: {saleId: {invoiceId: {d, amt, ...}}}} — doanh số hoá đơn đã tự xoá
 
 function goalCurMonth(){ return todayStr().slice(0,7); }
 function goalMonthLabel(m){ const [y,mo] = m.split('-'); return `tháng ${Number(mo)}/${y}`; }
@@ -14903,6 +15045,20 @@ function goalSubscribeMonth(m){
   const ref = scope==='all' ? base : (scope.startsWith('team:') ? base.orderByChild('branchId').equalTo(u.branchId||'') : base.child(u.id));
   goalMonthSubs[m] = {key, ref};
   goalsLoadedMonth[m] = false;
+  // Doanh số đã lưu trữ của hoá đơn đã tự xoá (revenueArchive/{tháng}/{sale}/{hoáĐơn})
+  if(goalArchSubs[m]){ goalArchSubs[m].forEach(r=>{ try{ r.off(); }catch(e){} }); }
+  goalArchive[m] = {};
+  const archBase = fbRoot.child('revenueArchive/' + m);
+  const archIds = scope.startsWith('me:') ? [u.id] : null; // Sale: chỉ của mình · Quản lý: cả tháng (nhỏ, lọc khi hiển thị)
+  goalArchSubs[m] = (archIds ? archIds.map(id=>archBase.child(id)) : [archBase]).map(r=>{
+    r.on('value', snap=>{
+      if(!goalMonthSubs[m] || goalMonthSubs[m].key!==key) return;
+      const v = snap.val() || {};
+      if(archIds){ goalArchive[m][r.key] = v; } else { goalArchive[m] = v; }
+      onDataChanged();
+    }, err=>console.error('Lỗi tải doanh số lưu trữ:', err));
+    return r;
+  });
   ref.on('value', snap=>{
     if(!goalMonthSubs[m] || goalMonthSubs[m].key!==key) return;
     const v = snap.val();
@@ -14927,6 +15083,7 @@ function goalSetupListeners(user){
 function goalResetListeners(){
   goalListenKey = null;
   Object.keys(goalMonthSubs).forEach(m=>{ try{ goalMonthSubs[m].ref.off(); }catch(e){} delete goalMonthSubs[m]; delete goalsByMonth[m]; delete goalsLoadedMonth[m]; });
+  Object.keys(goalArchSubs).forEach(m=>{ (goalArchSubs[m]||[]).forEach(r=>{ try{ r.off(); }catch(e){} }); delete goalArchSubs[m]; delete goalArchive[m]; });
   if(goalSundaySub){ try{ goalSundaySub.off(); }catch(e){} goalSundaySub = null; }
   goalSundayCfg = {};
   Object.keys(goalTeamInvSubs).forEach(id=>{ try{ goalTeamInvSubs[id].off(); }catch(e){} delete goalTeamInvSubs[id]; delete goalTeamInv[id]; delete goalTeamInvLoaded[id]; });
@@ -14957,6 +15114,12 @@ function goalDepositIndex(){
   };
   (state.invoices||[]).forEach(add);
   Object.values(goalTeamInv).forEach(arr=>(arr||[]).forEach(add));
+  // + doanh số đã lưu trữ của hoá đơn đã tự xoá (bỏ qua nếu hoá đơn vẫn còn — tránh cộng 2 lần)
+  Object.values(goalArchive).forEach(bySale=>Object.entries(bySale||{}).forEach(([saleId, recs])=>Object.entries(recs||{}).forEach(([invId, r])=>{
+    if(!r || !r.d || seen.has(invId)) return; seen.add(invId);
+    const m = idx[saleId] || (idx[saleId] = {});
+    m[r.d] = (m[r.d]||0) + (Number(r.amt)||0);
+  })));
   return idx;
 }
 function goalCalc(uid, m, dep, asOf){ // asOf: tính số liệu ngày/tuần theo 1 ngày bất kỳ (mặc định hôm nay)
@@ -15171,7 +15334,7 @@ setInterval(()=>{ try{ updateGoalRemindBar(); }catch(e){} }, 60000); // qua thá
 function goalGoMonth(d){
   const cur = goalCurMonth();
   let m = goalShiftMonth(goalViewMonth || cur, d);
-  const maxM = goalShiftMonth(cur, 1), minM = goalShiftMonth(cur, -12);
+  const maxM = goalShiftMonth(cur, 1), minM = goalShiftMonth(cur, -24);
   if(m > maxM) m = maxM; if(m < minM) m = minM;
   goalViewMonth = m; goalOpenTasks = {};
   renderGoalsPage();
@@ -15190,7 +15353,7 @@ function renderGoalsPage(){
   const dep = goalDepositIndex();
 
   document.getElementById('goalsMonthName').textContent = goalMonthLabel(m).replace(/^t/, 'T');
-  document.getElementById('goalsPrevBtn').disabled = m <= goalShiftMonth(cur, -12);
+  document.getElementById('goalsPrevBtn').disabled = m <= goalShiftMonth(cur, -24);
   document.getElementById('goalsNextBtn').disabled = m >= goalShiftMonth(cur, 1);
 
   goalChartW = Math.max(280, (body.clientWidth || 700) - 42);
@@ -15577,7 +15740,7 @@ function goalGmHtml(m, dep){
     .sort((a,b)=>{ const pa = goalPctNum(a.t.a, a.t.t), pb = goalPctNum(b.t.a, b.t.t); return (pb===null ? -1 : pb) - (pa===null ? -1 : pa); });
   const co = goalPeriodTotals(all, period);
   const teamRows = teams.map(x=>`<tr><td>${escHtml(branchName(x.k))}</td><td class="num">${x.t.n}/${x.size}</td><td class="num">${fmtMoney(x.t.t)}</td><td class="num">${fmtMoney(x.t.a)}</td>${goalPctTd(goalPctNum(x.t.a, x.t.t))}${showMonthCol ? goalPctTd(goalPctNum(x.t.achieved, x.t.amount)) : ''}</tr>`).join('');
-  const minD = goalShiftMonth(goalCurMonth(), -12) + '-01';
+  const minD = goalShiftMonth(goalCurMonth(), -24) + '-01';
   const ctl = `<div class="goal-rank-ctl">
       <div class="chip-row">
         ${[['day','Theo ngày'],['week','Theo tuần'],['month','Theo tháng']].map(([k,l])=>`<div class="chip ${period===k ? 'selected' : ''}" onclick="goalSetRankPeriod('${k}')">${l}</div>`).join('')}
