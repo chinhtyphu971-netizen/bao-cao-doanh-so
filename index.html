@@ -9836,6 +9836,7 @@ function ringtoneListen(){
       if(ringtoneAudio){ try{ ringtoneAudio.pause(); }catch(e){} }
       ringtoneAudio = null; ringtoneUnlocked = false;
     }
+    try{ ringtoneMigrate(); }catch(e){}
     if(currentPageId==='mgrSettings') renderRingtoneCard();
   });
 }
@@ -9873,34 +9874,106 @@ document.addEventListener('pointerdown', ()=>{
   if(p && p.then) p.then(done).catch(()=>{ a.muted = false; ringtoneUnlocked = false; }); else done();
 }, true);
 
+// Thư viện nhạc chuông (chỉ Quản lý chung tải, ở trang Chi nhánh & nhân sự): ringtoneLib/{id} = {data, name, size, type, duration, by, byName, at}
+// Bài ĐANG DÙNG được chép sang appSettings/newLeadSound (kèm libId) → máy Sale chỉ tải đúng 1 bài.
+const RINGTONE_LIB_MAX = 20;
+let ringtoneLib = null, ringtoneLibSub = null, ringtonePreview = null, ringtonePreviewId = null;
+function ringtoneLibListen(){
+  if(ringtoneLibSub || !fbRoot) return;
+  ringtoneLibSub = fbRoot.child('ringtoneLib');
+  ringtoneLibSub.on('value', snap=>{
+    ringtoneLib = snap.val() || {};
+    ringtoneMigrate();
+    if(currentPageId==='mgrSettings') renderRingtoneCard();
+  });
+}
+// Bài đang dùng từ trước khi có thư viện → tự đưa vào thư viện để không mất (chạy 1 lần)
+let ringtoneMigrating = false;
+function ringtoneMigrate(){
+  if(ringtoneMigrating || ringtoneLib===null || !appRingtone || !appRingtone.data || appRingtone.libId) return;
+  const u = currentUser(); if(!u || u.role!=='general_manager') return;
+  ringtoneMigrating = true;
+  const id = 'r' + uid();
+  const rec = {data: appRingtone.data, name: String(appRingtone.name || 'nhạc chuông').replace(/\.[a-z0-9]+$/i, ''), size: appRingtone.size || 0, type: appRingtone.type || null,
+    duration: appRingtone.duration || null, by: appRingtone.by || null, byName: appRingtone.byName || null, at: appRingtone.at || nowMs()};
+  fbRoot.update({[`ringtoneLib/${id}`]: rec, 'appSettings/newLeadSound/libId': id}).catch(e=>{ console.error(e); ringtoneMigrating = false; });
+}
+function ringtonePreviewStop(){
+  if(ringtonePreview){ try{ ringtonePreview.pause(); }catch(e){} }
+  ringtonePreview = null; ringtonePreviewId = null;
+  if(currentPageId==='mgrSettings') renderRingtoneCard();
+}
+function ringtonePreviewPlay(id){
+  ringtoneStop();
+  if(ringtonePreviewId===id){ ringtonePreviewStop(); return; }
+  if(ringtonePreview){ try{ ringtonePreview.pause(); }catch(e){} }
+  const r = ringtoneLib && ringtoneLib[id]; if(!r || !r.data) return;
+  ringtonePreview = new Audio(r.data); ringtonePreviewId = id;
+  const v = appRingtone && isFinite(Number(appRingtone.volume)) ? Number(appRingtone.volume) : 0.9;
+  ringtonePreview.volume = Math.max(0.05, Math.min(1, v));
+  ringtonePreview.onended = ()=>ringtonePreviewStop();
+  const p = ringtonePreview.play(); if(p && p.catch) p.catch(()=>ringtonePreviewStop());
+  setTimeout(()=>{ if(ringtonePreviewId===id) ringtonePreviewStop(); }, ((appRingtone && Number(appRingtone.maxSec)) || 10)*1000);
+  renderRingtoneCard();
+}
 function renderRingtoneCard(){
   const el = document.getElementById('ringtoneCard'); if(!el) return;
   const u = currentUser();
   if(!u || u.role!=='general_manager'){ el.style.display = 'none'; return; }
-  ringtoneListen();
+  ringtoneListen(); ringtoneLibListen();
   el.style.display = '';
-  const r = appRingtone;
+  const r = appRingtone, activeId = r && r.data ? (r.libId || null) : null;
   const vol = Math.round((r && isFinite(Number(r.volume)) ? Number(r.volume) : 0.9)*100);
   const maxSec = (r && Number(r.maxSec)) || 10;
-  const info = r && r.data
-    ? `Đang dùng: <b>${escHtml(r.name || 'nhạc chuông')}</b> (${Math.round((r.size||0)/1024)} KB${r.duration ? ', dài ' + Math.round(r.duration) + ' giây' : ''}). Đặt bởi ${escHtml(r.byName || 'Quản lý chung')}${r.at ? ' lúc ' + fmtDateTimeShort(r.at) : ''}.`
-    : 'Đang dùng tiếng <b>"ting"</b> mặc định.';
+  const lib = Object.entries(ringtoneLib || {}).map(([id, x])=>Object.assign({id}, x)).sort((a,b)=>(b.at||0)-(a.at||0));
+  const active = r && r.data ? `Đang dùng cho tất cả: <b>${escHtml(r.name || 'nhạc chuông')}</b>` : 'Đang dùng tiếng <b>"ting"</b> mặc định cho tất cả.';
+  const rows = lib.map(x=>{
+    const isOn = x.id===activeId, isPrev = x.id===ringtonePreviewId;
+    return `<tr class="${isOn ? 'goal-me' : ''}">
+      <td data-label="Tên">${isOn ? '✅ ' : ''}${escHtml(x.name || 'nhạc chuông')}</td>
+      <td data-label="Dài" class="num">${x.duration ? Math.round(x.duration) + ' giây' : '—'}</td>
+      <td data-label="Dung lượng" class="num">${Math.round((x.size||0)/1024)} KB</td>
+      <td data-label="Tải lên">${escHtml(x.byName || '')}${x.at ? ', ' + fmtDateTimeShort(x.at) : ''}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-ghost btn-small" onclick="ringtonePreviewPlay('${x.id}')">${isPrev ? '■ Dừng' : '▶ Nghe'}</button>
+        ${isOn ? '<span class="badge badge-ok">Đang dùng</span>' : `<button class="btn-primary btn-small" onclick="ringtoneUse('${x.id}')">Dùng bài này</button>`}
+        ${isOn ? '' : `<button class="btn-ghost btn-small" onclick="ringtoneDelete('${x.id}')" aria-label="Xoá ${escHtml(x.name||'')}">Xoá</button>`}
+      </td></tr>`;
+  }).join('');
   el.innerHTML = `
     <h2>🔔 Nhạc chuông khi có data mới</h2>
-    <p class="goal-hint">Áp dụng cho <b>tất cả</b> tài khoản. Khi Sale được chia data mới, máy sẽ phát đoạn nhạc này (app phải đang mở). File âm thanh mp3/m4a/wav, tối đa ${Math.round(RINGTONE_MAX_BYTES/1024)} KB — nên cắt một đoạn ngắn vài giây.</p>
-    <p style="margin:0 0 12px; font-size:13.5px;">${info}</p>
+    <p class="goal-hint">Áp dụng cho <b>tất cả</b> tài khoản: khi Sale được chia data mới, máy sẽ phát bài đang dùng (app phải đang mở). Nhạc tải lên được lưu lại để chọn lại sau. File mp3/m4a/wav, tối đa ${Math.round(RINGTONE_MAX_BYTES/1024)} KB mỗi bài, lưu tối đa ${RINGTONE_LIB_MAX} bài.</p>
+    <p style="margin:0 0 12px; font-size:13.5px;">${active}</p>
     <div class="goal-actions" style="margin-top:0;">
-      <button class="btn-primary" onclick="document.getElementById('ringtoneFile').click()">🎵 ${r && r.data ? 'Đổi file nhạc…' : 'Chọn file nhạc…'}</button>
+      <button class="btn-primary" onclick="document.getElementById('ringtoneFile').click()">🎵 Tải nhạc mới lên…</button>
       <input id="ringtoneFile" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg" style="display:none;" onchange="ringtoneUpload(this)">
-      <button class="btn-ghost" onclick="playNewLeadSound()">▶ Nghe thử</button>
-      <button class="btn-ghost" onclick="ringtoneStop()">■ Dừng</button>
-      ${r && r.data ? '<button class="btn-ghost" onclick="ringtoneReset()">Dùng lại tiếng "ting" mặc định</button>' : ''}
+      ${r && r.data ? '<button class="btn-ghost" onclick="playNewLeadSound()">▶ Nghe bài đang dùng</button><button class="btn-ghost" onclick="ringtoneStop()">■ Dừng</button><button class="btn-ghost" onclick="ringtoneReset()">Dùng lại tiếng "ting" mặc định</button>' : ''}
     </div>
+    <span class="login-error" id="ringtoneErr"></span>
+    ${lib.length ? `<h3 style="margin:16px 0 6px; font-size:15px;">Nhạc đã tải lên (${lib.length})</h3>
+      <div class="table-wrap"><table class="rtable"><thead><tr><th>Tên</th><th class="num">Dài</th><th class="num">Dung lượng</th><th>Tải lên</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : (ringtoneLib===null ? '<p class="goal-hint">Đang tải thư viện nhạc…</p>' : '<p class="goal-hint" style="margin-top:12px;">Chưa có bài nào trong thư viện.</p>')}
     ${r && r.data ? `<div class="grid-2" style="margin-top:14px; max-width:560px;">
       <div class="field"><label>Âm lượng: <b id="ringVolTxt">${vol}%</b></label><input type="range" min="10" max="100" step="5" value="${vol}" oninput="document.getElementById('ringVolTxt').textContent=this.value+'%'" onchange="ringtoneSetOpt('volume', this.value/100)"></div>
       <div class="field"><label>Phát tối đa</label><select onchange="ringtoneSetOpt('maxSec', Number(this.value))">${[5,10,20,30].map(n=>`<option value="${n}" ${n===maxSec ? 'selected' : ''}>${n} giây</option>`).join('')}</select></div>
-    </div>` : ''}
-    <span class="login-error" id="ringtoneErr"></span>`;
+    </div>` : ''}`;
+}
+function ringtoneUse(id){
+  const x = ringtoneLib && ringtoneLib[id]; if(!x || !x.data) return;
+  ringtonePreviewStop();
+  const u = currentUser();
+  const val = {data: x.data, name: x.name || 'nhạc chuông', size: x.size || 0, type: x.type || null, duration: x.duration || null, libId: id,
+    volume: appRingtone && isFinite(Number(appRingtone.volume)) ? Number(appRingtone.volume) : 0.9,
+    maxSec: (appRingtone && Number(appRingtone.maxSec)) || 10, by: u.id, byName: u.name, at: nowMs()};
+  fbRoot.child('appSettings/newLeadSound').set(val).then(()=>showToast(`Đã đổi nhạc chuông cho tất cả: ${x.name || ''}`)).catch(e=>console.error(e));
+}
+function ringtoneDelete(id){
+  const x = ringtoneLib && ringtoneLib[id]; if(!x) return;
+  if(appRingtone && appRingtone.libId===id){ showToast('Bài này đang dùng — chọn bài khác trước rồi mới xoá'); return; }
+  askConfirm('Xoá nhạc chuông?', `Xoá "${x.name || 'nhạc chuông'}" khỏi thư viện.`, ()=>{
+    if(ringtonePreviewId===id) ringtonePreviewStop();
+    fbRoot.child('ringtoneLib/' + id).remove().catch(e=>console.error(e));
+  });
 }
 function ringtoneUpload(input){
   const f = input.files && input.files[0]; input.value = '';
@@ -9908,6 +9981,7 @@ function ringtoneUpload(input){
   if(!f) return;
   if(!(f.type||'').startsWith('audio/') && !/\.(mp3|m4a|wav|ogg|aac)$/i.test(f.name)){ err('File này không phải file âm thanh.'); return; }
   if(f.size > RINGTONE_MAX_BYTES){ err(`File nặng ${Math.round(f.size/1024)} KB, vượt mức ${Math.round(RINGTONE_MAX_BYTES/1024)} KB. Anh/chị cắt ngắn đoạn nhạc rồi thử lại.`); return; }
+  if(Object.keys(ringtoneLib || {}).length >= RINGTONE_LIB_MAX){ err(`Thư viện đã đủ ${RINGTONE_LIB_MAX} bài — xoá bớt bài không dùng rồi tải lên lại.`); return; }
   err('');
   const reader = new FileReader();
   reader.onload = ()=>{
@@ -9916,12 +9990,11 @@ function ringtoneUpload(input){
     const finish = (ok, duration)=>{
       if(settled) return; settled = true;
       if(!ok){ err('Máy không phát được file này. Anh/chị thử đổi sang file mp3.'); return; }
-      const u = currentUser();
-      const val = {data, name: f.name.slice(0,80), size: f.size, type: f.type || null, duration: isFinite(duration) ? Math.round(duration*10)/10 : null,
-        volume: appRingtone && isFinite(Number(appRingtone.volume)) ? Number(appRingtone.volume) : 0.9,
-        maxSec: (appRingtone && Number(appRingtone.maxSec)) || 10, by: u.id, byName: u.name, at: nowMs()};
-      fbRoot.child('appSettings/newLeadSound').set(val)
-        .then(()=>{ showToast('Đã đặt nhạc chuông mới cho tất cả'); })
+      const u = currentUser(), id = 'r' + uid();
+      const rec = {data, name: f.name.replace(/\.[a-z0-9]+$/i, '').slice(0,80) || 'nhạc chuông', size: f.size, type: f.type || null,
+        duration: isFinite(duration) ? Math.round(duration*10)/10 : null, by: u.id, byName: u.name, at: nowMs()};
+      fbRoot.child('ringtoneLib/' + id).set(rec)
+        .then(()=>{ ringtoneLib = Object.assign({}, ringtoneLib, {[id]: rec}); ringtoneUse(id); }) // tải lên xong → dùng luôn bài mới
         .catch(e=>{ console.error(e); err('Chưa lưu được — kiểm tra mạng rồi thử lại.'); });
     };
     test.addEventListener('loadedmetadata', ()=>finish(true, test.duration));
@@ -9937,7 +10010,7 @@ function ringtoneSetOpt(k, v){
   fbRoot.child('appSettings/newLeadSound/' + k).set(v).catch(e=>console.error(e));
 }
 function ringtoneReset(){
-  askConfirm('Dùng lại tiếng mặc định?', 'Tất cả tài khoản sẽ quay về tiếng "ting" ngắn khi có data mới.', ()=>{
+  askConfirm('Dùng lại tiếng mặc định?', 'Tất cả tài khoản sẽ quay về tiếng "ting" ngắn khi có data mới. Nhạc đã tải lên vẫn được giữ trong thư viện.', ()=>{
     ringtoneStop();
     fbRoot.child('appSettings/newLeadSound').remove().then(()=>showToast('Đã chuyển về tiếng "ting" mặc định')).catch(e=>console.error(e));
   });
