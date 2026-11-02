@@ -2729,6 +2729,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div id="page-mgrAllChats" class="page" style="display:none;">
         <div class="page-head"><div><h1>Tất cả tin nhắn</h1><p>Xem lại mọi cuộc trò chuyện trong hệ thống — chỉ xem, không tham gia trả lời</p></div></div>
         <div class="card">
+          <div style="display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-bottom:14px;">
+            <div class="chip-row" id="mgrChatsTabs"></div>
+            <input type="search" placeholder="🔍 Tìm tên, số HĐ, SĐT, nội dung…" oninput="mgrChatsSetSearch(this.value)" style="max-width:300px;">
+          </div>
           <div class="table-wrap"><table id="mgrAllChatsTable" class="rtable"></table></div>
         </div>
       </div>
@@ -13756,37 +13760,77 @@ function closeChatModal(){
   currentChatOtherUserId = null;
   if(typeof refreshUnreadChatDots === 'function') refreshUnreadChatDots();
 }
+// Tất cả tin nhắn — chia 2 nhóm: 📦 Kho ↔ Sale (cuộc chat theo hoá đơn, mã "pack_<hoáĐơn>") và
+// 📣 MKT ↔ Sale (cuộc chat theo data, mã = mã data). Trước đây gộp chung nên chat của kho bị hiện "(data đã xoá) (?) ↔ (?)".
+let mgrChatsTab = 'pack', mgrChatsCache = null, mgrChatsSearch = '';
+function mgrChatsSetTab(t){ mgrChatsTab = t; renderMgrAllChatsTable(); }
+function mgrChatsSetSearch(v){ mgrChatsSearch = v; renderMgrAllChatsTable(); }
 function renderMgrAllChats(){
   const table = document.getElementById('mgrAllChatsTable');
-  table.innerHTML = '<tr><td class="empty-note">Đang tải...</td></tr>';
-  fbChats.once('value').then(snap=>{
-    const data = snap.val() || {};
-    const rows = Object.entries(data).map(([leadId, msgsObj])=>{
-      const msgs = Object.values(msgsObj||{}).sort((a,b)=>b.sentAt-a.sentAt);
-      const last = msgs[0];
-      const lead = state.leads.find(l=>l.id===leadId);
-      const mktSender = lead && lead.createdBy ? state.users.find(u=>u.id===lead.createdBy) : null;
-      const assignee = lead && lead.assignedTo ? state.users.find(u=>u.id===lead.assignedTo) : null;
-      const nameA = mktSender ? mktSender.name : '(?)';
-      const nameB = assignee ? assignee.name : '(?)';
-      const phoneLabel = lead ? leadPhone(lead) : '(data đã xoá)';
-      return {leadId, nameA, nameB, phoneLabel, count: msgs.length, lastText: last?last.text:'', lastAt: last?last.sentAt:0, lastSender: last?last.senderName:''};
-    }).sort((a,b)=>b.lastAt-a.lastAt);
-
-    if(rows.length===0){
-      table.innerHTML = '<tr><td class="empty-note">Chưa có cuộc trò chuyện nào trong hệ thống.</td></tr>';
-      return;
+  if(!mgrChatsCache) table.innerHTML = '<tr><td class="empty-note">Đang tải...</td></tr>';
+  fbChats.once('value').then(snap=>{ mgrChatsCache = snap.val() || {}; renderMgrAllChatsTable(); });
+}
+function mgrChatRows(data){
+  const pack = [], mkt = [];
+  const invById = {}; (state.invoices||[]).forEach(i=>{ if(i && i.id) invById[i.id] = i; });
+  Object.entries(data).forEach(([conv, msgsObj])=>{
+    const msgs = Object.values(msgsObj||{}).filter(m=>m && typeof m==='object').sort((a,b)=>(b.sentAt||0)-(a.sentAt||0));
+    const last = msgs[0];
+    const senders = Array.from(new Set(msgs.map(m=>m.senderName).filter(Boolean)));
+    const base = {conv, count: msgs.length, lastText: last ? (last.text||'') : '', lastAt: last ? (last.sentAt||0) : 0, lastSender: last ? (last.senderName||'') : ''};
+    if(conv.indexOf('pack_')===0){
+      const inv = invById[conv.slice(5)];
+      const saleId = inv && inv.saleId, saleName = inv ? (inv.saleName || userName(inv.saleId)) : '';
+      // Bên kho = những người nhắn không phải Sale của hoá đơn
+      const kho = Array.from(new Set(msgs.filter(m=>m.senderName && (!saleId || m.senderId!==saleId) && m.senderName!==saleName).map(m=>m.senderName)));
+      pack.push(Object.assign(base, {
+        label: inv ? `HĐ ${inv.invoiceNumber||''}${inv.customerName ? ' · ' + inv.customerName : ''}` : '(hoá đơn đã xoá)',
+        sideA: kho.length ? kho.join(', ') : 'Kho', sideB: saleName || (senders.filter(n=>!kho.includes(n))[0] || '(?)'),
+        search: [inv && inv.invoiceNumber, inv && inv.customerName, inv && inv.customerPhone, saleName].concat(senders).join(' ')
+      }));
+    } else {
+      const lead = state.leads.find(l=>l.id===conv);
+      const mktU = lead && lead.createdBy ? state.users.find(u=>u.id===lead.createdBy) : null;
+      const saleU = lead && lead.assignedTo ? state.users.find(u=>u.id===lead.assignedTo) : null;
+      const a = mktU ? mktU.name : (senders[0] || '(?)'), b2 = saleU ? saleU.name : (senders.find(n=>n!==a) || '(?)');
+      mkt.push(Object.assign(base, {
+        label: lead ? leadPhone(lead) : '(data đã xoá)', sideA: a, sideB: b2,
+        search: [lead && leadPhone(lead), lead && lead.customerName].concat(senders).join(' ')
+      }));
     }
-    table.innerHTML = `<thead><tr><th>SĐT</th><th>Giữa</th><th>Tin nhắn gần nhất</th><th>Lúc</th><th class="num">Số tin</th><th></th></tr></thead><tbody>` +
-      rows.map(r=>`<tr>
-        <td data-label="SĐT">${r.phoneLabel}</td>
-        <td data-label="Giữa">${r.nameA} ↔ ${r.nameB}</td>
-        <td data-label="Tin nhắn gần nhất">${r.lastSender?`<b>${r.lastSender}:</b> `:''}${(r.lastText||'').slice(0,50)}${(r.lastText||'').length>50?'...':''}</td>
-        <td data-label="Lúc">${r.lastAt?fmtDateTimeShort(r.lastAt):'—'}</td>
-        <td class="num" data-label="Số tin">${r.count}</td>
-        <td><button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${r.leadId}','SĐT ${r.phoneLabel} — ${r.nameA} ↔ ${r.nameB}')">Xem</button></td>
-      </tr>`).join('') + `</tbody>`;
   });
+  const byTime = (x,y)=>y.lastAt-x.lastAt;
+  return {pack: pack.sort(byTime), mkt: mkt.sort(byTime)};
+}
+function renderMgrAllChatsTable(){
+  const table = document.getElementById('mgrAllChatsTable'); if(!table || !mgrChatsCache) return;
+  const all = mgrChatRows(mgrChatsCache);
+  const tabsEl = document.getElementById('mgrChatsTabs');
+  if(tabsEl) tabsEl.innerHTML = `
+    <div class="chip ${mgrChatsTab==='pack' ? 'selected' : ''}" onclick="mgrChatsSetTab('pack')">📦 Kho nhắn Sale (${all.pack.length})</div>
+    <div class="chip ${mgrChatsTab==='mkt' ? 'selected' : ''}" onclick="mgrChatsSetTab('mkt')">📣 MKT nhắn Sale (${all.mkt.length})</div>`;
+  const isPack = mgrChatsTab==='pack';
+  const q = String(mgrChatsSearch||'').trim().toLowerCase();
+  const rows = (isPack ? all.pack : all.mkt).filter(r=>!q || (r.search + ' ' + r.lastText).toLowerCase().includes(q));
+  if(!rows.length){
+    table.innerHTML = `<tr><td class="empty-note">${q ? 'Không có cuộc trò chuyện nào khớp tìm kiếm.' : (isPack ? 'Chưa có tin nhắn nào giữa Kho và Sale.' : 'Chưa có tin nhắn nào giữa MKT và Sale.')}</td></tr>`;
+    return;
+  }
+  const colA = isPack ? 'Kho' : 'MKT', colB = 'Sale';
+  table.innerHTML = `<thead><tr><th>${isPack ? 'Hoá đơn' : 'SĐT data'}</th><th>${colA}</th><th>${colB}</th><th>Tin nhắn gần nhất</th><th>Lúc</th><th class="num">Số tin</th><th></th></tr></thead><tbody>` +
+    limitRows('mgrAllChats', rows).map(r=>{
+      const title = `${isPack ? r.label : 'SĐT ' + r.label} — ${colA} ${r.sideA} ↔ ${colB} ${r.sideB}`;
+      const txt = r.lastText.length > 60 ? r.lastText.slice(0,60) + '…' : r.lastText;
+      return `<tr>
+        <td data-label="${isPack ? 'Hoá đơn' : 'SĐT'}">${escHtml(r.label)}</td>
+        <td data-label="${colA}">${escHtml(r.sideA)}</td>
+        <td data-label="${colB}">${escHtml(r.sideB)}</td>
+        <td data-label="Tin nhắn gần nhất" style="white-space:normal; min-width:240px;">${r.lastSender ? `<b>${escHtml(r.lastSender)}:</b> ` : ''}${escHtml(txt)}</td>
+        <td data-label="Lúc">${r.lastAt ? fmtDateTimeShort(r.lastAt) : '—'}</td>
+        <td class="num" data-label="Số tin">${r.count}</td>
+        <td><button class="btn-ghost btn-small" onclick="viewLeadConversationReadOnly('${escHtml(r.conv)}', this.dataset.title)" data-title="${escHtml(title)}">Xem</button></td>
+      </tr>`;
+    }).join('') + moreRowsHtml('mgrAllChats', rows.length, 7) + `</tbody>`;
 }
 function copyPin(pin, name){
   copyText(pin, `Đã copy mã PIN của ${name}`);
