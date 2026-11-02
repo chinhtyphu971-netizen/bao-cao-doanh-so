@@ -1788,6 +1788,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .gp-l{ font-size:10.5px; color:var(--ink-soft); white-space:nowrap; margin:3px 0 4px; }
   @media (max-width:720px){ .goal-period .gp-label{ min-height:2.9em; line-height:1.35; } .gp-chart{ gap:6px; } .gp-col{ width:36px; } .gp-l{ font-size:9.5px; } .gp-chart{ --gp-h:46px; } }
   @media (prefers-reduced-motion: reduce){ .gp-track i{ transition:none; } }
+  .goal-rank-ctl{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:8px 0 14px; }
+  .goal-rank-date{ display:flex; align-items:center; gap:8px; margin:0; font-size:13px; }
+  .goal-rank-date input{ width:auto; min-height:36px; padding:5px 9px; color-scheme:dark; }
 </style>
 </head>
 <body>
@@ -14847,7 +14850,7 @@ function goalDepositIndex(){
   Object.values(goalTeamInv).forEach(arr=>(arr||[]).forEach(add));
   return idx;
 }
-function goalCalc(uid, m, dep){
+function goalCalc(uid, m, dep, asOf){ // asOf: tính số liệu ngày/tuần theo 1 ngày bất kỳ (mặc định hôm nay)
   const g = (goalsByMonth[m]||{})[uid] || null;
   const amount = goalIsCommitted(g) ? Number(g.amount) : 0;
   const start = goalStartDate(uid, m, g);
@@ -14856,10 +14859,11 @@ function goalCalc(uid, m, dep){
   const sum = (from, toIncl)=>{ let s = 0; for(const d in byDay){ if(d>=from && d<=toIncl) s += byDay[d]; } return s; };
   const before = (d)=>{ let s = 0; for(const k in byDay){ if(k>=start && k<d) s += byDay[k]; } return s; };
   const achieved = sum(start, end);
-  const today = todayStr();
+  const today = asOf || todayStr();
   const r = {g, amount, start, end, achieved, missing: Math.max(0, amount-achieved), monthPct: goalPctNum(achieved, amount),
     isCurrent: m===goalCurMonth(), workDays: goalWorkDays(m, start, end).length, tasks: goalTasksOf(g), byDay};
-  if(!r.isCurrent || today < start) return r;
+  r.hasDay = asOf ? (asOf.slice(0,7)===m) : r.isCurrent;
+  if(!r.hasDay || today < start) return r;
   // Hôm nay
   const remDays = goalWorkDays(m, today, end).length;
   const todayWork = goalWorkDays(m, today, today).length===1;
@@ -14873,7 +14877,7 @@ function goalCalc(uid, m, dep){
   const remWs = goalWorkDays(m, ws, end).length, wkDays = goalWorkDays(m, ws, we).length;
   r.weekFrom = ws; r.weekTo = we;
   r.weekTarget = (amount && remWs) ? goalRoundUp(Math.max(0, amount - before(ws)) / remWs * wkDays) : 0;
-  r.weekAchieved = sum(ws, today);
+  r.weekAchieved = sum(ws, we); // ngày tương lai chưa có cọc nên cộng tới cuối tuần cũng đúng
   return r;
 }
 
@@ -14897,10 +14901,16 @@ function goalChartSvg(opts){
   const labels = opts.labels, series = opts.series, n = labels.length, k = series.length;
   if(!n) return '';
   const fmt = opts.fmt || goalShortMoney, axisFmt = opts.axisFmt || fmt;
-  const padL = 46, padR = 10, padT = 24, padB = 30, H = opts.height || 230, plotH = H - padT - padB;
   const barMax = k===1 ? 44 : 36, minGw = opts.minGroupW || (k===1 ? 30 : 70);
-  const plotW = Math.max(goalChartW - padL - padR, n*minGw), W = padL + plotW + padR;
-  const gw = plotW/n;
+  const padR = 10, padT = 24;
+  const longest = Math.max(...labels.map(l=>Math.min(14, String(l).length)));
+  const gw0 = Math.max(goalChartW - 56, n*minGw)/n;
+  const rotate = !opts.noRotate && longest*6.2 > gw0 - 4; // tên dài không đủ chỗ → xoay nghiêng cho khỏi đè nhau
+  const padL = rotate ? Math.max(46, Math.round(longest*6.2*0.77 - gw0/2 + 8)) : 46;
+  const plotW0 = Math.max(goalChartW - padL - padR, n*minGw), gw = plotW0/n;
+  const padB = rotate ? 30 + Math.min(14, longest)*4.6 : 30;
+  const H = (opts.height || 230) + (rotate ? padB - 30 : 0), plotH = H - padT - padB;
+  const plotW = plotW0, W = padL + plotW + padR;
   const barW = Math.max(6, Math.min(barMax, (gw - 10 - (k-1)*3)/k));
   let top = 0; series.forEach(s=>s.values.forEach(v=>{ if(v > top) top = v; }));
   if(opts.refLine && opts.refLine.value > top) top = opts.refLine.value;
@@ -14917,23 +14927,25 @@ function goalChartSvg(opts){
     const gx = padL + i*gw, groupBarsW = k*barW + (k-1)*3, x0 = gx + (gw - groupBarsW)/2;
     const dim = opts.dimIdx && opts.dimIdx.has(i);
     series.forEach((s, j)=>{
-      const v = Number(s.values[i])||0; if(v<=0) return;
+      const v = Number(s.values[i])||0;
+      if(v<=0){ if(opts.showZero && k===1) bars += `<text x="${(x0 + barW/2).toFixed(1)}" y="${(padT+plotH-4).toFixed(1)}" text-anchor="middle" font-size="10" style="fill:var(--ink-soft)">${fmt(0)}</text>`; return; }
       const x = x0 + j*(barW+3), yy = y(v), h = padT + plotH - yy;
       const col = (s.colors && s.colors[i]) || s.color;
       bars += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="2" fill="${col}"${dim ? ' opacity=".45"' : ''}><title>${escHtml((opts.titles ? opts.titles[i] : lb) + ' · ' + s.name + ': ' + (opts.tipFmt || fmt)(v))}</title></rect>`;
       if(barW >= 10 || k===1) bars += `<text x="${(x + barW/2).toFixed(1)}" y="${(yy-4).toFixed(1)}" text-anchor="middle" font-size="${k===1 && gw<34 ? 9 : 10}" style="fill:var(--ink-soft)">${fmt(v)}</text>`;
     });
-    const short = String(lb).length > 12 ? String(lb).slice(0, 11) + '…' : String(lb);
-    bars += `<text x="${(gx + gw/2).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" font-size="11" style="fill:${dim ? 'var(--danger)' : 'var(--ink-soft)'}"><title>${escHtml(opts.titles ? opts.titles[i] : lb)}</title>${escHtml(short)}</text>`;
+    const short = String(lb).length > 14 ? String(lb).slice(0, 13) + '…' : String(lb);
+    const lx = (gx + gw/2).toFixed(1), ly = H - padB + (rotate ? 12 : 16);
+    bars += `<text x="${lx}" y="${ly}" ${rotate ? `text-anchor="end" transform="rotate(-40 ${lx} ${ly})"` : 'text-anchor="middle"'} font-size="11" style="fill:${dim ? 'var(--danger)' : 'var(--ink-soft)'}"><title>${escHtml(opts.titles ? opts.titles[i] : lb)}</title>${escHtml(short)}</text>`;
   });
   let ref = '';
   if(opts.refLine && opts.refLine.value > 0){
     const yy = y(opts.refLine.value).toFixed(1), col = opts.refLine.color || 'var(--success)';
     ref = `<line x1="${padL}" x2="${W-padR}" y1="${yy}" y2="${yy}" style="stroke:${col}" stroke-width="1.5" stroke-dasharray="5 4"/>`
-        + `<text x="${padL+6}" y="${(+yy-5)}" text-anchor="start" font-size="10.5" font-weight="600" style="fill:${col}">${escHtml(opts.refLine.label)}</text>`;
+        + `<text x="${opts.refLine.atEnd ? W-padR-2 : padL+6}" y="${(+yy-5)}" text-anchor="${opts.refLine.atEnd ? 'end' : 'start'}" font-size="10.5" font-weight="600" style="fill:${col}; stroke:var(--panel); stroke-width:3px; paint-order:stroke;">${escHtml(opts.refLine.label)}</text>`;
   }
   const legend = (k > 1 || opts.legend) ? `<div class="goal-legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${escHtml(s.name)}</span>`).join('')}${opts.legendExtra||''}</div>` : (opts.legendExtra ? `<div class="goal-legend">${opts.legendExtra}</div>` : '');
-  return `${legend}<div class="goal-chart"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(opts.aria||'Biểu đồ cột')}">${g}${ref}${bars}<line x1="${padL}" x2="${W-padR}" y1="${padT+plotH}" y2="${padT+plotH}" style="stroke:var(--ink-soft)" stroke-width="1"/></svg></div>`;
+  return `${legend}<div class="goal-chart"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(opts.aria||'Biểu đồ cột')}">${g}${bars}${ref}<line x1="${padL}" x2="${W-padR}" y1="${padT+plotH}" y2="${padT+plotH}" style="stroke:var(--ink-soft)" stroke-width="1"/></svg></div>`;
 }
 const GOAL_C_TARGET = '#4F8EF7', GOAL_C_DONE = '#F0A63A';
 function goalPctColor(p){ return p===null ? '#5B6478' : (p >= 100 ? '#37C878' : (p >= 70 ? '#E0A93E' : '#E5484D')); }
@@ -14947,7 +14959,7 @@ function goalDailyChartHtml(c, m){
   const cols = days.map(d=>d===today ? '#7FB0FF' : GOAL_C_TARGET);
   return `<div class="card"><h2>Doanh số đã cọc theo ngày</h2>
     <p class="goal-hint">Mỗi cột là tổng tiền hàng các hoá đơn khách cọc trong ngày. Số ngày màu đỏ là Chủ nhật nghỉ chung.</p>
-    ${goalChartSvg({labels: days.map(d=>String(Number(d.slice(8)))), titles: days.map(d=>fmtDate(d) + (off.has(d) ? ' (nghỉ)' : '')), dimIdx: dim,
+    ${goalChartSvg({labels: days.map(d=>String(Number(d.slice(8)))), noRotate: true, titles: days.map(d=>fmtDate(d) + (off.has(d) ? ' (nghỉ)' : '')), dimIdx: dim,
       series: [{name: 'Đã cọc', color: GOAL_C_TARGET, colors: cols, values: vals}], tipFmt: goalMoney,
       refLine: avg ? {value: avg, label: 'TB cần ' + goalShortMoney(avg) + '/ngày'} : null, aria: 'Doanh số theo ngày'})}
   </div>`;
@@ -15380,58 +15392,107 @@ function goalTeamHtml(me, m, dep){
 }
 
 // ----- Quản lý chung: xếp hạng + theo team + việc cần làm của từng người -----
+// Chọn kỳ xem: Theo ngày / Theo tuần (chứa ngày đã chọn) / Theo tháng. Chọn ngày ở tháng khác → tự chuyển sang tháng đó.
+let goalRankPeriod = 'month', goalRankDate = null;
 function goalToggleTasks(id){ goalOpenTasks[id] = !goalOpenTasks[id]; renderGoalsPage(); }
+function goalRankDefaultDate(m){
+  const t = todayStr();
+  if(m===t.slice(0,7)) return t;
+  const days = goalMonthDays(m); return m < t.slice(0,7) ? days[days.length-1] : days[0];
+}
+function goalSetRankPeriod(p){ goalRankPeriod = p; renderGoalsPage(); }
+function goalSetRankDate(v){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v||'')) return;
+  const t = todayStr(); if(v > t) v = t;
+  goalRankDate = v;
+  if(v.slice(0,7)!==goalViewMonth){ goalViewMonth = v.slice(0,7); goalOpenTasks = {}; }
+  renderGoalsPage();
+}
+function goalPeriodOf(c, period){
+  if(period==='day') return {t: c.todayTarget||0, a: c.todayAchieved||0, off: !!c.todayOff};
+  if(period==='week') return {t: c.weekTarget||0, a: c.weekAchieved||0, off: false};
+  return {t: c.amount, a: c.achieved, off: false};
+}
+function goalPeriodTotals(rows, period){
+  const t = {t:0, a:0, n:0, amount:0, achieved:0};
+  rows.forEach(r=>{ if(!r.c.amount) return; const v = goalPeriodOf(r.c, period); t.n++; t.t += v.t; t.a += v.a; t.amount += r.c.amount; t.achieved += r.c.achieved; });
+  return t;
+}
 function goalGmHtml(m, dep){
-  const isCur = m===goalCurMonth();
-  const all = reportableUsersInBranch(null).map(u=>goalRowStats(u, m, dep));
-  const ranked = all.filter(r=>r.c.amount).sort((a,b)=>b.pct-a.pct || b.c.achieved-a.c.achieved);
+  const period = goalRankPeriod;
+  if(!goalRankDate || goalRankDate.slice(0,7)!==m) goalRankDate = goalRankDefaultDate(m);
+  const d = goalRankDate;
+  const all = reportableUsersInBranch(null).map(u=>{
+    const c = goalCalc(u.id, m, dep, d), v = goalPeriodOf(c, period);
+    let pct = c.amount ? goalPctNum(v.a, v.t) : null;
+    if(c.amount && pct===null && !v.off && c.achieved >= c.amount) pct = 100; // đã đủ mục tiêu tháng → kỳ này coi như đạt
+    return {u, c, v, pct, monthPct: c.amount ? c.monthPct : null};
+  });
+  const pLabel = period==='day' ? `ngày ${fmtDate(d)}` : (period==='week' ? `tuần ${goalDM(all[0] ? all[0].c.weekFrom || d : d)}–${goalDM(all[0] ? all[0].c.weekTo || d : d)}` : goalMonthLabel(m));
+  const pShort = period==='day' ? 'ngày' : (period==='week' ? 'tuần' : 'tháng');
+  const offDay = period==='day' && goalOffSundays(m).includes(d);
+  const ranked = all.filter(r=>r.c.amount).sort((a,b)=>(b.pct===null ? -1 : b.pct) - (a.pct===null ? -1 : a.pct) || b.v.a - a.v.a);
   const notSet = all.filter(r=>!r.c.amount).sort((a,b)=>branchName(a.u.branchId).localeCompare(branchName(b.u.branchId),'vi') || a.u.name.localeCompare(b.u.name,'vi'));
-  const colN = isCur ? 10 : 7;
+  const showMonthCol = period!=='month';
+  const colN = 7 + (showMonthCol ? 1 : 0);
   const rowHtml = (r, rank)=>{
     const c = r.c, nDone = c.tasks.filter(t=>t.done).length;
     const taskCell = c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—');
+    const tCell = !c.amount ? '<span class="badge badge-warn">Chưa đặt</span>' : (r.v.off ? 'nghỉ' : fmtMoney(r.v.t));
     let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
-      <td class="num">${c.amount ? fmtMoney(c.amount) : '<span class="badge badge-warn">Chưa đặt</span>'}</td><td class="num">${fmtMoney(c.achieved)}</td>${goalPctTd(r.pct)}
-      ${isCur ? `${goalPctTd(c.amount && !c.todayOff ? goalPctNum(c.todayAchieved||0, c.todayTarget||0) : null)}<td class="num">${c.amount ? (c.todayOff ? 'nghỉ' : fmtMoney(c.todayTarget||0)) : '—'}</td>${goalPctTd(c.amount ? goalPctNum(c.weekAchieved||0, c.weekTarget||0) : null)}` : ''}
+      <td class="num">${tCell}</td><td class="num">${fmtMoney(r.v.a)}</td>${goalPctTd(r.pct)}${showMonthCol ? goalPctTd(r.monthPct) : ''}
       <td>${taskCell}</td><td>${c.g && c.g.committedAt ? goalTimeStr(c.g.committedAt) : '—'}</td></tr>`;
     if(goalOpenTasks[r.u.id] && c.tasks.length) tr += `<tr class="goal-tasks-row"><td colspan="${colN}">${goalTaskItemsHtml(c.tasks, false)}</td></tr>`;
     return tr;
   };
-  const head = `<thead><tr><th>Hạng · Nhân viên</th><th>Team</th><th class="num">Mục tiêu</th><th class="num">Đã đạt</th><th class="num">% tháng</th>${isCur ? '<th class="num">% hôm nay</th><th class="num">Mục tiêu hôm nay</th><th class="num">% tuần</th>' : ''}<th>Việc cần làm</th><th>Cam kết lúc</th></tr></thead>`;
-  // Theo team
+  const head = `<thead><tr><th>Hạng · Nhân viên</th><th>Team</th><th class="num">Mục tiêu ${pShort}</th><th class="num">Đã đạt ${pShort}</th><th class="num">% ${pShort}</th>${showMonthCol ? '<th class="num">% tháng</th>' : ''}<th>Việc cần làm</th><th>Cam kết lúc</th></tr></thead>`;
+  // Theo team (cùng kỳ đang chọn)
   const byTeam = {};
   all.forEach(r=>{ const k = r.u.branchId || '—'; (byTeam[k] = byTeam[k] || []).push(r); });
-  const teams = Object.keys(byTeam).map(k=>({k, t: goalTeamTotals(byTeam[k]), size: byTeam[k].length}))
-    .sort((a,b)=>{ const pa = goalPctNum(a.t.achieved, a.t.amount), pb = goalPctNum(b.t.achieved, b.t.amount); return (pb===null ? -1 : pb) - (pa===null ? -1 : pa); });
-  const co = goalTeamTotals(all);
-  const teamRows = teams.map(x=>`<tr><td>${escHtml(branchName(x.k))}</td><td class="num">${x.t.n}/${x.size}</td><td class="num">${fmtMoney(x.t.amount)}</td><td class="num">${fmtMoney(x.t.achieved)}</td>${goalPctTd(goalPctNum(x.t.achieved, x.t.amount))}${isCur ? goalPctTd(goalPctNum(x.t.todayA, x.t.todayT)) + goalPctTd(goalPctNum(x.t.weekA, x.t.weekT)) : ''}</tr>`).join('');
+  const teams = Object.keys(byTeam).map(k=>({k, t: goalPeriodTotals(byTeam[k], period), size: byTeam[k].length}))
+    .sort((a,b)=>{ const pa = goalPctNum(a.t.a, a.t.t), pb = goalPctNum(b.t.a, b.t.t); return (pb===null ? -1 : pb) - (pa===null ? -1 : pa); });
+  const co = goalPeriodTotals(all, period);
+  const teamRows = teams.map(x=>`<tr><td>${escHtml(branchName(x.k))}</td><td class="num">${x.t.n}/${x.size}</td><td class="num">${fmtMoney(x.t.t)}</td><td class="num">${fmtMoney(x.t.a)}</td>${goalPctTd(goalPctNum(x.t.a, x.t.t))}${showMonthCol ? goalPctTd(goalPctNum(x.t.achieved, x.t.amount)) : ''}</tr>`).join('');
+  const minD = goalShiftMonth(goalCurMonth(), -12) + '-01';
+  const ctl = `<div class="goal-rank-ctl">
+      <div class="chip-row">
+        ${[['day','Theo ngày'],['week','Theo tuần'],['month','Theo tháng']].map(([k,l])=>`<div class="chip ${period===k ? 'selected' : ''}" onclick="goalSetRankPeriod('${k}')">${l}</div>`).join('')}
+      </div>
+      ${period==='month' ? `<span class="goal-hint" style="margin:0;">Đổi tháng, năm bằng nút ‹ › ở đầu trang</span>`
+        : `<label class="goal-rank-date">${period==='day' ? 'Chọn ngày' : 'Tuần có ngày'} <input type="date" value="${d}" min="${minD}" max="${todayStr()}" onchange="goalSetRankDate(this.value)"></label>`}
+    </div>`;
+  const pctChart = ranked.length && !offDay ? goalChartSvg({labels: ranked.map(r=>r.u.name), aria: '% đạt mục tiêu theo người', fmt: v=>Math.floor(v) + '%', axisFmt: v=>Math.round(v) + '%',
+      tipFmt: v=>Math.floor(v) + '%', series: [{name: '% đạt', color: GOAL_C_TARGET, values: ranked.map(r=>r.pct||0), colors: ranked.map(r=>goalPctColor(r.pct))}],
+      refLine: {value: 100, label: '100% mục tiêu', atEnd: true}, minGroupW: 46, showZero: true,
+      legendExtra: `<span><i style="background:#37C878"></i>Đạt 100%</span><span><i style="background:#E0A93E"></i>70–99%</span><span><i style="background:#E5484D"></i>Dưới 70%</span>`}) : '';
   return `<div class="card">
-    <h2>Toàn công ty, ${goalMonthLabel(m)}</h2>
+    <h2>Toàn công ty, ${pLabel}</h2>
+    ${ctl}
+    ${offDay ? `<p class="goal-hint" style="color:var(--warn);">Ngày ${fmtDate(d)} là Chủ nhật nghỉ chung nên không có mục tiêu ngày.</p>` : ''}
     <div class="goal-team-stats">
-      ${goalStatBox('Tổng mục tiêu', goalMoney(co.amount), `${co.n}/${all.length} người đã cam kết`)}
-      ${goalStatBox('Đã đạt', goalMoney(co.achieved), `<span class="${goalPctCls(goalPctNum(co.achieved, co.amount))}">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</span> mục tiêu tháng`)}
-      ${isCur ? goalStatBox('Hôm nay', goalPctTxt(goalPctNum(co.todayA, co.todayT)), `${fmtMoney(co.todayA)} / ${fmtMoney(co.todayT)} đ`) : goalStatBox('Còn thiếu', goalMoney(Math.max(0, co.amount - co.achieved)))}
-      ${isCur ? goalStatBox('Tuần này', goalPctTxt(goalPctNum(co.weekA, co.weekT)), `${fmtMoney(co.weekA)} / ${fmtMoney(co.weekT)} đ`) : ''}
+      ${goalStatBox(`Mục tiêu ${pShort}`, goalMoney(co.t), `${co.n}/${all.length} người đã cam kết`)}
+      ${goalStatBox(`Đã đạt ${pShort}`, goalMoney(co.a), `<span class="${goalPctCls(goalPctNum(co.a, co.t))}">${goalPctTxt(goalPctNum(co.a, co.t))}</span> mục tiêu ${pShort}`)}
+      ${period==='month' ? goalStatBox('Còn thiếu', goalMoney(Math.max(0, co.amount - co.achieved)), goalMonthLabel(m))
+        : goalStatBox('Mục tiêu tháng', goalMoney(co.amount), goalMonthLabel(m))}
+      ${period==='month' ? goalStatBox('Chưa đặt mục tiêu', `${all.length - co.n} người`, all.length - co.n ? 'xem cuối bảng xếp hạng' : 'mọi người đã cam kết')
+        : goalStatBox('Đã đạt tháng', goalMoney(co.achieved), `<span class="${goalPctCls(goalPctNum(co.achieved, co.amount))}">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</span> mục tiêu tháng`)}
     </div>
   </div>
   <div class="card">
-    <h2>Bảng xếp hạng % đạt mục tiêu</h2>
-    <p class="goal-hint">Xếp theo % đạt mục tiêu tháng. Bấm vào cột Việc cần làm để xem từng việc và tình trạng tick.</p>
-    ${ranked.length ? goalChartSvg({labels: ranked.map(r=>r.u.name), aria: '% đạt mục tiêu theo người', fmt: v=>Math.floor(v) + '%', axisFmt: v=>Math.round(v) + '%',
-      tipFmt: v=>Math.floor(v) + '%', series: [{name: '% đạt', color: GOAL_C_TARGET, values: ranked.map(r=>r.pct), colors: ranked.map(r=>goalPctColor(r.pct))}],
-      refLine: {value: 100, label: '100% mục tiêu'}, minGroupW: 54,
-      legendExtra: `<span><i style="background:#37C878"></i>Đạt 100%</span><span><i style="background:#E0A93E"></i>70–99%</span><span><i style="background:#E5484D"></i>Dưới 70%</span>`}) : ''}
+    <h2>Bảng xếp hạng % đạt mục tiêu ${pShort}</h2>
+    <p class="goal-hint">Xếp theo % đạt mục tiêu ${pLabel}. Bấm vào cột Việc cần làm để xem từng việc và tình trạng tick.</p>
+    ${pctChart}
     <div class="table-wrap"><table class="rtable goal-table">${head}<tbody>
       ${ranked.map((r,i)=>rowHtml(r, i+1)).join('') || `<tr><td colspan="${colN}"><div class="empty-note">Chưa ai cam kết mục tiêu ${goalMonthLabel(m)}.</div></td></tr>`}
       ${notSet.map(r=>rowHtml(r, 0)).join('')}
     </tbody></table></div>
   </div>
   <div class="card">
-    <h2>Theo team</h2>
+    <h2>Theo team, ${pLabel}</h2>
     <p class="goal-hint">Mục tiêu team = tổng mục tiêu các thành viên đã cam kết.</p>
-    ${goalPairChartHtml(teams.map(x=>branchName(x.k)), teams.map(x=>x.t.amount), teams.map(x=>x.t.achieved), 'Mục tiêu và đã đạt theo team')}
-    <div class="table-wrap"><table class="rtable goal-table"><thead><tr><th>Team</th><th class="num">Đã cam kết</th><th class="num">Mục tiêu team</th><th class="num">Đã đạt</th><th class="num">% tháng</th>${isCur ? '<th class="num">% hôm nay</th><th class="num">% tuần</th>' : ''}</tr></thead>
-    <tbody>${teamRows}<tr class="total-row"><td>TOÀN CÔNG TY</td><td class="num">${co.n}/${all.length}</td><td class="num">${fmtMoney(co.amount)}</td><td class="num">${fmtMoney(co.achieved)}</td><td class="num">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</td>${isCur ? `<td class="num">${goalPctTxt(goalPctNum(co.todayA, co.todayT))}</td><td class="num">${goalPctTxt(goalPctNum(co.weekA, co.weekT))}</td>` : ''}</tr></tbody></table></div>
+    ${offDay ? '' : goalPairChartHtml(teams.map(x=>branchName(x.k)), teams.map(x=>x.t.t), teams.map(x=>x.t.a), 'Mục tiêu và đã đạt theo team')}
+    <div class="table-wrap"><table class="rtable goal-table"><thead><tr><th>Team</th><th class="num">Đã cam kết</th><th class="num">Mục tiêu ${pShort}</th><th class="num">Đã đạt ${pShort}</th><th class="num">% ${pShort}</th>${showMonthCol ? '<th class="num">% tháng</th>' : ''}</tr></thead>
+    <tbody>${teamRows}<tr class="total-row"><td>TOÀN CÔNG TY</td><td class="num">${co.n}/${all.length}</td><td class="num">${fmtMoney(co.t)}</td><td class="num">${fmtMoney(co.a)}</td><td class="num">${goalPctTxt(goalPctNum(co.a, co.t))}</td>${showMonthCol ? `<td class="num">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</td>` : ''}</tr></tbody></table></div>
   </div>`;
 }
 
