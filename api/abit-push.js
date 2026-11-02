@@ -27,7 +27,7 @@ function buildOrder(inv, ps, username){
   const ghichu1 = Object.entries(detail).map(([c, arr])=>`${c}: ${arr.join(' · ')}`).join(' | ').slice(0, 1000);
   const custPhone = String(inv.customerPhone || '').replace(/\D/g, '');
   const phone = String(inv.shipPhone || '').replace(/\D/g, '') || custPhone; // SĐT NHẬN HÀNG (in trên tem); khác SĐT khách thì ghi chú lại
-  return {
+  return Object.assign({
     name: inv.customerName || phone || 'Khách',
     telephone: phone,
     name_receiver: inv.shipName || inv.customerName || phone || 'Khách', // TÊN NGƯỜI NHẬN (in trên tem)
@@ -46,7 +46,10 @@ function buildOrder(inv, ps, username){
     accountid: 0,
     username: username || '', // TÊN ĐĂNG NHẬP ABIT của Sale → Abit gán đơn đúng nhân viên
     listProduct
-  };
+  }, storeId ? {
+    // KHO GỬI của cả đơn (không chỉ từng sản phẩm) — thiếu thì lúc "Gửi vận đơn" Abit báo "kiểm tra lại tên kho hàng gửi"
+    storeid: String(storeId), productstoreid: storeId
+  } : {});
 }
 
 module.exports = async (req, res)=>{
