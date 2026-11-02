@@ -1697,6 +1697,84 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     #packPrintArea .pack-sheet:last-child{ break-after:auto; page-break-after:auto; }
     #packPrintArea .inv-view tr{ page-break-inside:avoid; }
   }
+  /* ===================== 🎯 MỤC TIÊU THÁNG ===================== */
+  .goal-remind{ margin:0 0 14px; padding:10px 16px; border-radius:12px; cursor:pointer; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; background:linear-gradient(rgba(79,142,247,.16), rgba(79,142,247,.16)), var(--panel); border:1.5px solid var(--accent); color:var(--ink); }
+  .goal-remind .rdl-go{ flex:0 0 auto; padding:6px 12px; border-radius:999px; background:var(--accent); color:#fff; font-size:13px; white-space:nowrap; }
+  @media (max-width:720px){ .goal-remind{ font-size:13px; } }
+  .goal-monthnav{ display:flex; align-items:center; gap:6px; }
+  .goal-monthnav button{ min-height:34px; padding:0 12px; }
+  .goal-monthnav .goal-monthname{ min-width:118px; text-align:center; font-weight:700; }
+  .goal-hint{ color:var(--ink-soft); font-size:13px; margin:2px 0 12px; }
+  .goal-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .goal-steps{ display:flex; gap:6px; margin-bottom:16px; counter-reset:gs; }
+  .goal-steps span{ flex:1; font-size:12px; color:var(--ink-soft); padding-top:8px; border-top:3px solid var(--line); }
+  .goal-steps span.on{ color:var(--ink); border-top-color:var(--accent); font-weight:600; }
+  .goal-steps span.done{ border-top-color:var(--success); }
+  .goal-amount-row{ display:flex; align-items:center; gap:8px; max-width:360px; }
+  .goal-amount-row input{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; min-height:52px; letter-spacing:.01em; }
+  .goal-amount-row span{ font-size:18px; color:var(--ink-soft); }
+  .goal-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+  /* Khoảnh khắc cam kết — phần duy nhất được làm nổi bật trên trang */
+  .goal-commit{ text-align:center; padding:28px 12px 8px; }
+  .goal-commit-amount{ font-size:clamp(30px, 7vw, 46px); font-weight:800; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .goal-commit-amount small{ font-size:.45em; color:var(--ink-soft); font-weight:600; margin-left:4px; }
+  .goal-commit-sub{ color:var(--ink-soft); font-size:13px; margin-top:6px; }
+  .goal-commit-q{ font-size:19px; font-weight:700; margin:26px auto 18px; max-width:420px; line-height:1.4; }
+  .goal-commit-btn{ min-height:54px; padding:0 34px; font-size:17px; border-radius:999px; box-shadow:0 6px 22px rgba(79,142,247,.35); }
+  .goal-commit-back{ display:block; margin:16px auto 0; background:none; color:var(--ink-soft); font-weight:500; font-size:13.5px; text-decoration:underline; min-height:32px; }
+  .goal-periods{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:10px 0 12px; }
+  .goal-period{ background:var(--bg); border:1px solid var(--line); border-radius:var(--radius-s); padding:12px 14px; min-width:0; }
+  .goal-period .gp-label{ font-size:12.5px; color:var(--ink-soft); }
+  .goal-period .gp-pct{ font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; margin:2px 0 6px; }
+  .goal-period .gp-pct.na{ font-size:15px; font-weight:600; color:var(--ink-soft); padding:6px 0 7px; }
+  .goal-period .gp-sub{ font-size:12px; color:var(--ink-soft); font-variant-numeric:tabular-nums; margin-top:6px; overflow-wrap:anywhere; }
+  .goal-bar{ height:6px; border-radius:3px; background:var(--line); overflow:hidden; }
+  .goal-bar i{ display:block; height:100%; border-radius:3px; background:var(--danger); }
+  .goal-bar.mid i{ background:var(--warn); }
+  .goal-bar.ok i{ background:var(--success); }
+  .goal-figures{ display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13.5px; }
+  .goal-figures div{ white-space:nowrap; }
+  .goal-figures span{ color:var(--ink-soft); }
+  .goal-figures b{ font-variant-numeric:tabular-nums; }
+  @media (max-width:720px){
+    .goal-periods{ gap:6px; }
+    .goal-period{ padding:9px 10px; }
+    .goal-period .gp-pct{ font-size:20px; }
+    .goal-figures{ font-size:12.5px; gap:4px 12px; }
+  }
+  .goal-task-edit{ list-style:none; padding:0; margin:0 0 10px; }
+  .goal-task-edit li{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .goal-task-edit li .gt-n{ flex:0 0 22px; color:var(--ink-soft); font-size:13px; text-align:right; font-variant-numeric:tabular-nums; }
+  .goal-task-edit li button{ flex:0 0 auto; min-height:36px; padding:0 10px; }
+  .goal-tasks{ list-style:none; padding:0; margin:6px 0 0; }
+  .goal-tasks li{ display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .goal-tasks li:last-child{ border-bottom:none; }
+  .goal-tasks input[type=checkbox]{ width:20px; height:20px; min-height:0; margin:1px 0 0; flex:0 0 auto; accent-color:var(--success); cursor:pointer; }
+  .goal-tasks label{ display:flex; gap:10px; align-items:flex-start; flex:1; margin:0; font-size:14.5px; color:var(--ink); cursor:pointer; }
+  .goal-tasks li.done label span{ color:var(--ink-soft); text-decoration:line-through; }
+  .goal-tasks small{ color:var(--success); font-size:12px; white-space:nowrap; padding-top:2px; }
+  .goal-tile{ cursor:pointer; border:1.5px solid var(--accent-soft); border-radius:14px; background:var(--panel); padding:12px 14px; margin-bottom:16px; }
+  .goal-tile:hover{ border-color:var(--accent); }
+  .goal-tile .goal-periods{ margin:8px 0 8px; }
+  .goal-tile-head{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; font-weight:800; font-size:15px; }
+  .goal-tile-head span{ font-size:12.5px; font-weight:600; color:var(--accent); white-space:nowrap; }
+  .goal-tile.empty{ border-color:var(--accent); background:linear-gradient(rgba(79,142,247,.10), rgba(79,142,247,.10)), var(--panel); }
+  .goal-table td, .goal-table th{ padding:7px 8px; font-size:12.5px; }
+  .goal-table td.pct-cell{ font-weight:700; }
+  .goal-table .goal-rank{ color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+  .goal-table tr.goal-me td{ background:rgba(79,142,247,.08); }
+  .goal-table .gt-toggle{ color:var(--accent); cursor:pointer; text-decoration:underline; }
+  .goal-table tr.goal-tasks-row td{ background:var(--bg); white-space:normal; }
+  .goal-table tr.goal-tasks-row .goal-tasks li{ padding:5px 0; font-size:13px; }
+  .goal-pct-ok{ color:var(--success); }
+  .goal-pct-mid{ color:var(--warn); }
+  .goal-pct-low{ color:var(--danger); }
+  .goal-team-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:10px 0 14px; }
+  @media (max-width:720px){ .goal-team-stats{ grid-template-columns:repeat(2,1fr); } }
+  .goal-sunday-opts{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 8px; }
+  .goal-sunday-opts .chip{ text-align:left; line-height:1.35; padding-top:8px; padding-bottom:8px; }
+  .goal-sunday-opts .chip small{ display:block; font-weight:500; color:var(--ink-soft); font-size:12px; }
+  .goal-sunday-opts .chip.selected small{ color:var(--accent); }
 </style>
 </head>
 <body>
@@ -1824,6 +1902,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
         </div>
       </div>
+      <div id="navGoals" style="display:none;">
+        <div class="nav-item" data-page="goals" onclick="goPage('goals')"><span class="label">🎯 Mục tiêu</span></div>
+      </div>
       <div id="navManager" style="display:none;">
         <div class="nav-section-label">Quản lý Sale</div>
         <div class="nav-item" id="navItem_mgrDashboard" data-page="mgrDashboard" onclick="goPage('mgrDashboard')"><span class="label">📈 Tổng quan</span></div>
@@ -1857,6 +1938,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
     <div class="main">
     <div id="reportDeadlineBar" class="rdl-bar" style="display:none;" onclick="goSubmitTodayReport()"></div>
+    <div id="goalRemindBar" class="goal-remind" style="display:none;" onclick="goPage('goals')"></div>
       <!-- ---------- STAFF: nộp báo cáo ---------- -->
       <div id="page-staffReport" class="page">
         <div class="page-head">
@@ -1904,9 +1986,23 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </div>
       </div>
 
+      <!-- ---------- 🎯 Mục tiêu tháng (Sale, Quản lý team, Quản lý chung) ---------- -->
+      <div id="page-goals" class="page" style="display:none;">
+        <div class="page-head">
+          <div><h1>🎯 Mục tiêu</h1><p>Mục tiêu doanh số tháng, cam kết và việc cần làm</p></div>
+          <div class="goal-monthnav">
+            <button class="btn-ghost" id="goalsPrevBtn" onclick="goalGoMonth(-1)" aria-label="Tháng trước">‹</button>
+            <span class="goal-monthname" id="goalsMonthName"></span>
+            <button class="btn-ghost" id="goalsNextBtn" onclick="goalGoMonth(1)" aria-label="Tháng sau">›</button>
+          </div>
+        </div>
+        <div id="goalsBody"></div>
+      </div>
+
       <!-- ---------- Data của tôi (mọi vai trò) ---------- -->
       <div id="page-myLeads" class="page" style="display:none;">
         <div class="page-head"><div><h1>Data của tôi</h1><p>Data được hệ thống tự chia cho bạn theo vòng xoay hằng ngày</p></div></div>
+        <div id="myGoalTile" class="goal-tile" style="display:none;" onclick="goPage('goals')"></div>
 
         <div class="chip-row" style="margin-bottom:16px;">
           <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
@@ -11844,6 +11940,7 @@ function renderMyInvTodoBar(){
 function goInvFilter(f){ goPage('invoices'); myInvFlowFilter = f; pagerPages.myInvoices = 1; renderInvoicesPage(); window.scrollTo(0,0); }
 function renderMyLeads(){
   renderMyInvTodoBar();
+  try{ renderMyGoalTile(); }catch(e){ console.error(e); }
   // SĐT nào đã có hoá đơn (của chính Sale này) → nút hoá đơn trước SĐT đổi sang màu xanh lá
   const invByPhone = {};
   { const me = currentUser();
@@ -14023,6 +14120,7 @@ function confirmLogout(){
 function logout(){
   state.session=null; persistSession();
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
+  try{ goalResetListeners(); }catch(e){}
   resetChatDotCache();
   resetLeadNotifyState();
   resetChatNotifyState();
@@ -14317,6 +14415,7 @@ function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
   setupRoleScopedListeners(user);
+  try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
   checkNewLeadNotifications();
   setupChatNotifyListener();
   setupChatUnreadListener();
@@ -14358,6 +14457,8 @@ function enterApp(){
   document.getElementById('navPersonalItems').style.display = isGeneralManager ? 'none' : 'block';
   document.getElementById('navPersonalToggleLabel').textContent = '🗂️ Data của tôi ▸';
   document.getElementById('navManager').style.display = (isManagerRole && !isMkt && !isMktManager) ? 'block' : 'none';
+  // 🎯 Mục tiêu: Sale + Quản lý team tự đặt mục tiêu; Quản lý chung xem tất cả + chọn lịch nghỉ CN
+  document.getElementById('navGoals').style.display = ['staff','team_manager','general_manager'].includes(user.role) ? 'block' : 'none';
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
   ['navItem_mgrDashboard','navItem_mgrReports','navItem_reportDiff','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
@@ -14526,6 +14627,8 @@ function goPage(pageId){
   try{ runAutoRecallIfDue(); }catch(e){}
   setTimeout(()=>{ try{ checkOldDataForPage(); }catch(e){} }, 0); // chạy SAU khi trang đã áp bộ lọc mặc định (VD "Tháng này")
   try{ updateReportDeadlineBar(); }catch(e){}
+  try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
+  if(pageId==='goals') renderGoalsPage();
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
@@ -14572,6 +14675,636 @@ function goPage(pageId){
   if(pageId==='mktOverview') renderMktOverviewPage();
   if(pageId==='mktPersonDetail') renderMktPersonDetail();
   if(pageId==='companyRules') renderCompanyRulesPage();
+}
+
+/* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
+// Dữ liệu trên Firebase:
+//   goals/{YYYY-MM}/{userId} = {userId, userName, branchId, month, amount, committedAt, startDate, updatedAt,
+//                               commits/{key} = {at, amount}   ← mỗi lần bấm "Tôi cam kết" (lần sửa sau lưu thời điểm mới)
+//                               tasks/{id}   = {id, text, order, done, doneAt, createdAt}}
+//   goalSettings/sundays/{YYYY-MM} = {mode:'13'|'24', by, byName, at}  ← Quản lý chung chọn CN nghỉ của tháng
+// Cách tính (không lưu sẵn, luôn tính lại khi vẽ → đổi lịch nghỉ giữa tháng thì mục tiêu ngày tự đổi theo):
+//   - Doanh số đạt = tổng tiền hàng (totalAmount) các hoá đơn ĐÃ CỌC, tính theo NGÀY CỌC (depositLink.markedAt)
+//   - Ngày làm việc = các ngày trong tháng trừ 2 Chủ nhật nghỉ chung (CN thứ 1&3 hoặc 2&4; CN thứ 5 vẫn làm)
+//   - Mục tiêu hôm nay = (mục tiêu − đã đạt TRƯỚC hôm nay) ÷ số ngày làm việc còn lại tính cả hôm nay
+//   - Mục tiêu tuần (T2→CN, cắt trong tháng) = (mục tiêu − đã đạt trước tuần) ÷ ngày làm còn lại từ đầu tuần × ngày làm trong tuần
+//   - Người vào làm giữa tháng: chỉ tính từ ngày tạo tài khoản
+const GOAL_MIN_TASKS = 3;
+const goalsByMonth = {};      // {'2026-11': {userId: goal}}
+const goalsLoadedMonth = {};  // {'2026-11': true} — đã tải xong lần đầu
+const goalMonthSubs = {};     // {'2026-11': {key, ref}}
+let goalSundayCfg = {}, goalSundaySub = null;
+let goalViewMonth = null;     // tháng đang xem trên trang Mục tiêu
+let goalDraft = null;         // đang nhập/sửa số mục tiêu: {month, digits, step:1|2}
+let goalTaskDraft = null;     // đang soạn danh sách việc: {month, items:[{id,text,done,doneAt,createdAt}]}
+let goalOpenTasks = {};       // Quản lý chung: đang mở xem việc của ai
+const goalTeamInv = {}, goalTeamInvSubs = {}, goalTeamInvLoaded = {}; // Quản lý team: hoá đơn của từng thành viên
+
+function goalCurMonth(){ return todayStr().slice(0,7); }
+function goalMonthLabel(m){ const [y,mo] = m.split('-'); return `tháng ${Number(mo)}/${y}`; }
+function goalShiftMonth(m, d){
+  let [y,mo] = m.split('-').map(Number); mo += d;
+  while(mo>12){ mo-=12; y++; } while(mo<1){ mo+=12; y--; }
+  return `${y}-${String(mo).padStart(2,'0')}`;
+}
+function goalMonthDays(m){
+  const [y,mo] = m.split('-').map(Number); const n = new Date(y, mo, 0).getDate(); const out = [];
+  for(let d=1; d<=n; d++) out.push(`${m}-${String(d).padStart(2,'0')}`);
+  return out;
+}
+function goalDateObj(ds){ const [y,mo,d] = ds.split('-').map(Number); return new Date(y, mo-1, d); }
+function goalAddDays(ds, n){ const d = goalDateObj(ds); d.setDate(d.getDate()+n); return toLocalDateStr(d); }
+function goalDM(ds){ return ds.slice(8,10) + '/' + ds.slice(5,7); }
+function goalSundaysOf(m){ return goalMonthDays(m).filter(ds=>goalDateObj(ds).getDay()===0); }
+// Lịch nghỉ CN của tháng: đã chọn → theo lựa chọn; chưa chọn → tự luân phiên NGƯỢC với tháng trước gần nhất đã chọn
+function goalSundayMode(m){
+  const ok = c=>c && (c.mode==='13' || c.mode==='24');
+  const c = goalSundayCfg[m];
+  if(ok(c)) return {mode:c.mode, set:true, byName:c.byName||'', at:c.at||0};
+  for(let i=1; i<=36; i++){
+    const pc = goalSundayCfg[goalShiftMonth(m, -i)];
+    if(ok(pc)) return {mode: (i%2===0) ? pc.mode : (pc.mode==='13' ? '24' : '13'), set:false};
+  }
+  const [y,mo] = m.split('-').map(Number);
+  return {mode: ((y*12+mo)%2===0) ? '13' : '24', set:false};
+}
+function goalOffSundaysFor(m, mode){ const s = goalSundaysOf(m); return (mode==='13' ? [0,2] : [1,3]).map(i=>s[i]).filter(Boolean); }
+function goalOffSundays(m){ return goalOffSundaysFor(m, goalSundayMode(m).mode); }
+function goalWorkDays(m, from, to){
+  const off = new Set(goalOffSundays(m));
+  return goalMonthDays(m).filter(d=>!off.has(d) && (!from || d>=from) && (!to || d<=to));
+}
+function goalRoundUp(x){ return x>0 ? Math.ceil(x/1000)*1000 : 0; }
+function goalMoney(n){ return fmtMoney(Math.round(Number(n)||0)) + ' đ'; }
+function goalTimeStr(ms){
+  const d = new Date(Number(ms)); const p = n=>String(n).padStart(2,'0');
+  return `${p(d.getHours())}:${p(d.getMinutes())} ngày ${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`;
+}
+function goalPctNum(a, t){ return t>0 ? (a/t*100) : null; }
+function goalPctTxt(p){ return p===null ? '—' : (Math.floor(p) + '%'); }
+function goalPctCls(p){ return p===null ? '' : (p>=100 ? 'goal-pct-ok' : (p>=70 ? 'goal-pct-mid' : 'goal-pct-low')); }
+function goalBarHtml(p){
+  const w = p===null ? 0 : Math.max(0, Math.min(100, p));
+  return `<div class="goal-bar ${p===null ? '' : (p>=100 ? 'ok' : (p>=70 ? 'mid' : ''))}"><i style="width:${w}%"></i></div>`;
+}
+function goalTasksOf(g){
+  return Object.values((g && g.tasks) || {}).filter(t=>t && String(t.text||'').trim())
+    .sort((a,b)=>(a.order||0)-(b.order||0) || (a.createdAt||0)-(b.createdAt||0));
+}
+function goalIsCommitted(g){ return !!(g && Number(g.amount)>0 && g.committedAt); }
+function goalHasOwn(u){ return !!u && (u.role==='staff' || u.role==='team_manager'); }
+
+// Người vào làm giữa tháng: tính từ ngày tạo tài khoản (nếu rơi vào chính tháng đó)
+function goalStartDate(uid, m, g){
+  const first = m + '-01';
+  if(g && g.startDate && g.startDate.slice(0,7)===m) return g.startDate > first ? g.startDate : first;
+  const u = state.users.find(x=>x.id===uid);
+  const c = (u && u.createdAt) ? toLocalDateStr(new Date(Number(u.createdAt))) : '';
+  return (c && c.slice(0,7)===m && c > first) ? c : first;
+}
+
+// ----- Tải dữ liệu -----
+function goalSubscribeMonth(m){
+  const u = currentUser(); if(!u || !fbRoot || !m) return;
+  const r = u.role;
+  const scope = r==='general_manager' ? 'all' : (r==='team_manager' ? 'team:' + (u.branchId||'') : (goalHasOwn(u) ? 'me:' + u.id : null));
+  if(!scope) return;
+  const key = m + '|' + scope;
+  if(goalMonthSubs[m] && goalMonthSubs[m].key===key) return;
+  if(goalMonthSubs[m]){ try{ goalMonthSubs[m].ref.off(); }catch(e){} }
+  const base = fbRoot.child('goals/' + m);
+  // Quản lý team chỉ tải mục tiêu của team mình (lọc theo branchId ghi trên từng mục tiêu)
+  const ref = scope==='all' ? base : (scope.startsWith('team:') ? base.orderByChild('branchId').equalTo(u.branchId||'') : base.child(u.id));
+  goalMonthSubs[m] = {key, ref};
+  goalsLoadedMonth[m] = false;
+  ref.on('value', snap=>{
+    if(!goalMonthSubs[m] || goalMonthSubs[m].key!==key) return;
+    const v = snap.val();
+    goalsByMonth[m] = scope.startsWith('me:') ? (v ? {[u.id]: v} : {}) : (v || {});
+    goalsLoadedMonth[m] = true;
+    try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
+    onDataChanged();
+  }, err=>{ console.error('Lỗi tải mục tiêu:', err); goalsLoadedMonth[m] = true; });
+}
+let goalListenKey = null;
+function goalSetupListeners(user){
+  const key = user ? [user.id, user.role, user.branchId||''].join('|') : null;
+  if(key && key===goalListenKey) return; // enterApp có thể gọi lại (VD tự sửa tài khoản mình) → giữ nguyên, không mất phần đang soạn
+  goalResetListeners();
+  goalListenKey = key;
+  if(!user || !fbRoot) return;
+  if(!(goalHasOwn(user) || user.role==='general_manager')) return;
+  goalSundaySub = fbRoot.child('goalSettings/sundays');
+  goalSundaySub.on('value', snap=>{ goalSundayCfg = snap.val() || {}; onDataChanged(); });
+  goalSubscribeMonth(goalCurMonth());
+}
+function goalResetListeners(){
+  goalListenKey = null;
+  Object.keys(goalMonthSubs).forEach(m=>{ try{ goalMonthSubs[m].ref.off(); }catch(e){} delete goalMonthSubs[m]; delete goalsByMonth[m]; delete goalsLoadedMonth[m]; });
+  if(goalSundaySub){ try{ goalSundaySub.off(); }catch(e){} goalSundaySub = null; }
+  goalSundayCfg = {};
+  Object.keys(goalTeamInvSubs).forEach(id=>{ try{ goalTeamInvSubs[id].off(); }catch(e){} delete goalTeamInvSubs[id]; delete goalTeamInv[id]; delete goalTeamInvLoaded[id]; });
+  goalViewMonth = null; goalDraft = null; goalTaskDraft = null; goalOpenTasks = {};
+  const bar = document.getElementById('goalRemindBar'); if(bar) bar.style.display = 'none';
+}
+// Quản lý team chỉ tải hoá đơn của chính mình (xem setupRoleScopedListeners) → tải thêm hoá đơn từng thành viên team
+function goalEnsureTeamInvoices(ids){
+  ids.forEach(id=>{
+    if(goalTeamInvSubs[id]) return;
+    const q = fbInvoices.orderByChild('saleId').equalTo(id);
+    goalTeamInvSubs[id] = q;
+    q.on('value', snap=>{ goalTeamInv[id] = Object.values(snap.val()||{}); goalTeamInvLoaded[id] = true; onDataChanged(); },
+      err=>{ console.error('Lỗi tải hoá đơn thành viên:', err); goalTeamInvLoaded[id] = true; });
+  });
+}
+function goalTeamMembers(u){ return reportableUsersInBranch(u.branchId).sort((a,b)=>a.name.localeCompare(b.name,'vi')); }
+// Doanh số đã cọc theo người, theo ngày cọc: {userId: {'2026-11-03': số tiền}}
+function goalDepositIndex(){
+  const idx = {}, seen = new Set();
+  const add = inv=>{
+    if(!inv || !inv.id || seen.has(inv.id)) return; seen.add(inv.id);
+    if(!inv.depositLink || !inv.saleId) return;
+    const at = Number(inv.depositLink.markedAt); if(!at) return;
+    const d = toLocalDateStr(new Date(at));
+    const m = idx[inv.saleId] || (idx[inv.saleId] = {});
+    m[d] = (m[d]||0) + (Number(inv.totalAmount)||0);
+  };
+  (state.invoices||[]).forEach(add);
+  Object.values(goalTeamInv).forEach(arr=>(arr||[]).forEach(add));
+  return idx;
+}
+function goalCalc(uid, m, dep){
+  const g = (goalsByMonth[m]||{})[uid] || null;
+  const amount = goalIsCommitted(g) ? Number(g.amount) : 0;
+  const start = goalStartDate(uid, m, g);
+  const days = goalMonthDays(m), end = days[days.length-1];
+  const byDay = dep[uid] || {};
+  const sum = (from, toIncl)=>{ let s = 0; for(const d in byDay){ if(d>=from && d<=toIncl) s += byDay[d]; } return s; };
+  const before = (d)=>{ let s = 0; for(const k in byDay){ if(k>=start && k<d) s += byDay[k]; } return s; };
+  const achieved = sum(start, end);
+  const today = todayStr();
+  const r = {g, amount, start, end, achieved, missing: Math.max(0, amount-achieved), monthPct: goalPctNum(achieved, amount),
+    isCurrent: m===goalCurMonth(), workDays: goalWorkDays(m, start, end).length, tasks: goalTasksOf(g)};
+  if(!r.isCurrent || today < start) return r;
+  // Hôm nay
+  const remDays = goalWorkDays(m, today, end).length;
+  const todayWork = goalWorkDays(m, today, today).length===1;
+  r.remDays = remDays; r.todayOff = !todayWork;
+  r.todayTarget = (amount && todayWork && remDays) ? goalRoundUp(Math.max(0, amount - before(today)) / remDays) : 0;
+  r.todayAchieved = byDay[today] || 0;
+  // Tuần này (Thứ 2 → Chủ nhật, cắt trong tháng & từ ngày bắt đầu)
+  const monday = goalAddDays(today, -((goalDateObj(today).getDay()+6)%7));
+  const sunday = goalAddDays(monday, 6);
+  const ws = monday > start ? monday : start, we = sunday < end ? sunday : end;
+  const remWs = goalWorkDays(m, ws, end).length, wkDays = goalWorkDays(m, ws, we).length;
+  r.weekFrom = ws; r.weekTo = we;
+  r.weekTarget = (amount && remWs) ? goalRoundUp(Math.max(0, amount - before(ws)) / remWs * wkDays) : 0;
+  r.weekAchieved = sum(ws, today);
+  return r;
+}
+
+// ----- Khối 3 ô Hôm nay / Tuần này / Tháng này (dùng chung cho trang Mục tiêu + ô trên Data của tôi) -----
+function goalPeriodBox(label, achieved, target, naText){
+  const p = goalPctNum(achieved, target);
+  const pctHtml = (p===null && naText) ? `<div class="gp-pct na">${naText}</div>` : `<div class="gp-pct ${goalPctCls(p)}">${goalPctTxt(p)}</div>`;
+  const sub = target>0 ? `${goalMoney(achieved)} / ${goalMoney(target)}` : (achieved ? `Đã đạt ${goalMoney(achieved)}` : '&nbsp;');
+  return `<div class="goal-period"><div class="gp-label">${label}</div>${pctHtml}${goalBarHtml(p)}<div class="gp-sub">${sub}</div></div>`;
+}
+function goalPeriodsHtml(c){
+  const doneMonth = c.amount && c.achieved >= c.amount;
+  const todayNa = c.todayOff ? 'Hôm nay nghỉ' : (doneMonth ? 'Đã đủ tháng 🎉' : '');
+  const weekNa = doneMonth ? 'Đã đủ tháng 🎉' : '';
+  return `<div class="goal-periods">
+    ${goalPeriodBox('Hôm nay', c.todayAchieved||0, c.todayTarget||0, todayNa)}
+    ${goalPeriodBox(`Tuần này <span style="white-space:nowrap;">(${goalDM(c.weekFrom)}–${goalDM(c.weekTo)})</span>`, c.weekAchieved||0, c.weekTarget||0, weekNa)}
+    ${goalPeriodBox('Tháng này', c.achieved, c.amount, '')}
+  </div>`;
+}
+function goalFiguresHtml(c){
+  return `<div class="goal-figures">
+    <div><span>Đã đạt</span> <b class="goal-pct-ok">${goalMoney(c.achieved)}</b></div>
+    <div><span>Còn thiếu</span> <b>${goalMoney(c.missing)}</b></div>
+    <div><span>Mục tiêu hôm nay</span> <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b></div>
+    <div><span>Còn</span> <b>${c.remDays||0}</b> <span>ngày làm việc</span></div>
+  </div>`;
+}
+
+// ----- Ô tổng quan trên trang "Data của tôi" -----
+function renderMyGoalTile(){
+  const el = document.getElementById('myGoalTile'); if(!el) return;
+  const me = currentUser();
+  if(!goalHasOwn(me)){ el.style.display = 'none'; return; }
+  const m = goalCurMonth(); goalSubscribeMonth(m);
+  if(!goalsLoadedMonth[m]){ el.style.display = 'none'; return; }
+  const c = goalCalc(me.id, m, goalDepositIndex());
+  el.style.display = '';
+  if(!c.amount){
+    el.className = 'goal-tile empty';
+    el.innerHTML = `<div class="goal-tile-head">🎯 Bạn chưa đặt mục tiêu ${goalMonthLabel(m)}<span>Đặt mục tiêu →</span></div>
+      <div class="goal-hint" style="margin:4px 0 0;">Điền mục tiêu doanh số, cam kết và ghi ra ít nhất ${GOAL_MIN_TASKS} việc cần làm.</div>`;
+    return;
+  }
+  el.className = 'goal-tile';
+  el.innerHTML = `<div class="goal-tile-head">🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}<span>Xem chi tiết →</span></div>
+    ${goalPeriodsHtml(c)}${goalFiguresHtml(c)}`;
+}
+
+// ----- Dải nhắc: chưa đặt mục tiêu / chưa đủ việc cần làm -----
+function updateGoalRemindBar(){
+  const bar = document.getElementById('goalRemindBar'); if(!bar) return;
+  const u = currentUser();
+  const hide = ()=>{ bar.style.display = 'none'; };
+  if(!goalHasOwn(u) || currentPageId==='goals' || currentPageId==='myLeads') return hide(); // Data của tôi đã có ô Mục tiêu nhắc riêng
+  const m = goalCurMonth(); goalSubscribeMonth(m);
+  if(!goalsLoadedMonth[m]) return hide();
+  const g = (goalsByMonth[m]||{})[u.id];
+  let text, go;
+  if(!goalIsCommitted(g)){ text = `🎯 Bạn chưa đặt mục tiêu doanh số ${goalMonthLabel(m)}`; go = 'Đặt mục tiêu →'; }
+  else if(goalTasksOf(g).length < GOAL_MIN_TASKS){ text = `🎯 Bạn chưa ghi đủ ${GOAL_MIN_TASKS} việc cần làm để đạt mục tiêu ${goalMonthLabel(m)}`; go = 'Ghi ngay →'; }
+  else return hide();
+  bar.innerHTML = `<span>${text}</span><span class="rdl-go">${go}</span>`;
+  bar.style.display = 'flex';
+}
+setInterval(()=>{ try{ updateGoalRemindBar(); }catch(e){} }, 60000); // qua tháng mới → tự nhắc lại
+
+// ----- Trang 🎯 Mục tiêu -----
+function goalGoMonth(d){
+  const cur = goalCurMonth();
+  let m = goalShiftMonth(goalViewMonth || cur, d);
+  const maxM = goalShiftMonth(cur, 1), minM = goalShiftMonth(cur, -12);
+  if(m > maxM) m = maxM; if(m < minM) m = minM;
+  goalViewMonth = m; goalOpenTasks = {};
+  renderGoalsPage();
+}
+function renderGoalsPage(){
+  const body = document.getElementById('goalsBody'); if(!body) return;
+  const me = currentUser(); if(!me) return;
+  const cur = goalCurMonth();
+  if(!goalViewMonth) goalViewMonth = cur;
+  const m = goalViewMonth;
+  goalSubscribeMonth(cur); goalSubscribeMonth(m);
+  if(goalDraft && goalDraft.month!==cur) goalDraft = null;
+  if(goalTaskDraft && goalTaskDraft.month!==cur) goalTaskDraft = null;
+  const isGM = me.role==='general_manager', isTM = me.role==='team_manager';
+  if(isTM) goalEnsureTeamInvoices(goalTeamMembers(me).map(u=>u.id).filter(id=>id!==me.id));
+  const dep = goalDepositIndex();
+
+  document.getElementById('goalsMonthName').textContent = goalMonthLabel(m).replace(/^t/, 'T');
+  document.getElementById('goalsPrevBtn').disabled = m <= goalShiftMonth(cur, -12);
+  document.getElementById('goalsNextBtn').disabled = m >= goalShiftMonth(cur, 1);
+
+  let html = isGM ? goalSundayCardHtml(m) : goalSundayLineHtml(m);
+  if(!goalsLoadedMonth[m]){ body.innerHTML = html + '<div class="card"><div class="empty-note">Đang tải mục tiêu…</div></div>'; return; }
+  if(goalHasOwn(me)) html += goalOwnHtml(me, m, dep);
+  if(isTM) html += goalTeamHtml(me, m, dep);
+  if(isGM) html += goalGmHtml(m, dep);
+  body.innerHTML = html;
+}
+
+// Lịch nghỉ CN — Quản lý chung chọn
+function goalSundayOptLabel(m, mode){
+  const ds = goalOffSundaysFor(m, mode).map(goalDM).join(' và ');
+  return `${mode==='13' ? 'Nghỉ CN thứ 1 và thứ 3' : 'Nghỉ CN thứ 2 và thứ 4'}<small>${ds}</small>`;
+}
+function goalSundayCardHtml(m){
+  const info = goalSundayMode(m);
+  const cur = goalCurMonth(), editable = m >= cur;
+  const sundays = goalSundaysOf(m);
+  const note = info.set
+    ? `Đã chọn bởi ${escHtml(info.byName||'Quản lý chung')}${info.at ? ' lúc ' + goalTimeStr(info.at) : ''}.`
+    : 'Chưa chọn cho tháng này, đang theo mặc định: luân phiên ngược với tháng trước.';
+  const opt = mode=>`<div class="chip ${info.mode===mode ? 'selected' : ''}" ${editable ? `onclick="goalSetSunday('${m}','${mode}')"` : 'style="cursor:default;"'}>${goalSundayOptLabel(m, mode)}</div>`;
+  return `<div class="card">
+    <h2>Lịch nghỉ Chủ nhật ${goalMonthLabel(m)}</h2>
+    <p class="goal-hint">Công ty nghỉ chung 2 Chủ nhật mỗi tháng${sundays.length>4 ? `. Chủ nhật thứ 5 (${goalDM(sundays[4])}) vẫn là ngày làm việc` : ''}. Đổi lịch giữa tháng thì mục tiêu ngày của mọi người tự tính lại.</p>
+    <div class="goal-sunday-opts">${opt('13')}${opt('24')}</div>
+    <div class="goal-hint" style="margin:0;">${note} Tháng này có <b>${goalWorkDays(m).length}</b> ngày làm việc.</div>
+  </div>`;
+}
+function goalSundayLineHtml(m){
+  return `<p class="goal-hint" style="margin:-8px 0 16px;">${goalMonthLabel(m).replace(/^t/,'T')} nghỉ chung CN ${goalOffSundays(m).map(goalDM).join(' và ')}, có ${goalWorkDays(m).length} ngày làm việc.</p>`;
+}
+function goalSetSunday(m, mode){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  if(m < goalCurMonth()) return;
+  const info = goalSundayMode(m);
+  if(info.set && info.mode===mode) return;
+  const doSet = ()=>{
+    const val = {mode, by: me.id, byName: me.name, at: nowMs()};
+    goalSundayCfg = Object.assign({}, goalSundayCfg, {[m]: val});
+    fbRoot.child('goalSettings/sundays/' + m).set(val)
+      .then(()=>showToast(`Đã lưu lịch nghỉ ${goalMonthLabel(m)}: CN ${goalOffSundaysFor(m, mode).map(goalDM).join(' và ')}`))
+      .catch(err=>{ console.error(err); showToast('Không lưu được lịch nghỉ — kiểm tra mạng rồi thử lại'); });
+    renderGoalsPage();
+  };
+  const started = m===goalCurMonth() && todayStr() > m + '-01';
+  if(started && info.mode!==mode){
+    askConfirm('Đổi lịch nghỉ giữa tháng?', `Lịch nghỉ ${goalMonthLabel(m)} sẽ đổi thành CN ${goalOffSundaysFor(m, mode).map(goalDM).join(' và ')}. Mục tiêu hôm nay và tuần này của mọi người sẽ tự tính lại theo số ngày làm việc mới.`, doSet);
+  } else doSet();
+}
+
+function goalStepsHtml(step){
+  const s = (n, label)=>`<span class="${n===step ? 'on' : (n<step ? 'done' : '')}">${n}. ${label}</span>`;
+  return `<div class="goal-steps">${s(1,'Điền mục tiêu')}${s(2,'Cam kết')}${s(3,'Việc cần làm')}</div>`;
+}
+function goalOwnHtml(me, m, dep){
+  const cur = goalCurMonth(), editable = m===cur;
+  const c = goalCalc(me.id, m, dep);
+  const committed = !!c.amount;
+  if(!editable && !committed){
+    return `<div class="card"><h2>Mục tiêu của bạn</h2><div class="empty-note">${m < cur ? `Bạn không đặt mục tiêu ${goalMonthLabel(m)}.` : `Mục tiêu ${goalMonthLabel(m)} được đặt từ ngày 01/${m.slice(5,7)}.`}</div></div>`;
+  }
+  if(editable && (!committed || goalDraft)){
+    if(!goalDraft) goalDraft = {month: m, digits: '', step: 1};
+    return goalDraft.step===2 ? goalCommitStepHtml(me, m, c) : goalAmountStepHtml(me, m, c);
+  }
+  let html = '';
+  if(editable && c.tasks.length < GOAL_MIN_TASKS){
+    if(!goalTaskDraft) goalStartTaskDraft(c);
+    html += goalTaskEditorHtml(c, true);
+  }
+  html += goalProgressHtml(me, m, c, editable);
+  if(editable && goalTaskDraft && c.tasks.length >= GOAL_MIN_TASKS) html += goalTaskEditorHtml(c, false);
+  else if(c.tasks.length >= GOAL_MIN_TASKS || !editable) html += goalTaskListHtml(c, editable, true);
+  return html;
+}
+function goalAmountStepHtml(me, m, c){
+  const startNote = c.start > m + '-01'
+    ? `Bạn bắt đầu từ ngày ${fmtDate(c.start)} nên chỉ tính từ ngày này: ${c.workDays} ngày làm việc.`
+    : `${goalMonthLabel(m).replace(/^t/,'T')} có ${c.workDays} ngày làm việc (nghỉ CN ${goalOffSundays(m).map(goalDM).join(' và ')}).`;
+  const val = goalDraft.digits ? Number(goalDraft.digits).toLocaleString('vi-VN') : '';
+  return `<div class="card">
+    ${goalStepsHtml(1)}
+    <h2>${c.amount ? 'Sửa mục tiêu' : 'Mục tiêu doanh số'} ${goalMonthLabel(m)}</h2>
+    <p class="goal-hint">Doanh số tính bằng tổng tiền hàng các hoá đơn đã cọc, theo ngày khách cọc. ${startNote}</p>
+    <label for="goalAmountInput">Số tiền bạn muốn đạt trong tháng</label>
+    <div class="goal-amount-row"><input id="goalAmountInput" inputmode="numeric" autocomplete="off" placeholder="VD: 150.000.000" value="${val}" oninput="goalAmountTyped(this)" onkeydown="if(event.key==='Enter'){ goalToCommitStep(); }"><span>đ</span></div>
+    <div class="goal-hint" id="goalAmountPreview" style="margin-top:8px;">${goalAmountPreview(goalDraft.digits, c)}</div>
+    <div class="goal-actions">
+      <button class="btn-primary" onclick="goalToCommitStep()">Tiếp tục</button>
+      ${c.amount ? `<button class="btn-ghost" onclick="goalCancelEdit()">Huỷ, giữ mục tiêu ${goalMoney(c.amount)}</button>` : ''}
+    </div>
+    <span class="login-error" id="goalAmountErr"></span>
+  </div>`;
+}
+function goalAmountPreview(digits, c){
+  const n = Number(digits)||0;
+  if(!n || !c.workDays) return '&nbsp;';
+  return `Trung bình khoảng <b>${goalMoney(goalRoundUp(n / c.workDays))}</b> mỗi ngày làm việc.`;
+}
+function goalAmountTyped(el){
+  if(!goalDraft) return;
+  const digits = String(el.value||'').replace(/\D/g,'').replace(/^0+/,'').slice(0,13);
+  el.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+  goalDraft.digits = digits;
+  const me = currentUser(), m = goalCurMonth();
+  const pv = document.getElementById('goalAmountPreview');
+  if(pv) pv.innerHTML = goalAmountPreview(digits, goalCalc(me.id, m, {}));
+  const er = document.getElementById('goalAmountErr'); if(er) er.textContent = '';
+}
+function goalToCommitStep(){
+  if(!goalDraft) return;
+  const n = Number(goalDraft.digits)||0;
+  if(n < 1000){ const er = document.getElementById('goalAmountErr'); if(er) er.textContent = 'Nhập số tiền mục tiêu của tháng (VD: 150.000.000).'; return; }
+  goalDraft.step = 2;
+  renderGoalsPage(); window.scrollTo(0, 0);
+}
+function goalCommitStepHtml(me, m, c){
+  const n = Number(goalDraft.digits)||0;
+  const changed = c.amount && c.amount!==n ? `<div class="goal-commit-sub">Mục tiêu đang cam kết: ${goalMoney(c.amount)}</div>` : '';
+  return `<div class="card">
+    ${goalStepsHtml(2)}
+    <div class="goal-commit">
+      <div class="goal-hint" style="margin:0 0 6px;">Mục tiêu doanh số ${goalMonthLabel(m)}</div>
+      <div class="goal-commit-amount">${fmtMoney(n)}<small>đ</small></div>
+      <div class="goal-commit-sub">khoảng ${goalMoney(goalRoundUp(n / (c.workDays||1)))} mỗi ngày làm việc</div>
+      ${changed}
+      <div class="goal-commit-q">Bạn có dám cam kết đạt mục tiêu này không?</div>
+      <button class="btn-primary goal-commit-btn" onclick="goalCommit()">Tôi cam kết</button>
+      <button class="goal-commit-back" onclick="goalBackToAmount()">Chưa dám, quay lại sửa con số</button>
+    </div>
+  </div>`;
+}
+function goalBackToAmount(){ if(goalDraft){ goalDraft.step = 1; renderGoalsPage(); setTimeout(()=>{ const i = document.getElementById('goalAmountInput'); if(i) i.focus(); }, 30); } }
+function goalCancelEdit(){ goalDraft = null; renderGoalsPage(); }
+function goalEditAmount(){
+  const me = currentUser(), m = goalCurMonth();
+  const g = (goalsByMonth[m]||{})[me.id];
+  goalViewMonth = m;
+  goalDraft = {month: m, digits: g && g.amount ? String(Math.round(Number(g.amount))) : '', step: 1};
+  renderGoalsPage(); window.scrollTo(0, 0);
+  setTimeout(()=>{ const i = document.getElementById('goalAmountInput'); if(i) i.focus(); }, 30);
+}
+function goalCommit(){
+  const me = currentUser(); if(!goalHasOwn(me) || !goalDraft) return;
+  const m = goalCurMonth();
+  if(goalDraft.month!==m){ goalDraft = null; renderGoalsPage(); return; }
+  const amount = Number(goalDraft.digits)||0; if(amount < 1000) return;
+  const g = (goalsByMonth[m]||{})[me.id] || null;
+  const at = nowMs();
+  const ck = fbRoot.child('goals').push().key;
+  const fields = {userId: me.id, userName: me.name, branchId: me.branchId || null, month: m, amount,
+    committedAt: at, startDate: goalStartDate(me.id, m, g), updatedAt: at};
+  const up = {};
+  Object.entries(fields).forEach(([k,v])=>{ up[`goals/${m}/${me.id}/${k}`] = v; });
+  up[`goals/${m}/${me.id}/commits/${ck}`] = {at, amount};
+  fbRoot.update(up).catch(err=>{ console.error(err); showToast('Chưa lưu được cam kết — kiểm tra mạng rồi bấm lại'); });
+  goalsByMonth[m] = goalsByMonth[m] || {};
+  goalsByMonth[m][me.id] = Object.assign({}, g || {}, fields, {commits: Object.assign({}, (g && g.commits) || {}, {[ck]: {at, amount}})});
+  goalDraft = null;
+  showToast(`Đã ghi nhận cam kết ${goalMoney(amount)} lúc ${goalTimeStr(at).slice(0,5)}`);
+  renderGoalsPage(); window.scrollTo(0, 0);
+  try{ updateGoalRemindBar(); }catch(e){}
+}
+function goalProgressHtml(me, m, c, editable){
+  const nCommit = Object.keys((c.g && c.g.commits) || {}).length;
+  const meta = `Cam kết lúc ${goalTimeStr(c.g.committedAt)}${nCommit>1 ? ` (đã sửa ${nCommit-1} lần)` : ''}`
+    + (c.start > m + '-01' ? `. Tính từ ngày ${fmtDate(c.start)}` : '');
+  const head = `<div class="goal-card-head"><h2>Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}</h2>${editable ? '<button class="btn-ghost btn-small" onclick="goalEditAmount()">Sửa mục tiêu</button>' : ''}</div>`;
+  if(!c.isCurrent){
+    return `<div class="card">${head}<p class="goal-hint">${meta}</p>
+      <div class="goal-periods" style="grid-template-columns:1fr;">${goalPeriodBox('Cả tháng', c.achieved, c.amount, '')}</div>
+      <div class="goal-figures"><div><span>Đã đạt</span> <b class="goal-pct-ok">${goalMoney(c.achieved)}</b></div><div><span>Còn thiếu</span> <b>${goalMoney(c.missing)}</b></div></div>
+    </div>`;
+  }
+  return `<div class="card">${head}<p class="goal-hint">${meta}</p>${goalPeriodsHtml(c)}${goalFiguresHtml(c)}
+    <p class="goal-hint" style="margin:10px 0 0;">Mục tiêu hôm nay = số còn thiếu ÷ số ngày làm việc còn lại, nên hôm trước hụt bao nhiêu sẽ tự dồn sang các ngày sau.</p>
+  </div>`;
+}
+
+// Việc cần làm
+function goalStartTaskDraft(c){
+  const items = c.tasks.map(t=>({id: t.id, text: t.text, done: !!t.done, doneAt: t.doneAt || null, createdAt: t.createdAt || nowMs()}));
+  while(items.length < GOAL_MIN_TASKS) items.push({id: uid(), text: '', done: false, doneAt: null, createdAt: nowMs()});
+  goalTaskDraft = {month: goalCurMonth(), items};
+}
+function goalTaskEditorHtml(c, isSetup){
+  const items = goalTaskDraft.items;
+  const rows = items.map((t, i)=>`<li><span class="gt-n">${i+1}.</span>
+      <input value="${escHtml(t.text)}" maxlength="200" placeholder="${i===0 ? 'VD: Gọi lại 20 khách cũ mỗi tuần' : (i===1 ? 'VD: Đăng 2 bài nhóm Zalo mỗi ngày' : 'Việc cụ thể bạn sẽ làm')}" oninput="goalTaskTyped(${i}, this.value)" onkeydown="if(event.key==='Enter'){ goalTaskAdd(); }">
+      ${items.length > GOAL_MIN_TASKS ? `<button class="btn-ghost" onclick="goalTaskRemove(${i})" aria-label="Xoá việc ${i+1}">✕</button>` : ''}</li>`).join('');
+  return `<div class="card">
+    ${isSetup ? goalStepsHtml(3) : ''}
+    <h2>Việc cần làm để đạt mục tiêu</h2>
+    <p class="goal-hint">Ghi ít nhất ${GOAL_MIN_TASKS} việc cụ thể bạn sẽ làm trong tháng. Thêm bao nhiêu việc cũng được.</p>
+    <ol class="goal-task-edit">${rows}</ol>
+    <button class="btn-ghost btn-small" onclick="goalTaskAdd()">+ Thêm việc</button>
+    <div class="goal-actions">
+      <button class="btn-primary" onclick="goalTasksSave()">Lưu việc cần làm</button>
+      ${isSetup ? '' : '<button class="btn-ghost" onclick="goalTaskCancel()">Huỷ</button>'}
+    </div>
+    <span class="login-error" id="goalTaskErr"></span>
+  </div>`;
+}
+function goalTaskTyped(i, v){ if(goalTaskDraft && goalTaskDraft.items[i]) goalTaskDraft.items[i].text = v; const er = document.getElementById('goalTaskErr'); if(er) er.textContent = ''; }
+function goalTaskAdd(){
+  if(!goalTaskDraft) return;
+  goalTaskDraft.items.push({id: uid(), text: '', done: false, doneAt: null, createdAt: nowMs()});
+  renderGoalsPage();
+  setTimeout(()=>{ const ins = document.querySelectorAll('.goal-task-edit input'); if(ins.length) ins[ins.length-1].focus(); }, 30);
+}
+function goalTaskRemove(i){ if(goalTaskDraft && goalTaskDraft.items.length > GOAL_MIN_TASKS){ goalTaskDraft.items.splice(i, 1); renderGoalsPage(); } }
+function goalTaskCancel(){ goalTaskDraft = null; renderGoalsPage(); }
+function goalTasksEdit(){ const me = currentUser(), m = goalCurMonth(); goalStartTaskDraft(goalCalc(me.id, m, {})); renderGoalsPage(); }
+function goalTasksSave(){
+  const me = currentUser(); if(!goalHasOwn(me) || !goalTaskDraft) return;
+  const m = goalCurMonth();
+  const items = goalTaskDraft.items.map(t=>Object.assign({}, t, {text: String(t.text||'').trim()})).filter(t=>t.text);
+  if(items.length < GOAL_MIN_TASKS){
+    const er = document.getElementById('goalTaskErr');
+    if(er) er.textContent = `Cần ghi ít nhất ${GOAL_MIN_TASKS} việc (đang có ${items.length}).`;
+    return;
+  }
+  const tasks = {};
+  items.forEach((t, i)=>{ tasks[t.id] = {id: t.id, text: t.text.slice(0,200), order: i, done: !!t.done, doneAt: t.done ? (t.doneAt || nowMs()) : null, createdAt: t.createdAt || nowMs()}; });
+  fbRoot.update({[`goals/${m}/${me.id}/tasks`]: tasks, [`goals/${m}/${me.id}/updatedAt`]: nowMs()})
+    .catch(err=>{ console.error(err); showToast('Chưa lưu được việc cần làm — kiểm tra mạng rồi bấm lại'); });
+  const g = (goalsByMonth[m]||{})[me.id];
+  if(g) g.tasks = tasks;
+  goalTaskDraft = null;
+  showToast(`Đã lưu ${items.length} việc cần làm`);
+  renderGoalsPage();
+  try{ updateGoalRemindBar(); }catch(e){}
+}
+function goalTaskToggle(taskId, on){
+  const me = currentUser(), m = goalCurMonth();
+  if(!goalHasOwn(me) || goalViewMonth!==m) return;
+  const g = (goalsByMonth[m]||{})[me.id]; if(!g || !g.tasks || !g.tasks[taskId]) return;
+  const patch = {done: !!on, doneAt: on ? nowMs() : null};
+  Object.assign(g.tasks[taskId], patch);
+  fbRoot.child(`goals/${m}/${me.id}/tasks/${taskId}`).update(patch).catch(err=>{ console.error(err); showToast('Chưa lưu được — kiểm tra mạng'); });
+  renderGoalsPage();
+}
+function goalTaskItemsHtml(tasks, interactive){
+  return `<ul class="goal-tasks">${tasks.map(t=>{
+    const doneAt = t.done && t.doneAt ? `<small>✓ ${goalDM(toLocalDateStr(new Date(Number(t.doneAt))))}</small>` : '';
+    const box = `<input type="checkbox" ${t.done ? 'checked' : ''} ${interactive ? `onchange="goalTaskToggle('${escHtml(t.id)}', this.checked)"` : 'disabled'}>`;
+    return `<li class="${t.done ? 'done' : ''}"><label>${box}<span>${escHtml(t.text)}</span></label>${doneAt}</li>`;
+  }).join('')}</ul>`;
+}
+function goalTaskListHtml(c, editable){
+  if(!c.tasks.length) return '';
+  const nDone = c.tasks.filter(t=>t.done).length;
+  return `<div class="card">
+    <div class="goal-card-head"><h2>Việc cần làm (${nDone}/${c.tasks.length} xong)</h2>${editable ? '<button class="btn-ghost btn-small" onclick="goalTasksEdit()">Sửa danh sách</button>' : ''}</div>
+    ${goalTaskItemsHtml(c.tasks, editable)}
+  </div>`;
+}
+
+// ----- Quản lý team: xem cả team -----
+function goalRowStats(u, m, dep){
+  const c = goalCalc(u.id, m, dep);
+  return {u, c, pct: c.amount ? c.monthPct : null};
+}
+function goalTeamTotals(rows){
+  const t = {amount:0, achieved:0, todayT:0, todayA:0, weekT:0, weekA:0, n:0};
+  // Chỉ cộng người ĐÃ cam kết — tránh % team bị đội lên vì doanh số của người chưa đặt mục tiêu
+  rows.forEach(r=>{ const c = r.c; if(!c.amount) return;
+    t.n++; t.amount += c.amount; t.achieved += c.achieved; t.todayA += c.todayAchieved||0; t.weekA += c.weekAchieved||0;
+    t.todayT += c.todayTarget||0; t.weekT += c.weekTarget||0; });
+  return t;
+}
+function goalStatBox(label, value, sub){ return `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value">${value}</div>${sub ? `<div class="goal-hint" style="margin:2px 0 0;">${sub}</div>` : ''}</div>`; }
+function goalPctTd(p){ return `<td class="num pct-cell ${goalPctCls(p)}">${goalPctTxt(p)}</td>`; }
+function goalTeamHtml(me, m, dep){
+  const rows = goalTeamMembers(me).map(u=>goalRowStats(u, m, dep));
+  const isCur = m===goalCurMonth();
+  const t = goalTeamTotals(rows);
+  const loading = rows.some(r=>r.u.id!==me.id && !goalTeamInvLoaded[r.u.id]);
+  rows.sort((a,b)=>(b.pct===null ? -1 : b.pct) - (a.pct===null ? -1 : a.pct) || a.u.name.localeCompare(b.u.name,'vi'));
+  const missing = rows.filter(r=>!r.c.amount).map(r=>escHtml(r.u.name));
+  const body = rows.map(r=>{
+    const c = r.c;
+    return `<tr class="${r.u.id===me.id ? 'goal-me' : ''}"><td>${escHtml(r.u.name)}${r.u.role==='team_manager' ? ' <span class="goal-hint">(QL team)</span>' : ''}</td>
+      <td class="num">${c.amount ? fmtMoney(c.amount) : '<span class="badge badge-warn">Chưa đặt</span>'}</td>
+      <td class="num">${fmtMoney(c.achieved)}</td>${goalPctTd(r.pct)}
+      ${isCur ? `<td class="num">${c.amount ? (c.todayOff ? 'nghỉ' : `${fmtMoney(c.todayAchieved||0)} / ${fmtMoney(c.todayTarget||0)}`) : '—'}</td>${goalPctTd(c.amount && !c.todayOff ? goalPctNum(c.todayAchieved||0, c.todayTarget||0) : null)}${goalPctTd(c.amount ? goalPctNum(c.weekAchieved||0, c.weekTarget||0) : null)}` : ''}
+      <td>${c.g && c.g.committedAt ? goalTimeStr(c.g.committedAt) : '—'}</td></tr>`;
+  }).join('');
+  return `<div class="card">
+    <h2>${/^team\b/i.test(branchName(me.branchId)) ? '' : 'Team '}${escHtml(branchName(me.branchId))}, ${goalMonthLabel(m)}</h2>
+    <p class="goal-hint">Mục tiêu team = tổng mục tiêu các thành viên đã cam kết (${t.n}/${rows.length} người). Số liệu team chỉ tính người đã cam kết.${loading ? ' Đang tải doanh số thành viên…' : ''}</p>
+    <div class="goal-team-stats">
+      ${goalStatBox('Mục tiêu team', goalMoney(t.amount))}
+      ${goalStatBox('Đã đạt', goalMoney(t.achieved), `<span class="${goalPctCls(goalPctNum(t.achieved, t.amount))}">${goalPctTxt(goalPctNum(t.achieved, t.amount))}</span> mục tiêu tháng`)}
+      ${isCur ? goalStatBox('Hôm nay', goalPctTxt(goalPctNum(t.todayA, t.todayT)), `${fmtMoney(t.todayA)} / ${fmtMoney(t.todayT)} đ`) : goalStatBox('Còn thiếu', goalMoney(Math.max(0, t.amount - t.achieved)))}
+      ${isCur ? goalStatBox('Tuần này', goalPctTxt(goalPctNum(t.weekA, t.weekT)), `${fmtMoney(t.weekA)} / ${fmtMoney(t.weekT)} đ`) : ''}
+    </div>
+    ${missing.length && isCur ? `<p class="goal-hint">Chưa đặt mục tiêu: <b style="color:var(--warn);">${missing.join(', ')}</b></p>` : ''}
+    <div class="table-wrap"><table class="rtable goal-table"><thead><tr><th>Thành viên</th><th class="num">Mục tiêu</th><th class="num">Đã đạt</th><th class="num">% tháng</th>${isCur ? '<th class="num">Hôm nay (đạt / mục tiêu)</th><th class="num">% hôm nay</th><th class="num">% tuần</th>' : ''}<th>Cam kết lúc</th></tr></thead>
+    <tbody>${body}<tr class="total-row"><td>TỔNG TEAM</td><td class="num">${fmtMoney(t.amount)}</td><td class="num">${fmtMoney(t.achieved)}</td><td class="num">${goalPctTxt(goalPctNum(t.achieved, t.amount))}</td>${isCur ? `<td class="num">${fmtMoney(t.todayA)} / ${fmtMoney(t.todayT)}</td><td class="num">${goalPctTxt(goalPctNum(t.todayA, t.todayT))}</td><td class="num">${goalPctTxt(goalPctNum(t.weekA, t.weekT))}</td>` : ''}<td></td></tr></tbody></table></div>
+  </div>`;
+}
+
+// ----- Quản lý chung: xếp hạng + theo team + việc cần làm của từng người -----
+function goalToggleTasks(id){ goalOpenTasks[id] = !goalOpenTasks[id]; renderGoalsPage(); }
+function goalGmHtml(m, dep){
+  const isCur = m===goalCurMonth();
+  const all = reportableUsersInBranch(null).map(u=>goalRowStats(u, m, dep));
+  const ranked = all.filter(r=>r.c.amount).sort((a,b)=>b.pct-a.pct || b.c.achieved-a.c.achieved);
+  const notSet = all.filter(r=>!r.c.amount).sort((a,b)=>branchName(a.u.branchId).localeCompare(branchName(b.u.branchId),'vi') || a.u.name.localeCompare(b.u.name,'vi'));
+  const colN = isCur ? 10 : 7;
+  const rowHtml = (r, rank)=>{
+    const c = r.c, nDone = c.tasks.filter(t=>t.done).length;
+    const taskCell = c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—');
+    let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
+      <td class="num">${c.amount ? fmtMoney(c.amount) : '<span class="badge badge-warn">Chưa đặt</span>'}</td><td class="num">${fmtMoney(c.achieved)}</td>${goalPctTd(r.pct)}
+      ${isCur ? `${goalPctTd(c.amount && !c.todayOff ? goalPctNum(c.todayAchieved||0, c.todayTarget||0) : null)}<td class="num">${c.amount ? (c.todayOff ? 'nghỉ' : fmtMoney(c.todayTarget||0)) : '—'}</td>${goalPctTd(c.amount ? goalPctNum(c.weekAchieved||0, c.weekTarget||0) : null)}` : ''}
+      <td>${taskCell}</td><td>${c.g && c.g.committedAt ? goalTimeStr(c.g.committedAt) : '—'}</td></tr>`;
+    if(goalOpenTasks[r.u.id] && c.tasks.length) tr += `<tr class="goal-tasks-row"><td colspan="${colN}">${goalTaskItemsHtml(c.tasks, false)}</td></tr>`;
+    return tr;
+  };
+  const head = `<thead><tr><th>Hạng · Nhân viên</th><th>Team</th><th class="num">Mục tiêu</th><th class="num">Đã đạt</th><th class="num">% tháng</th>${isCur ? '<th class="num">% hôm nay</th><th class="num">Mục tiêu hôm nay</th><th class="num">% tuần</th>' : ''}<th>Việc cần làm</th><th>Cam kết lúc</th></tr></thead>`;
+  // Theo team
+  const byTeam = {};
+  all.forEach(r=>{ const k = r.u.branchId || '—'; (byTeam[k] = byTeam[k] || []).push(r); });
+  const teams = Object.keys(byTeam).map(k=>({k, t: goalTeamTotals(byTeam[k]), size: byTeam[k].length}))
+    .sort((a,b)=>{ const pa = goalPctNum(a.t.achieved, a.t.amount), pb = goalPctNum(b.t.achieved, b.t.amount); return (pb===null ? -1 : pb) - (pa===null ? -1 : pa); });
+  const co = goalTeamTotals(all);
+  const teamRows = teams.map(x=>`<tr><td>${escHtml(branchName(x.k))}</td><td class="num">${x.t.n}/${x.size}</td><td class="num">${fmtMoney(x.t.amount)}</td><td class="num">${fmtMoney(x.t.achieved)}</td>${goalPctTd(goalPctNum(x.t.achieved, x.t.amount))}${isCur ? goalPctTd(goalPctNum(x.t.todayA, x.t.todayT)) + goalPctTd(goalPctNum(x.t.weekA, x.t.weekT)) : ''}</tr>`).join('');
+  return `<div class="card">
+    <h2>Toàn công ty, ${goalMonthLabel(m)}</h2>
+    <div class="goal-team-stats">
+      ${goalStatBox('Tổng mục tiêu', goalMoney(co.amount), `${co.n}/${all.length} người đã cam kết`)}
+      ${goalStatBox('Đã đạt', goalMoney(co.achieved), `<span class="${goalPctCls(goalPctNum(co.achieved, co.amount))}">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</span> mục tiêu tháng`)}
+      ${isCur ? goalStatBox('Hôm nay', goalPctTxt(goalPctNum(co.todayA, co.todayT)), `${fmtMoney(co.todayA)} / ${fmtMoney(co.todayT)} đ`) : goalStatBox('Còn thiếu', goalMoney(Math.max(0, co.amount - co.achieved)))}
+      ${isCur ? goalStatBox('Tuần này', goalPctTxt(goalPctNum(co.weekA, co.weekT)), `${fmtMoney(co.weekA)} / ${fmtMoney(co.weekT)} đ`) : ''}
+    </div>
+  </div>
+  <div class="card">
+    <h2>Bảng xếp hạng % đạt mục tiêu</h2>
+    <p class="goal-hint">Xếp theo % đạt mục tiêu tháng. Bấm vào cột Việc cần làm để xem từng việc và tình trạng tick.</p>
+    <div class="table-wrap"><table class="rtable goal-table">${head}<tbody>
+      ${ranked.map((r,i)=>rowHtml(r, i+1)).join('') || `<tr><td colspan="${colN}"><div class="empty-note">Chưa ai cam kết mục tiêu ${goalMonthLabel(m)}.</div></td></tr>`}
+      ${notSet.map(r=>rowHtml(r, 0)).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <h2>Theo team</h2>
+    <p class="goal-hint">Mục tiêu team = tổng mục tiêu các thành viên đã cam kết.</p>
+    <div class="table-wrap"><table class="rtable goal-table"><thead><tr><th>Team</th><th class="num">Đã cam kết</th><th class="num">Mục tiêu team</th><th class="num">Đã đạt</th><th class="num">% tháng</th>${isCur ? '<th class="num">% hôm nay</th><th class="num">% tuần</th>' : ''}</tr></thead>
+    <tbody>${teamRows}<tr class="total-row"><td>TOÀN CÔNG TY</td><td class="num">${co.n}/${all.length}</td><td class="num">${fmtMoney(co.amount)}</td><td class="num">${fmtMoney(co.achieved)}</td><td class="num">${goalPctTxt(goalPctNum(co.achieved, co.amount))}</td>${isCur ? `<td class="num">${goalPctTxt(goalPctNum(co.todayA, co.todayT))}</td><td class="num">${goalPctTxt(goalPctNum(co.weekA, co.weekT))}</td>` : ''}</tr></tbody></table></div>
+  </div>`;
 }
 
 /* =========================== MANAGER: Thống kê MKT toàn công ty =========================== */
