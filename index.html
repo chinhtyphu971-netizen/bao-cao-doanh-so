@@ -9256,6 +9256,7 @@ function packSaleBadgeHtml(inv){
 }
 function packSaleBadgeHtmlPacked(inv, ps){
   const ph = '';
+  const clS = packActiveClaimOf(inv.id); // người đang xử lý đơn bù (dùng ở nhánh "Kho báo thiếu") — trước đây thiếu dòng này nên lỗi "clS is not defined"
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = (ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''))) + (ps.pkgs ? ` · <b class="pkgs-tag">${ps.pkgs} kiện</b>` : '');
     const phS = packPhotoCount(ps) ? ` <a href="#" class="pack-ph-link" title="Xem ảnh đóng hàng" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷${packPhotoCount(ps)}</a>` : '';
@@ -15032,13 +15033,13 @@ function goalAmountStepHtml(me, m, c){
   const startNote = c.start > m + '-01'
     ? `Bạn bắt đầu từ ngày ${fmtDate(c.start)} nên chỉ tính từ ngày này: ${c.workDays} ngày làm việc.`
     : `${goalMonthLabel(m).replace(/^t/,'T')} có ${c.workDays} ngày làm việc (nghỉ CN ${goalOffSundays(m).map(goalDM).join(' và ')}).`;
-  const val = goalDraft.digits ? Number(goalDraft.digits).toLocaleString('vi-VN') : '';
+  const val = goalDraft.digits ? goalDraft.digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
   return `<div class="card">
     ${goalStepsHtml(1)}
     <h2>${c.amount ? 'Sửa mục tiêu' : 'Mục tiêu doanh số'} ${goalMonthLabel(m)}</h2>
     <p class="goal-hint">Doanh số tính bằng tổng tiền hàng các hoá đơn đã cọc, theo ngày khách cọc. ${startNote}</p>
     <label for="goalAmountInput">Số tiền bạn muốn đạt trong tháng</label>
-    <div class="goal-amount-row"><input id="goalAmountInput" inputmode="numeric" autocomplete="off" placeholder="VD: 150.000.000" value="${val}" oninput="goalAmountTyped(this)" onkeydown="if(event.key==='Enter'){ goalToCommitStep(); }"><span>đ</span></div>
+    <div class="goal-amount-row"><input id="goalAmountInput" inputmode="numeric" autocomplete="off" placeholder="VD: 150.000.000" value="${val}" oninput="goalAmountTyped(this, event)" oncompositionend="goalAmountTyped(this)" onkeydown="if(event.key==='Enter'){ goalToCommitStep(); }"><span>đ</span></div>
     <div class="goal-hint" id="goalAmountPreview" style="margin-top:8px;">${goalAmountPreview(goalDraft.digits, c)}</div>
     <div class="goal-actions">
       <button class="btn-primary" onclick="goalToCommitStep()">Tiếp tục</button>
@@ -15052,10 +15053,25 @@ function goalAmountPreview(digits, c){
   if(!n || !c.workDays) return '&nbsp;';
   return `Trung bình khoảng <b>${goalMoney(goalRoundUp(n / c.workDays))}</b> mỗi ngày làm việc.`;
 }
-function goalAmountTyped(el){
+// Tự thêm dấu chấm hàng nghìn khi gõ. Giữ con trỏ đứng SAU đúng số chữ số đã gõ (trước đây con trỏ
+// bị nhảy trên điện thoại → gõ 0 tiếp theo bị chèn lên đầu rồi mất, chỉ còn số 1 phía trước).
+// Đang gõ bằng bộ gõ tiếng Việt (isComposing) thì chờ gõ xong mới định dạng.
+function goalAmountTyped(el, ev){
   if(!goalDraft) return;
-  const digits = String(el.value||'').replace(/\D/g,'').replace(/^0+/,'').slice(0,13);
-  el.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+  if(ev && ev.isComposing) return;
+  const raw = String(el.value||'');
+  const caret = (typeof el.selectionStart==='number') ? el.selectionStart : raw.length;
+  let before = raw.slice(0, caret).replace(/\D/g,'').length; // số chữ số nằm trước con trỏ
+  const allDigits = raw.replace(/\D/g,'');
+  const lead = (allDigits.match(/^0+/)||[''])[0].length;    // số 0 thừa ở đầu bị bỏ
+  const digits = allDigits.slice(lead).slice(0,13);
+  before = Math.max(0, Math.min(digits.length, before - lead));
+  const formatted = digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+  if(el.value!==formatted) el.value = formatted;
+  let pos = 0, seen = 0;
+  while(pos < formatted.length && seen < before){ if(/\d/.test(formatted[pos])) seen++; pos++; }
+  const setCaret = ()=>{ try{ if(document.activeElement===el) el.setSelectionRange(pos, pos); }catch(e){} };
+  setCaret(); requestAnimationFrame(setCaret); // Android cần đặt lại sau 1 nhịp
   goalDraft.digits = digits;
   const me = currentUser(), m = goalCurMonth();
   const pv = document.getElementById('goalAmountPreview');
