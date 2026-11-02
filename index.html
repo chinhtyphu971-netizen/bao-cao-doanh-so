@@ -1844,6 +1844,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     .gpc2 .gp-col{ width:26px; }
     .gpc2 .gp-v{ font-size:9.5px; }
   }
+  .recare-sum{ display:flex; flex-wrap:wrap; gap:4px 18px; font-size:13.5px; font-weight:600; margin:8px 0 6px; }
+  .recare-list{ font-size:13px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px 10px; line-height:1.7; }
 </style>
 </head>
 <body>
@@ -1981,6 +1983,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="nav-item" id="navItem_reportDiff" data-page="reportDiff" onclick="goPage('reportDiff')"><span class="label">⚖️ Đối chiếu báo cáo</span></div>
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
+        <div class="nav-item" id="navItem_mgrRecare" data-page="mgrRecare" onclick="goPage('mgrRecare')" style="display:none;"><span class="label">♻️ Nhập data chăm sóc lại</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_printOverview" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">🖨️ Báo cáo in hình</span></div>
         <div class="nav-item" id="navItem_packInvoices" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">📦 Quản lý đóng hàng</span></div>
@@ -2052,6 +2055,31 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <h2>Ghi chú tổng hợp</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú của bạn, gộp riêng cho dễ đọc</p>
           <div id="staffHistoryNotesList" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <!-- ---------- ♻️ Nhập data chăm sóc lại (Quản lý chung / Quản lý Data) ---------- -->
+      <div id="page-mgrRecare" class="page" style="display:none;">
+        <div class="page-head"><div><h1>♻️ Nhập data chăm sóc lại</h1><p>Đưa data cũ (VD từ Google Sheet) vào kho để hệ thống chia lại cho Sale chăm sóc</p></div></div>
+        <div class="card">
+          <h2>Dán danh sách</h2>
+          <p class="goal-hint">Bôi đen các cột trên Google Sheet (SĐT, Tên, Ghi chú…) → Copy → dán vào ô dưới. Mỗi dòng 1 khách, cột nào là SĐT app tự nhận ra. Số bị mất số 0 đầu (VD 912345678) app tự thêm lại.</p>
+          <div class="field" style="max-width:360px;"><label>Nguồn cho cả danh sách *</label><input id="recareSource" value="Chăm sóc lại" oninput="recareResetPreview()"></div>
+          <div class="field"><label>Danh sách</label><textarea id="recareText" rows="8" placeholder="0912345678	Chị Lan	mua tháng 3&#10;0987654321	Anh Minh&#10;909009009" oninput="recareResetPreview()"></textarea></div>
+          <div class="login-error" id="recareErr"></div>
+          <div id="recarePreview"></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn-ghost" onclick="recarePreview()">Xem trước</button>
+            <button class="btn-primary" id="recareSubmitBtn" onclick="recareSubmit()" disabled>+ Đưa vào kho để chia</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>App tự bỏ qua</h2>
+          <p class="goal-hint" style="margin:0;">SĐT sai · trùng ngay trong danh sách · <b>đã chốt trong 30 ngày</b> gần đây (theo Data đã chốt và hoá đơn đã cọc) · <b>đang có trong kho</b> (Sale đang chăm hoặc chờ chia) để không chia trùng. Khách đã chốt từ hơn 30 ngày trước vẫn được nhập, kèm ghi chú "Khách cũ" để Sale biết.</p>
+        </div>
+        <div class="card">
+          <h2>Các đợt đã nhập</h2>
+          <div class="table-wrap"><table id="recareRecent" class="rtable"></table></div>
         </div>
       </div>
 
@@ -14797,6 +14825,7 @@ function enterApp(){
   document.getElementById('navManager').style.display = (isManagerRole && !isMkt && !isMktManager) ? 'block' : 'none';
   // 🎯 Mục tiêu: Sale + Quản lý team tự đặt mục tiêu; Quản lý chung xem tất cả + chọn lịch nghỉ CN
   document.getElementById('navGoals').style.display = ['staff','team_manager','general_manager'].includes(user.role) ? 'block' : 'none';
+  { const ri = document.getElementById('navItem_mgrRecare'); if(ri) ri.style.display = ['general_manager','data_manager'].includes(user.role) ? 'flex' : 'none'; } // ♻️ nhập data chăm sóc lại
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
   ['navItem_mgrDashboard','navItem_mgrReports','navItem_reportDiff','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
@@ -14967,6 +14996,7 @@ function goPage(pageId){
   try{ updateReportDeadlineBar(); }catch(e){}
   try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
   if(pageId==='goals') renderGoalsPage();
+  if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
@@ -15014,6 +15044,136 @@ function goPage(pageId){
   if(pageId==='mktOverview') renderMktOverviewPage();
   if(pageId==='mktPersonDetail') renderMktPersonDetail();
   if(pageId==='companyRules') renderCompanyRulesPage();
+}
+
+// =========================== ♻️ NHẬP DATA CHĂM SÓC LẠI (Quản lý chung / Quản lý Data) ===========================
+// Dán danh sách từ Google Sheet (copy cột → dán), không cần file. Data hợp lệ vào kho chung → hệ thống tự chia như data mới.
+// Tự BỎ QUA: SĐT sai · trùng ngay trong danh sách · ĐÃ CHỐT trong 30 ngày (theo Data đã chốt / hoá đơn đã cọc)
+//            · đang có trong kho (đang được Sale chăm, chưa chốt) → không chia trùng.
+// Khách đã chốt TRƯỚC 30 ngày → vẫn nhập (để chăm sóc mua lại), có ghi chú "khách cũ".
+const RECARE_CLOSED_DAYS = 30;
+let recarePreviewResults = null;
+function recareFixPhone(raw){
+  let d = String(raw||'').replace(/\D/g,'');
+  if(d.startsWith('84') && d.length===11) d = '0' + d.slice(2);          // 84912345678
+  if(d.length===9 && /^[35789]/.test(d)) d = '0' + d;                       // Google Sheet làm mất số 0 đầu
+  return /^0\d{9}$/.test(d) ? d : '';
+}
+function recareParseLine(line){
+  const parts = line.split(/\t|,|;/).map(x=>x.trim()).filter(Boolean);
+  let phone = '', idx = -1;
+  parts.forEach((p, i)=>{ if(idx<0){ const f = recareFixPhone(p); if(f && /^[\d\s.+()-]+$/.test(p)){ phone = f; idx = i; } } });
+  const rest = parts.filter((_, i)=>i!==idx);
+  return {line, phone, name: rest[0] || '', note: rest.slice(1).join(' · ')};
+}
+function recareResetPreview(){
+  recarePreviewResults = null;
+  const pv = document.getElementById('recarePreview'); if(pv) pv.innerHTML = '';
+  const b = document.getElementById('recareSubmitBtn'); if(b){ b.disabled = true; b.textContent = '+ Đưa vào kho để chia'; }
+}
+function recareClosedInfo(norm, cutoffMs){
+  // Lần chốt gần nhất của SĐT này: từ Data đã chốt + hoá đơn đã cọc
+  let last = null;
+  state.leads.forEach(l=>{
+    if(l.status!=='Đã chốt' || normalizePhone(leadPhone(l))!==norm) return;
+    const t = Number(l.closedAt) || (l.closedDate ? Date.parse(l.closedDate + 'T12:00:00') : 0);
+    if(t && (!last || t > last.t)) last = {t, sale: l.assignedToName || userName(l.assignedTo)};
+  });
+  (state.invoices||[]).forEach(inv=>{
+    if(!inv || !inv.depositLink || normalizePhone(inv.customerPhone)!==norm) return;
+    const t = Number(inv.depositLink.markedAt) || 0;
+    if(t && (!last || t > last.t)) last = {t, sale: inv.saleName || userName(inv.saleId)};
+  });
+  return last ? Object.assign(last, {recent: last.t >= cutoffMs}) : null;
+}
+function recarePreview(){
+  const err = document.getElementById('recareErr'); err.textContent = '';
+  recareResetPreview();
+  const u = currentUser();
+  if(!u || !['general_manager','data_manager'].includes(u.role)){ err.textContent = 'Chỉ Quản lý chung / Quản lý Data dùng được chức năng này.'; return; }
+  if(!leadsDataReady){ err.textContent = 'Kho data đang tải, chờ vài giây rồi bấm lại.'; return; }
+  const source = (document.getElementById('recareSource').value || '').trim();
+  if(!source){ err.textContent = 'Nhập tên Nguồn cho danh sách này (VD: Chăm sóc lại).'; return; }
+  const lines = document.getElementById('recareText').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!lines.length){ err.textContent = 'Chưa dán dòng nào.'; return; }
+  const cutoff = nowMs() - RECARE_CLOSED_DAYS*86400000;
+  // Data đang có trong kho (chưa chốt, chưa lưu trữ) theo SĐT
+  const active = {};
+  state.leads.forEach(l=>{
+    if(l.archived || l.status==='Đã chốt') return;
+    const n = normalizePhone(leadPhone(l)); if(n && !active[n]) active[n] = l;
+  });
+  const seen = new Set();
+  const results = lines.map(line=>{
+    const r = recareParseLine(line);
+    if(!r.phone) return Object.assign(r, {status:'invalid', text: /\d{6,}/.test(line) ? 'SĐT không hợp lệ (cần 10 số, bắt đầu bằng 0)' : 'Không có SĐT (có thể là dòng tiêu đề)'});
+    const n = normalizePhone(r.phone);
+    if(seen.has(n)) return Object.assign(r, {status:'dup', text:'Trùng với dòng phía trên trong danh sách'});
+    seen.add(n);
+    const closed = recareClosedInfo(n, cutoff);
+    if(closed && closed.recent) return Object.assign(r, {status:'closed30', text:`Đã chốt ngày ${fmtDate(toLocalDateStr(new Date(closed.t)))}${closed.sale ? ' (' + closed.sale + ')' : ''} — chưa quá ${RECARE_CLOSED_DAYS} ngày`});
+    const a = active[n];
+    if(a) return Object.assign(r, {status:'inkho', text:`Đang có trong kho${a.assignedTo ? ' — ' + (a.assignedToName || userName(a.assignedTo)) + ' đang chăm' : ' — chờ chia'}${a.status ? ' (' + a.status + ')' : ''}`});
+    const oldNote = closed ? `Khách cũ — đã chốt ${fmtDate(toLocalDateStr(new Date(closed.t)))}${closed.sale ? ' (' + closed.sale + ')' : ''}` : '';
+    return Object.assign(r, {status:'valid', text:'Hợp lệ', oldNote});
+  });
+  recarePreviewResults = {source, results};
+  const cnt = k=>results.filter(x=>x.status===k).length;
+  const ok = cnt('valid'), oldCus = results.filter(x=>x.status==='valid' && x.oldNote).length;
+  const groups = [
+    ['valid', '✓ Sẽ đưa vào kho', 'var(--success)'],
+    ['closed30', `⚠ Bỏ qua — đã chốt trong ${RECARE_CLOSED_DAYS} ngày`, 'var(--warn)'],
+    ['inkho', '⚠ Bỏ qua — đang có trong kho (không chia trùng)', 'var(--warn)'],
+    ['dup', '⚠ Bỏ qua — trùng trong danh sách', 'var(--ink-soft)'],
+    ['invalid', '✗ Bỏ qua — SĐT không hợp lệ', 'var(--ink-soft)'],
+  ];
+  document.getElementById('recarePreview').innerHTML =
+    `<div class="recare-sum">${groups.map(([k,l,c])=>`<span style="color:${c};">${l}: <b>${cnt(k)}</b></span>`).join('')}</div>
+     ${oldCus ? `<p class="goal-hint" style="margin:4px 0 8px;">Trong số hợp lệ có <b>${oldCus}</b> khách cũ đã chốt trước ${RECARE_CLOSED_DAYS} ngày — vẫn nhập, kèm ghi chú để Sale biết.</p>` : ''}
+     <div class="recare-list">${results.map(x=>{
+        const g = groups.find(gg=>gg[0]===x.status);
+        return `<div style="color:${g[2]};">${x.status==='valid' ? '✓' : (x.status==='invalid' ? '✗' : '⚠')} ${x.phone ? escHtml(x.phone) + (x.name ? ' — ' + escHtml(x.name) : '') : escHtml(x.line)}${x.status==='valid' ? (x.oldNote ? ` <span class="badge badge-warn">${escHtml(x.oldNote)}</span>` : '') : ` <span style="opacity:.85;">· ${escHtml(x.text)}</span>`}</div>`;
+      }).join('')}</div>`;
+  const b = document.getElementById('recareSubmitBtn');
+  b.disabled = ok===0; b.textContent = ok ? `+ Đưa ${ok} số vào kho để chia` : '+ Đưa vào kho để chia';
+}
+function recareSubmit(){
+  if(!recarePreviewResults) return;
+  const u = currentUser(); if(!u || !['general_manager','data_manager'].includes(u.role)) return;
+  const {source, results} = recarePreviewResults;
+  const valid = results.filter(x=>x.status==='valid');
+  if(!valid.length) return;
+  askConfirm('Đưa data vào kho?', `${valid.length} số sẽ vào kho chung và được hệ thống chia cho Sale như data mới.`, ()=>{
+    const updates = {}, batch = 'b' + uid(), at = nowMs();
+    valid.forEach(x=>{
+      const lead = {id: 'recare_' + uid(), phone: x.phone, phoneNorm: normalizePhone(x.phone), source, importedAt: at,
+        createdBy: u.id, createdByName: u.name, recare: true, recareBatch: batch};
+      if(x.name){ lead.customerName = x.name; lead.mktName = x.name; }
+      const note = [x.oldNote, x.note].filter(Boolean).join(' · ');
+      if(note) lead.note = note.slice(0, 500);
+      updates[lead.id] = lead;
+    });
+    fbLeads.update(updates)
+      .then(()=>{ showToast(`Đã đưa ${valid.length} số vào kho — hệ thống sẽ chia cho Sale.`); try{ tryAutoDistribute(); }catch(e){} })
+      .catch(e=>{ console.error(e); showToast('Chưa lưu được — kiểm tra mạng rồi thử lại.'); });
+    document.getElementById('recareText').value = '';
+    recareResetPreview();
+    renderRecarePage();
+  });
+}
+function renderRecarePage(){
+  const el = document.getElementById('recareRecent'); if(!el) return;
+  const mine = state.leads.filter(l=>l.recare);
+  const byBatch = {};
+  mine.forEach(l=>{ const k = l.recareBatch || ('d' + toLocalDateStr(new Date(Number(l.importedAt)||0)));
+    const b = byBatch[k] || (byBatch[k] = {at: Number(l.importedAt)||0, by: l.createdByName || '', source: l.source || '', n:0, assigned:0, closed:0});
+    b.n++; if(l.assignedTo) b.assigned++; if(l.status==='Đã chốt') b.closed++; });
+  const rows = Object.values(byBatch).sort((a,b)=>b.at-a.at).slice(0, 30);
+  el.innerHTML = rows.length
+    ? `<thead><tr><th>Lúc nhập</th><th>Người nhập</th><th>Nguồn</th><th class="num">Số data</th><th class="num">Đã chia</th><th class="num">Chờ chia</th><th class="num">Đã chốt lại</th></tr></thead><tbody>${rows.map(b=>`<tr>
+        <td>${b.at ? fmtDateTimeShort(b.at) : '—'}</td><td>${escHtml(b.by)}</td><td>${escHtml(b.source)}</td>
+        <td class="num">${b.n}</td><td class="num">${b.assigned}</td><td class="num">${b.n - b.assigned}</td><td class="num">${b.closed}</td></tr>`).join('')}</tbody>`
+    : '<tr><td class="empty-note">Chưa nhập đợt nào.</td></tr>';
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
