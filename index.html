@@ -14746,7 +14746,7 @@ function goPage(pageId){
 //   goalSettings/sundays/{YYYY-MM} = {mode:'13'|'24', by, byName, at}  ← Quản lý chung chọn CN nghỉ của tháng
 // Cách tính (không lưu sẵn, luôn tính lại khi vẽ → đổi lịch nghỉ giữa tháng thì mục tiêu ngày tự đổi theo):
 //   - Doanh số đạt = tổng tiền hàng (totalAmount) các hoá đơn ĐÃ CỌC, tính theo NGÀY CỌC (depositLink.markedAt)
-//   - Ngày làm việc = các ngày trong tháng trừ 2 Chủ nhật nghỉ chung (CN thứ 1&3 hoặc 2&4; CN thứ 5 vẫn làm)
+//   - Ngày làm việc = các ngày trong tháng trừ Chủ nhật nghỉ chung (CN thứ 1&3 — tháng có 5 CN thì nghỉ cả CN thứ 5 — hoặc 2&4)
 //   - Mục tiêu hôm nay = (mục tiêu − đã đạt TRƯỚC hôm nay) ÷ số ngày làm việc còn lại tính cả hôm nay
 //   - Mục tiêu tuần (T2→CN, cắt trong tháng) = (mục tiêu − đã đạt trước tuần) ÷ ngày làm còn lại từ đầu tuần × ngày làm trong tuần
 //   - Người vào làm giữa tháng: chỉ tính từ ngày tạo tài khoản
@@ -14789,7 +14789,8 @@ function goalSundayMode(m){
   const [y,mo] = m.split('-').map(Number);
   return {mode: ((y*12+mo)%2===0) ? '13' : '24', set:false};
 }
-function goalOffSundaysFor(m, mode){ const s = goalSundaysOf(m); return (mode==='13' ? [0,2] : [1,3]).map(i=>s[i]).filter(Boolean); }
+// "Thứ 1 và 3": tháng có 5 Chủ nhật thì nghỉ luôn CN thứ 5 (cách tuần nghỉ 1 lần). "Thứ 2 và 4": CN thứ 5 vẫn làm.
+function goalOffSundaysFor(m, mode){ const s = goalSundaysOf(m); return (mode==='13' ? [0,2,4] : [1,3]).map(i=>s[i]).filter(Boolean); }
 function goalOffSundays(m){ return goalOffSundaysFor(m, goalSundayMode(m).mode); }
 function goalWorkDays(m, from, to){
   const off = new Set(goalOffSundays(m));
@@ -15125,8 +15126,9 @@ function renderGoalsPage(){
 
 // Lịch nghỉ CN — Quản lý chung chọn
 function goalSundayOptLabel(m, mode){
-  const ds = goalOffSundaysFor(m, mode).map(goalDM).join(' và ');
-  return `${mode==='13' ? 'Nghỉ CN thứ 1 và thứ 3' : 'Nghỉ CN thứ 2 và thứ 4'}<small>${ds}</small>`;
+  const ds = goalOffSundaysFor(m, mode).map(goalDM).join(', ').replace(/, ([^,]*)$/, ' và $1');
+  const five = goalSundaysOf(m).length > 4;
+  return `${mode==='13' ? (five ? 'Nghỉ CN thứ 1, thứ 3 và thứ 5' : 'Nghỉ CN thứ 1 và thứ 3') : 'Nghỉ CN thứ 2 và thứ 4'}<small>${ds}</small>`;
 }
 function goalSundayCardHtml(m){
   const info = goalSundayMode(m);
@@ -15138,13 +15140,13 @@ function goalSundayCardHtml(m){
   const opt = mode=>`<div class="chip ${info.mode===mode ? 'selected' : ''}" ${editable ? `onclick="goalSetSunday('${m}','${mode}')"` : 'style="cursor:default;"'}>${goalSundayOptLabel(m, mode)}</div>`;
   return `<div class="card">
     <h2>Lịch nghỉ Chủ nhật ${goalMonthLabel(m)}</h2>
-    <p class="goal-hint">Công ty nghỉ chung 2 Chủ nhật mỗi tháng${sundays.length>4 ? `. Chủ nhật thứ 5 (${goalDM(sundays[4])}) vẫn là ngày làm việc` : ''}. Đổi lịch giữa tháng thì mục tiêu ngày của mọi người tự tính lại.</p>
+    <p class="goal-hint">Công ty nghỉ chung 2 Chủ nhật mỗi tháng${sundays.length>4 ? `. Tháng này có 5 Chủ nhật: chọn thứ 1 và 3 thì nghỉ luôn CN thứ 5 (${goalDM(sundays[4])}); chọn thứ 2 và 4 thì CN thứ 5 vẫn đi làm` : ''}. Đổi lịch giữa tháng thì mục tiêu ngày của mọi người tự tính lại.</p>
     <div class="goal-sunday-opts">${opt('13')}${opt('24')}</div>
     <div class="goal-hint" style="margin:0;">${note} Tháng này có <b>${goalWorkDays(m).length}</b> ngày làm việc.</div>
   </div>`;
 }
 function goalSundayLineHtml(m){
-  return `<p class="goal-hint" style="margin:-8px 0 16px;">${goalMonthLabel(m).replace(/^t/,'T')} nghỉ chung CN ${goalOffSundays(m).map(goalDM).join(' và ')}, có ${goalWorkDays(m).length} ngày làm việc.</p>`;
+  return `<p class="goal-hint" style="margin:-8px 0 16px;">${goalMonthLabel(m).replace(/^t/,'T')} nghỉ chung CN ${goalOffSundays(m).map(goalDM).join(', ').replace(/, ([^,]*)$/, ' và $1')}, có ${goalWorkDays(m).length} ngày làm việc.</p>`;
 }
 function goalSetSunday(m, mode){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
@@ -15155,13 +15157,13 @@ function goalSetSunday(m, mode){
     const val = {mode, by: me.id, byName: me.name, at: nowMs()};
     goalSundayCfg = Object.assign({}, goalSundayCfg, {[m]: val});
     fbRoot.child('goalSettings/sundays/' + m).set(val)
-      .then(()=>showToast(`Đã lưu lịch nghỉ ${goalMonthLabel(m)}: CN ${goalOffSundaysFor(m, mode).map(goalDM).join(' và ')}`))
+      .then(()=>showToast(`Đã lưu lịch nghỉ ${goalMonthLabel(m)}: CN ${goalOffSundaysFor(m, mode).map(goalDM).join(', ').replace(/, ([^,]*)$/, ' và $1')}`))
       .catch(err=>{ console.error(err); showToast('Không lưu được lịch nghỉ — kiểm tra mạng rồi thử lại'); });
     renderGoalsPage();
   };
   const started = m===goalCurMonth() && todayStr() > m + '-01';
   if(started && info.mode!==mode){
-    askConfirm('Đổi lịch nghỉ giữa tháng?', `Lịch nghỉ ${goalMonthLabel(m)} sẽ đổi thành CN ${goalOffSundaysFor(m, mode).map(goalDM).join(' và ')}. Mục tiêu hôm nay và tuần này của mọi người sẽ tự tính lại theo số ngày làm việc mới.`, doSet);
+    askConfirm('Đổi lịch nghỉ giữa tháng?', `Lịch nghỉ ${goalMonthLabel(m)} sẽ đổi thành CN ${goalOffSundaysFor(m, mode).map(goalDM).join(', ').replace(/, ([^,]*)$/, ' và $1')}. Mục tiêu hôm nay và tuần này của mọi người sẽ tự tính lại theo số ngày làm việc mới.`, doSet);
   } else doSet();
 }
 
@@ -15194,7 +15196,7 @@ function goalOwnHtml(me, m, dep){
 function goalAmountStepHtml(me, m, c){
   const startNote = c.start > m + '-01'
     ? `Bạn bắt đầu từ ngày ${fmtDate(c.start)} nên chỉ tính từ ngày này: ${c.workDays} ngày làm việc.`
-    : `${goalMonthLabel(m).replace(/^t/,'T')} có ${c.workDays} ngày làm việc (nghỉ CN ${goalOffSundays(m).map(goalDM).join(' và ')}).`;
+    : `${goalMonthLabel(m).replace(/^t/,'T')} có ${c.workDays} ngày làm việc (nghỉ CN ${goalOffSundays(m).map(goalDM).join(', ').replace(/, ([^,]*)$/, ' và $1')}).`;
   const val = goalDraft.digits ? goalDraft.digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
   return `<div class="card">
     ${goalStepsHtml(1)}
