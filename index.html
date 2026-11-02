@@ -1791,6 +1791,32 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .goal-rank-ctl{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:8px 0 14px; }
   .goal-rank-date{ display:flex; align-items:center; gap:8px; margin:0; font-size:13px; }
   .goal-rank-date input{ width:auto; min-height:36px; padding:5px 9px; color-scheme:dark; }
+  .goal-tile.compact{ padding:10px 12px; }
+  .goal-tile.compact .goal-tile-head{ align-items:flex-start; font-size:14.5px; }
+  .goal-tile.compact .goal-tile-head small{ display:block; font-size:12.5px; font-weight:500; color:var(--ink-soft); margin-top:2px; }
+  .goal-tile.compact .goal-tile-head small b{ color:var(--ink); }
+  .goal-tile.compact .goal-tile-head small b.goal-pct-ok{ color:var(--success); }
+  .goal-tile.compact .goal-periods{ margin:8px 0 0; gap:8px; }
+  .goal-period.gpc{ padding:7px 10px 8px; }
+  .gpc-top{ display:flex; justify-content:space-between; align-items:baseline; gap:6px; margin-bottom:4px; }
+  .gpc-top b{ font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .gpc-top b.gpc-na{ font-size:12.5px; font-weight:600; color:var(--ink-soft); }
+  .gpc-row{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-soft); line-height:1; margin-top:4px; }
+  .gpc-row span{ flex:0 0 46px; white-space:nowrap; }
+  .gpc-row span i{ font-style:normal; } .gpc-short{ display:none; }
+  .gpc-track{ flex:1; height:7px; background:var(--line); border-radius:4px; overflow:hidden; min-width:20px; }
+  .gpc-track i{ display:block; height:100%; border-radius:4px; transition:width .35s ease; }
+  .gpc-row em{ font-style:normal; flex:0 0 auto; min-width:34px; text-align:right; color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; }
+  @media (max-width:720px){
+    .goal-tile.compact .goal-periods{ gap:5px; }
+    .goal-period.gpc{ padding:6px 7px; }
+    .gpc-top{ flex-direction:column; align-items:flex-start; gap:1px; }
+    .gpc-top b{ font-size:16px; }
+    .gpc-row span{ flex:0 0 22px; font-size:10px; }
+    .gpc-long{ display:none; } .gpc-short{ display:inline !important; }
+    .gpc-row em{ min-width:0; font-size:10.5px; }
+  }
+  @media (prefers-reduced-motion: reduce){ .gpc-track i{ transition:none; } }
 </style>
 </head>
 <body>
@@ -15066,9 +15092,22 @@ function renderMyGoalTile(){
       <div class="goal-hint" style="margin:4px 0 0;">Điền mục tiêu doanh số, cam kết và ghi ra ít nhất ${GOAL_MIN_TASKS} việc cần làm.</div>`;
     return;
   }
-  el.className = 'goal-tile';
-  el.innerHTML = `<div class="goal-tile-head">🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}<span>Xem chi tiết →</span></div>
-    ${goalPeriodsHtml(c)}${goalFiguresHtml(c)}`;
+  // Bản GỌN cho trang Data của tôi: mỗi ô chỉ còn % + 2 thanh ngang (Mục tiêu / Đã đạt) → thấp ~1/2 so với trước
+  el.className = 'goal-tile compact';
+  const doneMonth = c.amount && c.achieved >= c.amount;
+  const box = (label, a, t, na)=>{
+    const p = goalPctNum(a, t), mx = Math.max(a, t, 1);
+    const bar = (v, color, name)=>`<div class="gpc-row" title="${name}: ${goalMoney(v)}"><span><i class="gpc-long">${name}</i><i class="gpc-short">${name==='Mục tiêu' ? 'MT' : 'Đạt'}</i></span><div class="gpc-track"><i style="width:${v>0 ? Math.max(2, v/mx*100) : 0}%; background:${color};"></i></div><em>${goalShortMoney(v)}</em></div>`;
+    return `<div class="goal-period gpc"><div class="gpc-top"><span class="gp-label">${label}</span>${(p===null && na) ? `<b class="gpc-na">${na}</b>` : `<b class="${goalPctCls(p)}">${goalPctTxt(p)}</b>`}</div>
+      ${bar(t, GOAL_C_TARGET, 'Mục tiêu')}${bar(a, (p!==null && p>=100) ? '#37C878' : GOAL_C_DONE, 'Đã đạt')}</div>`;
+  };
+  el.innerHTML = `<div class="goal-tile-head"><div>🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}
+      <small>Đã đạt <b class="goal-pct-ok">${goalMoney(c.achieved)}</b> · Còn thiếu <b>${goalMoney(c.missing)}</b> · Hôm nay cần <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b> · Còn ${c.remDays||0} ngày làm</small></div><span>Xem chi tiết →</span></div>
+    <div class="goal-periods">
+      ${box('Hôm nay', c.todayAchieved||0, c.todayTarget||0, c.todayOff ? 'Nghỉ' : (doneMonth ? 'Đủ tháng 🎉' : ''))}
+      ${box(`Tuần ${goalDM(c.weekFrom)}–${goalDM(c.weekTo)}`, c.weekAchieved||0, c.weekTarget||0, doneMonth ? 'Đủ tháng 🎉' : '')}
+      ${box('Tháng này', c.achieved, c.amount, '')}
+    </div>`;
 }
 
 // ----- Dải nhắc: chưa đặt mục tiêu / chưa đủ việc cần làm -----
