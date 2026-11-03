@@ -3096,6 +3096,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div id="page-mgrSettings" class="page" style="display:none;">
         <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
         <div class="card" id="ringtoneCard" style="display:none;"></div>
+        <div class="card" id="dataUsageCard" style="display:none;"></div>
         <div class="card" id="createAccountCard">
           <h2>Tạo tài khoản mới</h2>
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Nhân viên không thể tự đăng ký nữa — Quản lý tạo sẵn tài khoản rồi đưa tên + mã PIN cho họ để đăng nhập.</p>
@@ -9882,21 +9883,35 @@ const RINGTONE_SKIP_ROLES = ['packer', 'warehouse', 'printer']; // đóng hàng 
 let appRingtone = null, ringtoneSub = null, ringtoneAudio = null, ringtoneUnlocked = false, ringtoneStopTimer = null;
 function ringtoneListen(){
   if(ringtoneSub || !fbRoot) return;
+  // TIẾT KIỆM DỮ LIỆU: appSettings/newLeadSound chỉ còn THÔNG TIN bài đang dùng (libId, âm lượng…), không kèm file nhạc.
+  // File nhạc lấy 1 lần từ ringtoneLib/{libId}/data rồi lưu trên máy (localStorage) — mở app lần sau không tải lại.
   ringtoneSub = fbRoot.child('appSettings/newLeadSound');
-  let lastKey = null;
-  ringtoneSub.on('value', snap=>{
-    appRingtone = snap.val() || null;
-    // Chỉ nạp lại khi FILE NHẠC đổi (đổi âm lượng / thời lượng không làm ngắt tiếng đang phát)
-    const key = appRingtone && appRingtone.data ? (appRingtone.at||0) + '|' + appRingtone.data.length : '';
-    if(key!==lastKey){
-      lastKey = key;
-      if(ringtoneAudio){ try{ ringtoneAudio.pause(); }catch(e){} }
-      ringtoneAudio = null; ringtoneUnlocked = false;
-    }
+  let lastKey = null, reqId = 0;
+  const apply = (meta, data)=>{
+    appRingtone = meta ? Object.assign({}, meta, data ? {data} : {}) : null;
+    const key = appRingtone && appRingtone.data ? (appRingtone.libId || appRingtone.at || '') + '|' + appRingtone.data.length : '';
+    if(key!==lastKey){ lastKey = key; if(ringtoneAudio){ try{ ringtoneAudio.pause(); }catch(e){} } ringtoneAudio = null; ringtoneUnlocked = false; }
     try{ ringtoneMigrate(); }catch(e){}
     if(currentPageId==='mgrSettings') renderRingtoneCard();
+  };
+  ringtoneSub.on('value', snap=>{
+    const meta = snap.val() || null, my = ++reqId;
+    if(meta && meta.data && meta.libId){ // bản cũ còn kèm file → lưu máy, Quản lý chung bỏ file khỏi nhánh này (đã có trong thư viện)
+      ringtoneCacheSet(meta.libId, meta.data);
+      const me = currentUser(); if(me && me.role==='general_manager') fbRoot.child('appSettings/newLeadSound/data').remove().catch(()=>{});
+    }
+    if(!meta || meta.data || !meta.libId){ apply(meta, null); return; }
+    const cached = ringtoneCacheGet(meta.libId);
+    if(cached){ apply(meta, cached); return; }
+    fbRoot.child('ringtoneLib/' + meta.libId + '/data').once('value').then(v=>{
+      if(my!==reqId) return;
+      const data = v.val(); if(data) ringtoneCacheSet(meta.libId, data);
+      apply(meta, data || null);
+    }).catch(()=>apply(meta, null));
   });
 }
+function ringtoneCacheGet(libId){ try{ const c = JSON.parse(localStorage.getItem('ringtone_cache') || 'null'); return c && c.libId===libId ? c.data : null; }catch(e){ return null; } }
+function ringtoneCacheSet(libId, data){ try{ localStorage.setItem('ringtone_cache', JSON.stringify({libId, data})); }catch(e){} }
 function ringtoneAudioEl(){
   if(!appRingtone || !appRingtone.data) return null;
   if(!ringtoneAudio){ ringtoneAudio = new Audio(appRingtone.data); ringtoneAudio.preload = 'auto'; }
@@ -9948,6 +9963,7 @@ function ringtoneLibListen(){
 // Bài đang dùng từ trước khi có thư viện → tự đưa vào thư viện để không mất (chạy 1 lần)
 let ringtoneMigrating = false;
 function ringtoneMigrate(){
+  // Bản cũ: file nhạc nằm ngay trong appSettings/newLeadSound → khi đã có trong thư viện thì bỏ file khỏi đó (mọi máy đỡ tải)
   if(ringtoneMigrating || ringtoneLib===null || !appRingtone || !appRingtone.data || appRingtone.libId) return;
   const u = currentUser(); if(!u || u.role!=='general_manager') return;
   ringtoneMigrating = true;
@@ -10020,7 +10036,8 @@ function ringtoneUse(id){
   const x = ringtoneLib && ringtoneLib[id]; if(!x || !x.data) return;
   ringtonePreviewStop();
   const u = currentUser();
-  const val = {data: x.data, name: x.name || 'nhạc chuông', size: x.size || 0, type: x.type || null, duration: x.duration || null, libId: id,
+  ringtoneCacheSet(id, x.data); // máy Quản lý chung có sẵn file → không phải tải lại
+  const val = {name: x.name || 'nhạc chuông', size: x.size || 0, type: x.type || null, duration: x.duration || null, libId: id, // KHÔNG kèm file nhạc
     volume: appRingtone && isFinite(Number(appRingtone.volume)) ? Number(appRingtone.volume) : 0.9,
     maxSec: (appRingtone && Number(appRingtone.maxSec)) || 10, by: u.id, byName: u.name, at: nowMs()};
   fbRoot.child('appSettings/newLeadSound').set(val).then(()=>showToast(`Đã đổi nhạc chuông cho tất cả: ${x.name || ''}`)).catch(e=>console.error(e));
@@ -15027,7 +15044,7 @@ function goPage(pageId){
   try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
   if(pageId==='goals') renderGoalsPage();
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
-  if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); }catch(e){ console.error(e); } }
+  if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
@@ -15215,6 +15232,69 @@ function renderRecarePage(){
         <td>${b.at ? fmtDateTimeShort(b.at) : '—'}</td><td>${escHtml(b.by)}</td><td>${escHtml(b.source)}</td>
         <td class="num">${b.n}</td><td class="num">${b.assigned}</td><td class="num">${b.n - b.assigned}</td><td class="num">${b.closed}</td></tr>`).join('')}</tbody>`
     : '<tr><td class="empty-note">Chưa nhập đợt nào.</td></tr>';
+}
+
+// =========================== 📊 ĐO DUNG LƯỢNG DỮ LIỆU FIREBASE (Quản lý chung) ===========================
+// Dùng REST ?shallow=true (chỉ lấy tên mục, rất nhẹ) để ĐẾM số mục từng nhánh, rồi lấy MẪU 25 mục mới nhất để
+// ước lượng dung lượng trung bình → tổng ≈ số mục × TB. Cả lần đo chỉ tốn vài MB, không tải toàn bộ dữ liệu.
+const DATA_USAGE_WHO = {
+  invoices: 'Quản lý chung + Kho/Đặt in: TẤT CẢ · Đóng gói: đã cọc 60 ngày · Sale: của mình',
+  packStatus: 'Quản lý chung + Kho + Đóng gói: TẤT CẢ · Sale: của mình',
+  leads: 'Quản lý (chung, Data, team): TẤT CẢ data đang chạy · Sale: data của mình',
+  users: 'MỌI NGƯỜI', branches: 'MỌI NGƯỜI', mktBranches: 'MỌI NGƯỜI', mktSources: 'MỌI NGƯỜI', companyRules: 'MỌI NGƯỜI',
+  callAttemptOptions: 'MỌI NGƯỜI', teamsTrash: 'MỌI NGƯỜI', system: 'MỌI NGƯỜI', appSettings: 'MỌI NGƯỜI (trừ kho)',
+  invoiceItems: 'Quản lý chung + Kho + Thợ in: TẤT CẢ', printOrders: 'Quản lý chung + Kho + Thợ in: TẤT CẢ',
+  reports: 'Quản lý: 70 ngày gần nhất · Sale: của mình', mktReports: 'Quản lý MKT/chung/Data: 70 ngày · MKT: team mình',
+  mktWeekly: 'Quản lý MKT/chung/Data: TẤT CẢ', printReports: 'Quản lý chung + Kho: 70 ngày', trash: 'Quản lý chung + Quản lý Data: TẤT CẢ',
+  chats: 'Chỉ khi mở 1 cuộc trò chuyện', chatUnread: 'Mỗi người: phần của mình', chatReads: 'Khi mở trò chuyện',
+  goals: 'Theo tháng đang xem', revenueArchive: 'Theo tháng đang xem (trang Mục tiêu)', goalSettings: 'Sale + Quản lý',
+  ringtoneLib: 'Chỉ Quản lý chung (trang Cài đặt)', checkins: 'Hôm nay', dailyRotation: 'Hôm nay', managerConfirms: 'Hôm nay',
+  depositProofs: 'Chỉ khi bấm xem ảnh', depositThumbs: 'Khi xem danh sách cọc', packPhotos: 'Chỉ khi bấm xem ảnh',
+  productImages: 'Khi xem ảnh sản phẩm', leadsArchive: 'Khi tra cứu SĐT cũ', abitWebhookLog: 'Không ai (chỉ để kiểm tra)',
+};
+let dataUsageResult = null, dataUsageRunning = false;
+function renderDataUsageCard(){
+  const el = document.getElementById('dataUsageCard'); if(!el) return;
+  const u = currentUser(); if(!u || u.role!=='general_manager'){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const r = dataUsageResult;
+  const mb = b=>b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : (b >= 1024 ? Math.round(b/1024) + ' KB' : b + ' B');
+  const rows = r ? r.rows.slice().sort((a,b)=>b.est-a.est) : [];
+  const total = rows.reduce((t,x)=>t+x.est, 0);
+  el.innerHTML = `<h2>📊 Dung lượng dữ liệu Firebase</h2>
+    <p class="goal-hint">Đo xem nhánh dữ liệu nào nặng nhất và ai tải nó mỗi lần mở app — để tối ưu chi phí "Downloads". Lần đo chỉ tốn vài MB (đếm số mục + lấy mẫu), không tải toàn bộ.</p>
+    <button class="btn-primary" ${dataUsageRunning ? 'disabled' : ''} onclick="dataUsageMeasure()">${dataUsageRunning ? 'Đang đo… ' + escHtml(dataUsageRunning===true ? '' : dataUsageRunning) : (r ? '🔄 Đo lại' : '📏 Đo ngay')}</button>
+    ${r ? `<p class="goal-hint" style="margin:10px 0 6px;">Đo lúc ${fmtDateTimeShort(r.at)} · tổng ước tính <b>${mb(total)}</b> (Firebase báo Storage để so sánh). Dòng tô vàng = <b>tải mỗi lần mở app</b>.</p>
+      <div class="table-wrap"><table class="rtable"><thead><tr><th>Nhánh</th><th class="num">Số mục</th><th class="num">TB / mục</th><th class="num">Ước tính</th><th class="num">Tỉ trọng</th><th>Ai tải khi mở app</th></tr></thead><tbody>
+      ${rows.map(x=>{ const hot = /TẤT CẢ|MỌI NGƯỜI|đã cọc 60/.test(DATA_USAGE_WHO[x.key]||'');
+        return `<tr style="${hot && x.est > 1048576 ? 'background:rgba(224,169,62,.12);' : ''}"><td><b>${escHtml(x.key)}</b></td><td class="num">${x.count===null ? '—' : x.count.toLocaleString('vi-VN')}</td><td class="num">${x.avg===null ? '—' : mb(Math.round(x.avg))}</td><td class="num"><b>${mb(Math.round(x.est))}</b></td><td class="num">${total ? Math.round(x.est/total*100) : 0}%</td><td style="white-space:normal; min-width:220px; font-size:12.5px;">${escHtml(DATA_USAGE_WHO[x.key] || '—')}</td></tr>`; }).join('')}
+      </tbody></table></div>` : ''}
+    <span class="login-error" id="dataUsageErr"></span>`;
+}
+async function dataUsageMeasure(){
+  if(dataUsageRunning) return;
+  const err = m=>{ const e = document.getElementById('dataUsageErr'); if(e) e.textContent = m; };
+  try{
+    dataUsageRunning = true; renderDataUsageCard();
+    const base = String(FIREBASE_CONFIG.databaseURL || '').replace(/\/$/, '');
+    const tok = await firebase.auth().currentUser.getIdToken();
+    const get = async (path, q)=>{ const r = await fetch(`${base}/${path}.json?auth=${encodeURIComponent(tok)}${q ? '&' + q : ''}`); if(!r.ok) throw new Error('HTTP ' + r.status + ' ' + path); return r.text(); };
+    const top = JSON.parse(await get('', 'shallow=true') || '{}') || {};
+    const rows = [];
+    for(const key of Object.keys(top)){
+      dataUsageRunning = key; renderDataUsageCard();
+      const sh = JSON.parse(await get(encodeURIComponent(key), 'shallow=true') || 'null');
+      if(sh===null || typeof sh!=='object'){ const t = await get(encodeURIComponent(key)); rows.push({key, count: null, avg: null, est: t.length}); continue; }
+      const count = Object.keys(sh).length;
+      if(!count){ rows.push({key, count: 0, avg: 0, est: 0}); continue; }
+      const sample = await get(encodeURIComponent(key), 'orderBy=%22%24key%22&limitToLast=25');
+      const n = Math.min(25, count);
+      const avg = Math.max(0, (sample.length - 2) / n);
+      rows.push({key, count, avg, est: avg * count});
+    }
+    dataUsageResult = {at: nowMs(), rows};
+  }catch(e){ console.error(e); err('Không đo được: ' + (e && e.message || e)); }
+  dataUsageRunning = false; renderDataUsageCard();
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
