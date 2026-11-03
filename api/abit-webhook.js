@@ -6,7 +6,7 @@
 //   - Tên trường khác nhau: mã vận đơn (tracking_no / tracking_code / mavandon / ma_van_don / billcode ...),
 //     số đơn Abit (invoice_no / invoiceno ...), hãng (donvi_vc / carrier ...)
 //   - Không tra được đơn qua abitMap → tìm theo SỐ HOÁ ĐƠN APP (ghichu2 lúc đẩy sang Abit)
-// Mỗi lần Abit gửi về đều được GHI NHẬT KÝ ở Firebase: abitWebhookLog (giữ 3 ngày) — để xem Abit gửi gì
+// Mỗi lần Abit gửi về đều được GHI NHẬT KÝ ở Firebase: abitWebhookLog (giữ 2 ngày, dọn theo khoá — không tải cả nhánh) — để xem Abit gửi gì
 // khi mã không tự điền (mở Firebase Console → Realtime Database → abitWebhookLog).
 const {db, carrierName} = require('./_shared');
 
@@ -118,14 +118,19 @@ module.exports = async (req, res)=>{
     console.error(e);
     results.push({error: String(e && e.message || e)});
   }
-  // Nhật ký: nguyên văn dữ liệu Abit gửi + kết quả xử lý (giữ 3 ngày)
+  // Nhật ký: nguyên văn dữ liệu Abit gửi + kết quả xử lý (giữ 2 ngày, mỗi dòng ≤ 1.5KB)
+  // TIẾT KIỆM DỮ LIỆU: dọn nhật ký cũ theo KHOÁ (push key xếp theo thời gian, Firebase luôn có sẵn chỉ mục)
+  // và chỉ dọn thỉnh thoảng (~1/20 lượt) → mỗi lần chỉ đọc tối đa 40 dòng cũ nhất, không tải cả nhánh.
+  // (Bản trước lọc theo trường "at" chưa có chỉ mục → Firebase tải TOÀN BỘ nhật ký mỗi lượt gọi — rất tốn.)
   try{
     if(D){
       const log = D.ref('abitWebhookLog');
-      await log.push({at: now, contentType: String(req.headers['content-type'] || ''), raw: String(raw).slice(0, 4000), results});
-      const old = await log.orderByChild('at').endAt(now - 3*86400000).limitToFirst(30).once('value');
-      const del = {}; Object.keys(old.val() || {}).forEach(k=>{ del[k] = null; });
-      if(Object.keys(del).length) await log.update(del);
+      await log.push({at: now, contentType: String(req.headers['content-type'] || '').slice(0, 80), raw: String(raw).slice(0, 1500), results});
+      if(Math.random() < 0.05){
+        const old = await log.orderByKey().limitToFirst(40).once('value');
+        const del = {}; old.forEach(c=>{ const v = c.val(); if(!v || !(Number(v.at) > now - 2*86400000)) del[c.key] = null; });
+        if(Object.keys(del).length) await log.update(del);
+      }
     }
   }catch(e){ console.error('ghi nhật ký webhook lỗi:', e); }
   return res.status(200).json({Received:'true'}); // luôn báo đã nhận để Abit không gửi lặp vô hạn
