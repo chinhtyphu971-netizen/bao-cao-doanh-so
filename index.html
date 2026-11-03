@@ -15650,11 +15650,11 @@ function goalChartSvg(opts){
       const x = x0 + j*(barW+3), yy = y(v), h = padT + plotH - yy;
       const col = (s.colors && s.colors[i]) || s.color;
       bars += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="2" fill="${col}"${dim ? ' opacity=".45"' : ''}><title>${escHtml((opts.titles ? opts.titles[i] : lb) + ' · ' + s.name + ': ' + (opts.tipFmt || fmt)(v))}</title></rect>`;
-      if(barW >= 10 || k===1) bars += `<text x="${(x + barW/2).toFixed(1)}" y="${(yy-4).toFixed(1)}" text-anchor="middle" font-size="${k===1 && gw<34 ? 9 : 10}" style="fill:var(--ink-soft)">${fmt(v)}</text>`;
+      if(barW >= 10 || k===1) bars += `<text x="${(x + barW/2).toFixed(1)}" y="${(yy-4).toFixed(1)}" text-anchor="middle" font-size="${k===1 && gw<26 ? 8 : (k===1 && gw<34 ? 9 : 10)}" style="fill:var(--ink-soft)">${fmt(v)}</text>`;
     });
     const short = String(lb).length > 14 ? String(lb).slice(0, 13) + '…' : String(lb);
     const lx = (gx + gw/2).toFixed(1), ly = H - padB + (rotate ? 12 : 16);
-    bars += `<text x="${lx}" y="${ly}" ${rotate ? `text-anchor="end" transform="rotate(-40 ${lx} ${ly})"` : 'text-anchor="middle"'} font-size="11" style="fill:${dim ? 'var(--danger)' : 'var(--ink-soft)'}"><title>${escHtml(opts.titles ? opts.titles[i] : lb)}</title>${escHtml(short)}</text>`;
+    bars += `<text x="${lx}" y="${ly}" ${rotate ? `text-anchor="end" transform="rotate(-40 ${lx} ${ly})"` : 'text-anchor="middle"'} font-size="${gw<26 ? 10 : 11}" style="fill:${dim ? 'var(--danger)' : 'var(--ink-soft)'}"><title>${escHtml(opts.titles ? opts.titles[i] : lb)}</title>${escHtml(short)}</text>`;
   });
   let ref = '';
   if(opts.refLine && opts.refLine.value > 0){
@@ -16207,7 +16207,7 @@ function goalGmHtml(m, dep){
     </div>`;
   const pctChart = ranked.length && !offDay ? goalChartSvg({labels: ranked.map(r=>r.u.name), aria: '% đạt mục tiêu theo người', fmt: v=>Math.floor(v) + '%', axisFmt: v=>Math.round(v) + '%',
       tipFmt: v=>Math.floor(v) + '%', series: [{name: '% đạt', color: GOAL_C_TARGET, values: ranked.map(r=>r.pct||0), colors: ranked.map(r=>goalPctColor(r.pct))}],
-      refLine: {value: 100, label: '100% mục tiêu', atEnd: true}, minGroupW: 46, showZero: true,
+      refLine: {value: 100, label: '100% mục tiêu', atEnd: true}, minGroupW: 20, showZero: true, // cột thu nhỏ để thấy hết nhân sự trên 1 màn hình
       legendExtra: `<span><i style="background:#37C878"></i>Đạt 100%</span><span><i style="background:#E0A93E"></i>70–99%</span><span><i style="background:#E5484D"></i>Dưới 70%</span>`}) : '';
   return `<div class="card">
     <h2>Toàn công ty, ${pLabel}</h2>
