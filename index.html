@@ -7957,12 +7957,12 @@ function packCamShoot(){
   const v = document.getElementById('packCamVideo');
   if(!packPanel || !packCamStream || !v.videoWidth){ showToast('Camera chưa sẵn sàng — bấm ＋ để chọn ảnh.'); return; }
   if(packPanel.photos.length >= PACK_PHOTO_MAX) return;
-  const sc = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+  const sc = Math.min(1, PACK_PHOTO_PX / Math.max(v.videoWidth, v.videoHeight));
   const w = Math.round(v.videoWidth*sc), h = Math.round(v.videoHeight*sc);
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   cv.getContext('2d').drawImage(v, 0, 0, w, h);
-  let q = 0.72, data = cv.toDataURL('image/jpeg', q);
-  while(data.length > 330000 && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
+  let q = 0.7, data = cv.toDataURL('image/jpeg', q);
+  while(data.length > PACK_PHOTO_BYTES && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
   packPanel.photos.push({data, at: nowMs()});
   packDraftSave();
   const f = document.getElementById('packCamShotFlash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
@@ -8905,6 +8905,8 @@ function packPickProgress(lines, ps){
 // Ảnh được thu nhỏ (cạnh dài 1280px, JPEG) còn ~100–200KB rồi lưu ở nhánh packPhotos — CHỈ tải khi có người bấm xem,
 // nên không làm chậm app. Ảnh tự xoá cùng hoá đơn (sau INVOICE_KEEP_DAYS ngày).
 const PACK_PHOTO_MAX = 4;
+// Ảnh đóng hàng chỉ để làm bằng chứng → 1024px, ≤ ~160KB chuỗi (~120KB ảnh) là đủ rõ; trước đây 1280px / ~330KB (tốn gấp đôi dung lượng & lượt tải khi xem)
+const PACK_PHOTO_PX = 1024, PACK_PHOTO_BYTES = 160000;
 const PACK_PHOTO_KIND = {packed:'Lúc đóng (đủ hàng)', short:'Lúc báo thiếu', refill:'Lúc bù đủ & đóng', partial:'Lúc gửi thiếu (không bù)'};
 function packPhotoKindNow(ps, short){ return short ? 'short' : ((ps && (ps.state==='short' || ps.state==='partial')) ? 'refill' : 'packed'); }
 function packPhotoCaptureHtml(ps, short){
@@ -8926,12 +8928,12 @@ function packCompressImage(file){
     const img = new Image();
     img.onload = ()=>{
       try{
-        const max = 1280, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const max = PACK_PHOTO_PX, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.round(img.naturalWidth*sc), h = Math.round(img.naturalHeight*sc);
         const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
         cv.getContext('2d').drawImage(img, 0, 0, w, h);
-        let q = 0.72, data = cv.toDataURL('image/jpeg', q);
-        while(data.length > 330000 && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); } // giữ mỗi ảnh ≤ ~250KB
+        let q = 0.7, data = cv.toDataURL('image/jpeg', q);
+        while(data.length > PACK_PHOTO_BYTES && q > 0.35){ q -= 0.1; data = cv.toDataURL('image/jpeg', q); } // giữ mỗi ảnh ≤ ~120KB
         URL.revokeObjectURL(url); resolve(data);
       }catch(e){ URL.revokeObjectURL(url); reject(e); }
     };
@@ -14828,6 +14830,7 @@ function enterApp(){
   if(!user){ logout(); return; }
   setupRoleScopedListeners(user);
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
+  try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
@@ -15249,10 +15252,38 @@ const DATA_USAGE_WHO = {
   chats: 'Chỉ khi mở 1 cuộc trò chuyện', chatUnread: 'Mỗi người: phần của mình', chatReads: 'Khi mở trò chuyện',
   goals: 'Theo tháng đang xem', revenueArchive: 'Theo tháng đang xem (trang Mục tiêu)', goalSettings: 'Sale + Quản lý',
   ringtoneLib: 'Chỉ Quản lý chung (trang Cài đặt)', checkins: 'Hôm nay', dailyRotation: 'Hôm nay', managerConfirms: 'Hôm nay',
+  usageOpens: 'Chỉ Quản lý chung (trang Cài đặt)',
   depositProofs: 'Chỉ khi bấm xem ảnh', depositThumbs: 'Khi xem danh sách cọc', packPhotos: 'Chỉ khi bấm xem ảnh',
   productImages: 'Khi xem ảnh sản phẩm', leadsArchive: 'Khi tra cứu SĐT cũ', abitWebhookLog: 'Không ai (chỉ để kiểm tra)',
 };
 let dataUsageResult = null, dataUsageRunning = false;
+// Mỗi lần TẢI TRANG = app tải lại toàn bộ dữ liệu ban đầu → đếm usageOpens/{ngày}/{vai trò} (+1, rất nhẹ)
+let usageCounted = false, usageOpensCache = null;
+function usageCountOpen(user){
+  if(usageCounted || !user || !fbRoot) return; usageCounted = true;
+  fbRoot.child(`usageOpens/${todayStr()}/${user.role}`).transaction(c=>(Number(c)||0) + 1).catch(()=>{});
+}
+// Mỗi lần mở app, vai trò đó tải những nhánh nào (tỉ lệ ước lượng của nhánh)
+const USAGE_ROLE_LOAD = {
+  general_manager: {leads:1, invoices:1, invoiceItems:1, packStatus:1, reports:1, mktReports:1, mktWeekly:1, printReports:1, trash:1, printOrders:1},
+  data_manager: {leads:1, reports:1, mktReports:1, mktWeekly:1, trash:1},
+  team_manager: {leads:1, reports:1},
+  warehouse: {invoices:1, invoiceItems:1, packStatus:1, printOrders:1, printReports:1},
+  packer: {invoices:0.9, packStatus:1},
+  printer: {invoiceItems:1, printOrders:1},
+  mkt: {leads:0.3, mktReports:0.2}, mkt_manager: {leads:0.4, mktReports:1, mktWeekly:1},
+  staff: {leads:0.01, invoices:0.03, packStatus:0.03, reports:0.02},
+};
+const USAGE_COMMON = ['users','branches','mktBranches','mktSources','companyRules','callAttemptOptions','teamsTrash','system','appSettings','goalSettings','checkins','dailyRotation','managerConfirms'];
+function usagePerOpenBytes(role, sizes){
+  let b = USAGE_COMMON.reduce((t,k)=>t + (sizes[k]||0), 0);
+  Object.entries(USAGE_ROLE_LOAD[role] || {}).forEach(([k,f])=>{ b += (sizes[k]||0) * f; });
+  return b;
+}
+function usageLoadOpens(){
+  if(!fbRoot) return;
+  fbRoot.child('usageOpens').orderByKey().limitToLast(7).once('value').then(snap=>{ usageOpensCache = snap.val() || {}; renderDataUsageCard(); }).catch(()=>{});
+}
 function renderDataUsageCard(){
   const el = document.getElementById('dataUsageCard'); if(!el) return;
   const u = currentUser(); if(!u || u.role!=='general_manager'){ el.style.display = 'none'; return; }
@@ -15269,7 +15300,25 @@ function renderDataUsageCard(){
       ${rows.map(x=>{ const hot = /TẤT CẢ|MỌI NGƯỜI|đã cọc 60/.test(DATA_USAGE_WHO[x.key]||'');
         return `<tr style="${hot && x.est > 1048576 ? 'background:rgba(224,169,62,.12);' : ''}"><td><b>${escHtml(x.key)}</b></td><td class="num">${x.count===null ? '—' : x.count.toLocaleString('vi-VN')}</td><td class="num">${x.avg===null ? '—' : mb(Math.round(x.avg))}</td><td class="num"><b>${mb(Math.round(x.est))}</b></td><td class="num">${total ? Math.round(x.est/total*100) : 0}%</td><td style="white-space:normal; min-width:220px; font-size:12.5px;">${escHtml(DATA_USAGE_WHO[x.key] || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : ''}
+    ${usageOpensHtml(r, mb)}
     <span class="login-error" id="dataUsageErr"></span>`;
+  if(usageOpensCache===null){ usageOpensCache = {}; usageLoadOpens(); }
+}
+function usageOpensHtml(r, mb){
+  const days = Object.keys(usageOpensCache || {}).sort().reverse();
+  if(!days.length) return '<p class="goal-hint" style="margin-top:14px;">Lượt mở app theo vai trò: bắt đầu đếm từ bản này — xem lại sau 1 ngày để biết vai trò nào tốn dữ liệu nhất.</p>';
+  const sizes = {}; if(r) r.rows.forEach(x=>{ sizes[x.key] = x.est; });
+  const roles = Object.keys(ROLE_LABELS).filter(role=>days.some(d=>(usageOpensCache[d]||{})[role]));
+  const d0 = days[0], o0 = usageOpensCache[d0] || {};
+  const rows = roles.map(role=>{ const per = r ? usagePerOpenBytes(role, sizes) : 0; return {role, opens: Number(o0[role])||0, per, day: per*(Number(o0[role])||0)}; }).sort((a,b)=>b.day-a.day || b.opens-a.opens);
+  const tot = rows.reduce((t,x)=>t+x.day, 0);
+  return `<h3 style="margin:18px 0 6px; font-size:15px;">Lượt mở app ngày ${d0.split('-').reverse().join('/')} (mỗi lần mở = tải lại dữ liệu ban đầu)</h3>
+    ${r ? '' : '<p class="goal-hint">Bấm "Đo ngay" để tính được MB.</p>'}
+    <div class="table-wrap"><table class="rtable"><thead><tr><th>Vai trò</th><th class="num">Lượt mở</th><th class="num">≈ Mỗi lần mở</th><th class="num">≈ Cả ngày</th><th class="num">Tỉ trọng</th></tr></thead><tbody>
+    ${rows.map(x=>`<tr><td>${escHtml(roleLabel(x.role))}</td><td class="num">${x.opens}</td><td class="num">${r ? mb(Math.round(x.per)) : '—'}</td><td class="num"><b>${r ? mb(Math.round(x.day)) : '—'}</b></td><td class="num">${tot ? Math.round(x.day/tot*100) + '%' : '—'}</td></tr>`).join('')}
+    ${r ? `<tr class="total-row"><td>Tổng (ước tính)</td><td class="num">${rows.reduce((t,x)=>t+x.opens,0)}</td><td></td><td class="num">${mb(Math.round(tot))}</td><td></td></tr>` : ''}
+    </tbody></table></div>
+    ${days.length>1 ? `<p class="goal-hint" style="margin-top:6px;">Các ngày trước: ${days.slice(1).map(d=>`${d.slice(8,10)}/${d.slice(5,7)}: ${Object.values(usageOpensCache[d]||{}).reduce((t,n)=>t+(Number(n)||0),0)} lượt`).join(' · ')}</p>` : ''}`;
 }
 async function dataUsageMeasure(){
   if(dataUsageRunning) return;
