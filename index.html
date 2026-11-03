@@ -9850,6 +9850,7 @@ function playTingSound(){
 // Lưu ở Firebase: appSettings/newLeadSound = {data (data:audio/...;base64), name, size, type, duration, volume, maxSec, by, byName, at}
 // Chưa đặt hoặc phát lỗi → dùng tiếng "ting" mặc định như cũ.
 const RINGTONE_MAX_BYTES = 800*1024;
+const RINGTONE_SKIP_ROLES = ['packer', 'warehouse', 'printer']; // đóng hàng / kho / in: không tải, không phát nhạc chuông data
 let appRingtone = null, ringtoneSub = null, ringtoneAudio = null, ringtoneUnlocked = false, ringtoneStopTimer = null;
 function ringtoneListen(){
   if(ringtoneSub || !fbRoot) return;
@@ -9879,6 +9880,7 @@ function ringtoneStop(){
   if(ringtoneAudio){ try{ ringtoneAudio.pause(); ringtoneAudio.currentTime = 0; }catch(e){} }
 }
 function playNewLeadSound(){
+  const me = currentUser(); if(me && RINGTONE_SKIP_ROLES.includes(me.role)) return; // bộ phận đóng hàng không cần chuông data
   const a = ringtoneAudioEl();
   if(!a){ playTingSound(); return; }
   try{
@@ -14781,7 +14783,7 @@ function enterApp(){
   if(!user){ logout(); return; }
   setupRoleScopedListeners(user);
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
-  try{ ringtoneListen(); }catch(e){ console.error(e); } // 🔔 nhạc chuông data mới (dùng chung)
+  if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
   setupChatUnreadListener();
