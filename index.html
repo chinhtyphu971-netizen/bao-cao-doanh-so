@@ -1846,6 +1846,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   }
   .recare-sum{ display:flex; flex-wrap:wrap; gap:4px 18px; font-size:13.5px; font-weight:600; margin:8px 0 6px; }
   .recare-list{ font-size:13px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px 10px; line-height:1.7; }
+  .goal-task-warn{ margin:-2px 0 8px; padding:7px 10px; border-radius:8px; background:rgba(224,169,62,.14); border:1px solid rgba(224,169,62,.45); color:var(--warn); font-size:13px; font-weight:600; }
+  .goal-task-warn b{ color:var(--ink); text-decoration:underline; }
+  .goal-nudged{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -15212,6 +15215,8 @@ let goalTaskDraft = null;     // đang soạn danh sách việc: {month, items:[
 let goalOpenTasks = {};       // Quản lý chung: đang mở xem việc của ai
 const goalTeamInv = {}, goalTeamInvSubs = {}, goalTeamInvLoaded = {}; // Quản lý team: hoá đơn của từng thành viên
 const goalArchive = {}, goalArchSubs = {}; // {tháng: {saleId: {invoiceId: {d, amt, ...}}}} — doanh số hoá đơn đã tự xoá
+// Quản lý chung bấm "Nhắc" → goalNudges/{tháng}/{userId} = {at, byName, kind:'goal'|'tasks'} → máy người đó hiện thông báo
+let goalNudges = {}, goalNudgeSub = null;
 
 function goalCurMonth(){ return todayStr().slice(0,7); }
 function goalMonthLabel(m){ const [y,mo] = m.split('-'); return `tháng ${Number(mo)}/${y}`; }
@@ -15325,9 +15330,50 @@ function goalSetupListeners(user){
   goalSundaySub = fbRoot.child('goalSettings/sundays');
   goalSundaySub.on('value', snap=>{ goalSundayCfg = snap.val() || {}; onDataChanged(); });
   goalSubscribeMonth(goalCurMonth());
+  try{ goalNudgeListen(user); }catch(e){ console.error(e); }
+}
+function goalNudgeListen(user){
+  if(goalNudgeSub){ try{ goalNudgeSub.off(); }catch(e){} goalNudgeSub = null; }
+  const m = goalCurMonth();
+  if(user.role==='general_manager'){
+    goalNudgeSub = fbRoot.child('goalNudges/' + m);
+    goalNudgeSub.on('value', snap=>{ goalNudges = snap.val() || {}; if(currentPageId==='goals') renderGoalsPage(); });
+  } else if(goalHasOwn(user)){
+    goalNudgeSub = fbRoot.child('goalNudges/' + m + '/' + user.id);
+    goalNudgeSub.on('value', snap=>{ const v = snap.val(); goalNudges = v ? {[user.id]: v} : {}; goalNudgeCheck(); });
+  }
+}
+// Máy Sale: có lời nhắc mới mà vẫn chưa làm → hiện thông báo 1 lần (kèm tiếng "ting")
+function goalNudgeCheck(){
+  const me = currentUser(); if(!goalHasOwn(me)) return;
+  const n = goalNudges[me.id]; if(!n || !n.at) return;
+  const m = goalCurMonth(); if(!goalsLoadedMonth[m]){ setTimeout(goalNudgeCheck, 1500); return; }
+  const key = 'goalNudgeSeen_' + m + '_' + me.id;
+  if(Number(localStorage.getItem(key)||0) >= n.at) return;
+  const g = (goalsByMonth[m]||{})[me.id];
+  const needGoal = !goalIsCommitted(g), needTasks = !needGoal && goalTasksOf(g).length < GOAL_MIN_TASKS;
+  try{ localStorage.setItem(key, String(n.at)); }catch(e){}
+  if(!needGoal && !needTasks) return; // đã làm xong rồi
+  const what = needGoal ? `đặt mục tiêu doanh số ${goalMonthLabel(m)} và ghi ít nhất ${GOAL_MIN_TASKS} việc cần làm` : `ghi đủ ${GOAL_MIN_TASKS} việc cần làm để đạt mục tiêu ${goalMonthLabel(m)}`;
+  askConfirm('🔔 ' + (n.byName || 'Quản lý') + ' nhắc bạn', `Bạn chưa ${what}. Bấm "Ghi ngay" để làm luôn.`, ()=>goPage('goals'));
+  document.getElementById('confirmOkBtn').textContent = 'Ghi ngay';
+  try{ playTingSound(); }catch(e){}
+}
+function goalNudgeSend(m){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || m!==goalCurMonth()) return;
+  const targets = reportableUsersInBranch(null).map(u=>{ const g = (goalsByMonth[m]||{})[u.id];
+    return {u, kind: !goalIsCommitted(g) ? 'goal' : (goalTasksOf(g).length < GOAL_MIN_TASKS ? 'tasks' : null)}; }).filter(x=>x.kind);
+  if(!targets.length){ showToast('Mọi người đã đặt mục tiêu và ghi đủ việc cần làm'); return; }
+  const nT = targets.filter(x=>x.kind==='tasks').length, nG = targets.length - nT;
+  askConfirm('Gửi lời nhắc?', `Nhắc ${targets.length} người: ${nT} người chưa ghi đủ việc cần làm, ${nG} người chưa đặt mục tiêu. Máy của họ sẽ hiện thông báo kèm tiếng "ting" (ngay nếu đang mở app, hoặc lần mở app tới).`, ()=>{
+    const at = nowMs(), up = {};
+    targets.forEach(x=>{ up[`goalNudges/${m}/${x.u.id}`] = {at, by: me.id, byName: me.name, kind: x.kind}; });
+    fbRoot.update(up).then(()=>showToast(`Đã gửi lời nhắc cho ${targets.length} người`)).catch(e=>{ console.error(e); showToast('Chưa gửi được — kiểm tra mạng'); });
+  });
 }
 function goalResetListeners(){
   goalListenKey = null;
+  if(goalNudgeSub){ try{ goalNudgeSub.off(); }catch(e){} goalNudgeSub = null; } goalNudges = {};
   Object.keys(goalMonthSubs).forEach(m=>{ try{ goalMonthSubs[m].ref.off(); }catch(e){} delete goalMonthSubs[m]; delete goalsByMonth[m]; delete goalsLoadedMonth[m]; });
   Object.keys(goalArchSubs).forEach(m=>{ (goalArchSubs[m]||[]).forEach(r=>{ try{ r.off(); }catch(e){} }); delete goalArchSubs[m]; delete goalArchive[m]; });
   if(goalSundaySub){ try{ goalSundaySub.off(); }catch(e){} goalSundaySub = null; }
@@ -15556,6 +15602,9 @@ function renderMyGoalTile(){
       ${box(`Tuần ${goalDM(c.weekFrom)}–${goalDM(c.weekTo)}`, c.weekAchieved||0, c.weekTarget||0, doneMonth ? 'Đủ tháng 🎉' : '')}
       ${box('Tháng này', c.achieved, c.amount, '')}
     </div>`;
+  if(c.tasks.length < GOAL_MIN_TASKS){ // chưa ghi đủ việc cần làm → nhắc ngay trong ô (dải nhắc chung không hiện ở trang này)
+    el.insertAdjacentHTML('afterbegin', `<div class="goal-task-warn">⚠️ Bạn chưa ghi đủ ${GOAL_MIN_TASKS} việc cần làm để đạt mục tiêu (mới có ${c.tasks.length}) — <b>bấm để ghi ngay</b></div>`);
+  }
 }
 
 // ----- Dải nhắc: chưa đặt mục tiêu / chưa đủ việc cần làm -----
@@ -15941,6 +15990,12 @@ function goalSetRankDate(v){
   if(v.slice(0,7)!==goalViewMonth){ goalViewMonth = v.slice(0,7); goalOpenTasks = {}; }
   renderGoalsPage();
 }
+function goalNudgeBtnHtml(m, all){
+  if(m!==goalCurMonth()) return '';
+  const nT = all.filter(r=>r.c.amount && r.c.tasks.length < GOAL_MIN_TASKS).length, nG = all.filter(r=>!r.c.amount).length;
+  if(!nT && !nG) return '<span class="badge badge-ok">Mọi người đã ghi đủ việc cần làm</span>';
+  return `<button class="btn-primary btn-small" onclick="goalNudgeSend('${m}')">🔔 Nhắc ${nT + nG} người chưa ghi việc / chưa đặt mục tiêu</button>`;
+}
 function goalPeriodOf(c, period){
   if(period==='day') return {t: c.todayTarget||0, a: c.todayAchieved||0, off: !!c.todayOff};
   if(period==='week') return {t: c.weekTarget||0, a: c.weekAchieved||0, off: false};
@@ -15970,7 +16025,9 @@ function goalGmHtml(m, dep){
   const colN = 7 + (showMonthCol ? 1 : 0);
   const rowHtml = (r, rank)=>{
     const c = r.c, nDone = c.tasks.filter(t=>t.done).length;
-    const taskCell = c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—');
+    const nd = goalNudges[r.u.id], ndTxt = nd && nd.at && m===goalCurMonth() ? `<div class="goal-nudged">🔔 đã nhắc ${goalTimeStr(nd.at).replace(' ngày ', ' ').slice(0,11)}</div>` : '';
+    const lacking = c.amount && c.tasks.length < GOAL_MIN_TASKS;
+    const taskCell = (c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>${lacking ? ' <span class="badge badge-warn">thiếu</span>' : ''}` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—')) + ((lacking || !c.amount) ? ndTxt : '');
     const tCell = !c.amount ? '<span class="badge badge-warn">Chưa đặt</span>' : (r.v.off ? 'nghỉ' : fmtMoney(r.v.t));
     let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
       <td class="num">${tCell}</td><td class="num">${fmtMoney(r.v.a)}</td>${goalPctTd(r.pct)}${showMonthCol ? goalPctTd(r.monthPct) : ''}
@@ -16012,7 +16069,7 @@ function goalGmHtml(m, dep){
     </div>
   </div>
   <div class="card">
-    <h2>Bảng xếp hạng % đạt mục tiêu ${pShort}</h2>
+    <div class="goal-card-head"><h2>Bảng xếp hạng % đạt mục tiêu ${pShort}</h2>${goalNudgeBtnHtml(m, all)}</div>
     <p class="goal-hint">Xếp theo % đạt mục tiêu ${pLabel}. Bấm vào cột Việc cần làm để xem từng việc và tình trạng tick.</p>
     ${pctChart}
     <div class="table-wrap"><table class="rtable goal-table">${head}<tbody>
