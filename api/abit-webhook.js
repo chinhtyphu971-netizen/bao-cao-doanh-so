@@ -102,7 +102,22 @@ async function handleOne(D, o, now){
 
 module.exports = async (req, res)=>{
   const q = req.query || {};
-  if(String(q.key || req.headers['x-webhook-key'] || '') !== String(process.env.ABIT_WEBHOOK_KEY || '_')) return res.status(403).json({Received:'false'});
+  // Key: trên link (?key=…), trong header, hoặc trong nội dung (key / webhook_key)
+  let bodyKey = '';
+  try{ const items = parseBody(req); bodyKey = (items[0] && (items[0].key || items[0].webhook_key)) || ''; }catch(e){}
+  const sentKey = String(q.key || req.headers['x-webhook-key'] || bodyKey || '');
+  if(sentKey !== String(process.env.ABIT_WEBHOOK_KEY || '_')){
+    // Ghi lại lần bị từ chối (ghi ĐÈ 1 dòng + đếm, không phình dữ liệu) → biết Abit CÓ gọi nhưng sai/thiếu key
+    try{
+      const D = db(), raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+      await D.ref('abitWebhookRejected').update({
+        last: {at: Date.now(), method: req.method, hasKey: !!sentKey, keyLen: sentKey.length, path: String(req.url || '').replace(/key=[^&]*/i, 'key=***').slice(0, 200),
+               contentType: String(req.headers['content-type'] || '').slice(0, 80), bodyStart: String(raw).slice(0, 300)},
+        count: require('firebase-admin').database.ServerValue.increment(1),
+      });
+    }catch(e){ console.error('ghi lần từ chối lỗi:', e); }
+    return res.status(403).json({Received:'false'});
+  }
   if(req.method === 'GET') return res.json({Received:'true', ok:true, note:'Webhook Abit đang chạy'}); // mở link trên trình duyệt để kiểm tra
   const now = Date.now();
   let D = null, results = [], raw = '';
