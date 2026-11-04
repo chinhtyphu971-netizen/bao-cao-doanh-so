@@ -1898,6 +1898,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pkg-box-h span{ color:var(--ink-soft); font-size:12px; }
   .pack-badge.pack-partial{ background:rgba(240,166,58,.16); color:#F0A63A; border:1px solid rgba(240,166,58,.5); }
   .pack-badge small{ font-weight:600; opacity:.85; }
+  details.mgr-sec > summary{ cursor:pointer; list-style:none; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  details.mgr-sec > summary::-webkit-details-marker{ display:none; }
+  details.mgr-sec > summary h2{ margin:0; }
+  details.mgr-sec > summary h2::before{ content:'▸'; display:inline-block; width:18px; color:var(--ink-soft); transition:transform .15s; }
+  details.mgr-sec[open] > summary h2::before{ transform:rotate(90deg); }
+  .mgr-sec-sum{ font-size:12.5px; color:var(--ink-soft); }
+  details.mgr-sec:not([open]){ padding-top:12px; padding-bottom:12px; margin-bottom:8px; }
+  details.mgr-sec[open] > summary{ margin-bottom:10px; }
+  .mgr-sec select{ min-height:30px !important; padding:2px 8px; font-size:13px; }
+  .mgr-sec .rtable td{ padding-top:4px; padding-bottom:4px; }
 </style>
 </head>
 <body>
@@ -15891,7 +15901,8 @@ function renderMgrLoyal(){
   const rows = sales.map(u=>{ const list = Object.values(mgrLoyalData[u.id]||{}).filter(c=>c && c.id); return {u, list, st: loyalStatsFor(list)}; });
   const T = loyalStatsFor(rows.flatMap(r=>r.list));
   const careCell = st=>st.lastCare ? fmtDateTimeShort(st.lastCare) : '<span style="color:var(--ink-soft);">chưa có</span>';
-  html += `<div class="card"><h2>${isGM ? 'Toàn công ty' : 'Team ' + escHtml(branchName(me.branchId))}</h2>
+  html += `<details class="card mgr-sec" data-k="loyal_stats" ${secOpen('loyal_stats', true)} ontoggle="mgrSecToggle(this)"><summary><h2>⭐ Khách thân thiết của Sale</h2><span class="mgr-sec-sum">${T.n} khách · ${T.due} cần chăm sóc hôm nay${T.over ? ' · ' + T.over + ' quá hạn' : ''}</span></summary>
+    <div class="mgr-sec-body">
     <div class="goal-team-stats">
       ${goalStatBox('Khách thân thiết', T.n, `${rows.filter(r=>r.list.length).length}/${rows.length} Sale đã ghi`)}
       ${goalStatBox('Cần chăm sóc hôm nay', T.due, T.over ? `<span style="color:var(--danger);">${T.over} khách quá hạn</span>` : 'không có khách quá hạn')}
@@ -15907,7 +15918,7 @@ function renderMgrLoyal(){
       if(open && st.n) tr += `<tr class="goal-tasks-row"><td colspan="10">${mgrLoyalListHtml(r.list, r.u.id)}</td></tr>`;
       return tr; }).join('') || '<tr><td colspan="10"><div class="empty-note">Chưa có Sale.</div></td></tr>'}
     </tbody></table></div>
-    <p class="goal-hint" style="margin-top:8px;">CS = chăm sóc. "Quá hạn" = đã qua ngày hẹn chăm sóc mà Sale chưa ghi lần chăm sóc mới.</p></div>`;
+    <p class="goal-hint" style="margin-top:8px;">CS = chăm sóc. "Quá hạn" = đã qua ngày hẹn chăm sóc mà Sale chưa ghi lần chăm sóc mới.</p></div></details>`;
   box.innerHTML = html;
 }
 function mgrLoyalListHtml(list, saleId){
@@ -15925,14 +15936,15 @@ function loyalTplEditorHtml(isGM){
   const list = loyalCompanyTpls;
   if(!isGM) return list.length ? `<div class="card"><h2>✉️ Mẫu tin nhắn công ty (${list.length})</h2>${list.map(t=>`<div class="loyal-tpl"><b>${escHtml(t.title)}</b><div>${escHtml(t.text)}</div></div>`).join('')}</div>` : '';
   if(!loyalTplDraft) loyalTplDraft = list.map(t=>({title: t.title, text: t.text}));
-  return `<div class="card"><h2>✉️ Mẫu tin nhắn công ty</h2>
+  return `<details class="card mgr-sec" data-k="tpl_loyal" ${secOpen('tpl_loyal', false)} ontoggle="mgrSecToggle(this)"><summary><h2>✉️ Mẫu tin nhắn khách thân thiết</h2><span class="mgr-sec-sum">${list.length ? list.length + ' mẫu công ty' : 'đang dùng mẫu có sẵn của app'}</span></summary>
+    <div class="mgr-sec-body">
     <p class="goal-hint">Mẫu soạn ở đây hiện cho <b>tất cả Sale</b> (đứng đầu, có biểu tượng 🏢) khi bấm "Nhắn tin mẫu" ở Khách thân thiết. Chèn tự động: <code>{ten}</code> = xưng hô + tên khách (chị Lan), <code>{Ten}</code> = viết hoa đầu câu (Chị Lan), <code>{mau}</code> = mẫu khách hay mua.</p>
     <div id="loyalTplRows">${loyalTplDraft.map((t,i)=>`<div class="loyal-tpl-edit">
       <input placeholder="Tên mẫu, VD: Ra mắt BST Tết" value="${escHtml(t.title)}" oninput="loyalTplDraft[${i}].title=this.value">
       <textarea rows="3" placeholder="Nội dung, VD: Chào {ten} ạ, bên em vừa ra bộ sưu tập Tết…" oninput="loyalTplDraft[${i}].text=this.value">${escHtml(t.text)}</textarea>
       <button class="btn-ghost btn-small" onclick="loyalTplDraft.splice(${i},1); renderMgrLoyal()" aria-label="Xoá mẫu">✕</button></div>`).join('') || '<p class="goal-hint">Chưa có mẫu riêng — Sale đang dùng 5 mẫu có sẵn của app.</p>'}</div>
     <div class="goal-actions"><button class="btn-ghost btn-small" onclick="loyalTplDraft.push({title:'',text:''}); renderMgrLoyal()">+ Thêm mẫu</button>
-      <button class="btn-primary btn-small" onclick="loyalTplSave()">Lưu mẫu cho tất cả Sale</button></div></div>`;
+      <button class="btn-primary btn-small" onclick="loyalTplSave()">Lưu mẫu cho tất cả Sale</button></div></div></details>`;
 }
 function loyalTplSave(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
@@ -16165,19 +16177,24 @@ function sourceChannelSet(src, ch){
   sourceChannelMap[channelKey(src)] = ch || null;
   fbRoot.child('appSettings/sourceChannels/' + channelKey(src)).set(ch || null).then(()=>showToast(ch ? `Nguồn "${src}" → ${ch}` : `Đã bỏ kênh của nguồn "${src}"`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
 }
+// Các mục trong trang quản lý: THU GỌN mặc định, bấm mới sổ ra; nhớ mục đang mở khi trang vẽ lại
+let mgrSecState = {};
+function secOpen(k, def){ const v = mgrSecState[k]; return (v===undefined ? def : v) ? 'open' : ''; }
+function mgrSecToggle(el){ mgrSecState[el.dataset.k] = el.open; }
 function sourceChannelCardHtml(){
   // Nguồn: danh sách Nguồn MKT + các nguồn đang có trong data (nhiều data nhất lên trước)
   const cnt = {};
   (state.leads||[]).forEach(l=>{ const s = leadSource(l); if(s && s!=='—') cnt[s] = (cnt[s]||0) + 1; });
   (state.mktSources||[]).forEach(x=>{ if(x && x.name && !(x.name in cnt)) cnt[x.name] = 0; });
   const rows = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0, 60);
-  return `<div class="card"><h2>📡 Kênh / nền tảng của từng nguồn</h2>
+  return `<details class="card mgr-sec" data-k="src" ${secOpen('src', false)} ontoggle="mgrSecToggle(this)"><summary><h2>📡 Kênh / nền tảng của từng nguồn</h2><span class="mgr-sec-sum">${rows.length} nguồn · ${Object.values(sourceChannelMap||{}).filter(Boolean).length} đã chọn nền tảng</span></summary>
+    <div class="mgr-sec-body">
     <p class="goal-hint">Tin chào tự gọi đúng <b>tên kênh</b> = tên nguồn của data, VD "vừa nhắn tin <b>qua kênh Xưởng Sỉ Tốt</b>". Chọn thêm nền tảng ở đây thì câu thành "…kênh Xưởng Sỉ Tốt <b>trên TikTok</b>". Để trống = app tự đoán theo tên; đoán không được thì chỉ nói tên kênh.</p>
     ${rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>Nguồn (tên kênh)</th><th class="num">Số data</th><th>Nền tảng</th></tr></thead><tbody>
       ${rows.map(([src, n])=>{ const set = sourceChannelMap[channelKey(src)] || '', guess = guessChannel(src);
         return `<tr><td>${escHtml(src)}</td><td class="num">${n}</td><td><select style="min-height:32px; max-width:200px;" onchange="sourceChannelSet(this.dataset.src, this.value)" data-src="${escHtml(src)}">
           ${SOURCE_CHANNELS.map(c=>`<option value="${escHtml(c)}" ${c===set ? 'selected' : ''}>${c || (guess ? 'Tự đoán: ' + guess : '— không rõ —')}</option>`).join('')}</select></td></tr>`; }).join('')}
-    </tbody></table></div>` : '<div class="empty-note">Chưa có nguồn nào.</div>'}</div>`;
+    </tbody></table></div>` : '<div class="empty-note">Chưa có nguồn nào.</div>'}</div></details>`;
 }
 
 // ----- Mẫu cho data CHĂM SÓC LẠI (khách cũ) — câu chuyện khác với khách mới -----
@@ -16204,7 +16221,8 @@ function tplEditorHtml(kind){
   if(!tplDrafts[kind]) tplDrafts[kind] = companyTpls[kind].map(t=>({title: t.title, text: t.text, tag: t.tag || 'any'}));
   const d = tplDrafts[kind];
   const tagSel = (t,i)=>kind==='recare' ? `<select style="margin-top:6px;" onchange="tplDrafts.${kind}[${i}].tag=this.value">${[['any','Mọi khách cũ'],['buyer','Khách đã từng mua'],['nonbuyer','Trước chưa chốt']].map(([k,l])=>`<option value="${k}" ${t.tag===k ? 'selected' : ''}>${l}</option>`).join('')}</select>` : '';
-  return `<div class="card"><h2>${cfg.title}</h2>
+  return `<details class="card mgr-sec" data-k="tpl_${kind}" ${secOpen('tpl_${kind}', false)} ontoggle="mgrSecToggle(this)"><summary><h2>${cfg.title}</h2><span class="mgr-sec-sum">${companyTpls[kind].length ? companyTpls[kind].length + ' mẫu công ty' : 'đang dùng mẫu có sẵn của app'}</span></summary>
+    <div class="mgr-sec-body">
     <p class="goal-hint">${cfg.hint} Chỗ tự điền: <code>{ten}</code> tên khách (chưa có → "anh/chị"), <code>{Ten}</code> viết hoa đầu câu, <code>{sale}</code> tên Sale, <code>{kenh}</code> kênh khách nhắn vào (VD " qua kênh Xưởng Sỉ Tốt trên TikTok"), <code>{nguon}</code> chỉ tên kênh (VD "Xưởng Sỉ Tốt"). Chưa soạn thì Sale dùng mẫu có sẵn của app.</p>
     <div>${d.map((t,i)=>`<div class="loyal-tpl-edit">
       <div><input placeholder="Tên mẫu" value="${escHtml(t.title)}" oninput="tplDrafts.${kind}[${i}].title=this.value">${tagSel(t,i)}</div>
@@ -16212,7 +16230,7 @@ function tplEditorHtml(kind){
       <button class="btn-ghost btn-small" onclick="tplDrafts.${kind}.splice(${i},1); renderMgrLoyal()" aria-label="Xoá mẫu">✕</button></div>`).join('')}</div>
     <div class="goal-actions"><button class="btn-ghost btn-small" onclick="tplDrafts.${kind}.push({title:'',text:'',tag:'any'}); renderMgrLoyal()">+ Thêm mẫu</button>
       ${d.length ? '' : `<button class="btn-ghost btn-small" onclick="tplUseDefaults('${kind}')">Chép mẫu có sẵn để sửa</button>`}
-      <button class="btn-primary btn-small" onclick="tplSave('${kind}')">Lưu cho tất cả Sale</button></div></div>`;
+      <button class="btn-primary btn-small" onclick="tplSave('${kind}')">Lưu cho tất cả Sale</button></div></div></details>`;
 }
 function tplUseDefaults(kind){ tplDrafts[kind] = TPL_EDITORS[kind].defaults().map(t=>({title: t[0].replace(/^\S+\s/, ''), text: t[1], tag: t[2] || 'any'})); renderMgrLoyal(); }
 function tplSave(kind){
