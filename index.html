@@ -16049,25 +16049,40 @@ function msgSaveMine(){
   fbRoot.child(`saleTemplates/${me.id}/${id}`).set(rec).then(()=>showToast('Đã lưu vào "Mẫu của tôi"')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   msgOpenPicker(msgPick);
 }
+function msgTplRowHtml(t, kindLbl){
+  return `<div class="loyal-tpl-edit" data-id="${escHtml(t.id||'')}">
+      <div><input value="${escHtml(t.title||'')}" maxlength="40" placeholder="Tên mẫu, VD: Chào khách TikTok"><select style="margin-top:6px;">${Object.entries(kindLbl).map(([k,l])=>`<option value="${k}" ${(t.kind===k || (t.kind==='both' && k==='all')) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <textarea rows="3" placeholder="Nội dung — dùng {ten} {Ten} {sale} {kenh} {mau}">${escHtml(t.text||'')}</textarea>
+      <button class="btn-ghost btn-small" onclick="this.closest('.loyal-tpl-edit').remove()" aria-label="Xoá mẫu">✕</button></div>`;
+}
+const MSG_KIND_LBL = {open:'Mở đầu data mới', recare:'Data chăm sóc lại', loyal:'Khách thân thiết', all:'Dùng cho tất cả'};
 function msgManageMine(){
+  // giữ lại nội dung đang soạn để "+ Thêm mẫu mới" điền sẵn
+  const cur = document.getElementById('lm_text'); if(cur && msgPick) msgPick.draftText = cur.value;
   const list = Object.values(myTpls||{}).filter(Boolean).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  const kindLbl = {open:'Mở đầu data mới', recare:'Data chăm sóc lại', loyal:'Khách thân thiết', all:'Dùng cho tất cả'};
   document.getElementById('loyalModalBody').innerHTML = `<h2>✏️ Mẫu của tôi</h2>
-    <p class="goal-hint">Chỉ bạn thấy các mẫu này. Chỗ tự điền: <code>{ten}</code> <code>{Ten}</code> <code>{sale}</code> <code>{kenh}</code> <code>{mau}</code>.</p>
-    <div id="myTplRows">${list.map(t=>`<div class="loyal-tpl-edit" data-id="${escHtml(t.id)}">
-      <div><input value="${escHtml(t.title)}" maxlength="40"><select style="margin-top:6px;">${Object.entries(kindLbl).map(([k,l])=>`<option value="${k}" ${(t.kind===k || (t.kind==='both' && k==='all')) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <textarea rows="3">${escHtml(t.text)}</textarea>
-      <button class="btn-ghost btn-small" onclick="this.closest('.loyal-tpl-edit').remove()" aria-label="Xoá mẫu">✕</button></div>`).join('') || '<p class="goal-hint">Chưa có mẫu nào.</p>'}</div>
+    <p class="goal-hint">Chỉ bạn thấy các mẫu này. Sửa trực tiếp tên, nội dung, chọn dùng cho loại khách nào rồi bấm <b>Lưu thay đổi</b>. Chỗ tự điền: <code>{ten}</code> tên khách, <code>{Ten}</code> viết hoa đầu câu, <code>{sale}</code> tên bạn, <code>{kenh}</code> kênh khách nhắn, <code>{mau}</code> mẫu khách hay lấy.</p>
+    <div id="myTplRows">${list.map(t=>msgTplRowHtml(t, MSG_KIND_LBL)).join('')}</div>
+    ${list.length ? '' : '<p class="goal-hint" id="myTplEmpty">Chưa có mẫu nào — bấm "+ Thêm mẫu mới".</p>'}
+    <button class="btn-ghost btn-small" onclick="msgAddMine()">+ Thêm mẫu mới</button>
     <div class="actions" style="flex-wrap:wrap; gap:8px;"><button class="btn-ghost" onclick="msgOpenPicker(msgPick)">← Quay lại</button><button class="btn-primary" onclick="msgSaveManage()">Lưu thay đổi</button></div>`;
+  if(!list.length) msgAddMine();
+}
+function msgAddMine(){
+  const box = document.getElementById('myTplRows'); if(!box) return;
+  const e = document.getElementById('myTplEmpty'); if(e) e.remove();
+  const text = msgPick && msgPick.draftText ? msgToTemplate(msgPick.draftText, msgPick) : '';
+  box.insertAdjacentHTML('beforeend', msgTplRowHtml({title:'', text, kind: (msgPick && msgPick.kind) || 'all'}, MSG_KIND_LBL));
+  const ins = box.querySelectorAll('.loyal-tpl-edit input'); if(ins.length) ins[ins.length-1].focus();
 }
 function msgSaveManage(){
   const me = currentUser(); if(!goalHasOwn(me)) return;
   const next = {};
-  document.querySelectorAll('#myTplRows .loyal-tpl-edit').forEach(r=>{ const id = r.dataset.id, old = myTpls[id] || {};
+  document.querySelectorAll('#myTplRows .loyal-tpl-edit').forEach(r=>{ const id = r.dataset.id || ('t' + uid()), old = myTpls[id] || {};
     const title = r.querySelector('input').value.trim().slice(0,40), text = r.querySelector('textarea').value.trim().slice(0,1000), kind = r.querySelector('select').value;
-    if(title && text) next[id] = Object.assign({}, old, {id, title, text, kind}); });
+    if(title && text) next[id] = Object.assign({}, old, {id, title, text, kind, createdAt: old.createdAt || nowMs()}); });
   myTpls = next;
-  fbRoot.child('saleTemplates/' + me.id).set(Object.keys(next).length ? next : null).then(()=>showToast('Đã lưu mẫu của tôi')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  fbRoot.child('saleTemplates/' + me.id).set(Object.keys(next).length ? next : null).then(()=>showToast(`Đã lưu ${Object.keys(next).length} mẫu của tôi`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   msgOpenPicker(msgPick);
 }
 function msgCopy(openZalo){
