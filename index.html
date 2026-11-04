@@ -15686,7 +15686,7 @@ function renderMgrLoyal(){
   mgrLoyalListen();
   const isGM = me.role==='general_manager';
   const sales = (isGM ? reportableUsersInBranch(null) : reportableUsersInBranch(me.branchId)).sort((a,b)=>branchName(a.branchId).localeCompare(branchName(b.branchId),'vi') || a.name.localeCompare(b.name,'vi'));
-  let html = leadOpenTplEditorHtml() + loyalTplEditorHtml(isGM);
+  let html = sourceChannelCardHtml() + tplEditorHtml('open') + tplEditorHtml('recare') + loyalTplEditorHtml(isGM);
   if(!mgrLoyalLoaded){ box.innerHTML = html + '<div class="card"><div class="empty-note">Đang tải…</div></div>'; return; }
   const rows = sales.map(u=>{ const list = Object.values(mgrLoyalData[u.id]||{}).filter(c=>c && c.id); return {u, list, st: loyalStatsFor(list)}; });
   const T = loyalStatsFor(rows.flatMap(r=>r.list));
@@ -15745,19 +15745,22 @@ function loyalTplSave(){
 // Chỉ CHÉP tin + MỞ Zalo của khách — Sale tự bấm gửi từng người (tránh Zalo khoá nhắn người lạ khi gửi hàng loạt).
 // Chỗ tự điền: {ten} xưng hô + tên ("chị Lan", chưa có tên → "anh/chị") · {Ten} viết hoa đầu câu · {sale} tên Sale · {mau} mẫu khách hay mua
 const LEAD_OPEN_TEMPLATES = [
-  ['👋 Chào hỏi', 'Dạ em chào {ten} ạ, em là {sale} bên shop. Em thấy {ten} vừa để lại thông tin quan tâm sản phẩm bên em. {Ten} đang tìm mẫu cho mình mặc hay mua làm quà ạ?'],
-  ['📸 Gửi ảnh mẫu', 'Em chào {ten}! Em gửi {ten} ảnh thật các mẫu đang hot bên em nhé. {Ten} thích kiểu dáng nào, size bao nhiêu để em tư vấn đúng cho mình ạ?'],
-  ['🎁 Ưu đãi khách mới', 'Dạ chào {ten}, cảm ơn {ten} đã quan tâm bên em ạ. Hôm nay khách mới đặt được ưu đãi riêng, em giữ suất cho {ten} nhé. {Ten} cho em xin size và màu {ten} thích ạ?'],
+  ['👋 Chào hỏi', 'Dạ em chào {ten} ạ, em là {sale} bên shop. Em thấy {ten} vừa nhắn tin{kenh} quan tâm sản phẩm bên em. {Ten} đang tìm mẫu cho mình mặc hay mua làm quà ạ?'],
+  ['📸 Gửi ảnh mẫu', 'Em chào {ten}! Cảm ơn {ten} đã nhắn shop{kenh} ạ. Em gửi {ten} ảnh thật các mẫu đang hot bên em nhé. {Ten} thích kiểu dáng nào, size bao nhiêu để em tư vấn đúng cho mình ạ?'],
+  ['🎁 Ưu đãi khách mới', 'Dạ chào {ten}, cảm ơn {ten} đã quan tâm bên em{kenh} ạ. Hôm nay khách mới đặt được ưu đãi riêng, em giữ suất cho {ten} nhé. {Ten} cho em xin size và màu {ten} thích ạ?'],
   ['🏪 Khách sỉ / CTV', 'Em chào {ten} ạ! {Ten} đang lấy hàng để bán hay để mặc ạ? Nếu lấy sỉ em gửi {ten} bảng giá sỉ và các mẫu đang bán chạy để {ten} tham khảo nhé.'],
   ['📵 Gọi không nghe máy', 'Dạ em chào {ten}, em vừa gọi mà chưa liên lạc được ạ. Em là {sale} bên shop, {ten} rảnh lúc nào nhắn em, hoặc em gửi trước ảnh mẫu qua Zalo để {ten} xem nhé!'],
 ];
 let leadOpenCompanyTpls = [], leadOpenTplSub = null, myTpls = {}, myTplSub = null;
 let msgPick = null; // {kind:'open'|'loyal', name, xungHo, phone, zalo, mau, title}
 function msgTplListen(user){
+  try{ sourceChannelListen(user); }catch(e){}
+  if(recareTplSub){ try{ recareTplSub.off(); }catch(e){} recareTplSub = null; }
+  if(user && fbRoot && (goalHasOwn(user) || user.role==='general_manager')){ recareTplSub = fbRoot.child('appSettings/recareTemplates'); recareTplSub.on('value', snap=>{ const v = snap.val(); tplDrafts.recare = null; companyTpls.recare = (Array.isArray(v) ? v : Object.values(v||{})).filter(x=>x && x.title && x.text); if(currentPageId==='mgrLoyal') renderMgrLoyal(); }); }
   [leadOpenTplSub, myTplSub].forEach(r=>{ if(r){ try{ r.off(); }catch(e){} } }); leadOpenTplSub = myTplSub = null; myTpls = {}; leadOpenCompanyTpls = [];
   if(!user || !fbRoot || !(goalHasOwn(user) || user.role==='general_manager')) return;
   leadOpenTplSub = fbRoot.child('appSettings/leadOpenTemplates');
-  leadOpenTplSub.on('value', snap=>{ const v = snap.val(); leadOpenTplDraft = null; leadOpenCompanyTpls = (Array.isArray(v) ? v : Object.values(v||{})).filter(x=>x && x.title && x.text); if(currentPageId==='mgrLoyal') renderMgrLoyal(); });
+  leadOpenTplSub.on('value', snap=>{ const v = snap.val(); leadOpenTplDraft = null; tplDrafts.open = null; leadOpenCompanyTpls = (Array.isArray(v) ? v : Object.values(v||{})).filter(x=>x && x.title && x.text); companyTpls.open = leadOpenCompanyTpls; if(currentPageId==='mgrLoyal') renderMgrLoyal(); });
   if(goalHasOwn(user)){ myTplSub = fbRoot.child('saleTemplates/' + user.id); myTplSub.on('value', snap=>{ myTpls = snap.val() || {}; }); }
 }
 function msgSaleName(){ const me = currentUser(); return String((me && me.name) || '').replace(/\s*sale\s*$/i, '').trim() || 'em'; }
@@ -15766,12 +15769,18 @@ function msgFill(tpl, t){
   const call = nm ? ((t.xungHo && !nm.toLowerCase().startsWith(String(t.xungHo).toLowerCase()) ? t.xungHo + ' ' : '') + nm) : 'anh/chị';
   const cap = s=>s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   return String(tpl).replace(/\{Ten\}/g, cap(call)).replace(/\{ten\}/g, call).replace(/\{sale\}/g, msgSaleName())
+    .replace(/\{kenh\}/g, kenhPhrase(t.nguon || '', t.kenh || '')).replace(/\{nguon\}/g, t.nguon || 'bên em')
     .replace(/\{mau\}/g, t.mau ? ` (dòng ${t.mau} ${call} hay lấy)` : '');
 }
 function msgGroups(kind){
-  const mine = Object.values(myTpls||{}).filter(x=>x && x.text && (x.kind===kind || x.kind==='both')).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map(x=>['⭐ ' + x.title, x.text, x.id]);
-  const company = (kind==='open' ? leadOpenCompanyTpls : loyalCompanyTpls).map(x=>['🏢 ' + x.title, x.text]);
-  const builtin = (kind==='open' ? LEAD_OPEN_TEMPLATES : LOYAL_TEMPLATES).map(x=>[x[0], x[1]]);
+  const mine = Object.values(myTpls||{}).filter(x=>x && x.text && (x.kind===kind || x.kind==='both' || x.kind==='all')).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map(x=>['⭐ ' + x.title, x.text, x.id]);
+  // Chăm sóc lại: ưu tiên mẫu đúng câu chuyện (đã từng mua / trước chưa chốt)
+  const want = msgPick && msgPick.buyer!=null ? (msgPick.buyer ? 'buyer' : 'nonbuyer') : null;
+  const rank = t=>!want || !t.tag || t.tag==='any' ? 1 : (t.tag===want ? 0 : 2);
+  const src = kind==='open' ? leadOpenCompanyTpls : (kind==='recare' ? companyTpls.recare : loyalCompanyTpls);
+  const company = src.slice().sort((a,b)=>rank(a)-rank(b)).filter(t=>rank(t)<2).map(x=>['🏢 ' + x.title, x.text]);
+  const builtinSrc = kind==='open' ? LEAD_OPEN_TEMPLATES : (kind==='recare' ? RECARE_TEMPLATES : LOYAL_TEMPLATES);
+  const builtin = builtinSrc.map(x=>({t:x, r: rank({tag: x[2]})})).filter(x=>x.r<2).sort((a,b)=>a.r-b.r).map(x=>[x.t[0], x.t[1]]);
   return [['Mẫu của tôi', mine], ['Mẫu công ty', company], ['Mẫu có sẵn', company.length ? [] : builtin]]; // công ty đã có mẫu riêng → ẩn mẫu có sẵn cho gọn
 }
 function msgOpenPicker(target){
@@ -15813,6 +15822,10 @@ function msgToTemplate(text, t){
     });
   });
   const sn = msgSaleName(); if(sn && sn!=='em') s = s.replace(new RegExp(esc(sn), 'g'), '{sale}');
+  const kp = kenhPhrase(t.nguon || '', t.kenh || '').trim();
+  if(kp) s = s.replace(new RegExp('\\s*' + esc(kp), 'gi'), '{kenh}');
+  if(t.nguon) s = s.replace(new RegExp(esc(t.nguon), 'gi'), '{nguon}');
+  if(t.kenh) s = s.replace(new RegExp('\\s*(qua|trên|từ|ở)\\s+' + esc(t.kenh), 'gi'), '{kenh}');
   return s;
 }
 function msgSaveMine(){
@@ -15828,11 +15841,11 @@ function msgSaveMine(){
 }
 function msgManageMine(){
   const list = Object.values(myTpls||{}).filter(Boolean).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  const kindLbl = {open:'Mở đầu data mới', loyal:'Khách thân thiết', both:'Cả hai'};
+  const kindLbl = {open:'Mở đầu data mới', recare:'Data chăm sóc lại', loyal:'Khách thân thiết', all:'Dùng cho tất cả'};
   document.getElementById('loyalModalBody').innerHTML = `<h2>✏️ Mẫu của tôi</h2>
-    <p class="goal-hint">Chỉ bạn thấy các mẫu này. Chỗ tự điền: <code>{ten}</code> <code>{Ten}</code> <code>{sale}</code> <code>{mau}</code>.</p>
+    <p class="goal-hint">Chỉ bạn thấy các mẫu này. Chỗ tự điền: <code>{ten}</code> <code>{Ten}</code> <code>{sale}</code> <code>{kenh}</code> <code>{mau}</code>.</p>
     <div id="myTplRows">${list.map(t=>`<div class="loyal-tpl-edit" data-id="${escHtml(t.id)}">
-      <div><input value="${escHtml(t.title)}" maxlength="40"><select style="margin-top:6px;">${Object.entries(kindLbl).map(([k,l])=>`<option value="${k}" ${t.kind===k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div><input value="${escHtml(t.title)}" maxlength="40"><select style="margin-top:6px;">${Object.entries(kindLbl).map(([k,l])=>`<option value="${k}" ${(t.kind===k || (t.kind==='both' && k==='all')) ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <textarea rows="3">${escHtml(t.text)}</textarea>
       <button class="btn-ghost btn-small" onclick="this.closest('.loyal-tpl-edit').remove()" aria-label="Xoá mẫu">✕</button></div>`).join('') || '<p class="goal-hint">Chưa có mẫu nào.</p>'}</div>
     <div class="actions" style="flex-wrap:wrap; gap:8px;"><button class="btn-ghost" onclick="msgOpenPicker(msgPick)">← Quay lại</button><button class="btn-primary" onclick="msgSaveManage()">Lưu thay đổi</button></div>`;
@@ -15856,7 +15869,9 @@ function msgCopy(openZalo){
 // Nút ✉️ trên từng data mới
 function leadOpenMsg(leadId){
   const l = state.leads.find(x=>x.id===leadId); if(!l) return;
-  msgOpenPicker({kind:'open', name: l.customerName || '', xungHo: '', phone: leadPhone(l), title: 'Nhắn mở đầu — ' + (l.customerName || leadPhone(l))});
+  const recare = !!l.recare, k = recare ? {src: '', plat: ''} : leadKenhInfo(l);
+  msgOpenPicker({kind: recare ? 'recare' : 'open', buyer: recare ? leadIsBuyer(l) : null, name: l.customerName || '', xungHo: '', phone: leadPhone(l), kenh: k.plat, nguon: k.src,
+    title: (recare ? '♻️ Chăm sóc lại — ' + (leadIsBuyer(l) ? 'khách đã từng mua' : 'khách trước chưa chốt') + ' · ' : 'Nhắn mở đầu — ') + (l.customerName || leadPhone(l)) + (k.src ? ' · kênh ' + k.src + (k.plat ? ' (' + k.plat + ')' : '') : '')});
 }
 // ----- Quản lý chung soạn mẫu mở đầu công ty -----
 let leadOpenTplDraft = null;
@@ -15877,6 +15892,108 @@ function leadOpenTplSave(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
   const list = (leadOpenTplDraft||[]).map(t=>({title: String(t.title||'').trim().slice(0,60), text: String(t.text||'').trim().slice(0,1000)})).filter(t=>t.title && t.text).slice(0,20);
   fbRoot.child('appSettings/leadOpenTemplates').set(list.length ? list : null).then(()=>{ showToast(`Đã lưu ${list.length} mẫu mở đầu cho tất cả Sale`); leadOpenTplDraft = null; renderMgrLoyal(); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+}
+
+// ----- Kênh của từng nguồn (để tin chào nói đúng "qua TikTok / Facebook…") -----
+const SOURCE_CHANNELS = ['', 'TikTok', 'Facebook', 'Zalo', 'Instagram', 'Shopee', 'Website', 'Hotline', 'Giới thiệu'];
+let sourceChannelMap = {}, sourceChannelSub = null;
+function sourceChannelListen(user){
+  if(sourceChannelSub){ try{ sourceChannelSub.off(); }catch(e){} sourceChannelSub = null; }
+  sourceChannelMap = {};
+  if(!user || !fbRoot || !(goalHasOwn(user) || user.role==='general_manager')) return;
+  sourceChannelSub = fbRoot.child('appSettings/sourceChannels');
+  sourceChannelSub.on('value', snap=>{ sourceChannelMap = snap.val() || {}; if(currentPageId==='mgrLoyal') renderMgrLoyal(); });
+}
+function channelKey(src){ return String(src||'').trim().toLowerCase().replace(/[.#$\[\]\/]/g, '_').slice(0, 120); }
+function guessChannel(src){
+  const s = String(src||'').toLowerCase();
+  if(/tik ?tok|\btt\b/.test(s)) return 'TikTok';
+  if(/face ?book|\bfb\b|messenger/.test(s)) return 'Facebook';
+  if(/zalo/.test(s)) return 'Zalo';
+  if(/insta|\big\b/.test(s)) return 'Instagram';
+  if(/shopee/.test(s)) return 'Shopee';
+  if(/web|landing/.test(s)) return 'Website';
+  if(/hotline/.test(s)) return 'Hotline';
+  return '';
+}
+function leadChannel(l){
+  const src = leadSource(l); if(!src || src==='—') return '';
+  return sourceChannelMap[channelKey(src)] || guessChannel(src);
+}
+// Tên nguồn = tên kênh (page / shop) khách nhắn vào → dùng trong tin chào. Tên VIẾT HOA hết → đổi kiểu "Xưởng Sỉ Bích Ngọc"
+function prettySourceName(src){
+  let n = String(src||'').trim(); if(!n || n==='—') return '';
+  const letters = n.replace(/[^A-Za-zÀ-ỹ]/g, ''), upp = letters.replace(/[^A-ZÀ-Ỹ]/g, '');
+  if(letters.length >= 4 && upp.length / letters.length > 0.8) n = n.toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b)=>a + b.toUpperCase());
+  return n;
+}
+function leadKenhInfo(l){
+  const src = leadSource(l); if(!src || src==='—') return {src: '', plat: ''};
+  return {src: prettySourceName(src), plat: sourceChannelMap[channelKey(src)] || guessChannel(src)};
+}
+function kenhPhrase(src, plat){
+  if(src && plat && src.toLowerCase().includes(plat.toLowerCase())) plat = ''; // tên nguồn đã có "TikTok" thì khỏi lặp
+  return src ? ` qua kênh ${src}${plat ? ' trên ' + plat : ''}` : (plat ? ' qua ' + plat : '');
+}
+function sourceChannelSet(src, ch){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  sourceChannelMap[channelKey(src)] = ch || null;
+  fbRoot.child('appSettings/sourceChannels/' + channelKey(src)).set(ch || null).then(()=>showToast(ch ? `Nguồn "${src}" → ${ch}` : `Đã bỏ kênh của nguồn "${src}"`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+}
+function sourceChannelCardHtml(){
+  // Nguồn: danh sách Nguồn MKT + các nguồn đang có trong data (nhiều data nhất lên trước)
+  const cnt = {};
+  (state.leads||[]).forEach(l=>{ const s = leadSource(l); if(s && s!=='—') cnt[s] = (cnt[s]||0) + 1; });
+  (state.mktSources||[]).forEach(x=>{ if(x && x.name && !(x.name in cnt)) cnt[x.name] = 0; });
+  const rows = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0, 60);
+  return `<div class="card"><h2>📡 Kênh / nền tảng của từng nguồn</h2>
+    <p class="goal-hint">Tin chào tự gọi đúng <b>tên kênh</b> = tên nguồn của data, VD "vừa nhắn tin <b>qua kênh Xưởng Sỉ Tốt</b>". Chọn thêm nền tảng ở đây thì câu thành "…kênh Xưởng Sỉ Tốt <b>trên TikTok</b>". Để trống = app tự đoán theo tên; đoán không được thì chỉ nói tên kênh.</p>
+    ${rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>Nguồn (tên kênh)</th><th class="num">Số data</th><th>Nền tảng</th></tr></thead><tbody>
+      ${rows.map(([src, n])=>{ const set = sourceChannelMap[channelKey(src)] || '', guess = guessChannel(src);
+        return `<tr><td>${escHtml(src)}</td><td class="num">${n}</td><td><select style="min-height:32px; max-width:200px;" onchange="sourceChannelSet(this.dataset.src, this.value)" data-src="${escHtml(src)}">
+          ${SOURCE_CHANNELS.map(c=>`<option value="${escHtml(c)}" ${c===set ? 'selected' : ''}>${c || (guess ? 'Tự đoán: ' + guess : '— không rõ —')}</option>`).join('')}</select></td></tr>`; }).join('')}
+    </tbody></table></div>` : '<div class="empty-note">Chưa có nguồn nào.</div>'}</div>`;
+}
+
+// ----- Mẫu cho data CHĂM SÓC LẠI (khách cũ) — câu chuyện khác với khách mới -----
+// tag: 'buyer' = khách đã từng mua · 'nonbuyer' = trước đây chưa chốt · 'any'
+const RECARE_TEMPLATES = [
+  ['💐 Hỏi thăm khách cũ', 'Dạ em chào {ten}, em là {sale} bên shop ạ. Lâu rồi không thấy {ten} ghé, dạo này {ten} khoẻ không ạ? Bên em vừa về nhiều mẫu mới, em gửi {ten} xem cho vui nhé!', 'any'],
+  ['🙏 Tri ân khách cũ', 'Em chào {ten} ạ! Shop đang có chương trình tri ân khách đã từng mua, riêng {ten} được ưu đãi khi đặt lại tuần này. {Ten} xem mẫu mới rồi chọn giúp em vài món nhé ạ!', 'buyer'],
+  ['⭐ Hỏi cảm nhận lần trước', 'Dạ {ten} ơi, em là {sale} bên shop. Đợt trước {ten} lấy hàng bên em mặc thấy ổn không ạ? {Ten} góp ý giúp em nhé, bên em mới về thêm mẫu, {ten} cần em gửi ảnh không ạ?', 'buyer'],
+  ['🔁 Lần trước chưa chọn được', 'Dạ em chào {ten}, trước đây {ten} có hỏi bên em mà chưa chọn được mẫu ưng ý. Nay bên em về thêm nhiều mẫu mới, giá cũng tốt hơn, em gửi {ten} xem lại nhé ạ!', 'nonbuyer'],
+  ['🎁 Ưu đãi quay lại', 'Em chào {ten} ạ! Bên em đang có ưu đãi riêng cho khách từng quan tâm shop, {ten} đặt trong tuần này được giảm thêm. {Ten} thích kiểu nào em tư vấn liền ạ!', 'nonbuyer'],
+];
+function leadIsBuyer(l){ return /Khách cũ — đã chốt/i.test(String(l.note||'')) || l.status==='Đã chốt'; }
+
+// ----- Trình soạn mẫu công ty dùng chung (mở đầu / chăm sóc lại) -----
+const TPL_EDITORS = {
+  open: {path: 'appSettings/leadOpenTemplates', title: '👋 Mẫu tin nhắn mở đầu cho data mới', defaults: ()=>LEAD_OPEN_TEMPLATES,
+    hint: 'Hiện khi Sale bấm <b>✉️</b> cạnh SĐT của data mới.'},
+  recare: {path: 'appSettings/recareTemplates', title: '♻️ Mẫu tin nhắn cho data chăm sóc lại (khách cũ)', defaults: ()=>RECARE_TEMPLATES,
+    hint: 'Hiện khi Sale bấm <b>✉️</b> ở data do Quản lý nhập "chăm sóc lại". Đặt "Dùng cho" để app ưu tiên đúng câu chuyện: khách <b>đã từng mua</b> hay <b>trước chưa chốt</b>.'},
+};
+let companyTpls = {open: [], recare: []}, tplDrafts = {open: null, recare: null}, recareTplSub = null;
+function tplEditorHtml(kind){
+  const cfg = TPL_EDITORS[kind];
+  if(!tplDrafts[kind]) tplDrafts[kind] = companyTpls[kind].map(t=>({title: t.title, text: t.text, tag: t.tag || 'any'}));
+  const d = tplDrafts[kind];
+  const tagSel = (t,i)=>kind==='recare' ? `<select style="margin-top:6px;" onchange="tplDrafts.${kind}[${i}].tag=this.value">${[['any','Mọi khách cũ'],['buyer','Khách đã từng mua'],['nonbuyer','Trước chưa chốt']].map(([k,l])=>`<option value="${k}" ${t.tag===k ? 'selected' : ''}>${l}</option>`).join('')}</select>` : '';
+  return `<div class="card"><h2>${cfg.title}</h2>
+    <p class="goal-hint">${cfg.hint} Chỗ tự điền: <code>{ten}</code> tên khách (chưa có → "anh/chị"), <code>{Ten}</code> viết hoa đầu câu, <code>{sale}</code> tên Sale, <code>{kenh}</code> kênh khách nhắn vào (VD " qua kênh Xưởng Sỉ Tốt trên TikTok"), <code>{nguon}</code> chỉ tên kênh (VD "Xưởng Sỉ Tốt"). Chưa soạn thì Sale dùng mẫu có sẵn của app.</p>
+    <div>${d.map((t,i)=>`<div class="loyal-tpl-edit">
+      <div><input placeholder="Tên mẫu" value="${escHtml(t.title)}" oninput="tplDrafts.${kind}[${i}].title=this.value">${tagSel(t,i)}</div>
+      <textarea rows="3" placeholder="Nội dung, VD: Dạ em chào {ten} ạ, em là {sale}…" oninput="tplDrafts.${kind}[${i}].text=this.value">${escHtml(t.text)}</textarea>
+      <button class="btn-ghost btn-small" onclick="tplDrafts.${kind}.splice(${i},1); renderMgrLoyal()" aria-label="Xoá mẫu">✕</button></div>`).join('')}</div>
+    <div class="goal-actions"><button class="btn-ghost btn-small" onclick="tplDrafts.${kind}.push({title:'',text:'',tag:'any'}); renderMgrLoyal()">+ Thêm mẫu</button>
+      ${d.length ? '' : `<button class="btn-ghost btn-small" onclick="tplUseDefaults('${kind}')">Chép mẫu có sẵn để sửa</button>`}
+      <button class="btn-primary btn-small" onclick="tplSave('${kind}')">Lưu cho tất cả Sale</button></div></div>`;
+}
+function tplUseDefaults(kind){ tplDrafts[kind] = TPL_EDITORS[kind].defaults().map(t=>({title: t[0].replace(/^\S+\s/, ''), text: t[1], tag: t[2] || 'any'})); renderMgrLoyal(); }
+function tplSave(kind){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  const list = (tplDrafts[kind]||[]).map(t=>({title: String(t.title||'').trim().slice(0,60), text: String(t.text||'').trim().slice(0,1000), tag: t.tag || 'any'})).filter(t=>t.title && t.text).slice(0,20);
+  fbRoot.child(TPL_EDITORS[kind].path).set(list.length ? list : null).then(()=>{ showToast(`Đã lưu ${list.length} mẫu cho tất cả Sale`); tplDrafts[kind] = null; renderMgrLoyal(); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
