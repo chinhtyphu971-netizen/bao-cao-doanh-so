@@ -65,7 +65,14 @@ async function findInvoiceId(D, invNo, appNo){
 async function handleOne(D, o, now){
   const invNo = pick(o, KEY_INVNO);
   const appNo = pick(o, KEY_APPNO);
-  const tracking = pick(o, KEY_TRACK, /track|van_?don|bill_?code|waybill/);
+  let tracking = pick(o, KEY_TRACK, /track|van_?don|bill_?code|waybill/);
+  // Đơn nhiều kiện: Abit có thể trả nhiều mã — dạng mảng, hoặc chuỗi "MÃ1, MÃ2" / "MÃ1;MÃ2" → lưu đủ
+  const codeSet = [];
+  const addCodes = v=>{ if(v==null) return; if(Array.isArray(v)) return v.forEach(addCodes); if(typeof v==='object') return Object.values(v).forEach(addCodes);
+    String(v).split(/[,;|\n\s]+/).map(x=>x.trim()).filter(x=>x.length>=6 && /\d/.test(x)).forEach(x=>{ if(!codeSet.includes(x)) codeSet.push(x); }); };
+  Object.entries(o).forEach(([k, v])=>{ if(KEY_TRACK.includes(k) || /track|van_?don|bill_?code|waybill/.test(k)) addCodes(v); });
+  if(!codeSet.length && tracking) codeSet.push(tracking);
+  if(!tracking && codeSet.length) tracking = codeSet[0]; // mã chỉ có ở dạng danh sách
   const carrierCode = pick(o, KEY_CARRIER);
   const status = pick(o, KEY_STATUS);
   const {id, via} = await findInvoiceId(D, invNo, appNo);
@@ -78,16 +85,19 @@ async function handleOne(D, o, now){
     upd['invoices/' + id + '/abit/invoice_no'] = invNo;
     if(via !== 'abitMap') upd['abitMap/' + safeKey(invNo)] = id; // lần sau tra nhanh
   }
-  if(tracking) upd['invoices/' + id + '/abit/tracking'] = tracking;
+  if(tracking) upd['invoices/' + id + '/abit/tracking'] = codeSet.length > 1 ? codeSet.join(', ') : tracking;
   if(carrierCode) upd['invoices/' + id + '/abit/carrier'] = carrierCode;
 
   if(tracking){
     const ship = (await D.ref('packStatus/' + id + '/ship').once('value')).val();
     const manualCodes = ship && !ship.auto ? ((Array.isArray(ship.codes) && ship.codes.length) ? ship.codes : (ship.code ? [ship.code] : [])) : [];
     if(!manualCodes.length){
+      const prevAuto = ship && ship.auto && Array.isArray(ship.codes) ? ship.codes : [];
+      const codes = prevAuto.concat(codeSet.filter(x=>!prevAuto.includes(x))); // Abit gửi từng kiện ở các lần khác nhau → cộng dồn
       // Sale chưa điền tay → Abit điền (giữ hãng Sale đã chọn nếu Abit không gửi hãng)
       upd['packStatus/' + id + '/ship'] = {at: (ship && ship.at) || now, by: 'abit', byName: 'Abit tự động', auto: true,
-        carrier: carrierName(carrierCode) || (ship && ship.carrier) || null, code: tracking, codes: [tracking], autoAt: now};
+        carrier: carrierName(carrierCode) || (ship && ship.carrier) || null, code: codes[0] || tracking, codes: codes.length ? codes : [tracking], autoAt: now};
+      result.codes = codes;
       result.filled = true;
     } else if(!manualCodes.includes(tracking)){
       result.note = 'Sale đã tự điền mã khác → không ghi đè (mã Abit lưu ở invoices/' + id + '/abit/tracking)';
@@ -96,6 +106,15 @@ async function handleOne(D, o, now){
     result.note = 'Abit gửi về nhưng không có mã vận đơn (có thể trạng thái này chưa có mã)';
   }
   if(status) upd['abitEvents/' + id + '/' + safeKey(status)] = {at: now, tracking: tracking || null};
+  // Đơn tách nhiều kiện: ghi trạng thái + mã vận đơn vào ĐÚNG kiện (khớp theo mã đơn Abit)
+  if(invNo){
+    const parts = (await D.ref('invoices/' + id + '/abit/parts').once('value')).val();
+    if(parts && typeof parts === 'object'){
+      const k = Object.keys(parts).find(x=>parts[x] && String(parts[x].invoice_no) === String(invNo));
+      if(k){ if(status){ upd['invoices/' + id + '/abit/parts/' + k + '/status'] = status; upd['invoices/' + id + '/abit/parts/' + k + '/statusAt'] = now; }
+             if(tracking) upd['invoices/' + id + '/abit/parts/' + k + '/tracking'] = codeSet.length > 1 ? codeSet.join(', ') : tracking; result.part = Number(k); }
+    }
+  }
   if(Object.keys(upd).length) await D.ref().update(upd);
   return result;
 }
