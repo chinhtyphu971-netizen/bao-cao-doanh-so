@@ -1886,6 +1886,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .msg-save-row{ gap:8px; margin:0 0 8px; } .msg-save-row input{ flex:1; }
   .abit-issue{ border:1px solid rgba(229,72,77,.45); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
   .abit-issue-top{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:4px; }
+  .pkg-stepper{ display:flex; align-items:center; gap:10px; font-size:15px; margin:6px 0 4px; flex-wrap:wrap; }
+  .pkg-stepper button{ width:42px; height:42px; font-size:22px; font-weight:800; border-radius:10px; }
+  .pkg-stepper b{ font-size:26px; min-width:34px; text-align:center; }
+  .pkg-table input{ width:64px; min-height:36px; text-align:center; font-size:15px; }
+  .pkg-table td, .pkg-table th{ white-space:nowrap; }
+  .abit-parts{ font-size:12px; font-weight:700; color:var(--ink-soft); }
+  .pkg-auto{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; margin:6px 0 8px; }
+  .pkg-box{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:13px; line-height:1.6; }
+  .pkg-box-h{ display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding-bottom:4px; margin-bottom:4px; }
+  .pkg-box-h span{ color:var(--ink-soft); font-size:12px; }
 </style>
 </head>
 <body>
@@ -3533,6 +3543,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="field"><label>Đơn cọc TRƯỚC ngày</label><input type="date" id="packCleanDate" onchange="packCleanupPreview()"></div>
     <div id="packCleanInfo" class="pack-note"></div>
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packCleanModal').classList.remove('show')">Huỷ</button><button class="btn-danger" id="packCleanOk" onclick="packCleanupRun()">🧹 Dọn</button></div>
+  </div>
+</div>
+<!-- Kho: xác nhận số kiện + chia hàng vào từng kiện -->
+<div class="modal-backdrop" id="packPkgModal">
+  <div class="modal" style="max-width:720px; max-height:90vh; overflow-y:auto;">
+    <h2>📦 Xác nhận số kiện</h2>
+    <div id="packPkgBody"></div>
+    <div class="actions"><button class="btn-ghost" onclick="packPkgClose()">Huỷ</button><button class="btn-primary" id="packPkgOk" onclick="packPkgConfirm()">✅ Xác nhận & đóng</button></div>
   </div>
 </div>
 <!-- Sale: Kho đã đóng đơn → lên vận đơn -->
@@ -7234,6 +7252,13 @@ const ABIT_BAD = ['Chuaphatduoc','Giaohangcovande','Tuchoinhan','Chuyenhoan','Da
 function abitTagHtml(inv){
   const a = inv && inv.abit; if(!a) return '';
   if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
+  // Đơn tách nhiều kiện → hiện từng kiện: mã đơn Abit · trạng thái
+  if(a.parts && typeof a.parts === 'object' && Object.keys(a.parts).length > 1){
+    const ps = Object.keys(a.parts).sort((x,y)=>Number(x)-Number(y)).map(k=>{ const p = a.parts[k] || {}; const st = p.status ? (ABIT_STATUS_NAME[p.status] || p.status) : 'chưa gửi';
+      return `<span class="abit-tag ${ABIT_BAD.includes(p.status) ? 'bad' : (p.status==='Daphatthanhcong' || p.status==='CODDathutien' || p.status==='Dadoisoat' ? 'ok' : '')}" title="Kiện ${k} · đơn Abit ${escHtml(p.invoice_no||'')}${p.tracking ? ' · mã VĐ ' + escHtml(p.tracking) : ''}">📦${k} ${escHtml(p.invoice_no||'—')} · ${escHtml(st)}</span>`; }).join(' ');
+    const err = a.error ? ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ ${escHtml(a.error)} — đẩy tiếp</a>` : '';
+    return ` <span class="abit-parts">🔗 ${Object.keys(a.parts).length} kiện:</span> ${ps}${err}`;
+  }
   const st = a.status ? (ABIT_STATUS_NAME[a.status] || a.status) : '';
   return ` <span class="abit-tag ${ABIT_BAD.includes(a.status) ? 'bad' : (a.status==='Daphatthanhcong' || a.status==='CODDathutien' || a.status==='Dadoisoat' ? 'ok' : '')}" title="Đơn trên Abit ${escHtml(a.invoice_no||'')}${a.statusAt ? ' · cập nhật ' + packTimeStr(a.statusAt) : ''}">🔗 ${escHtml(a.invoice_no||'Abit')}${st ? ' · ' + escHtml(st) : ''}</span>`;
 }
@@ -9139,7 +9164,100 @@ function packBaseRecord(inv){
   const me = currentUser() || {};
   return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', sig: packSig(inv), at: nowMs(),
     staffId: packPanel.staffId, staffName: packStaffName(packPanel.staffId), byUser: me.id||'', byUserName: me.name||'', bySale: packIsSale(me) || null,
-    qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0), pkgs: (packPanel && Number(packPanel.pkgs) > 0) ? Number(packPanel.pkgs) : null};
+    qty: packInvLines(inv).reduce((a,l)=>a+l.qty, 0), pkgs: (packPanel && Number(packPanel.pkgs) > 0) ? Number(packPanel.pkgs) : null,
+    pkgSplit: (packPanel && packPanel.pkgSplit && packPanel.pkgSplit.n > 1) ? packPanel.pkgSplit : null};
+}
+// ===================== 📦 XÁC NHẬN SỐ KIỆN + CHIA HÀNG VÀO TỪNG KIỆN =====================
+// Kho bấm "Đã đóng" → cửa sổ xác nhận số kiện. Nhiều kiện → nhập số lượng từng dòng cho kiện 2..N, kiện 1 = phần còn lại.
+// Lưu packStatus/{hoáĐơn}/pkgSplit = {n, lines:[{key, code, label, price, q:[sl kiện1, kiện2…]}]} → máy chủ đẩy sang Abit
+// MỖI KIỆN 1 ĐƠN, tiền = hàng trong kiện đó (cọc trừ lần lượt từ kiện 1).
+let packPkg = null; // {invId, n, lines:[{key, code, label, price, qty, alloc:[kiện2..N]}]}
+function packLinePrices(inv){ // giá theo đúng thứ tự packInvLines
+  const out = [];
+  (inv.productGroups||[]).forEach(g=>(g.colorLines||[]).forEach(l=>{ const q = Number(l.qty)||0; if(!g.productCode || !q) return; out.push(Number(g.unitPrice)||0); }));
+  return out;
+}
+function packPkgConfirmOpen(){
+  const inv = packInvById(packPanel.invId); if(!inv) return;
+  const lines = packInvLines(inv), prices = packLinePrices(inv);
+  const n = Math.max(1, Math.min(10, Number(packPanel.pkgs) || 1));
+  packPkg = {invId: inv.id, n, lines: lines.map((l,i)=>({key: l.key, code: l.code, qty: l.qty, price: prices[i] || 0,
+    label: [l.code, l.design, l.color, l.size].filter(Boolean).join(' · '), alloc: []})), manual: false};
+  if(n > 1) packPkgAuto();
+  packPkgRender();
+  document.getElementById('packPkgModal').classList.add('show');
+}
+// TỰ CHIA ĐỀU: xếp lần lượt theo thứ tự danh sách nhặt hàng, mỗi kiện ~ tổng món / số kiện (chênh tối đa 1 món)
+// → cùng mẫu/màu nằm chung kiện nhiều nhất có thể, kho dễ bỏ vào thùng.
+function packPkgAuto(){
+  const n = packPkg.n, total = packPkg.lines.reduce((a,l)=>a+l.qty, 0);
+  const base = Math.floor(total / n), extra = total % n;
+  const cap = Array.from({length: n}, (_,k)=>base + (k < extra ? 1 : 0));
+  let k = 0;
+  packPkg.lines.forEach(l=>{
+    const q = Array(n).fill(0); let left = l.qty;
+    while(left > 0 && k < n){ const take = Math.min(left, cap[k]); q[k] += take; cap[k] -= take; left -= take; if(cap[k] === 0) k++; }
+    if(left > 0) q[n-1] += left;
+    l.alloc = q.slice(1);
+  });
+}
+function packPkgCalc(){
+  const n = packPkg.n, kien = Array.from({length: n}, ()=>({qty:0, amt:0}));
+  let bad = '';
+  packPkg.lines.forEach(l=>{
+    let rest = l.qty;
+    for(let k=1;k<n;k++){ const v = Math.max(0, Math.floor(Number(l.alloc[k-1])||0)); rest -= v; kien[k].qty += v; kien[k].amt += v * l.price; }
+    if(rest < 0) bad = `Dòng "${l.label}" chia vượt số lượng (${l.qty}).`;
+    kien[0].qty += Math.max(0, rest); kien[0].amt += Math.max(0, rest) * l.price; l.k1 = rest;
+  });
+  if(!bad){ const empty = kien.findIndex(k=>k.qty<=0); if(n > 1 && empty >= 0) bad = `Kiện ${empty+1} chưa có hàng nào.`; }
+  return {kien, bad};
+}
+function packPkgRender(){
+  const el = document.getElementById('packPkgBody'); if(!el || !packPkg) return;
+  const n = packPkg.n, {kien, bad} = packPkgCalc();
+  const inv = packInvById(packPkg.invId) || {};
+  let table = '';
+  if(n > 1 && !packPkg.manual){
+    // Xem nhanh từng kiện (app đã tự chia đều) — kho chỉ việc xác nhận
+    const per = Array.from({length: n}, ()=>[]);
+    packPkg.lines.forEach(l=>{ const q = [Math.max(0, l.k1)].concat(l.alloc.map(x=>Math.max(0, Math.floor(Number(x)||0)))); q.forEach((v,k)=>{ if(v > 0) per[k].push(`${escHtml(l.label)} <b>×${v}</b>`); }); });
+    table = `<p class="pack-note" style="margin:8px 0;">App đã <b>tự chia đều</b> theo thứ tự danh sách nhặt hàng. Bỏ hàng vào thùng đúng như dưới rồi bấm xác nhận — mỗi kiện thành <b>1 đơn riêng trên Abit</b>, tiền = hàng trong kiện.</p>
+      <div class="pkg-auto">${per.map((items,k)=>`<div class="pkg-box"><div class="pkg-box-h"><b>📦 Kiện ${k+1}</b><span>${kien[k].qty} món · ${fmtMoney(kien[k].amt)} đ</span></div><div>${items.join('<br>') || '<i>trống</i>'}</div></div>`).join('')}</div>
+      <a href="#" class="pack-note" style="color:var(--accent);" onclick="event.preventDefault(); packPkg.manual = true; packPkgRender()">✏️ Chỉnh tay (ít khi cần)</a>`;
+  } else if(n > 1){
+    table = `<p class="pack-note" style="margin:8px 0;"><a href="#" style="color:var(--accent);" onclick="event.preventDefault(); packPkg.manual = false; packPkgAuto(); packPkgRender()">↺ Chia đều lại tự động</a> · Nhập số lượng mỗi dòng cho <b>kiện 2${n>2 ? '…' + n : ''}</b> — phần còn lại tự vào <b>kiện 1</b>. Mỗi kiện sẽ thành <b>1 đơn riêng trên Abit</b>, tiền = hàng trong kiện đó.</p>
+      <div class="table-wrap"><table class="rtable pkg-table"><thead><tr><th>Sản phẩm</th><th class="num">SL</th><th class="num">Kiện 1</th>${Array.from({length:n-1},(_,k)=>`<th class="num">Kiện ${k+2}</th>`).join('')}</tr></thead><tbody>
+      ${packPkg.lines.map((l,i)=>`<tr><td>${escHtml(l.label)}<div class="pack-note">${fmtMoney(l.price)} đ</div></td><td class="num"><b>${l.qty}</b></td>
+        <td class="num"><b style="color:${l.k1 < 0 ? 'var(--danger)' : 'var(--ink)'};">${l.k1}</b></td>
+        ${Array.from({length:n-1},(_,k)=>`<td class="num"><input type="number" min="0" max="${l.qty}" inputmode="numeric" value="${l.alloc[k] || ''}" placeholder="0" oninput="packPkg.lines[${i}].alloc[${k}]=this.value; packPkgRefresh()"></td>`).join('')}</tr>`).join('')}
+      </tbody><tfoot><tr><td><b>Mỗi kiện</b></td><td></td>${kien.map((k,i)=>`<td class="num" id="pkgSum${i}"><b>${k.qty} món</b><div class="pack-note">${fmtMoney(k.amt)} đ</div></td>`).join('')}</tr></tfoot></table></div>`;
+  }
+  el.innerHTML = `<div style="font-size:13.5px; margin-bottom:8px;"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} · ${packPkg.lines.reduce((a,l)=>a+l.qty,0)} món</div>
+    <div class="pkg-stepper"><span>Đơn này đóng thành</span><button onclick="packPkgSetN(-1)">−</button><b>${n}</b><button onclick="packPkgSetN(1)">+</button><span>kiện</span></div>
+    ${table}
+    <div class="login-error" id="packPkgErr">${bad ? escHtml(bad) : ''}</div>`;
+  const ok = document.getElementById('packPkgOk'); if(ok){ ok.disabled = !!bad; ok.textContent = n > 1 ? `✅ Xác nhận ${n} kiện & đóng` : '✅ Xác nhận 1 kiện & đóng'; }
+}
+function packPkgRefresh(){ // cập nhật số liệu không vẽ lại ô đang gõ
+  const {kien, bad} = packPkgCalc();
+  packPkg.lines.forEach((l,i)=>{ const row = document.querySelectorAll('#packPkgBody .pkg-table tbody tr')[i]; if(row){ const c = row.children[2]; c.innerHTML = `<b style="color:${l.k1 < 0 ? 'var(--danger)' : 'var(--ink)'};">${l.k1}</b>`; } });
+  kien.forEach((k,i)=>{ const c = document.getElementById('pkgSum' + i); if(c) c.innerHTML = `<b>${k.qty} món</b><div class="pack-note">${fmtMoney(k.amt)} đ</div>`; });
+  document.getElementById('packPkgErr').textContent = bad || '';
+  const ok = document.getElementById('packPkgOk'); if(ok) ok.disabled = !!bad;
+}
+function packPkgSetN(d){ packPkg.n = Math.max(1, Math.min(10, packPkg.n + d)); packPkg.manual = false; packPkg.lines.forEach(l=>{ l.alloc = []; }); if(packPkg.n > 1) packPkgAuto(); packPkgRender(); }
+function packPkgClose(){ document.getElementById('packPkgModal').classList.remove('show'); packPkg = null; }
+function packPkgConfirm(){
+  if(!packPkg || !packPanel || packPanel.invId!==packPkg.invId) return packPkgClose();
+  const {bad} = packPkgCalc(); if(bad) return;
+  const n = packPkg.n;
+  packPanel.pkgs = n;
+  packPanel.pkgSplit = n > 1 ? {n, lines: packPkg.lines.map(l=>({key: l.key, code: l.code, label: l.label, price: l.price,
+    q: [Math.max(0, l.k1)].concat(Array.from({length: n-1}, (_,k)=>Math.max(0, Math.floor(Number(l.alloc[k])||0))))})).filter(l=>l.q.some(x=>x>0))} : null;
+  packPanel._pkgOk = true;
+  packPkgClose();
+  packDoPacked();
 }
 function packDoPacked(){
   if(packPanel && !packPanel._outOk){
@@ -9149,6 +9267,9 @@ function packDoPacked(){
       askConfirm('Đã lấy món thừa ra khỏi gói chưa?', 'Sale đã đổi / bớt: ' + ch.remove.map(r=>`${r.qty} ${r.label}`).join(', ') + '. Lấy ra rồi mới đóng.', ()=>{ packPanel._outOk = true; packDoPacked(); });
       return;
     }
+  }
+  if(packPanel && !packPanel._pkgOk && !packPanel.viewOnly && (currentUser()||{}).role!=='general_manager' && packOnline && !packSaving){
+    packPkgConfirmOpen(); return; // 📦 xác nhận số kiện (+ chia hàng nếu nhiều kiện) trước khi đóng
   }
   if(!packOnline){ packBeep(false); showToast('📴 Đang mất mạng — tick và ảnh vẫn giữ trên máy. Có mạng lại rồi bấm lưu.'); return; }
   if(packSaving) return; // đang lưu → chặn bấm 2 lần
