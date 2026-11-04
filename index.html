@@ -1896,6 +1896,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pkg-box{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:13px; line-height:1.6; }
   .pkg-box-h{ display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding-bottom:4px; margin-bottom:4px; }
   .pkg-box-h span{ color:var(--ink-soft); font-size:12px; }
+  .pack-badge.pack-partial{ background:rgba(240,166,58,.16); color:#F0A63A; border:1px solid rgba(240,166,58,.5); }
+  .pack-badge small{ font-weight:600; opacity:.85; }
 </style>
 </head>
 <body>
@@ -2569,6 +2571,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
               <option value="done">🖨️ Đã in, chưa đóng</option>
               <option value="short">🟠 Chờ bù hàng</option>
               <option value="packed">✅ Đã đóng</option>
+              <option value="partial">⚠️ Gửi thiếu</option>
               <option value="all">Tất cả</option>
             </select>
             <select id="packRangeSel" onchange="document.getElementById('packCustomRange').style.display = this.value==='custom' ? 'inline-flex' : 'none'; packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
@@ -6784,10 +6787,10 @@ function packCurrentList(){
   }
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
-  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, all:base.length};
+  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, partial:0, all:base.length};
   const OPEN = ['new','claimed','changed','done','short']; // "Chưa đóng" gồm cả đơn đang CHỜ BÙ
-  base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; });
-  const list = status==='all' ? base : base.filter(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
+  base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; if(packIsPartial(smap[inv.id])) counts.partial++; });
+  const list = status==='all' ? base : base.filter(inv=>{ if(status==='partial') return packIsPartial(smap[inv.id]); const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
   const umapL = packUrgentMap(); const smapL = packStatusMap();
   const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
   // Mục "Chờ bù hàng": đơn báo thiếu LÂU NHẤT lên đầu (chờ lâu cần xử lý trước), không theo ô sắp xếp cọc
@@ -6814,7 +6817,7 @@ function renderPackInvoicesPage(){
   { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
-    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, all:`Tất cả (${counts.all})`};
+    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, partial:`⚠️ Gửi thiếu (${counts.partial||0})`, all:`Tất cả (${counts.all})`};
     Array.from(statusSel.options).forEach(o=>{ if(lab[o.value]) o.textContent = lab[o.value]; });
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
@@ -7322,7 +7325,7 @@ function shipKhoLine2(ps){
   if(!ps.ship && shipHoldActive(ps)) return `<div class="pack-sub" style="color:#A9C4FF;" title="${escHtml(ps.shipHold.reason||'')}">⏸ Sale hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))} — ${escHtml(ps.shipHold.reason||'')}</div>`;
   if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 ${ps.ship.auto ? 'Abit đã gửi vận đơn' : 'Sale đã lên vận đơn'}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
-  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}⏳ Chưa gửi vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
+  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}<span style="white-space:nowrap;">⏳ Chưa gửi VĐ${h >= 1 ? ' ' + Math.floor(h) + 'h' : ''}</span></div>`;
 }
 // ----- Bấm mã vận đơn → mở trang tra cứu của hãng (đồng thời COPY sẵn mã để dán nếu trang chưa tự điền) -----
 function shipTrackUrl(carrier, code){
@@ -8445,13 +8448,16 @@ function packStatusBadgeInner(inv, pp, ps){
     return packStatusBadgeInner2(inv, pp, ps) + `<div class="pack-edited-after">⚠ Sale sửa sau khi đóng (${packTimeStr(ps.editedAfterPack.at)}): ${escHtml(ps.editedAfterPack.text||'')}${me.role==='warehouse' ? ` <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packEditedAfterPackClear('${inv.id}')">✓ Đã kiểm tra</a>` : ''}</div>`; }
   return packStatusBadgeInner2(inv, pp, ps);
 }
+// Đóng đủ / gửi thiếu / đã bù — phân biệt rõ trên bảng kho
+function packIsPartial(ps){ return !!(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))); }
+function packWasRefilled(ps){ return !!(ps && ps.state==='packed' && !ps.shortSent && (ps.shortAt || (Array.isArray(ps.shortItems) && ps.shortItems.length))); }
 function packStatusBadgeInner2(inv, pp, ps){
   const cl = (!pp && !(ps && ps.state)) ? packActiveClaimOf(inv.id) : null;
   if(cl){ const me = currentUser() || {}; const pg = packPickProgressOf(inv.id); return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span>${pg && pg.need ? ` <span class="pick-prog ${pg.got>=pg.need ? 'full' : ''}">✓ ${pg.got}/${pg.need}</span>` : ''}<div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
-  if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))) return `<span class="pack-badge pack-done">✅ Gửi thiếu</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}${packChatLinkHtml(inv.id)}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
-  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đã đóng</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}${packChatLinkHtml(inv.id)}</span>${shipKhoLine(ps)}`;
+  if(packIsPartial(ps)) return `<span class="pack-badge pack-partial" title="Khách nhận KHÔNG đủ hàng">⚠️ Gửi thiếu${packMissTotal(ps) ? ' ' + packMissTotal(ps) + ' món' : ''}</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}${packChatLinkHtml(inv.id)}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
+  if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đóng đủ${packWasRefilled(ps) ? '<small> · đã bù</small>' : ''}</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}${packChatLinkHtml(inv.id)}</span>${shipKhoLine(ps)}`;
   if(ps && ps.state==='short'){ const rep0 = ps.shortStaffName || ps.staffName || ''; const clK = packActiveClaimOf(inv.id);
     // GỌN trong bảng: chi tiết món thiếu xem khi bấm Mở
     const unreadC = chatUnreadMap && chatUnreadMap[packChatConv(inv.id)];
@@ -14879,6 +14885,12 @@ function backfillLeadPhoneNorm(){
   }
   if(keys.length) console.log('Đã bổ sung phoneNorm cho', keys.length, 'data');
 }
+let gmWantInvoiceItems = false;
+function gmEnsureInvoiceItems(){ // Quản lý chung vào trang in → lúc này mới tải bản rút gọn hoá đơn
+  const u = currentUser(); if(!u || u.role!=='general_manager' || gmWantInvoiceItems) return;
+  gmWantInvoiceItems = true; try{ setupRoleScopedListeners(u); }catch(e){ console.error(e); }
+}
+const PACKER_INVOICE_DAYS = 30; // Bàn đóng gói tải hoá đơn đã cọc trong N ngày (trước: 60) — đơn cọc lâu hơn mà chưa đóng gần như không có
 function setupRoleScopedListeners(user){
   subscribeLeadsForUser(user);
   const r = user ? user.role : null;
@@ -14923,7 +14935,8 @@ function setupRoleScopedListeners(user){
     (arr)=>{ state.printReports = prKey==='all' ? arr : arr.filter(x=>x.userId===user.id); onDataChanged(); if(r==='general_manager') migratePrintLogsOut(arr); }, true);
 
   // Bản rút gọn hoá đơn: Nhân viên in (xem tổng hợp mẫu cần in) + Quản lý chung (đồng bộ)
-  const iiKey = (user && (r==='printer' || r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
+  // TIẾT KIỆM DỮ LIỆU: Quản lý chung chỉ tải khi vào trang in (gmWantInvoiceItems) — không tải mỗi lần mở app (~2.4MB)
+  const iiKey = (user && (r==='printer' || r==='warehouse' || (r==='general_manager' && gmWantInvoiceItems))) ? 'on' : 'none';
   attachScoped('invoiceItems', iiKey, iiKey==='on' ? fbInvoiceItems : null, (arr)=>{
     state.invoiceItems = arr;
     if(r==='general_manager') backfillInvoiceItems();
@@ -14950,7 +14963,7 @@ function setupRoleScopedListeners(user){
   // Hoá đơn
   // Kho / Đặt in tải ĐỦ hoá đơn (để in hoá đơn đóng hàng đúng mẫu Sale lên) — chỉ đọc, không tự xoá hoá đơn hết hạn
   // Nhân viên đóng gói chỉ cần hoá đơn ĐÃ CỌC (INVOICE_KEEP_DAYS ngày) → truy vấn theo depositLink/markedAt, bỏ đơn chờ cọc
-  const packerCut = nowMs() - INVOICE_KEEP_DAYS*86400000;
+  const packerCut = nowMs() - PACKER_INVOICE_DAYS*86400000; // TIẾT KIỆM DỮ LIỆU: bàn đóng gói chỉ cần đơn cọc gần đây
   const invKey = !user ? 'none' : (r==='packer' ? 'deposited:' + todayStr() : ((r==='general_manager' || isWarehouse) ? 'all' : (isMkt ? 'none' : 'mine:'+user.id)));
   attachScoped('invoices', invKey,
     invKey==='none' ? null : (invKey==='all' ? fbInvoices : (invKey.startsWith('deposited:') ? fbInvoices.orderByChild('depositLink/markedAt').startAt(packerCut) : fbInvoices.orderByChild('saleId').equalTo(user.id))),
@@ -15213,6 +15226,7 @@ const DEFAULT_THISMONTH_PAGES = {
 };
 const defaultRangeApplied = {};
 function goPage(pageId){
+  if(['printReport','printOverview','printOrders'].includes(pageId)){ try{ gmEnsureInvoiceItems(); }catch(e){} }
   if(!pageAllowedForMe(pageId)){ pageId = homePageForMe(); }
   if(!isAutoRefreshing && pageId!==currentPageId){ rowLimits = {}; pagerPages = {}; } // sang trang khác → bảng dài/phân trang về đầu
   // Đang soạn hoá đơn mà chuyển sang trang khác → tự lưu trước (hoặc hỏi nếu hoá đơn còn thiếu thông tin)
