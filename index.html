@@ -1884,6 +1884,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .msg-group em{ font-size:12.5px; color:var(--ink-soft); }
   .msg-group .chip-row{ gap:6px; } .msg-group .chip{ padding:5px 11px; font-size:13px; }
   .msg-save-row{ gap:8px; margin:0 0 8px; } .msg-save-row input{ flex:1; }
+  .abit-issue{ border:1px solid rgba(229,72,77,.45); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+  .abit-issue-top{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:4px; }
 </style>
 </head>
 <body>
@@ -3537,7 +3539,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <div class="modal-backdrop" id="packDoneModal">
   <div class="modal" style="max-width:440px; max-height:90vh; overflow-y:auto;">
     <h2 id="packDoneTitle">📦 Kho đã đóng đơn của bạn</h2>
-    <p class="pack-note">Lên đơn vận chuyển rồi bấm <b>🚚 Lên vận đơn</b> để đánh dấu.</p>
+    <p class="pack-note">Vào <b>Abit</b> mở đơn, <b>kiểm tra lại hàng + tên, SĐT, địa chỉ người nhận</b> (sửa nếu sai) rồi bấm <b>"Gửi vận đơn"</b> — <b>mã vận đơn tự về app</b>, không cần gõ. Đơn <b>không đi qua Abit</b> (lấy tại cửa hàng, gửi xe, tự giao…) thì bấm <b>🚚 Lên vận đơn</b> để nhập tay.</p>
     <div id="packDoneBody"></div>
     <div class="actions"><button class="btn-ghost" onclick="packDoneAck()">Để sau, đã biết</button></div>
   </div>
@@ -3545,6 +3547,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <div class="modal-backdrop" id="shipModal" onclick="if(event.target===this) this.classList.remove('show')">
   <div class="modal" style="max-width:400px;">
     <h2 id="shipTitle">🚚 Lên vận đơn</h2>
+    <div class="pack-note" style="margin:-4px 0 8px;">💡 Đơn đã đẩy sang <b>Abit</b>: vào Abit <b>kiểm tra đơn + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b>, mã tự về. Ô dưới đây để <b>nhập tay</b> cho đơn không đi qua Abit hoặc khi Abit lỗi.</div>
     <div id="shipInfo" style="font-size:13.5px; margin-bottom:10px;"></div>
     <div class="field"><label>Hãng vận chuyển</label>
       <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button><button type="button" onclick="shipPick('Gửi xe khách')">Gửi xe</button></div>
@@ -3993,7 +3996,7 @@ let dataChangedRenderTimer = null;
 function onDataChanged(){
   if(!appReady) return;
   if(state.session && currentUser()){
-    checkNewLeadNotifications();
+    checkNewLeadNotifications(); try{ abitIssueCheckNew(); }catch(e){}
     try{ syncPendingInvoiceLeadStatuses(); }catch(e){ console.error(e); }
     // "staffReport", "mktInput" và "invoices" bị loại trừ khỏi việc tự vẽ lại: đây là các trang
     // có form đang gõ/chỉnh dở (nộp báo cáo / nhập data MKT / đang soạn 1 hoá đơn) — nếu cứ có
@@ -7133,8 +7136,8 @@ function shipLockShow(list, blocked){
   const body = document.getElementById('shipLockBody');
   document.getElementById('shipLockTitle').textContent = blocked ? `🔒 Chưa tạo được hoá đơn mới — còn ${list.length} đơn chưa lên vận đơn` : `🚚 Còn ${list.length} đơn kho đã đóng chưa lên vận đơn`;
   document.getElementById('shipLockNote').innerHTML = blocked
-    ? `Đơn kho đã đóng <b>quá ${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h sáng) mà chưa lên vận đơn / <b>chưa có mã vận đơn</b>. Lên vận đơn (hoặc bấm <b>⏸ Hoãn gửi</b> nếu khách hẹn ngày khác) rồi mới tạo hoá đơn mới được.`
-    : `Lên vận đơn sớm nhé — đơn kho đã đóng quá <b>${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h) mà chưa lên vận đơn sẽ bị khoá tạo hoá đơn mới.`;
+    ? `Đơn kho đã đóng <b>quá ${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h sáng) mà <b>chưa có mã vận đơn</b>. Vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b> (mã tự về sau 1–2 phút) — đơn không đi qua Abit thì nhập tay, khách hẹn ngày khác thì bấm <b>⏸ Hoãn gửi</b> — rồi mới tạo hoá đơn mới được.`
+    : `Gửi vận đơn sớm nhé — vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b>, mã tự về app. Đơn kho đã đóng quá <b>${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h) mà chưa có mã vận đơn sẽ bị khoá tạo hoá đơn mới.`;
   body.innerHTML = list.map(ps=>{ const inv = packInvById(ps.id) || {}; const h = Math.floor((nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000);
     return `<div class="pack-notice-item ${blocked ? 'urgent' : ''}"><b>HĐ ${escHtml(ps.invoiceNumber||inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}${shipMissingCode(ps) ? ` · <b style="color:#FF8A8D;">thiếu mã vận đơn ${escHtml(shipShortName(ps.ship.carrier)||'')}</b>` : ''}<div class="pack-sub">Kho đóng ${packTimeStr(ps.packedAt||ps.at)} (${h} giờ trước)${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}</div>
       <div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="document.getElementById('shipLockModal').classList.remove('show'); shipOpen('${ps.id}')">${shipMissingCode(ps) ? '✏️ Dán mã vận đơn' : '🚚 Lên vận đơn'}</button><button class="btn-small btn-ghost" onclick="shipHoldOpen('${ps.id}')">⏸ Hoãn gửi</button></div></div>`; }).join('');
@@ -7226,13 +7229,54 @@ async function abitRetry(invId){
 // Nhãn Abit (hoá đơn / bảng kho)
 const ABIT_STATUS_NAME = {Daguibuudien:'Đã gửi BĐ', Sent:'Đã gửi', Chuaphatduoc:'Chưa phát được', Giaohangcovande:'Giao có vấn đề', Daphatthanhcong:'Phát thành công',
   Tuchoinhan:'Từ chối nhận', Chuyenhoan:'Chuyển hoàn', Daphathoanthanhcong:'Đã hoàn về', CODDathutien:'COD đã thu', Dathutien:'Đã thu tiền', Dadoisoat:'Đã đối soát',
-  Huyvandon:'Huỷ vận đơn', Dadonggoi:'Đã đóng gói', Dain:'Đã in', AutoCreated:'Mới tạo', Matdonhang:'Mất đơn', Khonglayduochang:'Không lấy được hàng'};
+  Huyvandon:'Huỷ vận đơn', Dadonggoi:'Đã đóng gói', Dain:'Đã in', AutoCreated:'Mới tạo', Matdonhang:'Mất đơn', Khonglayduochang:'Không lấy được hàng', Muatructiep:'Mua trực tiếp'};
 const ABIT_BAD = ['Chuaphatduoc','Giaohangcovande','Tuchoinhan','Chuyenhoan','Daphathoanthanhcong','Huyvandon','Matdonhang','Khonglayduochang'];
 function abitTagHtml(inv){
   const a = inv && inv.abit; if(!a) return '';
   if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
   const st = a.status ? (ABIT_STATUS_NAME[a.status] || a.status) : '';
   return ` <span class="abit-tag ${ABIT_BAD.includes(a.status) ? 'bad' : (a.status==='Daphatthanhcong' || a.status==='CODDathutien' || a.status==='Dadoisoat' ? 'ok' : '')}" title="Đơn trên Abit ${escHtml(a.invoice_no||'')}${a.statusAt ? ' · cập nhật ' + packTimeStr(a.statusAt) : ''}">🔗 ${escHtml(a.invoice_no||'Abit')}${st ? ' · ' + escHtml(st) : ''}</span>`;
+}
+// ----- 🚨 Giao có vấn đề (Abit báo trạng thái xấu) → Sale gọi khách xử lý -----
+// Đơn của Sale có abit.status thuộc ABIT_BAD và chưa bấm "Đã xử lý" sau lần đổi trạng thái đó (abit.ackAt < abit.statusAt)
+function abitIssueList(me){
+  me = me || currentUser(); if(!me) return [];
+  return (state.invoices||[]).filter(inv=>inv && inv.saleId===me.id && inv.abit && ABIT_BAD.includes(inv.abit.status) && !(Number(inv.abit.ackAt) >= Number(inv.abit.statusAt||0)))
+    .sort((a,b)=>(Number(b.abit.statusAt)||0)-(Number(a.abit.statusAt)||0));
+}
+function abitIssueCheckNew(){
+  const me = currentUser(); if(!me || !['staff','team_manager'].includes(me.role)) return;
+  let seen = {}; try{ seen = JSON.parse(localStorage.getItem('abitIssueSeen') || '{}') || {}; }catch(e){}
+  const fresh = abitIssueList(me).filter(inv=>{ const k = inv.id + ':' + inv.abit.status + ':' + (inv.abit.statusAt||0); if(seen[k]) return false; seen[k] = nowMs(); return Number(inv.abit.statusAt) > nowMs() - 3*86400000; });
+  const cut = nowMs() - 10*86400000; Object.keys(seen).forEach(k=>{ if(seen[k] < cut) delete seen[k]; });
+  try{ localStorage.setItem('abitIssueSeen', JSON.stringify(seen)); }catch(e){}
+  if(!fresh.length) return;
+  try{ playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 450); }catch(e){}
+  const i0 = fresh[0], st = ABIT_STATUS_NAME[i0.abit.status] || i0.abit.status;
+  showToast(fresh.length===1 ? `🚨 Đơn ${i0.invoiceNumber || ''} (${i0.customerName || ''}): ${st} — gọi lại khách ngay` : `🚨 ${fresh.length} đơn giao có vấn đề — mở "Việc cần làm với hoá đơn" để xử lý`);
+  try{ renderMyInvTodoBar(); }catch(e){}
+}
+function abitIssueOpen(){
+  const list = abitIssueList(); if(!list.length){ showToast('Không còn đơn nào giao có vấn đề'); return; }
+  const codes = inv=>{ const sh = (packStatusOfInv(inv)||{}).ship || {}; return (Array.isArray(sh.codes) && sh.codes.length ? sh.codes : (sh.code ? [sh.code] : [])).join(', ') || (inv.abit.tracking || ''); };
+  document.getElementById('loyalModalBody').innerHTML = `<h2>🚨 Đơn giao có vấn đề (${list.length})</h2>
+    <p class="goal-hint" style="margin:0 0 10px;">Abit báo các đơn dưới đây giao chưa thành công. Gọi khách hỏi lý do, hẹn giao lại hoặc báo kho — xong bấm "Đã xử lý" (ghi ngắn cách xử lý).</p>
+    ${list.map(inv=>{ const st = ABIT_STATUS_NAME[inv.abit.status] || inv.abit.status, cd = codes(inv);
+      return `<div class="abit-issue"><div class="abit-issue-top"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} <span class="abit-tag bad">${escHtml(st)}</span></div>
+        <div class="muted-s">${inv.customerPhone ? `<a href="tel:${escHtml(inv.customerPhone)}" style="color:var(--accent); font-weight:600;">📞 ${escHtml(inv.customerPhone)}</a> · ` : ''}${cd ? 'Mã VĐ: ' + escHtml(cd) + ' · ' : ''}cập nhật ${inv.abit.statusAt ? packTimeStr(inv.abit.statusAt) : ''}${inv.totalAmount ? ' · ' + fmtMoney(inv.totalAmount) + ' đ' : ''}</div>
+        <div class="msg-save-row" style="display:flex; margin-top:6px;"><input id="aiNote_${inv.id}" placeholder="Đã xử lý thế nào? VD: khách hẹn nhận lại ngày mai"><button class="btn-primary btn-small" onclick="abitIssueAck('${inv.id}')">✅ Đã xử lý</button></div></div>`; }).join('')}
+    <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
+  loyalShowModal();
+}
+function packStatusOfInv(inv){ try{ return (invFlowMaps().ps || {})[inv.id] || null; }catch(e){ return null; } }
+function abitIssueAck(invId){
+  const me = currentUser(), inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv || !inv.abit) return;
+  const note = (document.getElementById('aiNote_' + invId) || {}).value || '';
+  const up = {ackAt: nowMs(), ackBy: me.id, ackByName: me.name, ackNote: String(note).trim().slice(0, 300) || null, ackStatus: inv.abit.status};
+  Object.assign(inv.abit, up);
+  fbInvoices.child(invId + '/abit').update(up).then(()=>showToast('Đã ghi nhận xử lý đơn ' + (inv.invoiceNumber||''))).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  try{ renderMyInvTodoBar(); }catch(e){}
+  if(abitIssueList().length) abitIssueOpen(); else loyalCloseModal();
 }
 // ===================== ĐÃ ĐÓNG → SALE LÊN VẬN ĐƠN =====================
 // Kho bấm Đã đóng (đủ hoặc gửi thiếu) → máy Sale hiện POPUP + tiếng ting (gộp nhiều đơn).
@@ -7251,9 +7295,9 @@ function shipKhoLine(ps){
 function shipKhoLine2(ps){
   if(!ps || ps.legacy) return '';
   if(!ps.ship && shipHoldActive(ps)) return `<div class="pack-sub" style="color:#A9C4FF;" title="${escHtml(ps.shipHold.reason||'')}">⏸ Sale hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))} — ${escHtml(ps.shipHold.reason||'')}</div>`;
-  if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 Sale đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
+  if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 ${ps.ship.auto ? 'Abit đã gửi vận đơn' : 'Sale đã lên vận đơn'}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
-  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}⏳ Sale chưa lên vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
+  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}⏳ Chưa gửi vận đơn${h >= 1 ? ' (' + Math.floor(h) + ' giờ)' : ''}</div>`;
 }
 // ----- Bấm mã vận đơn → mở trang tra cứu của hãng (đồng thời COPY sẵn mã để dán nếu trang chưa tự điền) -----
 function shipTrackUrl(carrier, code){
@@ -7302,9 +7346,11 @@ function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Pos
 function packTimeShort(t){ const d = new Date(Number(t||0)); if(!t) return ''; const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); return toLocalDateStr(d)===todayStr() ? hm : hm + ' ' + d.getDate() + '/' + (d.getMonth()+1); }
 function shipLineHtml(inv, ps){
   if(!ps || ps.legacy) return '';
-  if(ps.ship) return `<div class="pack-sale-badge ship-ok">🚚 Đã lên vận đơn${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml(ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
+  if(ps.ship) return `<div class="pack-sale-badge ship-ok">🚚 ${ps.ship.auto ? 'Abit đã gửi vận đơn' : 'Đã lên vận đơn'}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml((Array.isArray(ps.ship.codes) && ps.ship.codes.length > 1) ? ps.ship.codes.join(', ') : ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.autoAt || ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
   if(shipHoldActive(ps)) return `<div class="pack-sale-badge printed">⏸ Hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().join('/'))} — ${escHtml(ps.shipHold.reason||'')} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipHoldOpen('${inv.id}')">sửa</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
-  return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Đã lên vận đơn</button></div>`;
+  // Đơn đã có trên Abit → Sale chỉ cần bấm "Gửi vận đơn" trên Abit, mã tự về; nhập tay chỉ để dự phòng
+  if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay</a></div>`;
+  return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn (nhập tay)</button></div>`;
 }
 let shipInvId = null;
 function shipPick(v){ document.getElementById('shipCarrier').value = v; shipQuickMark(); shipCodePreview(); const c = document.getElementById('shipCode'); if(c) c.focus(); }
@@ -12341,16 +12387,17 @@ function renderMyInvTodoBar(){
     if(invNeedsReprint(inv, maps)) c.reprint++;
   });
   const lockN = shipLockedFor(me).length;
-  const total = c.pending + c.short + c.reprint + c.toship;
+  c.issue = abitIssueList(me).length; // 🚨 Abit báo giao có vấn đề
+  const total = c.pending + c.short + c.reprint + c.toship + c.issue;
   el.classList.toggle('inv-todo-empty', !total && !lockN);
   if(!total && !lockN){ // không có việc gì → 1 dòng gọn, không hiện 4 ô số 0
     el.innerHTML = `<div class="inv-todo-title" style="margin:0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">✅ Không có việc cần làm với hoá đơn <button class="inv-todo-all" onclick="goInvFilter('')">Xem hoá đơn →</button></div>`;
     el.style.display = ''; return;
   }
   // Luôn hiện đủ 4 nhóm (nhóm 0 làm mờ) để Sale nhìn là biết đủ tình hình
-  const chip = (n, label, cls, f)=> `<button class="inv-todo-chip ${n ? cls : 'zero'}" ${n ? `onclick="goInvFilter('${f}')"` : 'disabled'}>${label} <b>${n}</b></button>`;
+  const chip = (n, label, cls, f, click)=> `<button class="inv-todo-chip ${n ? cls : 'zero'}" ${n ? `onclick="${click || `goInvFilter('${f}')`}"` : 'disabled'}>${label} <b>${n}</b></button>`;
   el.innerHTML = `<div class="inv-todo-title">${total ? '🔔 Việc cần làm với hoá đơn <span>(' + total + ')</span>' : '✅ Không có việc cần làm với hoá đơn'}</div>${lockN ? `<div class="inv-lock-warn" onclick="shipLockShow(shipLockedFor(currentUser()), true)">🔒 Đang KHOÁ tạo hoá đơn mới — ${lockN} đơn kho đã đóng chưa lên vận đơn. Bấm để xử lý.</div>` : ''}
-    <div class="inv-todo-chips">${chip(c.short, '⚠ Kho báo thiếu', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc', 'info', 'pending')}
+    <div class="inv-todo-chips">${c.issue ? chip(c.issue, '🚨 Giao có vấn đề', 'bad', '', 'abitIssueOpen()') : ''}${chip(c.short, '⚠ Kho báo thiếu', 'bad', 'short')}${chip(c.toship, '🚚 Chờ lên vận đơn', 'ok', 'toship')}${chip(c.reprint, '🖨️ Sửa sau khi kho in', 'warn', 'todo')}${chip(c.pending, '⏳ Chờ cọc', 'info', 'pending')}
       <button class="inv-todo-all" onclick="goInvFilter('todo')">Xem tất cả →</button></div>`;
   el.style.display = '';
 }
