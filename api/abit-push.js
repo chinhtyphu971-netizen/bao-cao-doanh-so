@@ -24,7 +24,15 @@ function buildOrder(inv, ps, username){
     weight: '0', discount_percent_product: '0', discount_amount_product: '0', tax1: '0', qtyinstock: '0'
   }, storeId ? {storeId} : {}));
   const subtotal = Object.values(groups).reduce((a,x)=>a + x.price * x.amount, 0);
-  const ghichu1 = Object.entries(detail).map(([c, arr])=>`${c}: ${arr.join(' · ')}`).join(' | ').slice(0, 1000);
+  // TIỀN CỌC: mặc định gửi Tổng = tiền hàng, cọc ghi riêng (deposits) — để Abit tự trừ khi tính tiền thu hộ (COD).
+  // Nếu kiểm tra thấy Abit KHÔNG tự trừ (COD vẫn = tiền hàng) → bật biến môi trường ABIT_TOTAL_MINUS_DEPOSIT = 1 trên Vercel
+  // để gửi Tổng = tiền hàng − cọc (COD đúng). KHÔNG bật nếu Abit đã tự trừ, kẻo trừ cọc 2 lần.
+  const deposit = Math.max(0, Math.min(subtotal, num(inv.deposit)));
+  const minusDeposit = String(process.env.ABIT_TOTAL_MINUS_DEPOSIT || '') === '1';
+  const total = minusDeposit ? subtotal - deposit : subtotal;
+  // Đơn nhiều kiện: ghi THẬT NỔI BẬT để kho Abit / shipper lấy & giao đủ (Abit chưa có trường số kiện riêng)
+  const pkgs = Math.max(1, Number(ps && ps.pkgs) || 1);
+  const ghichu1 = ((pkgs > 1 ? `[${pkgs} KIỆN] ` : '') + Object.entries(detail).map(([c, arr])=>`${c}: ${arr.join(' · ')}`).join(' | ')).slice(0, 1000);
   const custPhone = String(inv.customerPhone || '').replace(/\D/g, '');
   const phone = String(inv.shipPhone || '').replace(/\D/g, '') || custPhone; // SĐT NHẬN HÀNG (in trên tem); khác SĐT khách thì ghi chú lại
   return Object.assign({
@@ -37,12 +45,12 @@ function buildOrder(inv, ps, username){
     note: `HĐ app ${inv.invoiceNumber || ''} · Sale ${inv.saleName || ''}${custPhone && custPhone !== phone ? ' · SĐT khách đặt: ' + custPhone : ''}`,
     ghichu1,
     ghichu2: String(inv.invoiceNumber || ''),
-    notevanchuyen: ps && ps.pkgs ? `${ps.pkgs} kiện` : '',
+    notevanchuyen: pkgs > 1 ? `⚠️ ĐƠN ${pkgs} KIỆN — lấy & giao đủ ${pkgs} kiện` : (ps && ps.pkgs ? '1 kiện' : ''),
     discount_percent: '0.000', discount_amount: '0.000', s_h_amount: '0.000',
     giamgia: '0', phuthu: '0', phivanchuyen: '0', adjustment: '0.000',
     taxtype: 'individual',
-    deposits: num(inv.deposit),
-    subtotal, taxtotal_invoice: '0.000', total: subtotal,
+    deposits: deposit,
+    subtotal, taxtotal_invoice: '0.000', total,
     accountid: 0,
     username: username || '', // TÊN ĐĂNG NHẬP ABIT của Sale → Abit gán đơn đúng nhân viên
     listProduct
