@@ -6013,6 +6013,20 @@ function revenueArchiveRecord(inv){
   return {d: toLocalDateStr(new Date(at)), at, amt: Number(inv.totalAmount)||0, no: inv.invoiceNumber || null,
     cust: inv.customerName || null, saleName: inv.saleName || null, branchId: inv.branchId || null};
 }
+// Dọn PHẦN SÓT từ trước: trạng thái + ảnh đóng hàng của đơn đã bị xoá (cũ hơn 60 ngày + 2 ngày dự phòng).
+// Chạy 1 lần/phiên trên máy Quản lý chung / Kho (có đủ hoá đơn + trạng thái đóng hàng), mỗi lần tối đa 300 đơn.
+let packOrphansCleaned = false;
+function cleanupPackOrphans(){
+  const me = currentUser(); if(packOrphansCleaned || !me || !['general_manager','warehouse'].includes(me.role) || !fbRoot) return;
+  if(!packInvoicesLoaded || !Array.isArray(state.packStatus) || !state.packStatus.length) return;
+  packOrphansCleaned = true;
+  const alive = new Set((state.invoices||[]).map(i=>i && i.id));
+  const cut = nowMs() - (INVOICE_KEEP_DAYS + 2) * 86400000;
+  const old = state.packStatus.filter(p=>p && p.id && !alive.has(p.id) && Math.max(Number(p.packedAt)||0, Number(p.at)||0, Number(p.shortAt)||0) < cut).slice(0, 300);
+  if(!old.length) return;
+  const up = {}; old.forEach(p=>{ up[`packStatus/${p.id}`] = null; up[`packPhotos/${p.id}`] = null; });
+  fbRoot.update(up).then(()=>console.log(`Đã dọn ${old.length} trạng thái + ảnh đóng hàng cũ`)).catch(()=>{ packOrphansCleaned = false; });
+}
 function purgeExpiredInvoices(list){
   const cutoff = nowMs() - INVOICE_KEEP_DAYS*86400000;
   const keep = [];
@@ -6024,6 +6038,9 @@ function purgeExpiredInvoices(list){
       const rec = revenueArchiveRecord(inv);
       if(rec) up[`revenueArchive/${rec.d.slice(0,7)}/${inv.saleId}/${inv.id}`] = rec;
       if(inv.depositProof){ up[`depositProofs/${inv.id}`] = null; up[`depositThumbs/${inv.id}`] = null; }
+      // Ảnh đóng hàng + trạng thái đóng hàng của đơn cũng xoá theo (thống kê kho chỉ xem tối đa "Tháng này";
+      // trước đây không xoá → nhánh ảnh phình mãi, packStatus mà Kho/Đóng gói/Quản lý tải mỗi lần mở app cũng nặng dần)
+      up[`packPhotos/${inv.id}`] = null; up[`packStatus/${inv.id}`] = null;
       (fbRoot ? fbRoot.update(up) : fbInvoices.child(inv.id).remove())
         .then(()=>removeInvoiceItems(inv.id))
         .catch(()=>{}); // không có quyền/mất mạng thì lần sau thử lại (hoá đơn vẫn còn nguyên)
@@ -14971,6 +14988,7 @@ function setupRoleScopedListeners(user){
       if(isWarehouse){ const cutoff = nowMs() - INVOICE_KEEP_DAYS*86400000; state.invoices = arr.filter(inv=>inv && inv.id && invoiceCreatedMs(inv) >= cutoff); }
       else state.invoices = purgeExpiredInvoices(arr);
       packInvoicesLoaded = invKey==='all' || invKey.startsWith('deposited:') || invKey.startsWith('mine:'); cleanupPackPrints(); packCheckChangeNotices();
+      setTimeout(()=>{ try{ cleanupPackOrphans(); }catch(e){ console.error(e); } }, 15000); // dọn ảnh/trạng thái đóng hàng của đơn đã xoá
       onDataChanged(); if(r==='general_manager') backfillInvoiceItems();
     }, true);
 
@@ -15613,12 +15631,12 @@ const LOYAL_SECTIONS = [
 ];
 const LOYAL_FIELD_KEYS = LOYAL_SECTIONS.flatMap(s=>s.fields.map(f=>f[0]));
 const LOYAL_COUNT_KEYS = LOYAL_FIELD_KEYS.filter(k=>!['sao','kinhdoanh'].includes(k)); // trường tính % hồ sơ
-const LOYAL_TEMPLATES = [
-  ['🆕 Hàng mới', 'Chào {ten} ạ, bên em vừa về mẫu mới hợp gu {ten} lắm{mau}. Em gửi ảnh {ten} xem trước nhé, thích mẫu nào em giữ hàng cho {ten} ạ!'],
-  ['💬 Hỏi thăm', '{Ten} ơi, đợt hàng trước {ten} mặc thấy ổn không ạ? Có gì chưa vừa ý {ten} cứ nói em nhé. Dạo này bên em có nhiều mẫu mới, {ten} cần em gửi ảnh không ạ?'],
-  ['🎁 Ưu đãi riêng', 'Em chào {ten}! Tháng này em giữ riêng cho khách thân như {ten} ưu đãi đặc biệt. {Ten} xem qua mẫu mới rồi chọn giúp em vài món nhé, em lên đơn liền cho {ten} ạ!'],
-  ['🎂 Sinh nhật', 'Chúc mừng sinh nhật {ten}! Chúc {ten} luôn xinh đẹp, vui vẻ và thật nhiều sức khoẻ. Nhân dịp này em tặng {ten} ưu đãi riêng, {ten} ghé xem mẫu mới nhé ạ 🎉'],
-  ['🔁 Nhắc mua lại', 'Dạ {ten} ơi, lần trước {ten} lấy hàng cũng được một thời gian rồi, bên em mới về thêm{mau}. {Ten} có cần bổ sung không ạ? Em gửi ảnh để {ten} chọn nhé!'],
+const LOYAL_TEMPLATES = [ // khách sỉ thân thiết
+  ['🆕 Hàng mới', 'Chào {ten} ạ, xưởng em vừa ra mẫu mới hot trend, hợp với khách bên {ten} lắm{mau}. Em gửi {ten} xem trước nhé, ưng mẫu nào em giữ hàng cho {ten} ạ!'],
+  ['📈 Hỏi hàng bán', '{Ten} ơi, đợt hàng trước {ten} bán có chạy không ạ? Mẫu nào hết nhanh {ten} báo em để em ưu tiên giữ hàng cho mình đợt tới nhé!'],
+  ['🎁 Giá riêng khách quen', 'Em chào {ten}! Tháng này em xin được giá riêng cho khách quen như {ten}. {Ten} xem qua mẫu mới rồi lên đơn giúp em nhé, em ưu tiên đóng hàng sớm cho mình ạ!'],
+  ['🎂 Sinh nhật', 'Chúc mừng sinh nhật {ten}! Chúc {ten} luôn xinh đẹp, buôn may bán đắt. Nhân dịp này em xin ưu đãi riêng cho đơn tới của {ten}, {ten} xem mẫu mới nhé ạ 🎉'],
+  ['🔁 Nhắc nhập hàng', 'Dạ {ten} ơi, lần trước {ten} nhập hàng cũng được một thời gian rồi, bên em mới về thêm{mau}. {Ten} có cần bổ sung hàng không ạ? Em gửi ảnh để {ten} chọn nhé!'],
 ];
 const LOYAL_CARE_RESULTS = ['Đã nhắn, chưa trả lời','Khách quan tâm','Hẹn mua sau','Đã chốt đơn','Chưa có nhu cầu'];
 let loyalList = {}, loyalSub = null, loyalLoaded = false, loyalFilter = 'all', loyalSearch = '', loyalOpen = {}, loyalEditId = null, loyalCareId = null;
@@ -15926,12 +15944,12 @@ function loyalTplSave(){
 // 3 nhóm mẫu (thứ tự hiện): ⭐ Mẫu của tôi (saleTemplates/{uid}) → 🏢 Mẫu công ty (appSettings/…) → 📋 Mẫu có sẵn
 // Chỉ CHÉP tin + MỞ Zalo của khách — Sale tự bấm gửi từng người (tránh Zalo khoá nhắn người lạ khi gửi hàng loạt).
 // Chỗ tự điền: {ten} xưng hô + tên ("chị Lan", chưa có tên → "anh/chị") · {Ten} viết hoa đầu câu · {sale} tên Sale · {mau} mẫu khách hay mua
-const LEAD_OPEN_TEMPLATES = [
-  ['👋 Chào hỏi', 'Dạ em chào {ten} ạ, em là {sale} bên shop. Em thấy {ten} vừa nhắn tin{kenh} quan tâm sản phẩm bên em. {Ten} đang tìm mẫu cho mình mặc hay mua làm quà ạ?'],
-  ['📸 Gửi ảnh mẫu', 'Em chào {ten}! Cảm ơn {ten} đã nhắn shop{kenh} ạ. Em gửi {ten} ảnh thật các mẫu đang hot bên em nhé. {Ten} thích kiểu dáng nào, size bao nhiêu để em tư vấn đúng cho mình ạ?'],
-  ['🎁 Ưu đãi khách mới', 'Dạ chào {ten}, cảm ơn {ten} đã quan tâm bên em{kenh} ạ. Hôm nay khách mới đặt được ưu đãi riêng, em giữ suất cho {ten} nhé. {Ten} cho em xin size và màu {ten} thích ạ?'],
-  ['🏪 Khách sỉ / CTV', 'Em chào {ten} ạ! {Ten} đang lấy hàng để bán hay để mặc ạ? Nếu lấy sỉ em gửi {ten} bảng giá sỉ và các mẫu đang bán chạy để {ten} tham khảo nhé.'],
-  ['📵 Gọi không nghe máy', 'Dạ em chào {ten}, em vừa gọi mà chưa liên lạc được ạ. Em là {sale} bên shop, {ten} rảnh lúc nào nhắn em, hoặc em gửi trước ảnh mẫu qua Zalo để {ten} xem nhé!'],
+const LEAD_OPEN_TEMPLATES = [ // khách SỈ: chủ shop / bán online nhập hàng về bán lại
+  ['👋 Chào khách sỉ', 'Dạ em chào {ten} ạ, em là {sale} bên xưởng. Em thấy {ten} vừa nhắn tin{kenh}. {Ten} đang bán online hay có shop ạ? Em gửi {ten} bảng giá sỉ và các mẫu đang hot trend phù hợp với khách của mình nhé!'],
+  ['🔥 Gửi mẫu hot trend', 'Em chào {ten}! Em gửi {ten} các mẫu đang hot trend, bán chạy nhất bên xưởng tuần này nhé. {Ten} xem ưng mẫu nào em báo giá sỉ và tình trạng hàng liền cho mình ạ!'],
+  ['🏪 Hỏi kênh bán', 'Em chào {ten} ạ! {Ten} đang bán ở kênh nào (Facebook, TikTok, Shopee hay shop) và khách của mình hay chọn kiểu nào ạ? Em lọc giúp {ten} mẫu dễ bán, giá sỉ tốt để mình nhập thử nhé.'],
+  ['📦 Báo giá – lên đơn', 'Dạ chào {ten}, cảm ơn {ten} đã quan tâm bên em{kenh} ạ. {Ten} cho em xin mẫu, màu, size và số lượng dự kiến lấy, em báo giá sỉ và lên đơn sớm cho mình nhé!'],
+  ['📵 Gọi không nghe máy', 'Dạ em chào {ten}, em vừa gọi mà chưa liên lạc được ạ. Em là {sale} bên xưởng sỉ đồ nữ, {ten} rảnh lúc nào nhắn em, hoặc em gửi trước mẫu hot trend + bảng giá sỉ qua Zalo để {ten} xem nhé!'],
 ];
 let leadOpenCompanyTpls = [], leadOpenTplSub = null, myTpls = {}, myTplSub = null;
 let msgPick = null; // {kind:'open'|'loyal', name, xungHo, phone, zalo, mau, title}
@@ -15946,8 +15964,18 @@ function msgTplListen(user){
   if(goalHasOwn(user)){ myTplSub = fbRoot.child('saleTemplates/' + user.id); myTplSub.on('value', snap=>{ myTpls = snap.val() || {}; }); }
 }
 function msgSaleName(){ const me = currentUser(); return String((me && me.name) || '').replace(/\s*sale\s*$/i, '').trim() || 'em'; }
+// Tên khách lấy từ data đôi khi là CÂU KHÁCH NHẮN ("hi", "alo", "giá?", "tư vấn"…) → không dùng làm tên
+const MSG_JUNK_NAMES = ['hi','hii','hy','hj','hí','hello','helo','hellu','alo','a lô','alô','ib','inbox','xin chào','chào','chao','chào shop','giá','gia','giá sao','bao nhiêu','tư vấn','tu van','tv','ok','oke','okie','shop','sỉ','si','mua','check','có','co','hihi','hehe','?','.','..','...','👋','❤️'];
+function msgCleanName(n){
+  n = String(n||'').trim();
+  if(!n || n.length < 2) return '';
+  const low = n.toLowerCase().replace(/[!?.,~]+$/,'').trim();
+  if(MSG_JUNK_NAMES.includes(low) || !/[A-Za-zÀ-ỹ]/.test(n) || /^\d+$/.test(n)) return '';
+  if(/\?|giá|bao nhiêu|tư vấn|inbox|còn hàng|ship/i.test(n)) return ''; // là câu hỏi, không phải tên
+  return n;
+}
 function msgFill(tpl, t){
-  const nm = String(t.name||'').trim();
+  const nm = msgCleanName(t.name);
   const call = nm ? ((t.xungHo && !nm.toLowerCase().startsWith(String(t.xungHo).toLowerCase()) ? t.xungHo + ' ' : '') + nm) : 'anh/chị';
   const cap = s=>s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   return String(tpl).replace(/\{Ten\}/g, cap(call)).replace(/\{ten\}/g, call).replace(/\{sale\}/g, msgSaleName())
@@ -15992,7 +16020,7 @@ function msgToTemplate(text, t){
   // Đổi lại "chị Lan" / "Chị Lan" / "Lan" (và tên Sale) thành chỗ tự điền để lần sau dùng được cho khách khác
   let s = String(text);
   const esc = x=>String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const nm = String(t.name||'').trim();
+  const nm = msgCleanName(t.name);
   const names = [nm, nm ? '' : 'anh/chị'].filter(Boolean);
   names.forEach(n=>{
     const re = new RegExp('(?:\\b(chị|anh|em|cô|chú|bạn|dì|bác)\\s+)?' + esc(n), 'gi');
@@ -16139,12 +16167,12 @@ function sourceChannelCardHtml(){
 
 // ----- Mẫu cho data CHĂM SÓC LẠI (khách cũ) — câu chuyện khác với khách mới -----
 // tag: 'buyer' = khách đã từng mua · 'nonbuyer' = trước đây chưa chốt · 'any'
-const RECARE_TEMPLATES = [
-  ['💐 Hỏi thăm khách cũ', 'Dạ em chào {ten}, em là {sale} bên shop ạ. Lâu rồi không thấy {ten} ghé, dạo này {ten} khoẻ không ạ? Bên em vừa về nhiều mẫu mới, em gửi {ten} xem cho vui nhé!', 'any'],
-  ['🙏 Tri ân khách cũ', 'Em chào {ten} ạ! Shop đang có chương trình tri ân khách đã từng mua, riêng {ten} được ưu đãi khi đặt lại tuần này. {Ten} xem mẫu mới rồi chọn giúp em vài món nhé ạ!', 'buyer'],
-  ['⭐ Hỏi cảm nhận lần trước', 'Dạ {ten} ơi, em là {sale} bên shop. Đợt trước {ten} lấy hàng bên em mặc thấy ổn không ạ? {Ten} góp ý giúp em nhé, bên em mới về thêm mẫu, {ten} cần em gửi ảnh không ạ?', 'buyer'],
-  ['🔁 Lần trước chưa chọn được', 'Dạ em chào {ten}, trước đây {ten} có hỏi bên em mà chưa chọn được mẫu ưng ý. Nay bên em về thêm nhiều mẫu mới, giá cũng tốt hơn, em gửi {ten} xem lại nhé ạ!', 'nonbuyer'],
-  ['🎁 Ưu đãi quay lại', 'Em chào {ten} ạ! Bên em đang có ưu đãi riêng cho khách từng quan tâm shop, {ten} đặt trong tuần này được giảm thêm. {Ten} thích kiểu nào em tư vấn liền ạ!', 'nonbuyer'],
+const RECARE_TEMPLATES = [ // khách sỉ cũ
+  ['💐 Hỏi thăm khách cũ', 'Dạ em chào {ten}, em là {sale} bên xưởng ạ. Lâu rồi chưa thấy {ten} nhập hàng, dạo này shop mình bán ổn không ạ? Bên em vừa ra nhiều mẫu hot trend, em gửi {ten} xem nhé!', 'any'],
+  ['🙏 Tri ân khách cũ', 'Em chào {ten} ạ! Xưởng đang có chương trình riêng cho khách sỉ đã từng lấy hàng, {ten} nhập lại đợt này em báo giá tốt cho mình. {Ten} xem mẫu mới rồi chọn giúp em nhé ạ!', 'buyer'],
+  ['📈 Hỏi hàng bán có chạy không', 'Dạ {ten} ơi, em là {sale} bên xưởng. Đợt hàng trước {ten} lấy bán có chạy không ạ? Mẫu nào khách chuộng em ưu tiên giữ hàng, có thêm mẫu mới cùng kiểu em gửi {ten} xem nhé!', 'buyer'],
+  ['🔁 Lần trước chưa lấy hàng', 'Dạ em chào {ten}, trước đây {ten} có hỏi bên em mà chưa nhập được mẫu ưng ý. Nay xưởng về nhiều mẫu hot trend, giá sỉ cũng tốt hơn, em gửi {ten} xem lại nhé ạ!', 'nonbuyer'],
+  ['🎁 Mời nhập thử', 'Em chào {ten} ạ! Bên em đang hỗ trợ khách mới nhập thử số lượng ít để test thị trường. {Ten} chọn vài mẫu hot bán thử trước, chạy thì mình nhập thêm nhé ạ!', 'nonbuyer'],
 ];
 function leadIsBuyer(l){ return /Khách cũ — đã chốt/i.test(String(l.note||'')) || l.status==='Đã chốt'; }
 
