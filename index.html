@@ -1850,6 +1850,36 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .goal-task-warn{ margin:-2px 0 8px; padding:7px 10px; border-radius:8px; background:rgba(224,169,62,.14); border:1px solid rgba(224,169,62,.45); color:var(--warn); font-size:13px; font-weight:600; }
   .goal-task-warn b{ color:var(--ink); text-decoration:underline; }
   .goal-nudged{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+  /* ⭐ Khách thân thiết */
+  .loyal-modal{ max-width:640px; max-height:88vh; overflow-y:auto; }
+  .loyal-sec{ border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin-bottom:8px; }
+  .loyal-sec summary{ cursor:pointer; font-weight:700; font-size:14px; padding:4px 0; }
+  .loyal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin-top:8px; }
+  @media (max-width:600px){ .loyal-grid{ grid-template-columns:1fr; } }
+  .loyal-custom{ display:grid; grid-template-columns:1fr 2fr auto; gap:6px; margin-bottom:6px; }
+  .muted-s{ color:var(--ink-soft); font-weight:500; font-size:12.5px; }
+  .loyal-alert{ margin:4px 0 0; padding:8px 12px; border-radius:8px; background:rgba(224,169,62,.12); border:1px solid rgba(224,169,62,.4); font-size:13.5px; }
+  .loyal-card{ padding:14px 16px; }
+  .loyal-card.due{ border-color:rgba(224,169,62,.6); } .loyal-card.over{ border-color:rgba(229,72,77,.6); }
+  .loyal-top{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .loyal-name{ font-size:16px; }
+  .loyal-contact{ display:flex; gap:12px; flex-wrap:wrap; margin-top:4px; font-size:13.5px; } .loyal-contact a{ color:var(--accent); text-decoration:none; font-weight:600; }
+  .loyal-badges{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+  .loyal-due{ font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--panel2); color:var(--ink-soft); }
+  .loyal-due.due{ background:rgba(224,169,62,.18); color:var(--warn); } .loyal-due.over{ background:rgba(229,72,77,.16); color:var(--danger); }
+  .loyal-bday{ font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(236,72,153,.16); color:#F28CC4; }
+  .loyal-chips{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+  .loyal-chip{ font-size:12.5px; padding:3px 9px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); }
+  .loyal-meta{ font-size:12.5px; color:var(--ink-soft); margin:6px 0; }
+  .loyal-pct{ display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink-soft); margin:6px 0 10px; } .loyal-pct .goal-bar{ width:120px; flex:0 0 120px; } .loyal-pct a{ color:var(--accent); }
+  .loyal-actions{ display:flex; flex-wrap:wrap; gap:6px; }
+  .loyal-detail{ margin-top:12px; border-top:1px solid var(--line); padding-top:10px; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+  .loyal-dsec h4{ margin:0 0 6px; font-size:13px; }
+  .loyal-dsec div{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:3px 0; border-bottom:1px dashed var(--line); }
+  .loyal-dsec div span{ color:var(--ink-soft); } .loyal-dsec div b{ text-align:right; font-weight:600; overflow-wrap:anywhere; }
+  .loyal-tpl{ border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:8px; font-size:13.5px; } .loyal-tpl div{ color:var(--ink-soft); margin-top:2px; white-space:pre-wrap; }
+  .loyal-tpl-edit{ display:grid; grid-template-columns:220px 1fr auto; gap:8px; margin-bottom:8px; align-items:start; }
+  @media (max-width:720px){ .loyal-tpl-edit{ grid-template-columns:1fr auto; } .loyal-tpl-edit textarea{ grid-column:1/-1; } }
 </style>
 </head>
 <body>
@@ -1988,6 +2018,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="nav-item" data-page="mgrLeads" onclick="goPage('mgrLeads')"><span class="label">🔀 Phân bổ data</span></div>
         <div class="nav-item" id="navItem_mgrLeadsList" data-page="mgrLeadsList" onclick="goPage('mgrLeadsList')"><span class="label">📋 Danh sách data</span></div>
         <div class="nav-item" id="navItem_mgrRecare" data-page="mgrRecare" onclick="goPage('mgrRecare')" style="display:none;"><span class="label">♻️ Nhập data chăm sóc lại</span></div>
+        <div class="nav-item" id="navItem_mgrLoyal" data-page="mgrLoyal" onclick="goPage('mgrLoyal')" style="display:none;"><span class="label">⭐ Khách thân thiết</span></div>
         <div class="nav-item" data-page="mgrClosedLeads" onclick="goPage('mgrClosedLeads')"><span class="label">💰 Data chốt tổng</span></div>
         <div class="nav-item" id="navItem_printOverview" data-page="printOverview" onclick="goPage('printOverview')"><span class="label">🖨️ Báo cáo in hình</span></div>
         <div class="nav-item" id="navItem_packInvoices" data-page="packInvoices" onclick="goPage('packInvoices')"><span class="label">📦 Quản lý đóng hàng</span></div>
@@ -2062,6 +2093,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </div>
       </div>
 
+      <!-- ---------- ⭐ Khách thân thiết của các Sale (Quản lý chung / Quản lý team) ---------- -->
+      <div id="page-mgrLoyal" class="page" style="display:none;">
+        <div class="page-head"><div><h1>⭐ Khách thân thiết</h1><p>Khách thân thiết Sale đang chăm sóc — ai chăm đều, ai đang bỏ quên khách (chỉ Quản lý chung xem)</p></div></div>
+        <div id="mgrLoyalBody"></div>
+      </div>
+
       <!-- ---------- ♻️ Nhập data chăm sóc lại (Quản lý chung / Quản lý Data) ---------- -->
       <div id="page-mgrRecare" class="page" style="display:none;">
         <div class="page-head"><div><h1>♻️ Nhập data chăm sóc lại</h1><p>Đưa data cũ (VD từ Google Sheet) vào kho để hệ thống chia lại cho Sale chăm sóc</p></div></div>
@@ -2108,8 +2145,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="chip selected" id="myLeadsTab_assigned" onclick="switchMyLeadsTab('assigned')">Data được chia</div>
           <div class="chip" id="myLeadsTab_self" onclick="switchMyLeadsTab('self')">Data tự tìm</div>
           <div class="chip" id="myLeadsTab_closed" onclick="switchMyLeadsTab('closed')">Data đã chốt</div>
+          <div class="chip" id="myLeadsTab_loyal" onclick="switchMyLeadsTab('loyal')">⭐ Khách thân thiết</div>
         </div>
 
+        <div id="myLeadsSectionLoyal" style="display:none;"></div>
         <div id="myLeadsSectionAssigned">
           <div class="grid-2" id="myTopGrid" style="margin-bottom:16px; align-items:stretch;">
             <div id="myRecallBanner" class="recall-banner" style="display:none;"></div>
@@ -3271,6 +3310,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal-backdrop" id="loyalModal"><div class="modal loyal-modal" id="loyalModalBody"></div></div>
 
 <div class="modal-backdrop" id="confirmModal">
   <div class="modal">
@@ -12277,7 +12318,10 @@ function switchMyLeadsTab(tab){
   document.getElementById('myLeadsSectionAssigned').style.display = tab==='assigned' ? 'block' : 'none';
   document.getElementById('myLeadsSectionSelf').style.display = tab==='self' ? 'block' : 'none';
   document.getElementById('myLeadsSectionClosed').style.display = tab==='closed' ? 'block' : 'none';
+  { const t = document.getElementById('myLeadsTab_loyal'); if(t) t.classList.toggle('selected', tab==='loyal');
+    const sec = document.getElementById('myLeadsSectionLoyal'); if(sec) sec.style.display = tab==='loyal' ? 'block' : 'none'; }
   if(tab==='closed') renderMyClosedLeads();
+  if(tab==='loyal') renderLoyalSection();
 }
 // ===== Ô "Việc cần làm với hoá đơn" ngay trên trang Data của tôi (Sale hay để màn hình ở đây) =====
 // Bấm từng ô → sang trang Hoá đơn, lọc đúng nhóm cần xử lý.
@@ -14535,6 +14579,7 @@ function logout(){
   state.session=null; persistSession();
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
   try{ goalResetListeners(); }catch(e){}
+  try{ loyalListen(null); loyalTplListen(null); mgrLoyalSubs.forEach(r=>{ try{ r.off(); }catch(e){} }); mgrLoyalSubs = []; mgrLoyalKey = null; }catch(e){}
   resetChatDotCache();
   resetLeadNotifyState();
   resetChatNotifyState();
@@ -14831,6 +14876,7 @@ function enterApp(){
   setupRoleScopedListeners(user);
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
   try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
+  try{ loyalListen(user); loyalTplListen(user); }catch(e){ console.error(e); } // ⭐ khách thân thiết + mẫu tin nhắn công ty
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
@@ -14876,6 +14922,7 @@ function enterApp(){
   // 🎯 Mục tiêu: Sale + Quản lý team tự đặt mục tiêu; Quản lý chung xem tất cả + chọn lịch nghỉ CN
   document.getElementById('navGoals').style.display = ['staff','team_manager','general_manager'].includes(user.role) ? 'block' : 'none';
   { const ri = document.getElementById('navItem_mgrRecare'); if(ri) ri.style.display = ['general_manager','data_manager'].includes(user.role) ? 'flex' : 'none'; } // ♻️ nhập data chăm sóc lại
+  { const li = document.getElementById('navItem_mgrLoyal'); if(li) li.style.display = user.role==='general_manager' ? 'flex' : 'none'; } // ⭐ khách thân thiết của Sale — CHỈ Quản lý chung xem
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
   ['navItem_mgrDashboard','navItem_mgrReports','navItem_reportDiff','navItem_mgrTrash','navItem_mgrSettings'].forEach(id=>{
@@ -15047,6 +15094,7 @@ function goPage(pageId){
   try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
   if(pageId==='goals') renderGoalsPage();
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
+  if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
   if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
@@ -15344,6 +15392,356 @@ async function dataUsageMeasure(){
     dataUsageResult = {at: nowMs(), rows};
   }catch(e){ console.error(e); err('Không đo được: ' + (e && e.message || e)); }
   dataUsageRunning = false; renderDataUsageCard();
+}
+
+// =========================== ⭐ KHÁCH THÂN THIẾT (Sale tự ghi, điền dần) ===========================
+// Firebase: loyalCustomers/{saleId}/{id} = {id, name, phone, ...các trường bên dưới, custom:[{k,v}],
+//   care/{id} = {at, channel, result, note}, careEvery (ngày), lastCareAt, nextCareAt, createdAt, updatedAt}
+// Chỉ bắt buộc Tên + SĐT. Các nhóm còn lại điền dần → thanh "Hồ sơ đầy đủ %" nhắc bổ sung.
+const LOYAL_SECTIONS = [
+  {sec:'lienhe', title:'📞 Liên hệ', fields:[
+    ['name','Tên gọi *','text','VD: chị Lan'], ['phone','SĐT *','tel','09xxxxxxxx'],
+    ['xungHo','Xưng hô với khách','select',['','chị','anh','em','cô','chú','bạn']],
+    ['zalo','Zalo (nếu khác SĐT)','tel',''], ['facebook','Facebook (link hoặc tên)','text',''], ['tiktok','TikTok / Instagram','text',''],
+    ['kenh','Kênh khách thích','select',['','Zalo','Gọi điện','Facebook','Tin nhắn SMS']], ['gioLienHe','Giờ tiện liên hệ','text','VD: sau 20h, tránh giờ trưa'],
+  ]},
+  {sec:'canhan', title:'🙋 Cá nhân', fields:[
+    ['gioiTinh','Giới tính','select',['','Nữ','Nam']], ['ngaySinh','Ngày sinh','date',''], ['ngheNghiep','Nghề nghiệp','text','VD: giáo viên, văn phòng'],
+    ['giaDinh','Gia đình','text','VD: có 2 con nhỏ'], ['ngayDacBiet','Ngày đặc biệt khác','text','VD: kỷ niệm cưới 20/5'], ['soThich','Sở thích / chủ đề hay nói chuyện','text','VD: thích du lịch, nuôi mèo'],
+  ]},
+  {sec:'muahang', title:'🛍️ Thói quen mua hàng', fields:[
+    ['loaiKhach','Loại khách','select',['','Khách lẻ','Khách sỉ','CTV / đại lý','Chủ shop']],
+    ['sizeAo','Size áo','text','VD: M'], ['sizeQuan','Size quần / váy','text','VD: 28 / M'], ['chieuCao','Chiều cao – cân nặng','text','VD: 1m58 – 50kg'],
+    ['dangNguoi','Dáng người, lưu ý khi chọn đồ','text','VD: bắp tay to, thích che bụng'], ['mauThich','Màu thích','text','VD: be, xanh pastel'], ['mauTranh','Màu không thích','text',''],
+    ['mauHayMua','Mẫu / dòng hay mua','text','VD: A55, váy suông'], ['khoangGia','Khoảng giá hay mua','text','VD: 300–500k/món'], ['dipMua','Dịp hay mua','text','VD: đi làm, Tết, đi tiệc'],
+    ['tanSuat','Tần suất mua','select',['','Hàng tuần','2–3 tuần/lần','Hàng tháng','2–3 tháng/lần','Thỉnh thoảng']],
+    ['thanhToan','Thanh toán hay dùng','select',['','Chuyển khoản','COD (nhận hàng trả tiền)','Cọc trước']], ['diaChi','Địa chỉ nhận hàng','text',''],
+  ]},
+  {sec:'kinhdoanh', title:'🏪 Kinh doanh (khách sỉ / CTV)', fields:[
+    ['tenShop','Tên shop','text',''], ['kenhBan','Bán ở đâu','text','VD: Facebook, TikTok, chợ'], ['soLuongLay','Mỗi lần lấy khoảng','text','VD: 30–50 món'],
+  ]},
+  {sec:'quanhe', title:'🤝 Quan hệ & ghi chú', fields:[
+    ['sao','Mức thân thiết','select',['1','2','3']], ['nguon','Quen từ đâu','select',['','Data được chia','Data tự tìm','Khách cũ lâu năm','Được giới thiệu','Khác']],
+    ['gioiThieu','Người giới thiệu / đã giới thiệu ai','text',''], ['canTranh','Điều cần tránh','text','VD: không thích bị gọi nhiều'], ['ghiChu','Ghi chú chung','textarea',''],
+  ]},
+];
+const LOYAL_FIELD_KEYS = LOYAL_SECTIONS.flatMap(s=>s.fields.map(f=>f[0]));
+const LOYAL_COUNT_KEYS = LOYAL_FIELD_KEYS.filter(k=>!['sao','kinhdoanh'].includes(k)); // trường tính % hồ sơ
+const LOYAL_TEMPLATES = [
+  ['🆕 Hàng mới', 'Chào {ten} ạ, bên em vừa về mẫu mới hợp gu {ten} lắm{mau}. Em gửi ảnh {ten} xem trước nhé, thích mẫu nào em giữ hàng cho {ten} ạ!'],
+  ['💬 Hỏi thăm', '{Ten} ơi, đợt hàng trước {ten} mặc thấy ổn không ạ? Có gì chưa vừa ý {ten} cứ nói em nhé. Dạo này bên em có nhiều mẫu mới, {ten} cần em gửi ảnh không ạ?'],
+  ['🎁 Ưu đãi riêng', 'Em chào {ten}! Tháng này em giữ riêng cho khách thân như {ten} ưu đãi đặc biệt. {Ten} xem qua mẫu mới rồi chọn giúp em vài món nhé, em lên đơn liền cho {ten} ạ!'],
+  ['🎂 Sinh nhật', 'Chúc mừng sinh nhật {ten}! Chúc {ten} luôn xinh đẹp, vui vẻ và thật nhiều sức khoẻ. Nhân dịp này em tặng {ten} ưu đãi riêng, {ten} ghé xem mẫu mới nhé ạ 🎉'],
+  ['🔁 Nhắc mua lại', 'Dạ {ten} ơi, lần trước {ten} lấy hàng cũng được một thời gian rồi, bên em mới về thêm{mau}. {Ten} có cần bổ sung không ạ? Em gửi ảnh để {ten} chọn nhé!'],
+];
+const LOYAL_CARE_RESULTS = ['Đã nhắn, chưa trả lời','Khách quan tâm','Hẹn mua sau','Đã chốt đơn','Chưa có nhu cầu'];
+let loyalList = {}, loyalSub = null, loyalLoaded = false, loyalFilter = 'all', loyalSearch = '', loyalOpen = {}, loyalEditId = null, loyalCareId = null;
+
+function loyalListen(user){
+  if(loyalSub){ try{ loyalSub.off(); }catch(e){} loyalSub = null; }
+  loyalList = {}; loyalLoaded = false;
+  if(!user || !fbRoot || !goalHasOwn(user)) return;
+  loyalSub = fbRoot.child('loyalCustomers/' + user.id);
+  loyalSub.on('value', snap=>{ loyalList = snap.val() || {}; loyalLoaded = true; if(myLeadsActiveTab==='loyal' && !loyalModalOpen()) renderLoyalSection(); updateLoyalTabBadge(); });
+}
+function loyalModalOpen(){ const m = document.getElementById('loyalModal'); return m && m.classList.contains('show'); }
+function loyalArr(){ return Object.values(loyalList||{}).filter(c=>c && c.id); }
+function loyalStartOfToday(){ const d = new Date(nowMs()); d.setHours(0,0,0,0); return d.getTime(); }
+function loyalDaysToBirthday(c){
+  if(!c.ngaySinh || !/^\d{4}-\d{2}-\d{2}$/.test(c.ngaySinh)) return null;
+  const t = new Date(loyalStartOfToday()); const [,m,d] = c.ngaySinh.split('-').map(Number);
+  let b = new Date(t.getFullYear(), m-1, d); if(b < t) b = new Date(t.getFullYear()+1, m-1, d);
+  return Math.round((b - t)/86400000);
+}
+function loyalCompleteness(c){ const n = LOYAL_COUNT_KEYS.filter(k=>String(c[k]||'').trim()).length + Math.min(3, (c.custom||[]).length); return Math.min(100, Math.round(n / (LOYAL_COUNT_KEYS.length) * 100)); }
+function loyalCareState(c){
+  const sot = loyalStartOfToday(), next = Number(c.nextCareAt)||0;
+  if(!next) return {cls:'', txt:''};
+  if(next < sot) return {cls:'over', txt:`Quá hạn chăm sóc ${Math.ceil((sot-next)/86400000)} ngày`};
+  if(next < sot + 86400000) return {cls:'due', txt:'Cần chăm sóc hôm nay'};
+  return {cls:'', txt:`Chăm sóc tiếp: ${goalDM(toLocalDateStr(new Date(next)))}`};
+}
+function loyalIsDue(c){ const n = Number(c.nextCareAt)||0; return n && n < loyalStartOfToday() + 86400000; }
+// Lịch sử mua: hoá đơn của chính Sale (theo SĐT) + data đã chốt (không trùng hoá đơn)
+function loyalBuyStats(c){
+  const n = normalizePhone(c.phone); if(!n) return null;
+  const me = currentUser(); let cnt = 0, amt = 0, last = 0; const leadIds = new Set();
+  (state.invoices||[]).forEach(i=>{ if(!i || i.saleId!==me.id || normalizePhone(i.customerPhone)!==n) return;
+    cnt++; amt += Number(i.totalAmount)||0; const t = Number(i.depositLink && i.depositLink.markedAt) || Number(i.createdAt)||0; if(t>last) last = t; if(i.leadId) leadIds.add(i.leadId); });
+  (state.leads||[]).forEach(l=>{ if(!l || l.assignedTo!==me.id || l.status!=='Đã chốt' || leadIds.has(l.id) || normalizePhone(leadPhone(l))!==n) return;
+    cnt++; amt += Number(l.closedAmount)||0; const t = Number(l.closedAt) || (l.closedDate ? Date.parse(l.closedDate + 'T12:00:00') : 0); if(t>last) last = t; });
+  return cnt ? {cnt, amt, last} : null;
+}
+function updateLoyalTabBadge(){
+  const el = document.getElementById('myLeadsTab_loyal'); if(!el) return;
+  const due = loyalArr().filter(loyalIsDue).length;
+  el.innerHTML = `⭐ Khách thân thiết${due ? ` <span class="badge badge-warn" style="margin-left:4px;">${due}</span>` : ''}`;
+}
+function renderLoyalSection(){
+  const box = document.getElementById('myLeadsSectionLoyal'); if(!box) return;
+  const me = currentUser();
+  if(!goalHasOwn(me)){ box.innerHTML = '<div class="card"><div class="empty-note">Mục này dành cho Sale.</div></div>'; return; }
+  if(!loyalLoaded){ box.innerHTML = '<div class="card"><div class="empty-note">Đang tải…</div></div>'; return; }
+  const all = loyalArr();
+  const q = loyalSearch.trim().toLowerCase();
+  const filt = {all: ()=>true, due: loyalIsDue, bday: c=>{ const d = loyalDaysToBirthday(c); return d!==null && d<=7; }, vip: c=>String(c.sao)==='3', si: c=>/sỉ|CTV|shop/i.test(c.loaiKhach||'')};
+  const list = all.filter(filt[loyalFilter] || filt.all).filter(c=>!q || [c.name, c.phone, c.facebook, c.ghiChu, c.mauHayMua, c.tenShop].join(' ').toLowerCase().includes(q))
+    .sort((a,b)=>(loyalIsDue(b)?1:0)-(loyalIsDue(a)?1:0) || (Number(a.nextCareAt)||9e15)-(Number(b.nextCareAt)||9e15) || (Number(b.sao)||1)-(Number(a.sao)||1) || String(a.name).localeCompare(String(b.name),'vi'));
+  const nDue = all.filter(loyalIsDue).length, nB = all.filter(filt.bday).length;
+  let goalLine = '';
+  try{ const m = goalCurMonth(); const c = goalsLoadedMonth[m] ? goalCalc(me.id, m, goalDepositIndex()) : null;
+    if(c && c.amount && c.missing>0) goalLine = `Tháng này còn thiếu <b>${goalMoney(c.missing)}</b> để đạt mục tiêu — nhắn khách thân thiết là cách nhanh nhất để kéo doanh số.`; }catch(e){}
+  const chip = (k, l, n)=>`<div class="chip ${loyalFilter===k ? 'selected' : ''}" onclick="loyalFilter='${k}'; renderLoyalSection()">${l}${n!=null ? ' (' + n + ')' : ''}</div>`;
+  box.innerHTML = `<div class="card">
+      <div class="goal-card-head"><h2>⭐ Khách thân thiết (${all.length})</h2><button class="btn-primary btn-small" onclick="loyalOpenForm(null)">+ Thêm khách</button></div>
+      <p class="goal-hint">Ghi lại những khách quen, thân với bạn để nhờ mua lại khi cần đạt mục tiêu. Chỉ cần Tên + SĐT, các thông tin khác <b>điền dần</b> mỗi lần nói chuyện với khách.${goalLine ? '<br>' + goalLine : ''}</p>
+      ${nDue || nB ? `<p class="loyal-alert">${nDue ? `🔔 <b>${nDue}</b> khách cần chăm sóc hôm nay` : ''}${nDue && nB ? ' · ' : ''}${nB ? `🎂 <b>${nB}</b> khách sắp sinh nhật (7 ngày tới)` : ''}</p>` : ''}
+      <div class="chip-row" style="margin:8px 0;">${chip('all','Tất cả',all.length)}${chip('due','🔔 Cần chăm sóc',nDue)}${chip('bday','🎂 Sắp sinh nhật',nB)}${chip('vip','⭐⭐⭐ Rất thân',all.filter(filt.vip).length)}${chip('si','🏪 Sỉ / CTV',all.filter(filt.si).length)}</div>
+      <input type="search" placeholder="🔍 Tìm tên, SĐT, ghi chú…" value="${escHtml(loyalSearch)}" oninput="loyalSearch=this.value; clearTimeout(window.__lsT); window.__lsT=setTimeout(()=>{ renderLoyalSection(); const i=document.querySelector('#myLeadsSectionLoyal input[type=search]'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250)" style="max-width:340px;">
+    </div>
+    ${list.map(loyalCardHtml).join('') || `<div class="card"><div class="empty-note">${all.length ? 'Không có khách nào khớp.' : 'Chưa có khách thân thiết nào — bấm "+ Thêm khách" để bắt đầu.'}</div></div>`}`;
+}
+function loyalCardHtml(c){
+  const st = loyalCareState(c), bd = loyalDaysToBirthday(c), buy = loyalBuyStats(c), pct = loyalCompleteness(c);
+  const stars = '⭐'.repeat(Math.max(1, Math.min(3, Number(c.sao)||1)));
+  const zaloNum = normalizePhone(c.zalo || c.phone);
+  const fb = String(c.facebook||'').trim(), fbUrl = /^https?:\/\//i.test(fb) ? fb : (fb ? 'https://www.facebook.com/search/top?q=' + encodeURIComponent(fb) : '');
+  const chips = [['👕', c.sizeAo && 'Áo ' + c.sizeAo], ['👖', c.sizeQuan && 'Quần/váy ' + c.sizeQuan], ['🎨', c.mauThich], ['🛍️', c.mauHayMua], ['💰', c.khoangGia], ['🕗', c.gioLienHe], ['📍', c.diaChi && String(c.diaChi).split(',').slice(-1)[0].trim()]]
+    .filter(x=>x[1]).map(x=>`<span class="loyal-chip">${x[0]} ${escHtml(x[1])}</span>`).join('');
+  const careArr = Object.values(c.care||{}).filter(Boolean).sort((a,b)=>b.at-a.at);
+  const open = loyalOpen[c.id];
+  const detail = open ? `<div class="loyal-detail">${LOYAL_SECTIONS.map(s=>{ const rows = s.fields.filter(f=>!['name','phone'].includes(f[0]) && String(c[f[0]]||'').trim())
+      .map(f=>`<div><span>${escHtml(f[1].replace(' *',''))}</span><b>${escHtml(f[0]==='ngaySinh' ? fmtDate(c[f[0]]) : (f[0]==='sao' ? '⭐'.repeat(Number(c.sao)||1) : c[f[0]]))}</b></div>`).join('');
+      return rows ? `<div class="loyal-dsec"><h4>${s.title}</h4>${rows}</div>` : ''; }).join('')}
+      ${(c.custom||[]).length ? `<div class="loyal-dsec"><h4>📝 Thông tin thêm</h4>${c.custom.map(x=>`<div><span>${escHtml(x.k)}</span><b>${escHtml(x.v)}</b></div>`).join('')}</div>` : ''}
+      ${careArr.length ? `<div class="loyal-dsec"><h4>🗂️ Lịch sử chăm sóc</h4>${careArr.slice(0,10).map(x=>`<div><span>${fmtDateTimeShort(x.at)} · ${escHtml(x.channel||'')}</span><b>${escHtml(x.result||'')}${x.note ? ' — ' + escHtml(x.note) : ''}</b></div>`).join('')}</div>` : ''}
+    </div>` : '';
+  return `<div class="card loyal-card ${st.cls}">
+    <div class="loyal-top"><div><b class="loyal-name">${escHtml(c.name)}</b> <span title="Mức thân thiết">${stars}</span>${c.loaiKhach ? ` <span class="badge">${escHtml(c.loaiKhach)}</span>` : ''}
+        <div class="loyal-contact"><a href="tel:${escHtml(c.phone)}">📞 ${escHtml(c.phone)}</a>${zaloNum ? ` <a href="https://zalo.me/${zaloNum}" target="_blank" rel="noopener">💬 Zalo</a>` : ''}${fbUrl ? ` <a href="${escHtml(fbUrl)}" target="_blank" rel="noopener">📘 Facebook</a>` : ''}${c.kenh ? ` <span class="muted-s">· thích ${escHtml(c.kenh)}</span>` : ''}</div></div>
+      <div class="loyal-badges">${st.txt ? `<span class="loyal-due ${st.cls}">${st.txt}</span>` : ''}${bd!==null && bd<=7 ? `<span class="loyal-bday">🎂 ${bd===0 ? 'Sinh nhật hôm nay!' : 'Sinh nhật sau ' + bd + ' ngày'}</span>` : ''}</div></div>
+    ${chips ? `<div class="loyal-chips">${chips}</div>` : ''}
+    <div class="loyal-meta">${buy ? `🧾 Đã mua <b>${buy.cnt}</b> lần · <b>${goalMoney(buy.amt)}</b> · gần nhất ${goalDM(toLocalDateStr(new Date(buy.last)))}` : '🧾 Chưa thấy đơn trong app (hoá đơn giữ 60 ngày)'}${careArr[0] ? ` · Lần chăm sóc gần nhất: ${fmtDateTimeShort(careArr[0].at)} — ${escHtml(careArr[0].result||'')}` : ''}</div>
+    <div class="loyal-pct" title="Điền thêm thông tin để chăm sóc khách tốt hơn"><div class="goal-bar ${pct>=70 ? 'ok' : (pct>=40 ? 'mid' : '')}"><i style="width:${pct}%"></i></div><span>Hồ sơ đầy đủ ${pct}%${pct<70 ? ' — <a href="#" onclick="loyalOpenForm(\'' + c.id + '\'); return false;">điền thêm</a>' : ''}</span></div>
+    <div class="loyal-actions">
+      <button class="btn-primary btn-small" onclick="loyalOpenMsg('${c.id}')">✉️ Nhắn tin mẫu</button>
+      <button class="btn-ghost btn-small" onclick="loyalOpenCare('${c.id}')">✅ Ghi chăm sóc</button>
+      <button class="btn-ghost btn-small" onclick="loyalMakeInvoice('${c.id}')">🧾 Lên hoá đơn</button>
+      <button class="btn-ghost btn-small" onclick="loyalOpenForm('${c.id}')">✏️ Sửa / điền thêm</button>
+      <button class="btn-ghost btn-small" onclick="loyalOpen['${c.id}']=!loyalOpen['${c.id}']; renderLoyalSection()">${open ? '▴ Thu gọn' : '▾ Xem đầy đủ'}</button>
+    </div>${detail}</div>`;
+}
+// ----- Form thêm / sửa (chia nhóm, điền dần) -----
+function loyalOpenForm(id){
+  loyalEditId = id; const c = id ? (loyalList[id] || {}) : {sao: '1', careEvery: 14};
+  const filled = s=>s.fields.filter(f=>String(c[f[0]]||'').trim()).length;
+  const fieldHtml = f=>{ const [k, label, type, opt] = f, v = c[k]==null ? '' : c[k];
+    if(type==='select') return `<div class="field"><label>${label}</label><select id="lf_${k}">${opt.map(o=>`<option value="${escHtml(o)}" ${String(v)===o ? 'selected' : ''}>${k==='sao' ? '⭐'.repeat(Number(o)) : (o || '— chọn —')}</option>`).join('')}</select></div>`;
+    if(type==='textarea') return `<div class="field" style="grid-column:1/-1;"><label>${label}</label><textarea id="lf_${k}" rows="3">${escHtml(v)}</textarea></div>`;
+    return `<div class="field"><label>${label}</label><input id="lf_${k}" type="${type==='date' ? 'date' : 'text'}" ${type==='tel' ? 'inputmode="tel"' : ''} placeholder="${escHtml(opt||'')}" value="${escHtml(v)}"></div>`; };
+  const custom = (c.custom||[]).concat([{k:'',v:''}]);
+  document.getElementById('loyalModalBody').innerHTML = `<h2>${id ? '✏️ ' + escHtml(c.name) : '⭐ Thêm khách thân thiết'}</h2>
+    <p class="goal-hint" style="margin:0 0 10px;">Chỉ bắt buộc <b>Tên + SĐT</b>. Các nhóm khác mở ra điền dần, lần sau vào "Sửa / điền thêm".</p>
+    ${LOYAL_SECTIONS.map((s,i)=>`<details class="loyal-sec" ${i===0 || (id && filled(s)) ? 'open' : ''}><summary>${s.title} <span class="muted-s">${filled(s)}/${s.fields.length}</span></summary><div class="loyal-grid">${s.fields.map(fieldHtml).join('')}</div></details>`).join('')}
+    <details class="loyal-sec" ${(c.custom||[]).length ? 'open' : ''}><summary>📝 Thông tin thêm (tự đặt) <span class="muted-s">${(c.custom||[]).length}</span></summary>
+      <p class="goal-hint" style="margin:6px 0;">Thông tin nào chưa có ô sẵn thì tự ghi, VD "Biển số xe" – "29A…", "Con học trường" – "…".</p>
+      <div id="loyalCustomRows">${custom.map(x=>loyalCustomRow(x.k, x.v)).join('')}</div>
+      <button class="btn-ghost btn-small" onclick="document.getElementById('loyalCustomRows').insertAdjacentHTML('beforeend', loyalCustomRow('',''))">+ Thêm dòng</button></details>
+    <details class="loyal-sec" open><summary>🔔 Nhắc chăm sóc</summary><div class="loyal-grid">
+      <div class="field"><label>Nhắc chăm sóc lại mỗi</label><select id="lf_careEvery">${[7,14,21,30,45,60,90].map(n=>`<option value="${n}" ${Number(c.careEvery||14)===n ? 'selected' : ''}>${n} ngày</option>`).join('')}</select></div></div></details>
+    <div class="login-error" id="loyalErr"></div>
+    <div class="actions" style="flex-wrap:wrap; gap:8px;">${id ? `<button class="btn-ghost" style="color:var(--danger);" onclick="loyalDelete('${id}')">Xoá khách</button>` : ''}<span style="flex:1;"></span>
+      <button class="btn-ghost" onclick="loyalCloseModal()">Huỷ</button><button class="btn-primary" onclick="loyalSave()">Lưu</button></div>`;
+  loyalShowModal();
+}
+function loyalCustomRow(k, v){ return `<div class="loyal-custom"><input placeholder="Tên thông tin" value="${escHtml(k)}"><input placeholder="Nội dung" value="${escHtml(v)}"><button class="btn-ghost btn-small" onclick="this.parentElement.remove()" aria-label="Xoá dòng">✕</button></div>`; }
+function loyalShowModal(){ document.getElementById('loyalModal').classList.add('show'); }
+function loyalCloseModal(){ document.getElementById('loyalModal').classList.remove('show'); loyalEditId = null; loyalCareId = null; if(myLeadsActiveTab==='loyal') renderLoyalSection(); }
+function loyalSave(){
+  const me = currentUser(); if(!goalHasOwn(me)) return;
+  const err = m=>{ document.getElementById('loyalErr').textContent = m; };
+  const v = k=>{ const el = document.getElementById('lf_' + k); return el ? String(el.value||'').trim() : ''; };
+  const name = v('name'), phone = recareFixPhone(v('phone'));
+  if(!name){ err('Nhập tên gọi của khách.'); return; }
+  if(!phone){ err('SĐT chưa đúng (10 số, bắt đầu bằng 0).'); return; }
+  const dup = loyalArr().find(x=>x.id!==loyalEditId && normalizePhone(x.phone)===normalizePhone(phone));
+  if(dup){ err(`SĐT này đã có trong danh sách: ${dup.name}.`); return; }
+  const id = loyalEditId || ('k' + uid()), old = loyalList[id] || {};
+  const rec = {id, name: name.slice(0,80), phone, updatedAt: nowMs(), createdAt: old.createdAt || nowMs()};
+  LOYAL_FIELD_KEYS.forEach(k=>{ if(k==='name' || k==='phone') return; const x = v(k); rec[k] = x ? x.slice(0, k==='ghiChu' ? 1500 : 200) : null; });
+  if(rec.zalo){ const z = recareFixPhone(rec.zalo); rec.zalo = z || rec.zalo; }
+  rec.custom = Array.from(document.querySelectorAll('#loyalCustomRows .loyal-custom')).map(r=>{ const [a,b] = r.querySelectorAll('input'); return {k: a.value.trim().slice(0,60), v: b.value.trim().slice(0,300)}; }).filter(x=>x.k && x.v).slice(0,30);
+  if(!rec.custom.length) rec.custom = null;
+  rec.careEvery = Number(v('careEvery')) || 14;
+  if(!old.nextCareAt || Number(old.careEvery||14)!==rec.careEvery) rec.nextCareAt = (Number(old.lastCareAt) || nowMs()) + rec.careEvery*86400000;
+  fbRoot.child(`loyalCustomers/${me.id}/${id}`).update(rec).then(()=>showToast(loyalEditId ? 'Đã lưu thông tin khách' : `Đã thêm ${name} vào khách thân thiết`)).catch(e=>{ console.error(e); showToast('Chưa lưu được — kiểm tra mạng'); });
+  loyalList[id] = Object.assign({}, old, rec);
+  loyalCloseModal();
+}
+function loyalDelete(id){
+  const me = currentUser(), c = loyalList[id]; if(!c) return;
+  loyalCloseModal();
+  askConfirm('Xoá khách thân thiết?', `Xoá ${c.name} (${c.phone}) khỏi danh sách khách thân thiết của bạn.`, ()=>{ fbRoot.child(`loyalCustomers/${me.id}/${id}`).remove(); delete loyalList[id]; renderLoyalSection(); });
+}
+// ----- Ghi chăm sóc -----
+function loyalOpenCare(id){
+  const c = loyalList[id]; if(!c) return; loyalCareId = id;
+  document.getElementById('loyalModalBody').innerHTML = `<h2>✅ Ghi chăm sóc — ${escHtml(c.name)}</h2>
+    <div class="loyal-grid">
+      <div class="field"><label>Liên hệ qua</label><select id="lc_channel">${['Zalo','Gọi điện','Facebook','Gặp trực tiếp','SMS'].map(o=>`<option ${o===(c.kenh==='Gọi điện' ? 'Gọi điện' : (c.kenh||'Zalo')) ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
+      <div class="field"><label>Kết quả</label><select id="lc_result">${LOYAL_CARE_RESULTS.map(o=>`<option>${o}</option>`).join('')}</select></div>
+      <div class="field" style="grid-column:1/-1;"><label>Ghi chú (khách nói gì, muốn gì…)</label><textarea id="lc_note" rows="3"></textarea></div>
+      <div class="field"><label>Hẹn chăm sóc lại sau</label><select id="lc_next">${[1,3,7,14,21,30,60].map(n=>`<option value="${n}" ${n===Number(c.careEvery||14) ? 'selected' : ''}>${n} ngày</option>`).join('')}</select></div>
+    </div>
+    <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Huỷ</button><button class="btn-primary" onclick="loyalSaveCare()">Lưu</button></div>`;
+  loyalShowModal();
+}
+function loyalSaveCare(){
+  const me = currentUser(), id = loyalCareId, c = loyalList[id]; if(!c) return;
+  const at = nowMs(), cid = 'c' + uid(), days = Number(document.getElementById('lc_next').value) || 14;
+  const entry = {at, channel: document.getElementById('lc_channel').value, result: document.getElementById('lc_result').value, note: document.getElementById('lc_note').value.trim().slice(0,500) || null};
+  const up = {[`care/${cid}`]: entry, lastCareAt: at, nextCareAt: loyalStartOfToday() + days*86400000, updatedAt: at};
+  fbRoot.child(`loyalCustomers/${me.id}/${id}`).update(up).then(()=>showToast('Đã ghi chăm sóc ' + c.name)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  c.care = Object.assign({}, c.care, {[cid]: entry}); c.lastCareAt = at; c.nextCareAt = up.nextCareAt;
+  loyalCloseModal();
+}
+// ----- Tin nhắn mẫu: điền sẵn tên khách → chép + mở Zalo -----
+function loyalFill(tpl, c){
+  const call = (c.xungHo && !String(c.name).toLowerCase().startsWith(c.xungHo.toLowerCase()) ? c.xungHo + ' ' : '') + c.name;
+  const cap = s=>s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  return tpl.replace(/\{Ten\}/g, cap(call)).replace(/\{ten\}/g, call).replace(/\{mau\}/g, c.mauHayMua ? ` (dòng ${c.mauHayMua} ${call} hay lấy)` : '');
+}
+function loyalOpenMsg(id){
+  const c = loyalList[id]; if(!c) return; loyalCareId = id;
+  const bd = loyalDaysToBirthday(c);
+  const tpls = loyalAllTemplates().sort((a,b)=>(b[0].includes('Sinh nhật') && bd!==null && bd<=7 ? 1 : 0) - (a[0].includes('Sinh nhật') && bd!==null && bd<=7 ? 1 : 0));
+  document.getElementById('loyalModalBody').innerHTML = `<h2>✉️ Nhắn ${escHtml(c.name)}</h2>
+    <div class="chip-row" style="margin:6px 0 10px;">${tpls.map((t,i)=>`<div class="chip ${i===0 ? 'selected' : ''}" onclick="document.querySelectorAll('#loyalModalBody .chip').forEach(x=>x.classList.remove('selected')); this.classList.add('selected'); document.getElementById('lm_text').value=this.dataset.t" data-t="${escHtml(loyalFill(t[1], c))}">${t[0]}</div>`).join('')}</div>
+    <div class="field"><label>Nội dung (sửa thoải mái trước khi gửi)</label><textarea id="lm_text" rows="6">${escHtml(loyalFill(tpls[0][1], c))}</textarea></div>
+    <div class="actions" style="flex-wrap:wrap; gap:8px;"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button>
+      <button class="btn-ghost" onclick="loyalCopyMsg(false)">📋 Chép</button>
+      <button class="btn-primary" onclick="loyalCopyMsg(true)">📋 Chép & mở Zalo</button></div>`;
+  loyalShowModal();
+}
+function loyalCopyMsg(openZalo){
+  const c = loyalList[loyalCareId]; const t = document.getElementById('lm_text').value;
+  const done = ()=>{ showToast('Đã chép tin nhắn — dán vào Zalo để gửi'); if(openZalo && c){ const z = normalizePhone(c.zalo || c.phone); if(z) window.open('https://zalo.me/' + z, '_blank'); } };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(()=>{ const el = document.getElementById('lm_text'); el.select(); try{ document.execCommand('copy'); }catch(e){} done(); });
+  else { const el = document.getElementById('lm_text'); el.select(); try{ document.execCommand('copy'); }catch(e){} done(); }
+}
+// ----- Lên hoá đơn cho khách -----
+function loyalMakeInvoice(id){
+  const c = loyalList[id]; if(!c) return;
+  goPage('invoices'); startNewInvoiceDraft();
+  if(!currentInvoiceDraft || currentInvoiceDraft.id) return; // bị khoá tạo hoá đơn (đơn quá hạn chưa lên vận đơn)
+  currentInvoiceDraft.customerName = c.name; currentInvoiceDraft.customerPhone = c.phone;
+  renderInvoicesPage();
+}
+
+// ----- Mẫu tin nhắn của CÔNG TY (Quản lý chung soạn: appSettings/loyalTemplates = [{title, text}]) -----
+let loyalCompanyTpls = [], loyalTplSub = null;
+function loyalTplListen(user){
+  if(loyalTplSub){ try{ loyalTplSub.off(); }catch(e){} loyalTplSub = null; }
+  if(!user || !fbRoot || !(goalHasOwn(user) || user.role==='general_manager')) return;
+  loyalTplSub = fbRoot.child('appSettings/loyalTemplates');
+  loyalTplSub.on('value', snap=>{ const v = snap.val(); loyalTplDraft = null; loyalCompanyTpls = Array.isArray(v) ? v.filter(x=>x && x.title && x.text) : Object.values(v||{}).filter(x=>x && x.title && x.text); if(currentPageId==='mgrLoyal') renderMgrLoyal(); });
+}
+function loyalAllTemplates(){ return loyalCompanyTpls.map(t=>['🏢 ' + t.title, t.text]).concat(LOYAL_TEMPLATES); }
+
+// ----- Trang Quản lý: Khách thân thiết của các Sale -----
+let mgrLoyalData = {}, mgrLoyalSubs = [], mgrLoyalLoaded = false, mgrLoyalOpen = {}, mgrLoyalKey = null;
+function mgrLoyalListen(){
+  const me = currentUser(); if(!me) return;
+  const key = me.id + '|' + me.role + '|' + (me.branchId||'');
+  if(mgrLoyalKey===key) return;
+  mgrLoyalSubs.forEach(r=>{ try{ r.off(); }catch(e){} }); mgrLoyalSubs = []; mgrLoyalData = {}; mgrLoyalLoaded = false; mgrLoyalKey = key;
+  if(me.role==='general_manager'){
+    const r = fbRoot.child('loyalCustomers'); mgrLoyalSubs.push(r);
+    r.on('value', snap=>{ mgrLoyalData = snap.val() || {}; mgrLoyalLoaded = true; if(currentPageId==='mgrLoyal') renderMgrLoyal(); });
+  } else if(false){ // Quản lý team không còn quyền xem (chỉ Quản lý chung)
+    const ids = reportableUsersInBranch(me.branchId).map(u=>u.id); let left = ids.length;
+    if(!left){ mgrLoyalLoaded = true; }
+    ids.forEach(id=>{ const r = fbRoot.child('loyalCustomers/' + id); mgrLoyalSubs.push(r);
+      let first = true; r.on('value', snap=>{ mgrLoyalData[id] = snap.val() || {}; if(first){ first = false; if(--left<=0) mgrLoyalLoaded = true; } if(currentPageId==='mgrLoyal') renderMgrLoyal(); }); });
+  }
+}
+function loyalStatsFor(list){
+  const due = list.filter(loyalIsDue).length, over = list.filter(c=>Number(c.nextCareAt) && Number(c.nextCareAt) < loyalStartOfToday()).length;
+  const bday = list.filter(c=>{ const d = loyalDaysToBirthday(c); return d!==null && d<=7; }).length;
+  const pct = list.length ? Math.round(list.reduce((t,c)=>t+loyalCompleteness(c),0)/list.length) : 0;
+  const weekAgo = nowMs() - 7*86400000;
+  const cared7 = list.filter(c=>Number(c.lastCareAt) >= weekAgo).length;
+  const lastCare = Math.max(0, ...list.map(c=>Number(c.lastCareAt)||0));
+  return {n: list.length, due, over, bday, pct, cared7, lastCare};
+}
+function loyalBuyStatsFor(c, saleId){
+  const n = normalizePhone(c.phone); if(!n) return null;
+  let cnt = 0, amt = 0, last = 0; const leadIds = new Set();
+  (state.invoices||[]).forEach(i=>{ if(!i || i.saleId!==saleId || normalizePhone(i.customerPhone)!==n) return;
+    cnt++; amt += Number(i.totalAmount)||0; const t = Number(i.depositLink && i.depositLink.markedAt) || Number(i.createdAt)||0; if(t>last) last = t; if(i.leadId) leadIds.add(i.leadId); });
+  (state.leads||[]).forEach(l=>{ if(!l || l.assignedTo!==saleId || l.status!=='Đã chốt' || leadIds.has(l.id) || normalizePhone(leadPhone(l))!==n) return;
+    cnt++; amt += Number(l.closedAmount)||0; const t = Number(l.closedAt) || (l.closedDate ? Date.parse(l.closedDate + 'T12:00:00') : 0); if(t>last) last = t; });
+  return cnt ? {cnt, amt, last} : null;
+}
+function renderMgrLoyal(){
+  const box = document.getElementById('mgrLoyalBody'); if(!box) return;
+  const me = currentUser(); if(!me) return;
+  if(me.role!=='general_manager'){ box.innerHTML = '<div class="card"><div class="empty-note">Chỉ Quản lý chung xem được mục này.</div></div>'; return; }
+  mgrLoyalListen();
+  const isGM = me.role==='general_manager';
+  const sales = (isGM ? reportableUsersInBranch(null) : reportableUsersInBranch(me.branchId)).sort((a,b)=>branchName(a.branchId).localeCompare(branchName(b.branchId),'vi') || a.name.localeCompare(b.name,'vi'));
+  let html = loyalTplEditorHtml(isGM);
+  if(!mgrLoyalLoaded){ box.innerHTML = html + '<div class="card"><div class="empty-note">Đang tải…</div></div>'; return; }
+  const rows = sales.map(u=>{ const list = Object.values(mgrLoyalData[u.id]||{}).filter(c=>c && c.id); return {u, list, st: loyalStatsFor(list)}; });
+  const T = loyalStatsFor(rows.flatMap(r=>r.list));
+  const careCell = st=>st.lastCare ? fmtDateTimeShort(st.lastCare) : '<span style="color:var(--ink-soft);">chưa có</span>';
+  html += `<div class="card"><h2>${isGM ? 'Toàn công ty' : 'Team ' + escHtml(branchName(me.branchId))}</h2>
+    <div class="goal-team-stats">
+      ${goalStatBox('Khách thân thiết', T.n, `${rows.filter(r=>r.list.length).length}/${rows.length} Sale đã ghi`)}
+      ${goalStatBox('Cần chăm sóc hôm nay', T.due, T.over ? `<span style="color:var(--danger);">${T.over} khách quá hạn</span>` : 'không có khách quá hạn')}
+      ${goalStatBox('Đã chăm sóc 7 ngày qua', T.cared7, T.n ? Math.round(T.cared7/T.n*100) + '% số khách' : '')}
+      ${goalStatBox('Hồ sơ đầy đủ TB', T.pct + '%', `${T.bday} khách sắp sinh nhật`)}
+    </div>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th>Sale</th><th>Team</th><th class="num">Số khách</th><th class="num">Cần CS hôm nay</th><th class="num">Quá hạn</th><th class="num">Đã CS 7 ngày</th><th class="num">Hồ sơ TB</th><th class="num">🎂 7 ngày</th><th>Lần CS gần nhất</th><th></th></tr></thead><tbody>
+    ${rows.sort((a,b)=>b.st.over-a.st.over || b.st.n-a.st.n).map(r=>{ const st = r.st, open = mgrLoyalOpen[r.u.id];
+      let tr = `<tr><td><b>${escHtml(r.u.name)}</b></td><td>${escHtml(branchName(r.u.branchId))}</td><td class="num">${st.n || '<span class="badge badge-warn">Chưa ghi</span>'}</td>
+        <td class="num">${st.due || '—'}</td><td class="num" style="${st.over ? 'color:var(--danger); font-weight:700;' : ''}">${st.over || '—'}</td><td class="num">${st.cared7 || '—'}</td>
+        <td class="num">${st.n ? st.pct + '%' : '—'}</td><td class="num">${st.bday || '—'}</td><td>${careCell(st)}</td>
+        <td>${st.n ? `<span class="gt-toggle" onclick="mgrLoyalOpen['${r.u.id}']=!mgrLoyalOpen['${r.u.id}']; renderMgrLoyal()">${open ? '▾ Thu gọn' : '▸ Xem khách'}</span>` : ''}</td></tr>`;
+      if(open && st.n) tr += `<tr class="goal-tasks-row"><td colspan="10">${mgrLoyalListHtml(r.list, r.u.id)}</td></tr>`;
+      return tr; }).join('') || '<tr><td colspan="10"><div class="empty-note">Chưa có Sale.</div></td></tr>'}
+    </tbody></table></div>
+    <p class="goal-hint" style="margin-top:8px;">CS = chăm sóc. "Quá hạn" = đã qua ngày hẹn chăm sóc mà Sale chưa ghi lần chăm sóc mới.</p></div>`;
+  box.innerHTML = html;
+}
+function mgrLoyalListHtml(list, saleId){
+  const sorted = list.slice().sort((a,b)=>(Number(a.nextCareAt)||9e15)-(Number(b.nextCareAt)||9e15));
+  return `<table class="rtable" style="margin:0;"><thead><tr><th>Khách</th><th>SĐT</th><th>Mức thân</th><th>Loại</th><th class="num">Hồ sơ</th><th>Đã mua (60 ngày)</th><th>Lần CS gần nhất</th><th>Hẹn CS</th></tr></thead><tbody>
+    ${sorted.map(c=>{ const st = loyalCareState(c), buy = loyalBuyStatsFor(c, saleId), care = Object.values(c.care||{}).filter(Boolean).sort((a,b)=>b.at-a.at)[0], bd = loyalDaysToBirthday(c);
+      return `<tr><td><b>${escHtml(c.name)}</b>${bd!==null && bd<=7 ? ' 🎂' : ''}</td><td><a href="tel:${escHtml(c.phone)}" style="color:var(--accent);">${escHtml(c.phone)}</a></td><td>${'⭐'.repeat(Math.max(1,Math.min(3,Number(c.sao)||1)))}</td><td>${escHtml(c.loaiKhach||'—')}</td>
+        <td class="num">${loyalCompleteness(c)}%</td><td>${buy ? `${buy.cnt} lần · ${goalMoney(buy.amt)}` : '—'}</td>
+        <td style="white-space:normal; min-width:160px;">${care ? `${fmtDateTimeShort(care.at)} · ${escHtml(care.result||'')}${care.note ? ' — ' + escHtml(care.note) : ''}` : '—'}</td>
+        <td><span class="loyal-due ${st.cls}">${escHtml(st.txt || '—')}</span></td></tr>`; }).join('')}</tbody></table>`;
+}
+// ----- Soạn mẫu tin nhắn công ty (Quản lý chung) -----
+let loyalTplDraft = null;
+function loyalTplEditorHtml(isGM){
+  const list = loyalCompanyTpls;
+  if(!isGM) return list.length ? `<div class="card"><h2>✉️ Mẫu tin nhắn công ty (${list.length})</h2>${list.map(t=>`<div class="loyal-tpl"><b>${escHtml(t.title)}</b><div>${escHtml(t.text)}</div></div>`).join('')}</div>` : '';
+  if(!loyalTplDraft) loyalTplDraft = list.map(t=>({title: t.title, text: t.text}));
+  return `<div class="card"><h2>✉️ Mẫu tin nhắn công ty</h2>
+    <p class="goal-hint">Mẫu soạn ở đây hiện cho <b>tất cả Sale</b> (đứng đầu, có biểu tượng 🏢) khi bấm "Nhắn tin mẫu" ở Khách thân thiết. Chèn tự động: <code>{ten}</code> = xưng hô + tên khách (chị Lan), <code>{Ten}</code> = viết hoa đầu câu (Chị Lan), <code>{mau}</code> = mẫu khách hay mua.</p>
+    <div id="loyalTplRows">${loyalTplDraft.map((t,i)=>`<div class="loyal-tpl-edit">
+      <input placeholder="Tên mẫu, VD: Ra mắt BST Tết" value="${escHtml(t.title)}" oninput="loyalTplDraft[${i}].title=this.value">
+      <textarea rows="3" placeholder="Nội dung, VD: Chào {ten} ạ, bên em vừa ra bộ sưu tập Tết…" oninput="loyalTplDraft[${i}].text=this.value">${escHtml(t.text)}</textarea>
+      <button class="btn-ghost btn-small" onclick="loyalTplDraft.splice(${i},1); renderMgrLoyal()" aria-label="Xoá mẫu">✕</button></div>`).join('') || '<p class="goal-hint">Chưa có mẫu riêng — Sale đang dùng 5 mẫu có sẵn của app.</p>'}</div>
+    <div class="goal-actions"><button class="btn-ghost btn-small" onclick="loyalTplDraft.push({title:'',text:''}); renderMgrLoyal()">+ Thêm mẫu</button>
+      <button class="btn-primary btn-small" onclick="loyalTplSave()">Lưu mẫu cho tất cả Sale</button></div></div>`;
+}
+function loyalTplSave(){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  const list = (loyalTplDraft||[]).map(t=>({title: String(t.title||'').trim().slice(0,60), text: String(t.text||'').trim().slice(0,1000)})).filter(t=>t.title && t.text).slice(0,20);
+  fbRoot.child('appSettings/loyalTemplates').set(list.length ? list : null).then(()=>{ showToast(`Đã lưu ${list.length} mẫu tin nhắn cho tất cả Sale`); loyalTplDraft = null; renderMgrLoyal(); }).catch(e=>{ console.error(e); showToast('Chưa lưu được — kiểm tra mạng'); });
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
