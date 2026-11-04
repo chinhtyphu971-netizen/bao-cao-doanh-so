@@ -7313,7 +7313,7 @@ const SHIP_LATE_HOURS = 1;
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
   const invK = packInvById(ps.id); const abitH = invK ? abitTagHtml(invK) : '';
-  if(abitH && !ps.ship) return `<div class="pack-sub">${abitH}</div>` + shipKhoLine2(ps);
+  if(abitH && !ps.ship){ const l2 = shipKhoLine2(ps); return l2 ? l2.replace(/^(<div[^>]*>)/, '$1' + abitH.trim() + ' ') : `<div class="pack-sub">${abitH}</div>`; } // mã đơn Abit + "Chưa gửi vận đơn" chung 1 hàng
   if(abitH && ps.ship) return shipKhoLine2(ps).replace(/<\/div>$/, abitH + '</div>');
   return shipKhoLine2(ps);
 }
