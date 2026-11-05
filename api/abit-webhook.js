@@ -85,6 +85,7 @@ async function handleOne(D, o, now){
     upd['invoices/' + id + '/abit/invoice_no'] = invNo;
     if(via !== 'abitMap') upd['abitMap/' + safeKey(invNo)] = id; // lần sau tra nhanh
   }
+  { const aid = o.invoice_id || o.invoiceid; if(aid) upd['invoices/' + id + '/abit/invoiceid'] = String(aid); } // mã nội bộ Abit → mở thẳng đơn trên Abit để in
   if(tracking) upd['invoices/' + id + '/abit/tracking'] = codeSet.length > 1 ? codeSet.join(', ') : tracking;
   if(carrierCode) upd['invoices/' + id + '/abit/carrier'] = carrierCode;
 
