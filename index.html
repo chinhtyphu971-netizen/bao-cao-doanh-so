@@ -1917,6 +1917,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .row-resigned td{ opacity:.55; }
   .badge.resigned-tag{ background:rgba(148,163,184,.18); color:#AEB8CC; }
   .pack-sale-badge.bad{ background:rgba(229,72,77,.14); color:#FF8A8D; border:1px solid rgba(229,72,77,.5); }
+  .card > details.mgr-sec.in-card{ padding:0 !important; margin:0 !important; border:0; background:none; }
 </style>
 </head>
 <body>
@@ -10517,8 +10518,8 @@ function renderRingtoneCard(){
         ${toneUsedBy(x.id).length ? '' : `<button class="btn-ghost btn-small" onclick="ringtoneDelete('${x.id}')" aria-label="Xoá ${escHtml(x.name||'')}">Xoá</button>`}
       </td></tr>`;
   }).join('');
-  el.innerHTML = `
-    <h2>🔔 Nhạc chuông</h2>
+  const nTone = TONE_EVENTS.filter(e=>toneCurrent(e.key)).length;
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="ringtone" ${secOpen('ringtone', !!recState)} ontoggle="mgrSecToggle(this)"><summary><h2>🔔 Nhạc chuông</h2><span class="mgr-sec-sum">${nTone}/${TONE_EVENTS.length} sự kiện có chuông riêng · thư viện ${lib.length} bài</span></summary>
     <p class="goal-hint">Áp dụng cho <b>tất cả</b> tài khoản (app phải đang mở). Tải file lên hoặc <b>🎙️ ghi âm ngay tại đây</b>, rồi chọn bài cho từng việc. File mp3/m4a/wav, tối đa ${Math.round(RINGTONE_MAX_BYTES/1024)} KB mỗi bài, lưu tối đa ${RINGTONE_LIB_MAX} bài.</p>
     <h3 style="margin:6px 0 6px; font-size:15px;">Chuông theo từng sự kiện</h3>
     <p class="goal-hint" style="margin:0 0 6px;">Mỗi dòng: bấm <b>⬆ Tải lên</b> để chọn file nhạc cho đúng sự kiện đó, hoặc <b>🎙️</b> để ghi âm, hoặc chọn bài đã có trong ô. Để "ting" mặc định nếu không cần chuông riêng.</p>
@@ -10537,7 +10538,7 @@ function renderRingtoneCard(){
     ${r && r.data ? `<div class="grid-2" style="margin-top:14px; max-width:560px;">
       <div class="field"><label>Âm lượng chuông data mới: <b id="ringVolTxt">${vol}%</b></label><input type="range" min="10" max="100" step="5" value="${vol}" oninput="document.getElementById('ringVolTxt').textContent=this.value+'%'" onchange="ringtoneSetOpt('volume', this.value/100)"></div>
       <div class="field"><label>Phát tối đa</label><select onchange="ringtoneSetOpt('maxSec', Number(this.value))">${[5,10,20,30].map(n=>`<option value="${n}" ${n===maxSec ? 'selected' : ''}>${n} giây</option>`).join('')}</select></div>
-    </div>` : ''}`;
+    </div>` : ''}</details>`;
   try{ renderRecBox(); }catch(e){} // giữ phần ghi âm đang dở khi khung vẽ lại
 }
 function ringtoneUse(id){
@@ -15819,7 +15820,7 @@ function renderDataUsageCard(){
   const mb = b=>b >= 1048576 ? (b/1048576).toFixed(1) + ' MB' : (b >= 1024 ? Math.round(b/1024) + ' KB' : b + ' B');
   const rows = r ? r.rows.slice().sort((a,b)=>b.est-a.est) : [];
   const total = rows.reduce((t,x)=>t+x.est, 0);
-  el.innerHTML = `<h2>📊 Dung lượng dữ liệu Firebase</h2>
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="usage" ${secOpen('usage', !!dataUsageRunning)} ontoggle="mgrSecToggle(this)"><summary><h2>📊 Dung lượng dữ liệu Firebase</h2><span class="mgr-sec-sum">${r ? 'đo lúc ' + fmtDateTimeShort(r.at) : 'chưa đo trong phiên này'}</span></summary>
     <p class="goal-hint">Đo xem nhánh dữ liệu nào nặng nhất và ai tải nó mỗi lần mở app — để tối ưu chi phí "Downloads". Lần đo chỉ tốn vài MB (đếm số mục + lấy mẫu), không tải toàn bộ.</p>
     <button class="btn-primary" ${dataUsageRunning ? 'disabled' : ''} onclick="dataUsageMeasure()">${dataUsageRunning ? 'Đang đo… ' + escHtml(dataUsageRunning===true ? '' : dataUsageRunning) : (r ? '🔄 Đo lại' : '📏 Đo ngay')}</button>
     ${r ? `<p class="goal-hint" style="margin:10px 0 6px;">Đo lúc ${fmtDateTimeShort(r.at)} · tổng ước tính <b>${mb(total)}</b> (Firebase báo Storage để so sánh). Dòng tô vàng = <b>tải mỗi lần mở app</b>.</p>
@@ -15828,7 +15829,7 @@ function renderDataUsageCard(){
         return `<tr style="${hot && x.est > 1048576 ? 'background:rgba(224,169,62,.12);' : ''}"><td><b>${escHtml(x.key)}</b></td><td class="num">${x.count===null ? '—' : x.count.toLocaleString('vi-VN')}</td><td class="num">${x.avg===null ? '—' : mb(Math.round(x.avg))}</td><td class="num"><b>${mb(Math.round(x.est))}</b></td><td class="num">${total ? Math.round(x.est/total*100) : 0}%</td><td style="white-space:normal; min-width:220px; font-size:12.5px;">${escHtml(DATA_USAGE_WHO[x.key] || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : ''}
     ${usageOpensHtml(r, mb)}
-    <span class="login-error" id="dataUsageErr"></span>`;
+    <span class="login-error" id="dataUsageErr"></span></details>`;
   if(usageOpensCache===null){ usageOpensCache = {}; usageLoadOpens(); }
 }
 function usageOpensHtml(r, mb){
