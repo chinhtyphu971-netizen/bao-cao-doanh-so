@@ -7330,6 +7330,36 @@ function abitPushAfterPack(invId){
     else console.warn('Abit push lỗi:', res.error);
   }, 2500); // chờ hoá đơn / trạng thái ghi xong
 }
+// 🔁 TỰ ĐẨY LẠI NỀN: lần đẩy ngay sau khi đóng có thể hỏng (máy đóng gói mất wifi, tắt màn hình, Abit chậm…)
+// → máy Quản lý chung / Kho / Đóng gói đang mở app cứ ~90 giây rà: đơn ĐÃ ĐÓNG (3 ngày gần đây), chưa gửi vận đơn,
+//   chưa có trên Abit, Sale đã gắn TK Abit → tự đẩy. Máy chủ có khoá + đọc lại → nhiều máy cùng rà cũng không tạo trùng.
+//   Đơn bị Abit báo LỖI (sai mã SP, thiếu địa chỉ…) → 10 phút mới thử lại, để người sửa trước.
+const abitSweepTried = {}; let abitSweepBusy = false;
+async function abitAutoSweep(){
+  const me = currentUser(); if(abitSweepBusy || !me || !['general_manager','warehouse','packer'].includes(me.role) || !navigator.onLine) return;
+  const ps = packStatusMap(), now = nowMs();
+  const list = (state.invoices||[]).filter(inv=>{
+    const p = inv && ps[inv.id]; if(!p || p.legacy || !(p.state==='packed' || p.state==='partial') || p.ship) return false;
+    if(now - Math.max(Number(p.packedAt)||0, Number(p.at)||0) > 3*86400000) return false;
+    if(now - Math.max(Number(p.packedAt)||0, Number(p.at)||0) < 20000) return false; // vừa đóng → để lần đẩy ngay sau đóng chạy trước
+    const a = inv.abit || {};
+    if(a.invoice_no && !(a.pkgCount > 1 && a.error)) return false; // đã có trên Abit (đơn nhiều kiện còn thiếu kiện → đẩy tiếp)
+    if(a.error && now - (Number(a.at)||0) < 10*60000) return false;
+    if(now - (abitSweepTried[inv.id]||0) < 3*60000) return false;
+    return !!abitSaleAccount(inv.id);
+  }).slice(0, 5);
+  if(!list.length) return;
+  abitSweepBusy = true;
+  try{
+    for(const inv of list){
+      abitSweepTried[inv.id] = nowMs();
+      const r = await abitPush(inv.id, true);
+      if(r && r.ok && !r.existed) console.log('🔁 Tự đẩy lại sang Abit:', inv.invoiceNumber, r.invoice_no);
+    }
+  }catch(e){ console.warn('abitAutoSweep', e); }
+  abitSweepBusy = false;
+}
+setInterval(()=>{ try{ abitAutoSweep(); }catch(e){} }, 90000);
 async function abitRetry(invId){
   showToast('🔗 Đang đẩy sang Abit…');
   const res = await abitPush(invId, true);
