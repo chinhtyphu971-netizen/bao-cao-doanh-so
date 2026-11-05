@@ -1914,6 +1914,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   @media (prefers-reduced-motion: reduce){ .rec-dot{ animation:none; } }
   .tone-table select{ min-height:32px; padding:3px 8px; font-size:13px; max-width:220px; }
   .tone-table td{ padding-top:5px; padding-bottom:5px; }
+  .row-resigned td{ opacity:.55; }
+  .badge.resigned-tag{ background:rgba(148,163,184,.18); color:#AEB8CC; }
 </style>
 </head>
 <body>
@@ -10663,7 +10665,7 @@ function setTodayRotationBranches(branchIds){
 }
 function buildLeadPool(branchIds, date){
   return state.users.filter(u=>
-    isLeadEligibleRole(u) &&
+    isLeadEligibleRole(u) && !u.loginBlocked && // 🚪 nghỉ việc → không chia data
     branchIds.includes(u.branchId) &&
     isEligibleForNewData(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
@@ -10672,7 +10674,7 @@ function buildLeadPool(branchIds, date){
 function buildAdminPool(date){
   return state.users.filter(u=>
     (u.role==='general_manager' || u.role==='data_manager') &&
-    u.active !== false &&
+    u.active !== false && !u.loginBlocked &&
     isEligibleForNewData(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
   );
@@ -10762,7 +10764,7 @@ function distributionDiagnosis(today){
   if(!rotation || !(rotation.branchIds||[]).length) return 'Chưa chọn team nhận data hôm nay — tích team rồi bấm “Lưu team hôm nay”.';
   const otherIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
   if(buildLeadPool(rotation.branchIds, today).length || buildAdminPool(today).length || buildLeadPool(otherIds, today).length) return '';
-  const people = state.users.filter(u=>isLeadEligibleRole(u) && rotation.branchIds.includes(u.branchId));
+  const people = state.users.filter(u=>isLeadEligibleRole(u) && !u.loginBlocked && rotation.branchIds.includes(u.branchId));
   if(!people.length) return 'Các team đã chọn không có Sale nào đang hoạt động.';
   const confirmed = people.filter(u=>isEligibleTodayByAttendance(u.id, today));
   if(!confirmed.length) return `Chưa ai ở các team đã chọn được Quản lý XÁC NHẬN đi làm hôm nay (0/${people.length} người) — data chỉ chia cho người đã được xác nhận.`;
@@ -16110,7 +16112,7 @@ function renderMgrLoyal(){
   const sales = (isGM ? reportableUsersInBranch(null) : reportableUsersInBranch(me.branchId)).sort((a,b)=>branchName(a.branchId).localeCompare(branchName(b.branchId),'vi') || a.name.localeCompare(b.name,'vi'));
   let html = sourceChannelCardHtml() + tplEditorHtml('open') + tplEditorHtml('recare') + loyalTplEditorHtml(isGM);
   if(!mgrLoyalLoaded){ box.innerHTML = html + '<div class="card"><div class="empty-note">Đang tải…</div></div>'; return; }
-  const rows = sales.map(u=>{ const list = Object.values(mgrLoyalData[u.id]||{}).filter(c=>c && c.id); return {u, list, st: loyalStatsFor(list)}; });
+  const rows = sales.map(u=>{ const list = Object.values(mgrLoyalData[u.id]||{}).filter(c=>c && c.id); return {u, list, st: loyalStatsFor(list)}; }).filter(r=>!userInactive(r.u) || r.list.length);
   const T = loyalStatsFor(rows.flatMap(r=>r.list));
   const careCell = st=>st.lastCare ? fmtDateTimeShort(st.lastCare) : '<span style="color:var(--ink-soft);">chưa có</span>';
   html += `<details class="card mgr-sec" data-k="loyal_stats" ${secOpen('loyal_stats', true)} ontoggle="mgrSecToggle(this)"><summary><h2>⭐ Khách thân thiết của Sale</h2><span class="mgr-sec-sum">${T.n} khách · ${T.due} cần chăm sóc hôm nay${T.over ? ' · ' + T.over + ' quá hạn' : ''}</span></summary>
@@ -16620,7 +16622,7 @@ function goalNudgeCheck(){
 }
 function goalNudgeSend(m){
   const me = currentUser(); if(!me || me.role!=='general_manager' || m!==goalCurMonth()) return;
-  const targets = reportableUsersInBranch(null).map(u=>{ const g = (goalsByMonth[m]||{})[u.id];
+  const targets = reportableUsersInBranch(null).filter(u=>!userInactive(u)).map(u=>{ const g = (goalsByMonth[m]||{})[u.id];
     return {u, kind: !goalIsCommitted(g) ? 'goal' : (goalTasksOf(g).length < GOAL_MIN_TASKS ? 'tasks' : null)}; }).filter(x=>x.kind);
   if(!targets.length){ showToast('Mọi người đã đặt mục tiêu và ghi đủ việc cần làm'); return; }
   const nT = targets.filter(x=>x.kind==='tasks').length, nG = targets.length - nT;
@@ -16651,7 +16653,7 @@ function goalEnsureTeamInvoices(ids){
       err=>{ console.error('Lỗi tải hoá đơn thành viên:', err); goalTeamInvLoaded[id] = true; });
   });
 }
-function goalTeamMembers(u){ return reportableUsersInBranch(u.branchId).sort((a,b)=>a.name.localeCompare(b.name,'vi')); }
+function goalTeamMembers(u){ const m = goalViewMonth || goalCurMonth(); return reportableUsersInBranch(u.branchId).filter(x=>!userInactive(x) || ((goalsByMonth[m]||{})[x.id])).sort((a,b)=>a.name.localeCompare(b.name,'vi')); }
 // Doanh số đã cọc theo người, theo ngày cọc: {userId: {'2026-11-03': số tiền}}
 function goalDepositIndex(){
   const idx = {}, seen = new Set();
@@ -17269,7 +17271,7 @@ function goalGmHtml(m, dep){
   const period = goalRankPeriod;
   if(!goalRankDate || goalRankDate.slice(0,7)!==m) goalRankDate = goalRankDefaultDate(m);
   const d = goalRankDate;
-  const all = reportableUsersInBranch(null).map(u=>{
+  const all = reportableUsersInBranch(null).filter(u=>!userInactive(u) || ((goalsByMonth[m]||{})[u.id])).map(u=>{
     const c = goalCalc(u.id, m, dep, d), v = goalPeriodOf(c, period);
     let pct = c.amount ? goalPctNum(v.a, v.t) : null;
     if(c.amount && pct===null && !v.off && c.achieved >= c.amount) pct = 100; // đã đủ mục tiêu tháng → kỳ này coi như đạt
@@ -17541,15 +17543,16 @@ function renderMktOverviewPage(){
       const rate = total>0 ? (orders/total*100) : 0;
       teamTotal += total; teamAssigned += assigned; teamUnprocessed += unprocessed;
       teamOrders += orders; teamRevenue += revenue;
-      flatExportRows.push({team: team.name, name:m.name, role:m.role, total, assigned, unprocessed, orders, revenue, rate});
-      return {name:m.name, role:m.role, id:m.id, total, outside, assigned, unprocessed, orders, revenue, rate};
-    }).sort((a,b)=>b.total-a.total);
+      const resigned = userInactive(m), empty = !total && !assigned && !orders && !revenue;
+      if(!(resigned && empty)) flatExportRows.push({team: team.name, name:m.name, role:m.role, total, assigned, unprocessed, orders, revenue, rate});
+      return {name:m.name, role:m.role, id:m.id, total, outside, assigned, unprocessed, orders, revenue, rate, resigned, empty};
+    }).filter(r=>!(r.resigned && r.empty)).sort((a,b)=>b.total-a.total); // 🚪 người đã nghỉ việc + không có số liệu trong khoảng ngày → ẩn
     const isOpen = mktOverviewOpenTeams.has(key);
     const memberTableHtml = isOpen ? `
       <div style="background:var(--bg); padding:8px 12px; border-bottom:1px solid var(--line);">
         <table class="rtable"><thead><tr><th>Tên</th><th>Vai trò</th><th class="num">Tổng đã nhập</th><th class="num">Đã chia cho Sale</th><th class="num">Chưa xử lý (Sale)</th><th class="num">Số đơn chốt</th><th class="num">Doanh thu</th><th class="num">Tỉ lệ chốt</th></tr></thead><tbody>
         ${memberRows.map(r=>`<tr style="cursor:pointer;" onclick="openMktPersonRevenue('${r.id}')" onmouseenter="this.style.background='var(--panel)'" onmouseleave="this.style.background=''">
-          <td data-label="Tên"><span style="color:var(--accent); text-decoration:underline;">${r.name} ›</span></td>
+          <td data-label="Tên"><span style="color:var(--accent); text-decoration:underline;">${r.name} ›</span>${r.resigned ? ` <span class="badge resigned-tag">${userInactiveLabel(state.users.find(x=>x.id===r.id))}</span>` : ''}</td>
           <td data-label="Vai trò">${roleLabel(r.role)}</td>
           <td class="num" data-label="Tổng đã nhập">${r.total}${outsideNote(r.outside)}</td>
           <td class="num" data-label="Đã chia cho Sale">${r.assigned}</td>
@@ -17562,7 +17565,7 @@ function renderMktOverviewPage(){
       </div>` : '';
     return `<div style="border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden;">
       <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; background:var(--panel);" onclick="toggleMktOverviewTeam('${key}')">
-        <span style="font-weight:600;">${isOpen?'▾':'▸'} ${team.name} <span style="font-weight:400; color:var(--ink-soft); font-size:12.5px;">(${team.members.length} người)</span></span>
+        <span style="font-weight:600;">${isOpen?'▾':'▸'} ${team.name} <span style="font-weight:400; color:var(--ink-soft); font-size:12.5px;">(${memberRows.length} người)</span></span>
         <span style="font-size:13px; color:var(--ink-soft);">${teamTotal} data · ${teamAssigned} đã chia · ${teamUnprocessed} chưa xử lý · ${teamOrders} đơn chốt · ${fmtMoney(teamRevenue)} đ</span>
       </div>
       ${memberTableHtml}
@@ -18253,16 +18256,17 @@ function renderReportDeadlineStats(scope){
   const rows = users.map(u=>{
     let start = first; if(u.createdAt){ const c = toLocalDateStr(new Date(u.createdAt)); if(c > start) start = c; }
     let ok = 0, late = 0, miss = 0; const lateDays = [], missDays = [];
-    if(start <= end){
+    let uEnd = end; const onlyReported = userInactive(u) && !userInactiveDate(u); { const rd = userInactiveDate(u); if(rd){ const prev = toLocalDateStr(new Date(new Date(rd+'T00:00:00').getTime() - 86400000)); if(prev < uEnd) uEnd = prev; } } // nghỉ việc → chỉ tính tới hôm trước ngày nghỉ
+    if(start <= uEnd){
       const d = new Date(start+'T00:00:00'); let g = 0;
-      while(toLocalDateStr(d) <= end && g++ < 40){
+      while(toLocalDateStr(d) <= uEnd && g++ < 40){
         const ds = toLocalDateStr(d); const r = myReportForDate(u.id, ds);
-        if(!r){ miss++; missDays.push(ds); } else if(reportIsLate(r)){ late++; lateDays.push(ds); } else ok++;
+        if(!r){ if(!onlyReported){ miss++; missDays.push(ds); } } // tạm nghỉ không rõ ngày → chỉ tính ngày có báo cáo else if(reportIsLate(r)){ late++; lateDays.push(ds); } else ok++;
         d.setDate(d.getDate()+1);
       }
     }
     return {u, ok, late, miss, lateDays, missDays, total: ok+late+miss};
-  }).sort((a,b)=> (b.miss*2+b.late) - (a.miss*2+a.late) || a.u.name.localeCompare(b.u.name,'vi'));
+  }).filter(r=>!userInactive(r.u) || r.total > 0).sort((a,b)=> (b.miss*2+b.late) - (a.miss*2+a.late) || a.u.name.localeCompare(b.u.name,'vi'));
   const T = rows.reduce((t,r)=>({ok:t.ok+r.ok, late:t.late+r.late, miss:t.miss+r.miss}), {ok:0,late:0,miss:0});
   const pctOk = (r)=> r.total ? Math.round(r.ok*100/r.total) + '%' : '—';
   box.innerHTML = `<div class="toolbar" style="gap:10px; align-items:flex-end; margin:4px 0 10px;">
@@ -18276,6 +18280,28 @@ function renderReportDeadlineStats(scope){
       <td class="num" title="${r.missDays.map(fmtDate).join(', ')}">${r.miss ? `<b style="color:var(--danger);">${r.miss}</b>` : '0'}</td>
       <td class="num"><b>${pctOk(r)}</b></td></tr>`).join('') : '<tr><td colspan="6" class="empty-note">Chưa có ai.</td></tr>') +
     `</tbody></table></div><div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Rê chuột vào số Muộn / Chưa nộp để xem là những ngày nào.</div>`;
+}
+// 🚪 Nghỉ việc = loginBlocked (không đăng nhập, không chia data, không bị nhắc) — vẫn giữ tên + số liệu trong thống kê
+function userResigned(u){ return !!(u && u.loginBlocked); }
+// "Không còn làm" = Nghỉ việc (loginBlocked) HOẶC Tạm nghỉ ở bảng Phân quyền (active===false) → ẩn khỏi thống kê khi không có số liệu, không bị nhắc
+function userInactive(u){ return !!(u && (u.loginBlocked || u.active===false)); }
+function userInactiveDate(u){ if(!u) return null; const t = u.loginBlocked ? u.blockedAt : (u.active===false ? u.pausedAt : null); return t ? toLocalDateStr(new Date(Number(t))) : null; }
+function userInactiveLabel(u){ return u && u.loginBlocked ? 'nghỉ việc' : 'tạm nghỉ'; }
+function userResignDate(u){ return u && u.loginBlocked && u.blockedAt ? toLocalDateStr(new Date(Number(u.blockedAt))) : null; }
+function toggleResign(userId){
+  const u = state.users.find(x=>x.id===userId); const me = currentUser(); if(!u || !me) return;
+  if(u.id===me.id){ showToast('Không tự cho mình nghỉ việc được'); return; }
+  if(!userResigned(u) && u.role==='general_manager' && state.users.filter(x=>x.role==='general_manager' && !x.loginBlocked && x.id!==u.id).length===0){ showToast('Phải còn ít nhất 1 Quản lý chung đang làm'); return; }
+  const blocking = !userResigned(u);
+  const srcNote = blocking && (u.role==='mkt' || u.role==='mkt_manager') && (u.assignedSources||[]).length ? ` Các nguồn của ${u.name} (${u.assignedSources.length} nguồn) vẫn tính cho ${u.name} — muốn chuyển cho MKT khác thì vào Sửa tài khoản của MKT đó.` : '';
+  askConfirm(blocking ? 'Cho nghỉ việc?' : 'Mở lại tài khoản?',
+    blocking ? `${u.name} sẽ KHÔNG đăng nhập được, không được chia data, không bị nhắc báo cáo/mục tiêu. Tên và số liệu cũ VẪN GIỮ trong các thống kê. Mở lại được bất cứ lúc nào.${srcNote}`
+             : `${u.name} đăng nhập lại được bằng mã PIN cũ và quay lại làm việc bình thường.`, ()=>{
+    u.loginBlocked = blocking; u.blockedAt = blocking ? nowMs() : null;
+    fbUpdateUser(userId, {loginBlocked: blocking || null, blockedAt: blocking ? nowMs() : null, blockedBy: blocking ? me.name : null});
+    showToast(blocking ? `Đã cho ${u.name} nghỉ việc — số liệu cũ vẫn giữ` : `Đã mở lại tài khoản ${u.name}`);
+    renderMgrSettings();
+  });
 }
 function reportableUsersInBranch(branchId){
   return state.users.filter(u=>(u.role==='staff' || u.role==='team_manager') && (!branchId || u.branchId===branchId));
@@ -18391,7 +18417,7 @@ function renderMgrDashboard(){
   document.getElementById('mgrReminderTitle').textContent = isReminderToday
     ? 'Hôm nay còn ai chưa nộp báo cáo?'
     : `Ngày ${fmtDate(reminderDate)} còn ai chưa nộp báo cáo?`;
-  const staff=reportableUsersInBranch(scope);
+  const staff=reportableUsersInBranch(scope).filter(u=>!userInactive(u) || (userInactiveDate(u) && reminderDate < userInactiveDate(u)) || myReportForDate(u.id, reminderDate)); // 🚪 người đã nghỉ việc không bị nhắc
   const notSubmitted = staff.filter(u=>!myReportForDate(u.id, reminderDate));
   const lateUsers = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && reportIsLate(r); });
   const submitted = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && !reportIsLate(r); });
@@ -19801,7 +19827,7 @@ function renderMgrSettings(){
   }
 
   const usersToShow = (scope ? state.users.filter(u=>u.branchId===scope) : state.users)
-    .slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    .slice().sort((a,b)=>(userResigned(a) - userResigned(b)) || (b.createdAt||0)-(a.createdAt||0)); // người đã nghỉ xuống cuối
   const table=document.getElementById('settingsUserTable');
   // Tổng số người + chia theo vai trò
   { const cEl = document.getElementById('settingsUserCount');
@@ -19810,9 +19836,9 @@ function renderMgrSettings(){
   if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
   else {
     table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
-      usersToShow.map((u,idx)=>`<tr>
+      usersToShow.map((u,idx)=>`<tr class="${userResigned(u) ? 'row-resigned' : ''}">
         <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
-        <td data-label="Tên">${u.name}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
+        <td data-label="Tên">${u.name}${userResigned(u) ? ` <span class="badge resigned-tag">Đã nghỉ việc${userResignDate(u) ? ' ' + goalDM(userResignDate(u)) : ''}</span>` : ''}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
         <td data-label="Mã PIN">
@@ -19823,7 +19849,7 @@ function renderMgrSettings(){
           }
         </td>
         <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
-        ${scope ? '' : `<td><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
+        ${scope ? '' : `<td style="white-space:nowrap;"><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-ghost btn-small" onclick="toggleResign('${u.id}')">${userResigned(u) ? '↺ Mở lại' : '🚪 Cho nghỉ việc'}</button> <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
   }
 
@@ -19900,7 +19926,7 @@ function deleteUser(userId){
     }
   }
   const isSelf = currentUser() && currentUser().id===u.id;
-  askConfirm('Xoá người dùng', `Xoá tài khoản "${u.name}" khỏi hệ thống? Các báo cáo cũ của người này vẫn được giữ lại, chỉ tài khoản đăng nhập bị xoá.`, ()=>{
+  askConfirm('Xoá người dùng', `Xoá HẲN tài khoản "${u.name}"? Data, đơn chốt, báo cáo vẫn giữ, nhưng TÊN sẽ thành "(đã xoá)" và người này BIẾN KHỎI các bảng thống kê (MKT mất luôn gán nguồn). 👉 Nếu chỉ là nghỉ việc, nên bấm "🚪 Cho nghỉ việc" để giữ tên & thống kê.`, ()=>{
     const idx=state.users.findIndex(x=>x.id===userId);
     if(idx>-1) state.users.splice(idx,1);
     fbUsers.child(userId).remove();
@@ -20027,8 +20053,8 @@ function toggleUserActive(userId){
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
   const newActive = u.active===false ? true : false;
-  u.active = newActive;
-  fbUpdateUser(userId, {active:newActive});
+  u.active = newActive; u.pausedAt = newActive ? null : nowMs();
+  fbUpdateUser(userId, {active:newActive, pausedAt: newActive ? null : nowMs()});
   showToast(newActive ? `${u.name} đã bật lại "Đang làm"` : `${u.name} đã chuyển "Tạm nghỉ" — sẽ không nhận data mới`);
   renderPermissionsTable();
 }
