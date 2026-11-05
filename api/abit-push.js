@@ -78,9 +78,31 @@ function splitParts(inv, ps){
   const parts = Array.from({length: n}, (_, k)=>({i: k + 1, n, items: [], value: 0, deposit: 0}));
   sp.lines.forEach(l=>(l.q || []).forEach((qty, k)=>{ qty = Number(qty) || 0; if(qty > 0 && parts[k]){ parts[k].items.push({code: l.code, price: num(l.price), qty, label: l.label}); parts[k].value += qty * num(l.price); } }));
   if(parts.some(p=>!p.items.length)) return null; // kiện trống → coi như không tách
-  let dep = Math.max(0, num(inv.deposit));
-  parts.forEach(p=>{ const use = Math.min(dep, p.value); p.deposit = use; dep -= use; });
+  spreadDeposit(parts, Math.max(0, num(inv.deposit)));
   return parts;
+}
+
+// TIỀN CỌC CHIA ĐỀU cho các kiện (theo yêu cầu): mỗi kiện ~ cọc / số kiện, làm tròn nghìn đồng.
+// Kiện nào rẻ hơn phần chia → trừ tối đa bằng giá trị kiện, phần dư chia tiếp cho các kiện còn lại. Tổng luôn = đúng tiền cọc.
+function spreadDeposit(parts, dep){
+  const cap = parts.map(p=>Math.max(0, p.value)); const alloc = parts.map(()=>0);
+  dep = Math.min(dep, cap.reduce((a,b)=>a+b, 0));
+  let rem = dep, guard = 0;
+  while(rem > 0.5 && guard++ < 20){ // chia đều phần còn lại cho các kiện còn sức chứa
+    const open = cap.map((c,i)=>i).filter(i=>alloc[i] < cap[i]); if(!open.length) break;
+    const share = rem / open.length;
+    open.forEach(i=>{ alloc[i] += Math.min(share, cap[i] - alloc[i]); });
+    rem = dep - alloc.reduce((a,b)=>a+b, 0);
+  }
+  // làm tròn xuống nghìn đồng, phần lẻ dồn vào kiện còn nhiều sức chứa nhất → tổng đúng bằng tiền cọc
+  const r = alloc.map(a=>Math.floor(a / 1000) * 1000);
+  let left = dep - r.reduce((a,b)=>a+b, 0);
+  while(left > 0){
+    const i = r.map((v,k)=>k).sort((a,b)=>(cap[b]-r[b]) - (cap[a]-r[a]))[0];
+    const add = Math.min(left, cap[i] - r[i], left >= 1000 ? 1000 : left); if(add <= 0) break;
+    r[i] += add; left -= add;
+  }
+  parts.forEach((p,i)=>{ p.deposit = r[i]; });
 }
 
 module.exports = async (req, res)=>{
@@ -145,3 +167,4 @@ module.exports = async (req, res)=>{
 };
 module.exports.buildOrder = buildOrder;
 module.exports.splitParts = splitParts;
+module.exports.spreadDeposit = spreadDeposit;
