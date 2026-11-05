@@ -7351,7 +7351,13 @@ const SHIP_LATE_HOURS = 1;
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
-  const invK = packInvById(ps.id); const abitH = invK ? abitTagHtml(invK) : '';
+  const invK = packInvById(ps.id); let abitH = invK ? abitTagHtml(invK) : '';
+  // Đơn ĐÃ ĐÓNG mà CHƯA có trên Abit (không có mã đơn Abit, chưa lên vận đơn) → báo rõ lý do + nút đẩy, không im lặng bỏ qua
+  if(invK && !abitH && !ps.ship && (ps.state==='packed' || ps.state==='partial') && !(invK.abit && (invK.abit.invoice_no || invK.abit.error))){
+    const acc = abitSaleAccount(invK.id);
+    abitH = acc ? ` <a href="#" class="abit-tag bad" title="Đơn đã đóng nhưng chưa tạo được trên Abit" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${invK.id}')">⚠ Chưa lên Abit — bấm đẩy</a>`
+                : ` <span class="abit-tag bad" title="Quản lý chung vào Chi nhánh & nhân sự → Sửa tài khoản Sale này → điền Tài khoản Abit, rồi bấm đẩy lại">⚠ Sale chưa gắn TK Abit — chưa đẩy được</span>`;
+  }
   if(abitH && !ps.ship){ const l2 = shipKhoLine2(ps); return l2 ? l2.replace(/^(<div[^>]*>)/, '$1' + abitH.trim() + ' ') : `<div class="pack-sub">${abitH}</div>`; } // mã đơn Abit + "Chưa gửi vận đơn" chung 1 hàng
   if(abitH && ps.ship) return shipKhoLine2(ps).replace(/<\/div>$/, abitH + '</div>');
   return shipKhoLine2(ps);
