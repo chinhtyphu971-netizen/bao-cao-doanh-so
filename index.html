@@ -1922,6 +1922,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .settings-grid > .card{ min-width:0; }
   .settings-grid .table-wrap{ overflow-x:auto; }
   @media (max-width:900px){ .settings-grid{ grid-template-columns:1fr; } }
+  .inbox-row{ display:grid; grid-template-columns:18px 1fr auto; gap:8px; align-items:start; padding:10px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .inbox-row:hover{ background:var(--panel2); }
+  .inbox-row:last-child{ border-bottom:0; }
+  .inbox-dot{ color:var(--danger); font-size:12px; line-height:20px; }
+  .inbox-title{ font-weight:600; font-size:14px; }
+  .inbox-last{ font-size:13px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .inbox-row.unread .inbox-title, .inbox-row.unread .inbox-last{ color:var(--ink); font-weight:700; }
+  .inbox-time{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+  .inbox-main{ min-width:0; }
 </style>
 </head>
 <body>
@@ -2049,6 +2058,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="nav-item" id="navItem_staffHistory" data-page="staffHistory" onclick="goPage('staffHistory')"><span class="label">🕓 Lịch sử của tôi</span></div>
         </div>
       </div>
+      <div id="navInbox" style="display:none;">
+        <div class="nav-item" data-page="myInbox" onclick="goPage('myInbox')"><span class="label" id="navInboxLabel">💬 Tin nhắn</span></div>
+      </div>
       <div id="navGoals" style="display:none;">
         <div class="nav-item" data-page="goals" onclick="goPage('goals')"><span class="label">🎯 Mục tiêu</span></div>
       </div>
@@ -2133,6 +2145,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Toàn bộ ghi chú của bạn, gộp riêng cho dễ đọc</p>
           <div id="staffHistoryNotesList" style="margin-top:10px;"></div>
         </div>
+      </div>
+
+      <!-- ---------- 💬 Hộp thư riêng ---------- -->
+      <div id="page-myInbox" class="page" style="display:none;">
+        <div class="page-head"><div><h1>💬 Tin nhắn của tôi</h1><p>Mọi cuộc trò chuyện của bạn với MKT / Sale / Kho — đã xem vẫn giữ lại ở đây, bấm để mở lại</p></div></div>
+        <div id="inboxBody"></div>
       </div>
 
       <!-- ---------- ⭐ Khách thân thiết của các Sale (Quản lý chung / Quản lý team) ---------- -->
@@ -9809,6 +9827,7 @@ function packChatPost(invId, text, toUserId){
     fbChatNotify.child(toUserId).set({senderId:me.id, senderName:me.name, text, sentAt, convId:conv}).catch(()=>{});
     if(fbChatUnread) fbChatUnread.child(toUserId).child(conv).set(sentAt).catch(()=>{});
   }
+  try{ chatIndexWrite(conv, text, sentAt, [toUserId].concat(Array.from(chatConvParticipants(conv)))); }catch(e){} // 💬 hộp thư riêng
 }
 // Link 💬 nhỏ (dùng trong bảng / dòng gọn) — đơn ĐÃ ĐÓNG vẫn nhắn được
 function packChatLinkHtml(invId){
@@ -14518,6 +14537,7 @@ function sendChatMessage(){
     fbChatNotify.child(t).set({senderId:me.id, senderName:me.name, text, sentAt:msg.sentAt, convId:currentChatConversationId});
     if(fbChatUnread) fbChatUnread.child(t).child(currentChatConversationId).set(msg.sentAt).catch(()=>{});
   });
+  try{ chatIndexWrite(currentChatConversationId, text, msg.sentAt, targets.concat(Array.from(chatConvParticipants(currentChatConversationId)))); }catch(e){} // 💬 hộp thư riêng
   input.value = '';
 }
 // Quét các nút chat đang hiển thị trên trang, kiểm tra tin nhắn mới nhất của từng cuộc trò chuyện
@@ -14548,6 +14568,7 @@ function setupChatUnreadListener(){
       delete chatUnreadMap[currentChatConversationId];
     }
     Object.keys(chatUnreadMap).forEach(cid=>{ delete chatDotCache[cid]; });
+    try{ updateInboxNavBadge(); if(currentPageId==='myInbox') renderInboxPage(); }catch(e){}
     onDataChanged();
   });
 }
@@ -15053,6 +15074,7 @@ function logout(){
   state.session=null; persistSession();
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
   try{ goalResetListeners(); }catch(e){}
+  try{ inboxListen(null); }catch(e){}
   try{ loyalListen(null); loyalTplListen(null); msgTplListen(null); mgrLoyalSubs.forEach(r=>{ try{ r.off(); }catch(e){} }); mgrLoyalSubs = []; mgrLoyalKey = null; }catch(e){}
   resetChatDotCache();
   resetLeadNotifyState();
@@ -15359,7 +15381,8 @@ function enterApp(){
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
   try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
   try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); }
-  try{ shipLockMinListen(); }catch(e){ console.error(e); } // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
+  try{ shipLockMinListen(); }catch(e){ console.error(e); }
+  try{ inboxListen(user); }catch(e){ console.error(e); } // 💬 hộp thư riêng // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
@@ -15405,6 +15428,7 @@ function enterApp(){
   // 🎯 Mục tiêu: Sale + Quản lý team tự đặt mục tiêu; Quản lý chung xem tất cả + chọn lịch nghỉ CN
   document.getElementById('navGoals').style.display = ['staff','team_manager','general_manager'].includes(user.role) ? 'block' : 'none';
   { const ri = document.getElementById('navItem_mgrRecare'); if(ri) ri.style.display = ['general_manager','data_manager'].includes(user.role) ? 'flex' : 'none'; } // ♻️ nhập data chăm sóc lại
+  document.getElementById('navInbox').style.display = user.role!=='packer' ? 'block' : 'none'; // 💬 hộp thư riêng (đóng gói dùng chat ngay trong bàn đóng)
   { const li = document.getElementById('navItem_mgrLoyal'); if(li) li.style.display = user.role==='general_manager' ? 'flex' : 'none'; } // ⭐ khách thân thiết của Sale — CHỈ Quản lý chung xem
   document.getElementById('settingsNavLabel').textContent = user.role==='general_manager' ? 'Chi nhánh & nhân sự' : 'Đội của tôi';
   // Quản lý Data chỉ có quyền trong phần Phân bổ data — ẩn hết các mục Báo cáo doanh số / Cài đặt / Thùng rác
@@ -15579,6 +15603,7 @@ function goPage(pageId){
   if(pageId==='goals') renderGoalsPage();
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
+  if(pageId==='myInbox'){ try{ renderInboxPage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrSettings'){ try{ renderShipLockCard(); renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
@@ -16507,6 +16532,87 @@ function tplSave(kind){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
   const list = (tplDrafts[kind]||[]).map(t=>({title: String(t.title||'').trim().slice(0,60), text: String(t.text||'').trim().slice(0,1000), tag: t.tag || 'any'})).filter(t=>t.title && t.text).slice(0,20);
   fbRoot.child(TPL_EDITORS[kind].path).set(list.length ? list : null).then(()=>{ showToast(`Đã lưu ${list.length} mẫu cho tất cả Sale`); tplDrafts[kind] = null; renderMgrLoyal(); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+}
+
+// =========================== 💬 HỘP THƯ RIÊNG — "Tin nhắn của tôi" ===========================
+// chatIndex/{userId}/{convId} = {convId, title, others:[userId…], lastAt, lastText, lastSenderId, lastSenderName}
+// Ghi mỗi khi gửi tin (cho người gửi + người nhận) → danh sách KHÔNG mất sau khi đã xem. Chưa đọc lấy từ chatUnread.
+let inboxIndex = {}, inboxSub = null, inboxLoaded = false, inboxFilter = 'all', inboxSearch = '', inboxBackfilled = false;
+function chatConvTitle(convId){
+  convId = String(convId||'');
+  if(convId.startsWith('pack_')){ const id = convId.slice(5); const inv = packInvById(id) || (state.invoices||[]).find(x=>x.id===id);
+    return '📦 HĐ ' + (inv ? (inv.invoiceNumber || '') + (inv.customerName ? ' · ' + inv.customerName : '') : id); }
+  const l = (state.leads||[]).find(x=>x.id===convId);
+  return l ? '📱 ' + leadPhone(l) + (l.customerName ? ' · ' + l.customerName : '') : '💬 Trò chuyện';
+}
+function chatConvParticipants(convId){
+  convId = String(convId||''); const out = new Set();
+  if(convId.startsWith('pack_')){ const inv = packInvById(convId.slice(5)); if(inv && inv.saleId) out.add(inv.saleId); }
+  else { const l = (state.leads||[]).find(x=>x.id===convId); if(l){ if(l.assignedTo) out.add(l.assignedTo); if(l.createdBy) out.add(l.createdBy); } }
+  return out;
+}
+function chatIndexWrite(convId, text, sentAt, people){
+  const me = currentUser(); if(!me || !fbRoot || !convId) return;
+  const all = Array.from(new Set((people||[]).concat([me.id]).filter(Boolean)));
+  const title = chatConvTitle(convId), up = {};
+  all.forEach(uidX=>{ up[`chatIndex/${uidX}/${convId}`] = {convId, title, others: all.filter(x=>x!==uidX), lastAt: sentAt, lastText: String(text||'').slice(0,140), lastSenderId: me.id, lastSenderName: me.name}; });
+  fbRoot.update(up).catch(()=>{});
+}
+function inboxListen(user){
+  if(inboxSub){ try{ inboxSub.off(); }catch(e){} inboxSub = null; }
+  inboxIndex = {}; inboxLoaded = false; inboxBackfilled = false;
+  if(!user || !fbRoot) return;
+  inboxSub = fbRoot.child('chatIndex/' + user.id);
+  inboxSub.on('value', snap=>{ inboxIndex = snap.val() || {}; inboxLoaded = true; updateInboxNavBadge(); if(currentPageId==='myInbox') renderInboxPage(); });
+}
+function updateInboxNavBadge(){
+  const el = document.getElementById('navInboxLabel'); if(!el) return;
+  const n = Object.keys(chatUnreadMap || {}).length;
+  el.innerHTML = `💬 Tin nhắn${n ? ` <span class="badge badge-warn" style="margin-left:4px;">${n}</span>` : ''}`;
+}
+// Tin cũ (trước khi có hộp thư): gom các cuộc trò chuyện mình đã MỞ (chatReads) hoặc đang CHƯA ĐỌC → đưa vào hộp thư
+async function inboxBackfill(){
+  const me = currentUser(); if(inboxBackfilled || !me || !fbRoot || !inboxLoaded) return; inboxBackfilled = true;
+  try{
+    const reads = (await fbRoot.child('chatReads/' + me.id).once('value')).val() || {};
+    const seeds = Array.from(new Set(Object.keys(reads).concat(Object.keys(chatUnreadMap||{})))).filter(c=>!inboxIndex[c]).slice(0, 80);
+    if(!seeds.length) return;
+    const up = {};
+    for(const conv of seeds){
+      const msgs = Object.values((await fbRoot.child('chats/' + conv).once('value')).val() || {}).filter(m=>m && m.sentAt).sort((a,b)=>a.sentAt-b.sentAt);
+      if(!msgs.length) continue;
+      const last = msgs[msgs.length-1], others = chatConvParticipants(conv);
+      msgs.forEach(m=>{ if(m.senderId) others.add(m.senderId); }); others.delete(me.id);
+      up[`chatIndex/${me.id}/${conv}`] = {convId: conv, title: chatConvTitle(conv), others: Array.from(others), lastAt: last.sentAt, lastText: String(last.text||'').slice(0,140), lastSenderId: last.senderId || null, lastSenderName: last.senderName || null};
+    }
+    if(Object.keys(up).length) await fbRoot.update(up);
+  }catch(e){ console.error(e); }
+}
+function inboxOpen(convId){
+  const e = inboxIndex[convId]; if(!e) return;
+  const names = (e.others||[]).map(id=>userName(id)).filter(Boolean).join(', ');
+  openChatModal(convId, (e.title || chatConvTitle(convId)) + (names ? ' — với ' + names : ''), false, (e.others||[]).length > 1 ? e.others : ((e.others||[])[0] || null));
+}
+function renderInboxPage(){
+  const box = document.getElementById('inboxBody'); if(!box) return;
+  if(!inboxLoaded){ box.innerHTML = '<div class="card"><div class="empty-note">Đang tải…</div></div>'; return; }
+  inboxBackfill();
+  const all = Object.values(inboxIndex||{}).filter(e=>e && e.convId).sort((a,b)=>(Number(b.lastAt)||0)-(Number(a.lastAt)||0));
+  const unread = c=>!!(chatUnreadMap||{})[c.convId];
+  const q = inboxSearch.trim().toLowerCase();
+  const kinds = {all: ()=>true, unread, lead: c=>!String(c.convId).startsWith('pack_'), pack: c=>String(c.convId).startsWith('pack_')};
+  const list = all.filter(kinds[inboxFilter] || kinds.all).filter(c=>!q || [c.title, c.lastText, c.lastSenderName, (c.others||[]).map(id=>userName(id)).join(' ')].join(' ').toLowerCase().includes(q));
+  const chip = (k,l,n)=>`<div class="chip ${inboxFilter===k ? 'selected' : ''}" onclick="inboxFilter='${k}'; renderInboxPage()">${l}${n!=null ? ' (' + n + ')' : ''}</div>`;
+  box.innerHTML = `<div class="card">
+      <div class="chip-row" style="margin-bottom:8px;">${chip('all','Tất cả',all.length)}${chip('unread','🔴 Chưa đọc',all.filter(unread).length)}${chip('lead','📱 Data (Sale ↔ MKT)',all.filter(kinds.lead).length)}${chip('pack','📦 Đơn hàng (Kho ↔ Sale)',all.filter(kinds.pack).length)}</div>
+      <input type="search" placeholder="🔍 Tìm SĐT, số HĐ, tên, nội dung…" value="${escHtml(inboxSearch)}" style="max-width:360px;" oninput="inboxSearch=this.value; clearTimeout(window.__ibT); window.__ibT=setTimeout(()=>{ renderInboxPage(); const i=document.querySelector('#inboxBody input[type=search]'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250)">
+    </div>
+    <div class="card" style="padding:6px 0;">${list.map(c=>{ const u = unread(c), names = (c.others||[]).map(id=>userName(id)).filter(Boolean).join(', ');
+      return `<div class="inbox-row ${u ? 'unread' : ''}" onclick="inboxOpen('${escHtml(c.convId)}')">
+        <div class="inbox-dot">${u ? '●' : ''}</div>
+        <div class="inbox-main"><div class="inbox-title">${escHtml(c.title || chatConvTitle(c.convId))}${names ? ` <span class="muted-s">· với ${escHtml(names)}</span>` : ''}</div>
+          <div class="inbox-last">${c.lastSenderName ? '<b>' + escHtml(c.lastSenderId===(currentUser()||{}).id ? 'Bạn' : c.lastSenderName) + ':</b> ' : ''}${escHtml(c.lastText||'')}</div></div>
+        <div class="inbox-time">${c.lastAt ? fmtDateTimeShort(c.lastAt) : ''}</div></div>`; }).join('') || `<div class="empty-note" style="padding:16px;">${all.length ? 'Không có cuộc trò chuyện nào khớp.' : 'Chưa có tin nhắn nào. Tin nhắn với MKT / Sale / Kho sẽ hiện ở đây và không mất sau khi xem.'}</div>`}</div>`;
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
