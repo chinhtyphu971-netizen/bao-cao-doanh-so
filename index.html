@@ -1931,6 +1931,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inbox-row.unread .inbox-title, .inbox-row.unread .inbox-last{ color:var(--ink); font-weight:700; }
   .inbox-time{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
   .inbox-main{ min-width:0; }
+  .sound-banner{ position:fixed; left:50%; transform:translateX(-50%); top:calc(8px + env(safe-area-inset-top, 0px)); z-index:9000; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+    max-width:calc(100% - 24px); padding:10px 14px; border-radius:12px; background:#3A1218; border:2px solid var(--danger); color:#FFD6D8; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.45); }
 </style>
 </head>
 <body>
@@ -3196,6 +3198,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div id="page-mgrSettings" class="page" style="display:none;">
         <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
         <div class="card" id="shipLockCard" style="display:none;"></div>
+        <div class="card" id="soundStatusCard" style="display:none;"></div>
         <div class="card" id="ringtoneCard" style="display:none;"></div>
         <div class="card" id="dataUsageCard" style="display:none;"></div>
         <div class="card" id="createAccountCard">
@@ -10195,7 +10198,8 @@ function playTingSound(){
     // trình duyệt giữ lại dần dần → tốn bộ nhớ, máy chậm/đứng sau một thời gian mở app.
     if(!window.__tingCtx) window.__tingCtx = new (window.AudioContext || window.webkitAudioContext)();
     const ctx = window.__tingCtx;
-    if(ctx.state==='suspended' && ctx.resume) ctx.resume();
+    if(ctx.state==='suspended' && ctx.resume) ctx.resume().then(()=>{ try{ soundMark(ctx.state==='running'); }catch(e){} }).catch(()=>{ try{ soundMark(false); }catch(e){} });
+    else { try{ soundMark(ctx.state==='running'); }catch(e){} }
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -10263,7 +10267,7 @@ function playNewLeadSound(){
   try{
     ringtoneStop();
     const p = a.play();
-    if(p && p.catch) p.catch(()=>playTingSound()); // trình duyệt chặn / file lỗi → kêu "ting" thay
+    if(p && p.then) p.then(()=>soundMark(true)).catch(e=>{ if(e && e.name==='NotAllowedError') soundMark(false); playTingSound(); }); // bị chặn → báo + kêu "ting" thay
     const sec = Number(appRingtone.maxSec) || 10;
     ringtoneStopTimer = setTimeout(ringtoneStop, sec*1000);
   }catch(e){ playTingSound(); }
@@ -10351,7 +10355,7 @@ function packDoneAudioEl(){
 }
 function playPackDoneSound(){
   const a = packDoneAudioEl(); if(!a){ playTingSound(); return; }
-  try{ a.pause(); a.currentTime = 0; const p = a.play(); if(p && p.catch) p.catch(()=>playTingSound());
+  try{ a.pause(); a.currentTime = 0; const p = a.play(); if(p && p.then) p.then(()=>soundMark(true)).catch(e=>{ if(e && e.name==='NotAllowedError') soundMark(false); playTingSound(); });
     setTimeout(()=>{ try{ a.pause(); }catch(e){} }, ((packDoneTone && Number(packDoneTone.maxSec)) || 10) * 1000); }catch(e){ playTingSound(); }
 }
 document.addEventListener('pointerdown', ()=>{ // mở khoá phát âm thanh (iPhone) cho chuông đóng đủ
@@ -10469,7 +10473,7 @@ function playEventTone(key){
   try{
     const a = toneAudio[m.libId] || (toneAudio[m.libId] = new Audio(data));
     a.volume = 0.9; a.pause(); a.currentTime = 0;
-    const p = a.play(); if(p && p.catch) p.catch(()=>playTingSound());
+    const p = a.play(); if(p && p.then) p.then(()=>soundMark(true)).catch(e=>{ if(e && e.name==='NotAllowedError') soundMark(false); playTingSound(); });
     setTimeout(()=>{ try{ a.pause(); }catch(e){} }, 10000);
   }catch(e){ playTingSound(); }
 }
@@ -15074,7 +15078,7 @@ function logout(){
   state.session=null; persistSession();
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
   try{ goalResetListeners(); }catch(e){}
-  try{ inboxListen(null); }catch(e){}
+  try{ inboxListen(null); soundStartWatch(null); }catch(e){}
   try{ loyalListen(null); loyalTplListen(null); msgTplListen(null); mgrLoyalSubs.forEach(r=>{ try{ r.off(); }catch(e){} }); mgrLoyalSubs = []; mgrLoyalKey = null; }catch(e){}
   resetChatDotCache();
   resetLeadNotifyState();
@@ -15382,7 +15386,8 @@ function enterApp(){
   try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
   try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); }
   try{ shipLockMinListen(); }catch(e){ console.error(e); }
-  try{ inboxListen(user); }catch(e){ console.error(e); } // 💬 hộp thư riêng // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
+  try{ inboxListen(user); }catch(e){ console.error(e); } // 💬 hộp thư riêng
+  try{ soundStartWatch(user); }catch(e){ console.error(e); } // 🔇 theo dõi máy tắt chuông // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
@@ -15604,7 +15609,7 @@ function goPage(pageId){
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
   if(pageId==='myInbox'){ try{ renderInboxPage(); }catch(e){ console.error(e); } }
-  if(pageId==='mgrSettings'){ try{ renderShipLockCard(); renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
+  if(pageId==='mgrSettings'){ try{ renderSoundStatusCard(); renderShipLockCard(); renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
@@ -16613,6 +16618,61 @@ function renderInboxPage(){
         <div class="inbox-main"><div class="inbox-title">${escHtml(c.title || chatConvTitle(c.convId))}${names ? ` <span class="muted-s">· với ${escHtml(names)}</span>` : ''}</div>
           <div class="inbox-last">${c.lastSenderName ? '<b>' + escHtml(c.lastSenderId===(currentUser()||{}).id ? 'Bạn' : c.lastSenderName) + ':</b> ' : ''}${escHtml(c.lastText||'')}</div></div>
         <div class="inbox-time">${c.lastAt ? fmtDateTimeShort(c.lastAt) : ''}</div></div>`; }).join('') || `<div class="empty-note" style="padding:16px;">${all.length ? 'Không có cuộc trò chuyện nào khớp.' : 'Chưa có tin nhắn nào. Tin nhắn với MKT / Sale / Kho sẽ hiện ở đây và không mất sau khi xem.'}</div>`}</div>`;
+}
+
+// =========================== 🔇 MÁY KHÔNG PHÁT ĐƯỢC CHUÔNG ===========================
+// Trình duyệt chặn âm thanh khi người dùng CHƯA chạm vào trang (sau mỗi lần mở / tải lại app).
+// → Thanh đỏ cố định "bấm để bật chuông" (không có nút đóng) + báo Quản lý chung (soundStatus/{userId} — chỉ ghi khi đổi trạng thái).
+const SOUND_WATCH_ROLES = ['staff','team_manager','warehouse','packer','printer'];
+let soundOk = null, soundReported = null, soundSub = null, soundStatusAll = {};
+function soundCtxRunning(){ try{ if(!window.__tingCtx) window.__tingCtx = new (window.AudioContext || window.webkitAudioContext)(); return window.__tingCtx.state === 'running'; }catch(e){ return false; } }
+function soundMark(ok){
+  const me = currentUser(); if(!me || !SOUND_WATCH_ROLES.includes(me.role)) return;
+  soundOk = ok; renderSoundBanner();
+  if(soundReported === ok || !fbRoot) return; soundReported = ok;
+  fbRoot.child('soundStatus/' + me.id).set({ok, at: nowMs(), name: me.name, role: me.role}).catch(()=>{});
+}
+function renderSoundBanner(){
+  let el = document.getElementById('soundBanner');
+  const me = currentUser(), show = soundOk === false && me && SOUND_WATCH_ROLES.includes(me.role);
+  if(!show){ if(el) el.remove(); return; }
+  if(!el){ el = document.createElement('div'); el.id = 'soundBanner'; el.className = 'sound-banner'; el.setAttribute('role', 'alert'); document.body.appendChild(el); }
+  el.innerHTML = `🔇 <b>Chuông đang TẮT trên máy này</b> — bạn sẽ không nghe báo data mới / đơn hàng. <button class="btn-primary btn-small" onclick="soundEnable()">🔔 Bấm để bật chuông</button>`;
+}
+function soundEnable(){
+  try{
+    const ctx = window.__tingCtx || (window.__tingCtx = new (window.AudioContext || window.webkitAudioContext)());
+    const done = ()=>{ const ok = ctx.state === 'running'; if(ok) playTingSound(); soundMark(ok); if(ok) showToast('🔔 Đã bật chuông'); };
+    if(ctx.resume) ctx.resume().then(done).catch(done); else done();
+  }catch(e){ soundMark(false); }
+}
+// Mỗi lần chạm vào trang: thử mở khoá âm thanh rồi cập nhật trạng thái
+document.addEventListener('pointerdown', ()=>{
+  if(soundOk === true) return;
+  try{ const ctx = window.__tingCtx || (window.__tingCtx = new (window.AudioContext || window.webkitAudioContext)());
+    (ctx.resume ? ctx.resume() : Promise.resolve()).then(()=>soundMark(ctx.state === 'running')).catch(()=>{}); }catch(e){}
+}, true);
+function soundStartWatch(user){
+  soundOk = null; soundReported = null; renderSoundBanner();
+  if(!user) return;
+  if(SOUND_WATCH_ROLES.includes(user.role)) setTimeout(()=>soundMark(soundCtxRunning()), 4000); // mở app xong chưa chạm → thường đang bị chặn
+  if(soundSub){ try{ soundSub.off(); }catch(e){} soundSub = null; }
+  if(user.role === 'general_manager' && fbRoot){
+    soundSub = fbRoot.child('soundStatus');
+    soundSub.on('value', snap=>{ soundStatusAll = snap.val() || {}; if(currentPageId==='mgrSettings') try{ renderSoundStatusCard(); }catch(e){} });
+  }
+}
+function renderSoundStatusCard(){
+  const el = document.getElementById('soundStatusCard'); if(!el) return;
+  const me = currentUser(); if(!me || me.role !== 'general_manager'){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const cut = nowMs() - 12*3600000;
+  const off = Object.entries(soundStatusAll || {}).map(([id, v])=>Object.assign({id}, v))
+    .filter(v=>v && v.ok === false && Number(v.at) > cut && !userInactive(state.users.find(u=>u.id===v.id)))
+    .sort((a,b)=>(a.at||0)-(b.at||0));
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="soundOff" ${secOpen('soundOff', off.length > 0)} ontoggle="mgrSecToggle(this)"><summary><h2>🔇 Máy đang tắt chuông</h2><span class="mgr-sec-sum">${off.length ? `<b style="color:var(--danger);">${off.length} người</b> chưa bật chuông` : 'mọi máy đang bật chuông'}</span></summary>
+    <p class="goal-hint">Danh sách người mở app nhưng máy KHÔNG phát được chuông (chưa chạm để bật, trong 12 giờ qua). App đã hiện thanh đỏ nhắc trên máy họ. Lưu ý: nếu họ tự tắt tiếng TAB / điện thoại để im lặng thì trình duyệt không cho app biết.</p>
+    ${off.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>Người</th><th>Vai trò</th><th>Tắt chuông từ</th></tr></thead><tbody>${off.map(v=>`<tr><td><b>${escHtml(userName(v.id) || v.name || '')}</b></td><td>${escHtml(roleLabel(v.role || ''))}</td><td>${fmtDateTimeShort(v.at)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty-note">Không có ai.</div>'}</details>`;
 }
 
 /* =========================== 🎯 MỤC TIÊU THÁNG =========================== */
