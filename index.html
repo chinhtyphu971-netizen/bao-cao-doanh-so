@@ -1918,6 +1918,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .badge.resigned-tag{ background:rgba(148,163,184,.18); color:#AEB8CC; }
   .pack-sale-badge.bad{ background:rgba(229,72,77,.14); color:#FF8A8D; border:1px solid rgba(229,72,77,.5); }
   .card > details.mgr-sec.in-card{ padding:0 !important; margin:0 !important; border:0; background:none; }
+  .settings-grid{ grid-template-columns:minmax(260px, 1fr) minmax(0, 2.2fr); }
+  .settings-grid > .card{ min-width:0; }
+  .settings-grid .table-wrap{ overflow-x:auto; }
+  @media (max-width:900px){ .settings-grid{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -3292,7 +3296,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           </div>
         </div>
 
-        <div class="grid-2">
+        <div class="grid-2 settings-grid">
           <div class="card">
             <h2>Team Sale</h2>
             <div id="settingsBranchList" style="margin:12px 0;"></div>
@@ -19887,7 +19891,7 @@ function renderMgrSettings(){
       cEl.innerHTML = usersToShow.length ? `— <b style="color:var(--ink);">${usersToShow.length} người</b> · ` + Object.entries(byRole).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`${escHtml(k)} ${n}`).join(' · ') : ''; } }
   if(usersToShow.length===0){ table.innerHTML='<tr><td class="empty-note">Chưa có ai đăng ký.</td></tr>'; }
   else {
-    table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Đăng ký lúc</th>${scope?'':'<th></th>'}</tr>`+
+    table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Ngày tạo</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map((u,idx)=>`<tr class="${userResigned(u) ? 'row-resigned' : ''}">
         <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
         <td data-label="Tên">${u.name}${userResigned(u) ? ` <span class="badge resigned-tag">Đã nghỉ việc${userResignDate(u) ? ' ' + goalDM(userResignDate(u)) : ''}</span>` : ''}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
@@ -19900,8 +19904,8 @@ function renderMgrSettings(){
                <span class="copy-icon" style="margin-left:8px;" onclick="copyPin('${u.pin}','${u.name.replace(/'/g,"\\'")}')">📋</span>`
           }
         </td>
-        <td data-label="Đăng ký lúc">${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : '—'}</td>
-        ${scope ? '' : `<td style="white-space:nowrap;"><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-ghost btn-small" onclick="toggleResign('${u.id}')">${userResigned(u) ? '↺ Mở lại' : '🚪 Cho nghỉ việc'}</button> <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
+        <td data-label="Đăng ký lúc" title="${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : ''}">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
+        ${scope ? '' : `<td style="white-space:nowrap;"><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-ghost btn-small" title="${userResigned(u) ? 'Mở lại tài khoản — đăng nhập & làm việc lại bình thường' : 'Cho nghỉ việc — chặn đăng nhập, không chia data, vẫn giữ tên & số liệu trong thống kê'}" onclick="toggleResign('${u.id}')">${userResigned(u) ? '↺ Mở lại' : '🚪 Nghỉ'}</button> <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
   }
 
