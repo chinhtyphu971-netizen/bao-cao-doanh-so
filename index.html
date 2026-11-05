@@ -1933,6 +1933,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inbox-main{ min-width:0; }
   .sound-banner{ position:fixed; left:50%; transform:translateX(-50%); top:calc(8px + env(safe-area-inset-top, 0px)); z-index:9000; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
     max-width:calc(100% - 24px); padding:10px 14px; border-radius:12px; background:#3A1218; border:2px solid var(--danger); color:#FFD6D8; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .pack-inline{ white-space:nowrap; }
+  .ship-line{ line-height:1.5; }
+  .ship-src{ font-size:11px; font-weight:600; color:#A9C4FF; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -6913,7 +6916,7 @@ function renderPackInvoicesPage(){
     table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : (status==='short' ? 'Không có đơn nào chờ bù hàng 🎉' : 'Không có hoá đơn nào phù hợp.'))}</td></tr>`;
     return;
   }
-  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th>Trạng thái</th><th>Sale</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th style="min-width:230px;">Trạng thái</th><th>Sale</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
     pageSlice('packInv', list, PACK_PER_PAGE).map(inv=>{
       const pp = map[inv.id]; const stt = packStatusOf(inv, pp);
       const stHtml = packStatusBadgeHtml(inv, pp, smap[inv.id]);
@@ -7409,7 +7412,7 @@ function shipKhoLine(ps){
                 : ` <span class="abit-tag bad" title="Quản lý chung vào Chi nhánh & nhân sự → Sửa tài khoản Sale này → điền Tài khoản Abit, rồi bấm đẩy lại">⚠ Sale chưa gắn TK Abit — chưa đẩy được</span>`;
   }
   if(abitH && !ps.ship){ const l2 = shipKhoLine2(ps); return l2 ? l2.replace(/^(<div[^>]*>)/, '$1' + abitH.trim() + ' ') : `<div class="pack-sub">${abitH}</div>`; } // mã đơn Abit + "Chưa gửi vận đơn" chung 1 hàng
-  if(abitH && ps.ship) return shipKhoLine2(ps).replace(/<\/div>$/, abitH + '</div>');
+  if(abitH && ps.ship) return shipKhoLine2(ps) + `<div class="pack-sub">${abitH.trim()}</div>`; // 🔗 mã đơn Abit · trạng thái giao — dòng riêng, gọn
   return shipKhoLine2(ps);
 }
 // Nguồn mã vận đơn: Abit tự gửi (auto) · Sale nhập tay nhưng TRÙNG mã Abit (coi như Abit) · Sale nhập KHÁC mã Abit (cảnh báo)
@@ -7429,12 +7432,15 @@ function shipSourceLabel(si, short){
   if(si.kind==='mismatch') return '⚠ Mã Sale nhập KHÁC mã Abit';
   return short ? 'Đã lên vận đơn' : 'Sale đã lên vận đơn';
 }
+function shipCarrierShort(c){ c = String(c||'').trim(); const m = c.match(/^([^(]+?)\s*\(/); return (m ? m[1] : c).trim(); } // "SPX (Shopee Express)" → "SPX"
 function shipKhoLine2(ps){
   if(!ps || ps.legacy) return '';
   if(!ps.ship && shipHoldActive(ps)) return `<div class="pack-sub" style="color:#A9C4FF;" title="${escHtml(ps.shipHold.reason||'')}">⏸ Sale hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))} — ${escHtml(ps.shipHold.reason||'')}</div>`;
-  if(ps.ship){ const si = shipSourceInfo(ps); return `<div class="pack-sub" style="color:${si.kind==='mismatch' ? 'var(--danger)' : '#6FD99A'};" ${si.kind==='mismatch' ? `title="Sale nhập: ${escHtml(si.sale)} · Abit gửi: ${escHtml(si.abit)}"` : ''}>${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 ${shipSourceLabel(si)}${si.kind==='mismatch' ? ` (Abit: <b>${escHtml(si.abit)}</b>)` : ''}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`; }
+  if(ps.ship){ const si = shipSourceInfo(ps); const multi = Number(ps.pkgs) > 1;
+    // GỌN: 🚚 SPX · mã ↗  (Abit gửi → không ghi thêm chữ, đã có nhãn 🔗 dòng dưới) · Sale nhập tay → ✍️ · Lệch mã Abit → cảnh báo đỏ
+    return `<div class="pack-sub ship-line" style="color:${si.kind==='mismatch' ? 'var(--danger)' : '#6FD99A'};" title="${escHtml(shipSourceLabel(si) + (ps.ship.carrier ? ' · ' + ps.ship.carrier : ''))}${si.kind==='mismatch' ? ` — Sale nhập: ${escHtml(si.sale)} · Abit gửi: ${escHtml(si.abit)}` : ''}">${multi ? `<b class="pkgs-tag">📦 ${ps.pkgs} kiện</b> ` : ''}🚚 ${ps.ship.carrier ? escHtml(shipCarrierShort(ps.ship.carrier)) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã</b>' : '')}${si.kind==='sale' ? ' <span class="ship-src">✍️ Sale nhập</span>' : ''}${si.kind==='mismatch' ? `<div><b>⚠ Mã Sale nhập KHÁC mã Abit (${escHtml(si.abit)})</b></div>` : ''}</div>`; }
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
-  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}<span style="white-space:nowrap;">⏳ Chưa gửi VĐ${h >= 1 ? ' ' + Math.floor(h) + 'h' : ''}</span></div>`;
+  return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${Number(ps.pkgs) > 1 ? `<b class="pkgs-tag">📦 ${ps.pkgs} kiện</b> ` : ''}<span style="white-space:nowrap;">⏳ Chưa gửi VĐ${h >= 1 ? ' ' + Math.floor(h) + 'h' : ''}</span></div>`;
 }
 // ----- Bấm mã vận đơn → mở trang tra cứu của hãng (đồng thời COPY sẵn mã để dán nếu trang chưa tự điền) -----
 function shipTrackUrl(carrier, code){
