@@ -11355,7 +11355,8 @@ function renderMktReportsAdmin(){
   const dates = mraDatesInRange();
   const members = mraScopeMembers();
   const linkIdx = mraLinkIndex();
-  const sums = members.map(u=>mraPersonSummary(u, dates, linkIdx));
+  const sums = members.map(u=>mraPersonSummary(u, dates, linkIdx))
+    .filter(x=>!userInactive(x.u) || mraMember===x.u.id || (x.reps && x.reps.length) || x.totalData > 0); // 🚪 tạm nghỉ / nghỉ việc + không có gì trong khoảng ngày → ẩn
   const needCheck = sums.filter(x=>x.issues.some(i=>i.lvl>=2)).length;
   const submittedCells = sums.reduce((t,x)=>t+(dates.length-x.missing.length),0);
   const appTotal = sums.reduce((t,x)=>t+x.app.total,0), outTotal = sums.reduce((t,x)=>t+x.outside,0);
@@ -12590,7 +12591,7 @@ function mktInputLockedFor(user){ const m = mktMissingReportDates(user); return 
 // ===== KHOÁ THEO TEAM: 1 thành viên thiếu báo cáo → CẢ TEAM không nhập được data =====
 function mktTeamMembers(user){
   if(!user || !user.mktBranchId) return [];
-  return state.users.filter(x=>x.id!==user.id && ['mkt','mkt_manager'].includes(x.role) && x.mktBranchId===user.mktBranchId && x.active!==false);
+  return state.users.filter(x=>x.id!==user.id && ['mkt','mkt_manager'].includes(x.role) && x.mktBranchId===user.mktBranchId && !userInactive(x));
 }
 function mktTeamLockInfo(user){
   return mktTeamMembers(user).map(m=>({u:m, dates: mktMissingReportDates(m)})).filter(x=>x.dates.length)
