@@ -3172,6 +3172,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <!-- ---------- MANAGER: chi nhánh & nhân sự ---------- -->
       <div id="page-mgrSettings" class="page" style="display:none;">
         <div class="page-head"><div><h1 id="settingsPageTitle">Chi nhánh & nhân sự</h1><p id="settingsPageSub">Quản lý danh sách chi nhánh và người dùng</p></div></div>
+        <div class="card" id="shipLockCard" style="display:none;"></div>
         <div class="card" id="ringtoneCard" style="display:none;"></div>
         <div class="card" id="dataUsageCard" style="display:none;"></div>
         <div class="card" id="createAccountCard">
@@ -6808,7 +6809,7 @@ function packCurrentList(){
   const shipCount = {wait:0, late:0, shipped:0, nocode:0}; base.forEach(inv=>{ const k = shipStateOf(inv); if(k) shipCount[k]++; });
   const shipSel = document.getElementById('packShipSel');
   if(shipSel){
-    const opts = [['','🚚 Vận đơn: tất cả'], ['notship', `⏳ Sale chưa lên vận đơn (${shipCount.wait + shipCount.late})`], ['late', `🔴 Chưa lên quá ${SHIP_LATE_HOURS} giờ (${shipCount.late})`], ['shipped', `✅ Đã lên vận đơn (${shipCount.shipped + shipCount.nocode})`], ['nocode', `⚠ Đã lên nhưng thiếu mã (${shipCount.nocode})`]];
+    const opts = [['','🚚 Vận đơn: tất cả'], ['notship', `⏳ Sale chưa lên vận đơn (${shipCount.wait + shipCount.late})`], ['late', `🔴 Chưa lên quá ${shipLockLabel()} (${shipCount.late})`], ['shipped', `✅ Đã lên vận đơn (${shipCount.shipped + shipCount.nocode})`], ['nocode', `⚠ Đã lên nhưng thiếu mã (${shipCount.nocode})`]];
     shipSel.innerHTML = opts.map(([v,l])=>`<option value="${v}" ${v===shipF ? 'selected' : ''}>${l}</option>`).join('');
   }
   if(shipF) base = base.filter(inv=>{ const k = shipStateOf(inv);
@@ -7141,7 +7142,30 @@ async function packFetchInvoiceByNumber(code){
 // Đơn kho đã đóng quá 8 GIỜ mà Sale chưa lên vận đơn → KHOÁ nút tạo hoá đơn mới (không khoá cọc / data / báo cáo).
 // Bắt đầu tính từ 07:00 sáng 28/10/2026 (đơn đóng trước đó được tính 8 giờ kể từ mốc này).
 // Ngoại lệ: "⏸ Hoãn gửi" (lý do + ngày dự kiến) · Quản lý chung "Mở khoá tạm 1 giờ" cho từng Sale.
-const SHIP_LOCK_HOURS = 1; // 1 GIỜ LÀM VIỆC (không tính giờ nghỉ 18h → 7h sáng)
+let SHIP_LOCK_HOURS = 1; // GIỜ LÀM VIỆC (không tính 18h → 7h sáng) — Quản lý chung chọn 30 / 60 phút (appSettings/shipLockMinutes)
+let shipLockMinSub = null, shipLockMinutes = 60;
+function shipLockLabel(){ return shipLockMinutes >= 60 && shipLockMinutes % 60 === 0 ? (shipLockMinutes/60) + ' giờ' : shipLockMinutes + ' phút'; }
+function shipLockMinListen(){
+  if(shipLockMinSub || !fbRoot) return;
+  shipLockMinSub = fbRoot.child('appSettings/shipLockMinutes');
+  shipLockMinSub.on('value', snap=>{
+    const v = Number(snap.val()); shipLockMinutes = [30, 60].includes(v) ? v : 60;
+    SHIP_LOCK_HOURS = shipLockMinutes / 60; SHIP_LATE_HOURS = SHIP_LOCK_HOURS;
+    if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){}
+  });
+}
+function shipLockMinSet(min){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || ![30,60].includes(min)) return;
+  fbRoot.child('appSettings/shipLockMinutes').set(min).then(()=>showToast(`⏱️ Khoá tạo hoá đơn sau ${min} phút làm việc chưa gửi vận đơn`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+}
+function renderShipLockCard(){
+  const el = document.getElementById('shipLockCard'); if(!el) return;
+  const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = `<h2>⏱️ Thời gian khoá khi chưa gửi vận đơn</h2>
+    <p class="goal-hint">Kho đóng xong mà quá thời gian này (tính giờ làm việc 7h–18h, không tính giờ nghỉ) đơn vẫn chưa có mã vận đơn → Sale bị khoá tạo hoá đơn mới. Đơn khách hẹn ngày khác bấm "⏸ Hoãn" thì không bị tính.</p>
+    <div class="chip-row">${[30,60].map(m=>`<div class="chip ${shipLockMinutes===m ? 'selected' : ''}" onclick="shipLockMinSet(${m})">${m===60 ? '60 phút (1 giờ)' : '30 phút'}</div>`).join('')}</div>`;
+}
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
 function shipHoldActive(ps){ if(!ps || !ps.shipHold || !ps.shipHold.until) return false; return todayStr() <= ps.shipHold.until; }
@@ -7193,8 +7217,8 @@ function shipLockShow(list, blocked){
   const body = document.getElementById('shipLockBody');
   document.getElementById('shipLockTitle').textContent = blocked ? `🔒 Chưa tạo được hoá đơn mới — còn ${list.length} đơn chưa lên vận đơn` : `🚚 Còn ${list.length} đơn kho đã đóng chưa lên vận đơn`;
   document.getElementById('shipLockNote').innerHTML = blocked
-    ? `Đơn kho đã đóng <b>quá ${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h sáng) mà <b>chưa có mã vận đơn</b>. Vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b> (mã tự về sau 1–2 phút) — đơn không đi qua Abit thì nhập tay, khách hẹn ngày khác thì bấm <b>⏸ Hoãn gửi</b> — rồi mới tạo hoá đơn mới được.`
-    : `Gửi vận đơn sớm nhé — vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b>, mã tự về app. Đơn kho đã đóng quá <b>${SHIP_LOCK_HOURS} giờ làm việc</b> (không tính 18h → 7h) mà chưa có mã vận đơn sẽ bị khoá tạo hoá đơn mới.`;
+    ? `Đơn kho đã đóng <b>quá ${shipLockLabel()} làm việc</b> (không tính 18h → 7h sáng) mà <b>chưa có mã vận đơn</b>. Vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b> (mã tự về sau 1–2 phút) — đơn không đi qua Abit thì nhập tay, khách hẹn ngày khác thì bấm <b>⏸ Hoãn gửi</b> — rồi mới tạo hoá đơn mới được.`
+    : `Gửi vận đơn sớm nhé — vào <b>Abit</b> kiểm tra đơn + địa chỉ rồi bấm <b>"Gửi vận đơn"</b>, mã tự về app. Đơn kho đã đóng quá <b>${shipLockLabel()} làm việc</b> (không tính 18h → 7h) mà chưa có mã vận đơn sẽ bị khoá tạo hoá đơn mới.`;
   body.innerHTML = list.map(ps=>{ const inv = packInvById(ps.id) || {}; const h = Math.floor((nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000);
     return `<div class="pack-notice-item ${blocked ? 'urgent' : ''}"><b>HĐ ${escHtml(ps.invoiceNumber||inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}${shipMissingCode(ps) ? ` · <b style="color:#FF8A8D;">thiếu mã vận đơn ${escHtml(shipShortName(ps.ship.carrier)||'')}</b>` : ''}<div class="pack-sub">Kho đóng ${packTimeStr(ps.packedAt||ps.at)} (${h} giờ trước)${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}</div>
       <div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="document.getElementById('shipLockModal').classList.remove('show'); shipOpen('${ps.id}')">${shipMissingCode(ps) ? '✏️ Dán mã vận đơn' : '🚚 Lên vận đơn'}</button><button class="btn-small btn-ghost" onclick="shipHoldOpen('${ps.id}')">⏸ Hoãn gửi</button></div></div>`; }).join('');
@@ -7239,7 +7263,7 @@ function shipLockedSalesHtml(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return '';
   const rows = (state.users||[]).filter(u=>u && ['staff','team_manager'].includes(u.role)).map(u=>({u, late: shipPendingOf(u.id).late, open: shipLockUnlockedUntil(u) > nowMs()})).filter(x=>x.late.length);
   if(!rows.length) return '';
-  return `<div class="ship-lock-card"><b>🔒 Sale đang bị khoá tạo hoá đơn</b> <span class="pack-note">(đơn đã đóng quá ${SHIP_LOCK_HOURS} giờ làm việc chưa lên vận đơn / thiếu mã)</span>
+  return `<div class="ship-lock-card"><b>🔒 Sale đang bị khoá tạo hoá đơn</b> <span class="pack-note">(đơn đã đóng quá ${shipLockLabel()} làm việc chưa lên vận đơn / thiếu mã)</span>
     <div class="ship-lock-rows">${rows.map(x=>`<div class="ship-lock-row"><span>👤 <b>${escHtml(x.u.name)}</b> · ${x.late.length} đơn</span>${x.open ? `<span class="pack-note">đã mở tạm tới ${packTimeShort(shipLockUnlockedUntil(x.u))}</span>` : `<button class="btn-small btn-ghost" title="Mở khoá tạm 1 giờ" onclick="shipUnlockTemp('${x.u.id}')">🔓 Mở 1 giờ</button>`}</div>`).join('')}</div></div>`;
 }
 function shipUnlockTemp(uid){
@@ -7347,7 +7371,7 @@ function abitIssueAck(invId){
 // Đơn vào "🚚 Chờ lên vận đơn" (trong Cần xử lý) tới khi Sale bấm "Đã lên vận đơn" (kèm hãng + mã vận đơn nếu có).
 // Lưu ở packStatus/{hoáĐơn}/ship = {at, by, byName, carrier, code}.
 const SHIP_CARRIERS = ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','Gửi xe khách','GHTK','GHN','Ninja Van','Best Express','VNPost','Ahamove','Grab / Be giao','Tự giao']; // 3 hãng hay dùng nhất lên đầu
-const SHIP_LATE_HOURS = 1;
+let SHIP_LATE_HOURS = 1; // = SHIP_LOCK_HOURS (cập nhật theo cài đặt 30/60 phút)
 // Dòng nhỏ cho Kho / Quản lý chung: Sale đã lên vận đơn chưa (quá 4 giờ chưa lên → đỏ)
 function shipKhoLine(ps){
   if(!ps || ps.legacy) return '';
@@ -9689,7 +9713,7 @@ function packSaleBadgeHtmlPacked(inv, ps){
     if(ps.ship) return `<div class="pack-sale-badge ship-ok inv-one-line" title="Đã đóng ${packTimeStr(ps.packedAt||ps.at)} · lên vận đơn ${packTimeStr(ps.ship.at)}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ thiếu mã — bấm sửa</b>' : '')} <span class="inv-ol-dim">· ${who} ${packTimeShort(ps.packedAt||ps.at)}</span>${phS} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a>${packChatLinkHtml(inv.id)}</div>`;
     if(shipHoldActive(ps)) return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <span class="hold-tag" title="${escHtml(ps.shipHold.reason||'')}">⏸ Hoãn tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
     const isLate = shipIsLate(ps); const oldDay = Number(ps.packedAt||ps.at||0) < new Date(new Date(nowMs()).setHours(0,0,0,0)).getTime();
-    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${packChatLinkHtml(inv.id)}${isLate ? ` <span class="hold-tag late">🔒 quá ${SHIP_LOCK_HOURS} giờ chưa lên</span>` : ` <span class="hold-tag" title="Tính giờ làm việc 7h–18h">⏳ còn ${Math.max(1, Math.round((SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs()))*60))} phút</span>`}</div>`;
+    return `<div class="pack-sale-badge ok inv-one-line">📦 ${who} ${packTimeShort(ps.packedAt||ps.at)}${phS} <button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button><button class="btn-small btn-ghost ship-inline" title="Khách hẹn ngày khác mới gửi" onclick="event.stopPropagation(); shipHoldOpen('${inv.id}')">⏸ Hoãn</button>${packChatLinkHtml(inv.id)}${isLate ? ` <span class="hold-tag late">🔒 quá ${shipLockLabel()} chưa lên</span>` : ` <span class="hold-tag" title="Tính giờ làm việc 7h–18h">⏳ còn ${Math.max(1, Math.round((SHIP_LOCK_HOURS - shipWorkHours(Math.max(Number(ps.packedAt||ps.at||0), shipHoldEndMs(ps)), nowMs()))*60))} phút</span>`}</div>`;
   }
   if(false) return `<div class="pack-sale-badge warn">📦 Kho đã gửi 1 phần · còn nợ khách: ${escHtml(packShortText(ps.shortItems))}${ph}</div><div class="pack-sale-actions">${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   if(ps.state==='short'){
@@ -15329,7 +15353,8 @@ function enterApp(){
   setupRoleScopedListeners(user);
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
   try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
-  try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); } // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
+  try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); }
+  try{ shipLockMinListen(); }catch(e){ console.error(e); } // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
   setupChatNotifyListener();
@@ -15549,7 +15574,7 @@ function goPage(pageId){
   if(pageId==='goals') renderGoalsPage();
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
-  if(pageId==='mgrSettings'){ try{ renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
+  if(pageId==='mgrSettings'){ try{ renderShipLockCard(); renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
