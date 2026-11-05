@@ -9210,11 +9210,12 @@ function packLinePrices(inv){ // giá theo đúng thứ tự packInvLines
   (inv.productGroups||[]).forEach(g=>(g.colorLines||[]).forEach(l=>{ const q = Number(l.qty)||0; if(!g.productCode || !q) return; out.push(Number(g.unitPrice)||0); }));
   return out;
 }
-function packPkgConfirmOpen(){
-  const inv = packInvById(packPanel.invId); if(!inv) return;
+function packPkgConfirmOpen(invOverride, mode){
+  // invOverride: hoá đơn ĐÃ TRỪ món thiếu (khi "Gửi thiếu") → chia kiện theo đúng hàng thực gửi
+  const inv = invOverride || packInvById(packPanel.invId); if(!inv) return;
   const lines = packInvLines(inv), prices = packLinePrices(inv);
   const n = Math.max(1, Math.min(10, Number(packPanel.pkgs) || 1));
-  packPkg = {invId: inv.id, n, lines: lines.map((l,i)=>({key: l.key, code: l.code, qty: l.qty, price: prices[i] || 0,
+  packPkg = {invId: packPanel.invId, mode: mode || 'packed', n, lines: lines.map((l,i)=>({key: l.key, code: l.code, qty: l.qty, price: prices[i] || 0,
     label: [l.code, l.design, l.color, l.size].filter(Boolean).join(' · '), alloc: []})), manual: false};
   if(n > 1) packPkgAuto();
   packPkgRender();
@@ -9266,7 +9267,7 @@ function packPkgRender(){
         ${Array.from({length:n-1},(_,k)=>`<td class="num"><input type="number" min="0" max="${l.qty}" inputmode="numeric" value="${l.alloc[k] || ''}" placeholder="0" oninput="packPkg.lines[${i}].alloc[${k}]=this.value; packPkgRefresh()"></td>`).join('')}</tr>`).join('')}
       </tbody><tfoot><tr><td><b>Mỗi kiện</b></td><td></td>${kien.map((k,i)=>`<td class="num" id="pkgSum${i}"><b>${k.qty} món</b><div class="pack-note">${fmtMoney(k.amt)} đ</div></td>`).join('')}</tr></tfoot></table></div>`;
   }
-  el.innerHTML = `<div style="font-size:13.5px; margin-bottom:8px;"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} · ${packPkg.lines.reduce((a,l)=>a+l.qty,0)} món</div>
+  el.innerHTML = `<div style="font-size:13.5px; margin-bottom:8px;"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} · ${packPkg.lines.reduce((a,l)=>a+l.qty,0)} món${packPkg.mode==='partial' ? ' <span class="pack-badge pack-partial">⚠️ Gửi thiếu — chỉ tính hàng thực gửi</span>' : ''}</div>
     <div class="pkg-stepper"><span>Đơn này đóng thành</span><button onclick="packPkgSetN(-1)">−</button><b>${n}</b><button onclick="packPkgSetN(1)">+</button><span>kiện</span></div>
     ${table}
     <div class="login-error" id="packPkgErr">${bad ? escHtml(bad) : ''}</div>`;
@@ -9289,8 +9290,9 @@ function packPkgConfirm(){
   packPanel.pkgSplit = n > 1 ? {n, lines: packPkg.lines.map(l=>({key: l.key, code: l.code, label: l.label, price: l.price,
     q: [Math.max(0, l.k1)].concat(Array.from({length: n-1}, (_,k)=>Math.max(0, Math.floor(Number(l.alloc[k])||0))))})).filter(l=>l.q.some(x=>x>0))} : null;
   packPanel._pkgOk = true;
+  const mode = packPkg.mode;
   packPkgClose();
-  packDoPacked();
+  if(mode==='partial') packDoPartial(); else packDoPacked();
 }
 function packDoPacked(){
   if(packPanel && !packPanel._outOk){
@@ -9778,6 +9780,11 @@ function packDoPartial(){
   if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
   const ps = packStatusMap()[packPanel.invId]; if(!ps || ps.state!=='short') return;
+  if(!packPanel._pkgOk){ // 📦 bắt buộc xác nhận số kiện — chia theo hàng THỰC GỬI (đã trừ món thiếu)
+    const inv0 = packInvById(packPanel.invId), plan0 = inv0 ? packDeductShortPlan(inv0, ps.shortItems) : null;
+    packPkgConfirmOpen(plan0 && plan0.nv ? Object.assign({}, plan0.nv, {invoiceNumber: inv0.invoiceNumber, customerName: inv0.customerName}) : inv0, 'partial');
+    return;
+  }
   const go = ()=>packNeedPhotos(()=>{
     const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
     const plan = packDeductShortPlan(inv, ps.shortItems);
