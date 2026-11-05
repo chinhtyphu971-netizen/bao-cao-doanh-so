@@ -1916,6 +1916,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .tone-table td{ padding-top:5px; padding-bottom:5px; }
   .row-resigned td{ opacity:.55; }
   .badge.resigned-tag{ background:rgba(148,163,184,.18); color:#AEB8CC; }
+  .pack-sale-badge.bad{ background:rgba(229,72,77,.14); color:#FF8A8D; border:1px solid rgba(229,72,77,.5); }
 </style>
 </head>
 <body>
@@ -7355,10 +7356,27 @@ function shipKhoLine(ps){
   if(abitH && ps.ship) return shipKhoLine2(ps).replace(/<\/div>$/, abitH + '</div>');
   return shipKhoLine2(ps);
 }
+// Nguồn mã vận đơn: Abit tự gửi (auto) · Sale nhập tay nhưng TRÙNG mã Abit (coi như Abit) · Sale nhập KHÁC mã Abit (cảnh báo)
+function shipSourceInfo(ps, inv){
+  const sh = ps && ps.ship; if(!sh) return {kind: 'none'};
+  if(sh.auto) return {kind: 'abit'};
+  inv = inv || packInvById(ps.id);
+  const abitTrk = inv && inv.abit && inv.abit.tracking ? String(inv.abit.tracking).split(/[,\s]+/).filter(Boolean) : [];
+  if(!abitTrk.length) return {kind: 'sale'};
+  const mine = (Array.isArray(sh.codes) && sh.codes.length ? sh.codes : (sh.code ? [sh.code] : [])).map(x=>String(x).trim().toUpperCase());
+  if(!mine.length) return {kind: 'abit'};
+  if(abitTrk.some(t=>mine.includes(String(t).trim().toUpperCase()))) return {kind: 'abit'};
+  return {kind: 'mismatch', abit: abitTrk.join(', '), sale: mine.join(', ')};
+}
+function shipSourceLabel(si, short){
+  if(si.kind==='abit') return 'Abit đã gửi vận đơn';
+  if(si.kind==='mismatch') return '⚠ Mã Sale nhập KHÁC mã Abit';
+  return short ? 'Đã lên vận đơn' : 'Sale đã lên vận đơn';
+}
 function shipKhoLine2(ps){
   if(!ps || ps.legacy) return '';
   if(!ps.ship && shipHoldActive(ps)) return `<div class="pack-sub" style="color:#A9C4FF;" title="${escHtml(ps.shipHold.reason||'')}">⏸ Sale hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().slice(0,2).join('/'))} — ${escHtml(ps.shipHold.reason||'')}</div>`;
-  if(ps.ship) return `<div class="pack-sub" style="color:#6FD99A;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 ${ps.ship.auto ? 'Abit đã gửi vận đơn' : 'Sale đã lên vận đơn'}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`;
+  if(ps.ship){ const si = shipSourceInfo(ps); return `<div class="pack-sub" style="color:${si.kind==='mismatch' ? 'var(--danger)' : '#6FD99A'};" ${si.kind==='mismatch' ? `title="Sale nhập: ${escHtml(si.sale)} · Abit gửi: ${escHtml(si.abit)}"` : ''}>${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}🚚 ${shipSourceLabel(si)}${si.kind==='mismatch' ? ` (Abit: <b>${escHtml(si.abit)}</b>)` : ''}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã vận đơn</b>' : '')}</div>`; }
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${ps.pkgs ? `<b class="pkgs-tag">${ps.pkgs} kiện</b> ` : ''}<span style="white-space:nowrap;">⏳ Chưa gửi VĐ${h >= 1 ? ' ' + Math.floor(h) + 'h' : ''}</span></div>`;
 }
@@ -7409,7 +7427,7 @@ function shipShortName(c){ const m = {'SPX (Shopee Express)':'SPX', 'Viettel Pos
 function packTimeShort(t){ const d = new Date(Number(t||0)); if(!t) return ''; const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); return toLocalDateStr(d)===todayStr() ? hm : hm + ' ' + d.getDate() + '/' + (d.getMonth()+1); }
 function shipLineHtml(inv, ps){
   if(!ps || ps.legacy) return '';
-  if(ps.ship) return `<div class="pack-sale-badge ship-ok">🚚 ${ps.ship.auto ? 'Abit đã gửi vận đơn' : 'Đã lên vận đơn'}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml((Array.isArray(ps.ship.codes) && ps.ship.codes.length > 1) ? ps.ship.codes.join(', ') : ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.autoAt || ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`;
+  if(ps.ship){ const si = shipSourceInfo(ps, inv); return `<div class="pack-sale-badge ${si.kind==='mismatch' ? 'bad' : 'ship-ok'}">🚚 ${shipSourceLabel(si, true)}${si.kind==='mismatch' ? ` (Abit: <b>${escHtml(si.abit)}</b> — kiểm tra lại)` : ''}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml((Array.isArray(ps.ship.codes) && ps.ship.codes.length > 1) ? ps.ship.codes.join(', ') : ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.autoAt || ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`; }
   if(shipHoldActive(ps)) return `<div class="pack-sale-badge printed">⏸ Hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().join('/'))} — ${escHtml(ps.shipHold.reason||'')} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipHoldOpen('${inv.id}')">sửa</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
   // Đơn đã có trên Abit → Sale chỉ cần bấm "Gửi vận đơn" trên Abit, mã tự về; nhập tay chỉ để dự phòng
   if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay</a></div>`;
@@ -11353,10 +11371,11 @@ function renderMktReportsAdmin(){
   document.getElementById('mraTitle').textContent = isTeamMgr ? 'Báo cáo team MKT' : 'Báo cáo MKT';
   document.getElementById('mraScope').textContent = isTeamMgr ? `Team ${teamName(me.mktBranchId)}` : (mraTeam ? `Team ${teamName(mraTeam)}` : 'Tất cả team MKT');
   const dates = mraDatesInRange();
-  const members = mraScopeMembers();
+  let members = mraScopeMembers();
   const linkIdx = mraLinkIndex();
   const sums = members.map(u=>mraPersonSummary(u, dates, linkIdx))
     .filter(x=>!userInactive(x.u) || mraMember===x.u.id || (x.reps && x.reps.length) || x.totalData > 0); // 🚪 tạm nghỉ / nghỉ việc + không có gì trong khoảng ngày → ẩn
+  members = sums.map(x=>x.u); // mọi con số (x / tổng người, theo ngày, theo tuần) chỉ tính người đang hiện
   const needCheck = sums.filter(x=>x.issues.some(i=>i.lvl>=2)).length;
   const submittedCells = sums.reduce((t,x)=>t+(dates.length-x.missing.length),0);
   const appTotal = sums.reduce((t,x)=>t+x.app.total,0), outTotal = sums.reduce((t,x)=>t+x.outside,0);
