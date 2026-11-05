@@ -120,7 +120,7 @@ module.exports = async (req, res)=>{
     if(!inv) return res.status(404).json({ok:false, error:'Không thấy hoá đơn'});
     if(!ps || ps.legacy || !(ps.state === 'packed' || ps.state === 'partial')) return res.status(400).json({ok:false, error:'Đơn chưa đóng xong — chưa đẩy sang Abit'});
     const parts = splitParts(inv, ps);
-    const doneParts = (inv.abit && inv.abit.parts) || {};
+    let doneParts = (inv.abit && inv.abit.parts) || {};
     if(inv.abit && inv.abit.invoice_no && (!parts || parts.every(p=>doneParts[p.i] && doneParts[p.i].invoice_no))) return res.json({ok:true, invoice_no: inv.abit.invoice_no, existed:true}); // đã đẩy rồi → không tạo trùng
     // Tên đăng nhập Abit của Sale (Quản lý chung điền ở Cài đặt → Sửa). Chưa có → KHÔNG đẩy, tránh Abit chia đơn ngẫu nhiên
     const username = inv.saleId ? String((await D.ref('users/' + inv.saleId + '/abitAccount').once('value')).val() || '').trim() : '';
@@ -129,6 +129,13 @@ module.exports = async (req, res)=>{
     lockRef = D.ref('abitLocks/' + id);
     const tx = await lockRef.transaction(cur=> (cur && Date.now() - cur < 60000) ? undefined : Date.now());
     if(!tx.committed){ lockRef = null; return res.status(409).json({ok:false, error:'Đơn đang được đẩy, thử lại sau ít phút'}); }
+    { // ĐỌC LẠI sau khi giữ khoá: máy khác có thể vừa đẩy xong trong lúc chờ → không tạo trùng
+      const fresh = (await D.ref('invoices/' + id + '/abit').once('value')).val();
+      if(fresh) inv.abit = fresh;
+      const done2 = (fresh && fresh.parts) || {};
+      if(fresh && fresh.invoice_no && (!parts || parts.every(p=>done2[p.i] && done2[p.i].invoice_no))){ await lockRef.remove(); lockRef = null; return res.json({ok:true, invoice_no: fresh.invoice_no, existed:true}); }
+      doneParts = done2;
+    }
     const createOne = async (order)=>{
       if(!order.listProduct.length) throw new Error('Hoá đơn không có sản phẩm');
       const r = await fetch(process.env.ABIT_CREATE_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify([order])});
