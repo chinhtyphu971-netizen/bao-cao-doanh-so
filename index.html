@@ -1937,6 +1937,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .ship-line{ line-height:1.5; }
   .ship-src{ font-size:11px; font-weight:600; color:#A9C4FF; white-space:nowrap; }
   .abit-tag.warn{ color:#F0C04A; background:rgba(240,192,74,0.14); border-color:rgba(240,192,74,0.5); }
+  .abit-tag.sent{ color:#8FB8FF; background:rgba(79,140,255,0.16); border-color:rgba(79,140,255,0.55); }
+  .abit-tag.transit{ color:#C9A6FF; background:rgba(150,100,255,0.16); border-color:rgba(150,100,255,0.55); }
+  .abit-tag.new{ color:#AEB8CC; background:rgba(148,163,184,0.12); border-color:rgba(148,163,184,0.4); }
 </style>
 </head>
 <body>
@@ -7381,7 +7384,15 @@ function abitStatusLabel(status, statusAt){
   if(abitIsSlow(status, statusAt)) return '⏳ Giao chậm — ' + Math.floor((nowMs() - Number(statusAt))/86400000) + ' ngày chưa phát';
   return status==='Chuaphatduoc' ? '🚚 Đang giao' : (ABIT_STATUS_NAME[status] || status);
 }
-function abitStatusCls(status, statusAt){ return ABIT_BAD.includes(status) ? 'bad' : (abitIsSlow(status, statusAt) ? 'warn' : (['Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat'].includes(status) ? 'ok' : '')); }
+// Màu nhãn theo đường đi của đơn: mới tạo (xám) → Đã gửi BĐ (xanh dương) → Đang giao (tím) → Thành công (xanh lá) · Giao chậm (vàng) · Hỏng (đỏ)
+function abitStatusCls(status, statusAt){
+  if(ABIT_BAD.includes(status)) return 'bad';
+  if(abitIsSlow(status, statusAt)) return 'warn';
+  if(['Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat'].includes(status)) return 'ok';
+  if(status==='Chuaphatduoc') return 'transit';
+  if(status==='Daguibuudien' || status==='Sent') return 'sent';
+  return status ? 'new' : '';
+}
 function abitTagHtml(inv){
   const a = inv && inv.abit; if(!a) return '';
   if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
@@ -9778,7 +9789,8 @@ function packSaleBadgeHtml(inv){
   return packSaleBadgeHtmlPacked(inv, ps);
 }
 function packSaleBadgeHtmlPacked(inv, ps){
-  const ph = '';
+  // 📷 nút xem ảnh kho chụp — trước đây bị gán cứng '' nên Sale KHÔNG thấy ảnh ở dòng "Kho báo thiếu"
+  const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" title="Xem ảnh kho chụp" onclick="event.preventDefault(); event.stopPropagation(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)} ảnh</a>` : '';
   const clS = packActiveClaimOf(inv.id); // người đang xử lý đơn bù (dùng ở nhánh "Kho báo thiếu") — trước đây thiếu dòng này nên lỗi "clS is not defined"
   if(ps.state==='packed'){ // GỌN 1 DÒNG: đóng lúc… · vận đơn · ảnh
     const who = (ps.bySale ? (ps.staffId===inv.saleId ? 'Bạn tự đóng' : escHtml(ps.staffName||'Sale khác') + ' đóng hộ') : ('Đóng' + (ps.staffName ? ' · ' + escHtml(ps.staffName) : ''))) + (ps.pkgs ? ` · <b class="pkgs-tag">${ps.pkgs} kiện</b>` : '');
