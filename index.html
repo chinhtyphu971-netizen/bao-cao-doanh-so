@@ -2636,6 +2636,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
               <input id="packFrom" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Từ ngày"> → <input id="packTo" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Đến ngày">
             </span>
             <select id="packShipSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo việc Sale lên vận đơn"><option value="">🚚 Vận đơn: tất cả</option></select>
+            <select id="packDelivSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo trạng thái giao hàng Abit báo về"><option value="">📍 Giao hàng: tất cả</option></select>
             <select id="packSaleSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👤 Tất cả Sale</option></select>
             <select id="packSortSel" onchange="pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="asc">↑ Cọc cũ trước</option>
@@ -6845,6 +6846,23 @@ function packCurrentList(){
     const opts = [['','🚚 Vận đơn: tất cả'], ['notship', `⏳ Sale chưa lên vận đơn (${shipCount.wait + shipCount.late})`], ['late', `🔴 Chưa lên quá ${shipLockLabel()} (${shipCount.late})`], ['shipped', `✅ Đã lên vận đơn (${shipCount.shipped + shipCount.nocode})`], ['nocode', `⚠ Đã lên nhưng thiếu mã (${shipCount.nocode})`]];
     shipSel.innerHTML = opts.map(([v,l])=>`<option value="${v}" ${v===shipF ? 'selected' : ''}>${l}</option>`).join('');
   }
+  // ===== 📍 Lọc theo TRẠNG THÁI GIAO HÀNG (Abit báo về) — chỉ đơn đã đóng =====
+  const delivF = (document.getElementById('packDelivSel')||{}).value || '';
+  const delivOf = inv=>{
+    const ps = smapS[inv.id]; if(!ps || ps.legacy || !(ps.state==='packed' || ps.state==='partial')) return '';
+    const a = inv.abit || {};
+    if(!a.invoice_no) return 'noabit';
+    const st = a.status, cls = abitStatusCls(st, a.statusAt);
+    return ({bad:'bad', warn:'slow', ok:'ok', transit:'transit', sent:'sent'})[cls] || 'created';
+  };
+  const delivCount = {noabit:0, created:0, sent:0, transit:0, slow:0, ok:0, bad:0}; base.forEach(inv=>{ const k = delivOf(inv); if(k) delivCount[k]++; });
+  const delivSel = document.getElementById('packDelivSel');
+  if(delivSel){
+    const opts = [['','📍 Giao hàng: tất cả'], ['noabit', `⚪ Chưa lên Abit (${delivCount.noabit})`], ['created', `⚪ Mới tạo, chưa gửi (${delivCount.created})`], ['sent', `🔵 Đã gửi BĐ (${delivCount.sent})`],
+      ['transit', `🟣 Đang giao (${delivCount.transit})`], ['slow', `🟡 Giao chậm (${delivCount.slow})`], ['ok', `🟢 Thành công (${delivCount.ok})`], ['bad', `🔴 Có vấn đề (${delivCount.bad})`]];
+    delivSel.innerHTML = opts.map(([v,l])=>`<option value="${v}" ${v===delivF ? 'selected' : ''}>${l}</option>`).join('');
+  }
+  if(delivF) base = base.filter(inv=>delivOf(inv)===delivF);
   if(shipF) base = base.filter(inv=>{ const k = shipStateOf(inv);
     return shipF==='notship' ? (k==='wait' || k==='late') : (shipF==='shipped' ? (k==='shipped' || k==='nocode') : k===shipF); });
   // Danh sách Sale (đếm theo bộ lọc hiện tại, trước khi lọc Sale)
@@ -7002,6 +7020,7 @@ function packResetFilters(){
   const sl = document.getElementById('packSaleSel'); if(sl) sl.value = '';
   const tl = document.getElementById('packTeamSel'); if(tl) tl.value = '';
   const shl = document.getElementById('packShipSel'); if(shl) shl.value = '';
+  const dl = document.getElementById('packDelivSel'); if(dl) dl.value = '';
   const so = document.getElementById('packSortSel'); if(so) so.value = 'desc';
   packSelected.clear(); pagerPages.packInv = 1; renderPackInvoicesPage();
 }
