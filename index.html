@@ -1936,6 +1936,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-inline{ white-space:nowrap; }
   .ship-line{ line-height:1.5; }
   .ship-src{ font-size:11px; font-weight:600; color:#A9C4FF; white-space:nowrap; }
+  .abit-tag.warn{ color:#F0C04A; background:rgba(240,192,74,0.14); border-color:rgba(240,192,74,0.5); }
 </style>
 </head>
 <body>
@@ -7367,28 +7368,38 @@ async function abitRetry(invId){
   if(currentPageId==='packInvoices') renderPackInvoicesPage(); if(currentPageId==='invoices') renderInvoicesPage();
 }
 // Nhãn Abit (hoá đơn / bảng kho)
-const ABIT_STATUS_NAME = {Daguibuudien:'Đã gửi BĐ', Sent:'Đã gửi', Chuaphatduoc:'Chưa phát được', Giaohangcovande:'Giao có vấn đề', Daphatthanhcong:'Phát thành công',
+const ABIT_STATUS_NAME = {Daguibuudien:'Đã gửi BĐ', Sent:'Đã gửi', Chuaphatduoc:'Đang giao', Giaohangcovande:'Giao có vấn đề', Daphatthanhcong:'Phát thành công',
   Tuchoinhan:'Từ chối nhận', Chuyenhoan:'Chuyển hoàn', Daphathoanthanhcong:'Đã hoàn về', CODDathutien:'COD đã thu', Dathutien:'Đã thu tiền', Dadoisoat:'Đã đối soát',
   Huyvandon:'Huỷ vận đơn', Dadonggoi:'Đã đóng gói', Dain:'Đã in', AutoCreated:'Mới tạo', Matdonhang:'Mất đơn', Khonglayduochang:'Không lấy được hàng', Muatructiep:'Mua trực tiếp'};
-const ABIT_BAD = ['Chuaphatduoc','Giaohangcovande','Tuchoinhan','Chuyenhoan','Daphathoanthanhcong','Huyvandon','Matdonhang','Khonglayduochang'];
+const ABIT_BAD = ['Giaohangcovande','Tuchoinhan','Chuyenhoan','Daphathoanthanhcong','Huyvandon','Matdonhang','Khonglayduochang'];
+// "Chưa phát được" (Chuaphatduoc) Abit gắn HÀNG LOẠT khi hàng còn trên đường → coi là ĐANG GIAO, KHÔNG báo động.
+// Chỉ khi kéo dài quá ABIT_SLOW_DAYS ngày mới nhắc nhẹ "Giao chậm" để Sale gọi hỏi khách.
+const ABIT_SLOW_DAYS = 4;
+function abitIsSlow(status, statusAt){ return status==='Chuaphatduoc' && Number(statusAt) > 0 && nowMs() - Number(statusAt) > ABIT_SLOW_DAYS*86400000; }
+function abitIsProblem(status, statusAt){ return ABIT_BAD.includes(status) || abitIsSlow(status, statusAt); }
+function abitStatusLabel(status, statusAt){
+  if(abitIsSlow(status, statusAt)) return '⏳ Giao chậm — ' + Math.floor((nowMs() - Number(statusAt))/86400000) + ' ngày chưa phát';
+  return status==='Chuaphatduoc' ? '🚚 Đang giao' : (ABIT_STATUS_NAME[status] || status);
+}
+function abitStatusCls(status, statusAt){ return ABIT_BAD.includes(status) ? 'bad' : (abitIsSlow(status, statusAt) ? 'warn' : (['Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat'].includes(status) ? 'ok' : '')); }
 function abitTagHtml(inv){
   const a = inv && inv.abit; if(!a) return '';
   if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
   // Đơn tách nhiều kiện → hiện từng kiện: mã đơn Abit · trạng thái
   if(a.parts && typeof a.parts === 'object' && Object.keys(a.parts).length > 1){
-    const ps = Object.keys(a.parts).sort((x,y)=>Number(x)-Number(y)).map(k=>{ const p = a.parts[k] || {}; const st = p.status ? (ABIT_STATUS_NAME[p.status] || p.status) : 'chưa gửi';
-      return `<span class="abit-tag ${ABIT_BAD.includes(p.status) ? 'bad' : (p.status==='Daphatthanhcong' || p.status==='CODDathutien' || p.status==='Dadoisoat' ? 'ok' : '')}" title="Kiện ${k} · đơn Abit ${escHtml(p.invoice_no||'')}${p.tracking ? ' · mã VĐ ' + escHtml(p.tracking) : ''}">📦${k} ${escHtml(p.invoice_no||'—')} · ${escHtml(st)}</span>`; }).join(' ');
+    const ps = Object.keys(a.parts).sort((x,y)=>Number(x)-Number(y)).map(k=>{ const p = a.parts[k] || {}; const st = p.status ? abitStatusLabel(p.status, p.statusAt) : 'chưa gửi';
+      return `<span class="abit-tag ${abitStatusCls(p.status, p.statusAt)}" title="Kiện ${k} · đơn Abit ${escHtml(p.invoice_no||'')}${p.tracking ? ' · mã VĐ ' + escHtml(p.tracking) : ''}">📦${k} ${escHtml(p.invoice_no||'—')} · ${escHtml(st)}</span>`; }).join(' ');
     const err = a.error ? ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ ${escHtml(a.error)} — đẩy tiếp</a>` : '';
     return ` <span class="abit-parts">🔗 ${Object.keys(a.parts).length} kiện:</span> ${ps}${err}`;
   }
-  const st = a.status ? (ABIT_STATUS_NAME[a.status] || a.status) : '';
-  return ` <span class="abit-tag ${ABIT_BAD.includes(a.status) ? 'bad' : (a.status==='Daphatthanhcong' || a.status==='CODDathutien' || a.status==='Dadoisoat' ? 'ok' : '')}" title="Đơn trên Abit ${escHtml(a.invoice_no||'')}${a.statusAt ? ' · cập nhật ' + packTimeStr(a.statusAt) : ''}">🔗 ${escHtml(a.invoice_no||'Abit')}${st ? ' · ' + escHtml(st) : ''}</span>`;
+  const st = a.status ? abitStatusLabel(a.status, a.statusAt) : '';
+  return ` <span class="abit-tag ${abitStatusCls(a.status, a.statusAt)}" title="Đơn trên Abit ${escHtml(a.invoice_no||'')}${a.statusAt ? ' · cập nhật ' + packTimeStr(a.statusAt) : ''}">🔗 ${escHtml(a.invoice_no||'Abit')}${st ? ' · ' + escHtml(st) : ''}</span>`;
 }
 // ----- 🚨 Giao có vấn đề (Abit báo trạng thái xấu) → Sale gọi khách xử lý -----
 // Đơn của Sale có abit.status thuộc ABIT_BAD và chưa bấm "Đã xử lý" sau lần đổi trạng thái đó (abit.ackAt < abit.statusAt)
 function abitIssueList(me){
   me = me || currentUser(); if(!me) return [];
-  return (state.invoices||[]).filter(inv=>inv && inv.saleId===me.id && inv.abit && ABIT_BAD.includes(inv.abit.status) && !(Number(inv.abit.ackAt) >= Number(inv.abit.statusAt||0)))
+  return (state.invoices||[]).filter(inv=>inv && inv.saleId===me.id && inv.abit && abitIsProblem(inv.abit.status, inv.abit.statusAt) && !(Number(inv.abit.ackAt) >= Number(inv.abit.statusAt||0)))
     .sort((a,b)=>(Number(b.abit.statusAt)||0)-(Number(a.abit.statusAt)||0));
 }
 function abitIssueCheckNew(){
@@ -7398,18 +7409,18 @@ function abitIssueCheckNew(){
   const cut = nowMs() - 10*86400000; Object.keys(seen).forEach(k=>{ if(seen[k] < cut) delete seen[k]; });
   try{ localStorage.setItem('abitIssueSeen', JSON.stringify(seen)); }catch(e){}
   if(!fresh.length) return;
-  try{ if(toneCurrent('abitIssue')) playEventTone('abitIssue'); else { playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 450); } }catch(e){}
-  const i0 = fresh[0], st = ABIT_STATUS_NAME[i0.abit.status] || i0.abit.status;
-  showToast(fresh.length===1 ? `🚨 Đơn ${i0.invoiceNumber || ''} (${i0.customerName || ''}): ${st} — gọi lại khách ngay` : `🚨 ${fresh.length} đơn giao có vấn đề — mở "Việc cần làm với hoá đơn" để xử lý`);
+  try{ if(!fresh.some(x=>ABIT_BAD.includes(x.abit.status))) playTingSound(); else if(toneCurrent('abitIssue')) playEventTone('abitIssue'); else { playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 450); } }catch(e){}
+  const i0 = fresh[0], st = abitStatusLabel(i0.abit.status, i0.abit.statusAt);
+  showToast(fresh.length===1 ? `${abitIsSlow(i0.abit.status, i0.abit.statusAt) ? '⏳' : '🚨'} Đơn ${i0.invoiceNumber || ''} (${i0.customerName || ''}): ${st} — gọi lại khách ngay` : `🚨 ${fresh.length} đơn giao có vấn đề — mở "Việc cần làm với hoá đơn" để xử lý`);
   try{ renderMyInvTodoBar(); }catch(e){}
 }
 function abitIssueOpen(){
   const list = abitIssueList(); if(!list.length){ showToast('Không còn đơn nào giao có vấn đề'); return; }
   const codes = inv=>{ const sh = (packStatusOfInv(inv)||{}).ship || {}; return (Array.isArray(sh.codes) && sh.codes.length ? sh.codes : (sh.code ? [sh.code] : [])).join(', ') || (inv.abit.tracking || ''); };
   document.getElementById('loyalModalBody').innerHTML = `<h2>🚨 Đơn giao có vấn đề (${list.length})</h2>
-    <p class="goal-hint" style="margin:0 0 10px;">Abit báo các đơn dưới đây giao chưa thành công. Gọi khách hỏi lý do, hẹn giao lại hoặc báo kho — xong bấm "Đã xử lý" (ghi ngắn cách xử lý).</p>
-    ${list.map(inv=>{ const st = ABIT_STATUS_NAME[inv.abit.status] || inv.abit.status, cd = codes(inv);
-      return `<div class="abit-issue"><div class="abit-issue-top"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} <span class="abit-tag bad">${escHtml(st)}</span></div>
+    <p class="goal-hint" style="margin:0 0 10px;">Abit báo các đơn dưới đây giao chưa thành công (hoặc đi quá ${ABIT_SLOW_DAYS} ngày chưa phát). Gọi khách hỏi lý do, hẹn giao lại hoặc báo kho — xong bấm "Đã xử lý" (ghi ngắn cách xử lý).</p>
+    ${list.map(inv=>{ const st = abitStatusLabel(inv.abit.status, inv.abit.statusAt), cd = codes(inv);
+      return `<div class="abit-issue"><div class="abit-issue-top"><b>${escHtml(inv.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')} <span class="abit-tag ${abitStatusCls(inv.abit.status, inv.abit.statusAt)}">${escHtml(st)}</span></div>
         <div class="muted-s">${inv.customerPhone ? `<a href="tel:${escHtml(inv.customerPhone)}" style="color:var(--accent); font-weight:600;">📞 ${escHtml(inv.customerPhone)}</a> · ` : ''}${cd ? 'Mã VĐ: ' + escHtml(cd) + ' · ' : ''}cập nhật ${inv.abit.statusAt ? packTimeStr(inv.abit.statusAt) : ''}${inv.totalAmount ? ' · ' + fmtMoney(inv.totalAmount) + ' đ' : ''}</div>
         <div class="msg-save-row" style="display:flex; margin-top:6px;"><input id="aiNote_${inv.id}" placeholder="Đã xử lý thế nào? VD: khách hẹn nhận lại ngày mai"><button class="btn-primary btn-small" onclick="abitIssueAck('${inv.id}')">✅ Đã xử lý</button></div></div>`; }).join('')}
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
