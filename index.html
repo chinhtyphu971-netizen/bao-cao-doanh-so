@@ -1940,6 +1940,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .abit-tag.sent{ color:#8FB8FF; background:rgba(79,140,255,0.16); border-color:rgba(79,140,255,0.55); }
   .abit-tag.transit{ color:#C9A6FF; background:rgba(150,100,255,0.16); border-color:rgba(150,100,255,0.55); }
   .abit-tag.new{ color:#AEB8CC; background:rgba(148,163,184,0.12); border-color:rgba(148,163,184,0.4); }
+  .abit-tag.direct{ color:#5FD6C8; background:rgba(45,190,170,0.15); border-color:rgba(45,190,170,0.5); }
 </style>
 </head>
 <body>
@@ -6853,13 +6854,13 @@ function packCurrentList(){
     const a = inv.abit || {};
     if(!a.invoice_no) return 'noabit';
     const st = a.status, cls = abitStatusCls(st, a.statusAt);
-    return ({bad:'bad', warn:'slow', ok:'ok', transit:'transit', sent:'sent'})[cls] || 'created';
+    return ({bad:'bad', warn:'slow', ok:'ok', transit:'transit', sent:'sent', direct:'direct'})[cls] || 'created';
   };
-  const delivCount = {noabit:0, created:0, sent:0, transit:0, slow:0, ok:0, bad:0}; base.forEach(inv=>{ const k = delivOf(inv); if(k) delivCount[k]++; });
+  const delivCount = {noabit:0, created:0, sent:0, transit:0, slow:0, ok:0, direct:0, bad:0}; base.forEach(inv=>{ const k = delivOf(inv); if(k) delivCount[k]++; });
   const delivSel = document.getElementById('packDelivSel');
   if(delivSel){
     const opts = [['','📍 Giao hàng: tất cả'], ['noabit', `⚪ Chưa lên Abit (${delivCount.noabit})`], ['created', `⚪ Mới tạo, chưa gửi (${delivCount.created})`], ['sent', `🔵 Đã gửi BĐ (${delivCount.sent})`],
-      ['transit', `🟣 Đang giao (${delivCount.transit})`], ['slow', `🟡 Giao chậm (${delivCount.slow})`], ['ok', `🟢 Thành công (${delivCount.ok})`], ['bad', `🔴 Có vấn đề (${delivCount.bad})`]];
+      ['transit', `🟣 Đang giao (${delivCount.transit})`], ['slow', `🟡 Giao chậm (${delivCount.slow})`], ['ok', `🟢 Thành công (${delivCount.ok})`], ['direct', `🏪 Mua trực tiếp (${delivCount.direct})`], ['bad', `🔴 Có vấn đề (${delivCount.bad})`]];
     delivSel.innerHTML = opts.map(([v,l])=>`<option value="${v}" ${v===delivF ? 'selected' : ''}>${l}</option>`).join('');
   }
   if(delivF) base = base.filter(inv=>delivOf(inv)===delivF);
@@ -7401,13 +7402,14 @@ function abitIsSlow(status, statusAt){ return status==='Chuaphatduoc' && Number(
 function abitIsProblem(status, statusAt){ return ABIT_BAD.includes(status) || abitIsSlow(status, statusAt); }
 function abitStatusLabel(status, statusAt){
   if(abitIsSlow(status, statusAt)) return '⏳ Giao chậm — ' + Math.floor((nowMs() - Number(statusAt))/86400000) + ' ngày chưa phát';
-  return status==='Chuaphatduoc' ? '🚚 Đang giao' : (ABIT_STATUS_NAME[status] || status);
+  return status==='Chuaphatduoc' ? '🚚 Đang giao' : (status==='Muatructiep' ? '🏪 Mua trực tiếp' : (ABIT_STATUS_NAME[status] || status));
 }
 // Màu nhãn theo đường đi của đơn: mới tạo (xám) → Đã gửi BĐ (xanh dương) → Đang giao (tím) → Thành công (xanh lá) · Giao chậm (vàng) · Hỏng (đỏ)
 function abitStatusCls(status, statusAt){
   if(ABIT_BAD.includes(status)) return 'bad';
   if(abitIsSlow(status, statusAt)) return 'warn';
   if(['Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat'].includes(status)) return 'ok';
+  if(status==='Muatructiep') return 'direct'; // khách lấy tại cửa hàng / gửi xe — Abit đã ghi nhận, không qua hãng vận chuyển
   if(status==='Chuaphatduoc') return 'transit';
   if(status==='Daguibuudien' || status==='Sent') return 'sent';
   return status ? 'new' : '';
@@ -7491,6 +7493,7 @@ function shipSourceInfo(ps, inv){
   const sh = ps && ps.ship; if(!sh) return {kind: 'none'};
   if(sh.auto) return {kind: 'abit'};
   inv = inv || packInvById(ps.id);
+  if(inv && inv.abit && inv.abit.status==='Muatructiep') return {kind: 'abit'}; // Abit đã ghi nhận mua trực tiếp → không cần nhãn "Sale nhập"
   const abitTrk = inv && inv.abit && inv.abit.tracking ? String(inv.abit.tracking).split(/[,\s]+/).filter(Boolean) : [];
   if(!abitTrk.length) return {kind: 'sale'};
   const mine = (Array.isArray(sh.codes) && sh.codes.length ? sh.codes : (sh.code ? [sh.code] : [])).map(x=>String(x).trim().toUpperCase());
