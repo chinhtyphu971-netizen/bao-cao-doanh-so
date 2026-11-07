@@ -3627,7 +3627,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <div class="modal-backdrop" id="shipModal" onclick="if(event.target===this) this.classList.remove('show')">
   <div class="modal" style="max-width:400px;">
     <h2 id="shipTitle">🚚 Lên vận đơn</h2>
-    <div class="pack-note" style="margin:-4px 0 8px;">💡 Đơn đã đẩy sang <b>Abit</b>: vào Abit <b>kiểm tra đơn + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b>, mã tự về. Ô dưới đây để <b>nhập tay</b> cho đơn không đi qua Abit hoặc khi Abit lỗi.</div>
+    <div class="pack-note" id="shipModeNote" style="margin:-4px 0 8px;"></div>
     <div id="shipInfo" style="font-size:13.5px; margin-bottom:10px;"></div>
     <div class="field"><label>Hãng vận chuyển</label>
       <div class="ship-quick"><button type="button" onclick="shipPick('SPX (Shopee Express)')">SPX</button><button type="button" onclick="shipPick('Viettel Post')">Viettel Post</button><button type="button" onclick="shipPick('J&amp;T Express')">J&amp;T</button><button type="button" onclick="shipPick('Khách lấy tại cửa hàng')">Lấy tại cửa hàng</button><button type="button" onclick="shipPick('Gửi xe khách')">Gửi xe</button></div>
@@ -7574,22 +7574,46 @@ function shipLineHtml(inv, ps){
   if(ps.ship){ const si = shipSourceInfo(ps, inv); return `<div class="pack-sale-badge ${si.kind==='mismatch' ? 'bad' : 'ship-ok'}">🚚 ${shipSourceLabel(si, true)}${si.kind==='mismatch' ? ` (Abit: <b>${escHtml(si.abit)}</b> — kiểm tra lại)` : ''}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml((Array.isArray(ps.ship.codes) && ps.ship.codes.length > 1) ? ps.ship.codes.join(', ') : ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.autoAt || ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`; }
   if(shipHoldActive(ps)) return `<div class="pack-sale-badge printed">⏸ Hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().join('/'))} — ${escHtml(ps.shipHold.reason||'')} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipHoldOpen('${inv.id}')">sửa</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
   // Đơn đã có trên Abit → Sale chỉ cần bấm "Gửi vận đơn" trên Abit, mã tự về; nhập tay chỉ để dự phòng
-  if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay</a></div>`;
-  return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn (nhập tay)</button></div>`;
+  const kho = !shipSaleMode();
+  if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> — mã tự về, không cần nhập${kho ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay (Kho/QL)</a>` : ''}</div>`;
+  return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">${kho ? '🚚 Lên vận đơn (nhập tay)' : '🏪 Lấy tại cửa hàng / gửi xe'}</button></div>`;
 }
 let shipInvId = null;
 function shipPick(v){ document.getElementById('shipCarrier').value = v; shipQuickMark(); shipCodePreview(); const c = document.getElementById('shipCode'); if(c) c.focus(); }
 function shipQuickMark(){ const v = document.getElementById('shipCarrier').value; document.querySelectorAll('.ship-quick button').forEach(b=>{ b.classList.toggle('on', b.getAttribute('onclick').indexOf("'" + v + "'")>=0 || (v==='J&T Express' && b.textContent==='J&T')); }); }
 function shipFillCarriers(){ const dl = document.getElementById('shipCarrierList'); if(dl && !dl.children.length) dl.innerHTML = SHIP_CARRIERS.map(c=>`<option value="${escHtml(c)}">`).join(''); }
+// 🚫 Sale KHÔNG tự gõ mã vận đơn nữa (hay gõ sai / dán nhầm): đơn có trên Abit → mã tự về; Sale chỉ chọn cách gửi KHÔNG cần mã.
+// Kho / Quản lý chung vẫn nhập tay đủ hãng + mã (trường hợp đặc biệt), có kiểm tra trùng mã & sai mẫu SPX.
+const SHIP_SALE_CARRIERS = ['Khách lấy tại cửa hàng','Gửi xe khách','Tự giao','Grab / Be giao','Ahamove'];
+function shipSaleMode(){ const r = (currentUser()||{}).role; return PACK_SALE_ROLES.includes(r); }
 function shipOpen(invId){
   shipFillCarriers();
   const inv = packInvById(invId); const ps = packStatusMap()[invId]; if(!inv || !ps) return;
+  if(shipSaleMode()){
+    if(inv.abit && inv.abit.invoice_no && !(ps.ship && !shipNeedCode(ps.ship.carrier) && !ps.ship.auto)){
+      askConfirm('Mã vận đơn tự về từ Abit', `Đơn ${inv.invoiceNumber} đã có trên Abit (${inv.abit.invoice_no}). Bạn KHÔNG cần nhập mã: vào Abit kiểm tra đơn + địa chỉ rồi bấm "Gửi vận đơn" — mã tự về app sau 1–2 phút. Nếu Abit lỗi, nhờ Kho / Quản lý nhập giúp.`, ()=>{});
+      return;
+    }
+    if(ps.ship && shipNeedCode(ps.ship.carrier)){ showToast('Mã vận đơn hãng vận chuyển chỉ Kho / Quản lý được sửa.'); return; }
+  }
   shipInvId = invId;
   document.getElementById('shipTitle').textContent = `🚚 Lên vận đơn · HĐ ${inv.invoiceNumber}`;
   document.getElementById('shipInfo').innerHTML = `${escHtml(inv.customerName||'')} · còn phải thu <b>${fmtMoney(inv.finalAmount||0)} đ</b>${ps.pkgs ? `<div class="pkgs-note">📦 Kho đóng <b>${ps.pkgs} kiện</b> → tạo <b>${ps.pkgs} vận đơn</b> (dán đủ ${ps.pkgs} mã)</div>` : ''}${(ps.shortSent || ps.state==='partial') ? `<div class="pack-note" style="color:#F0A63A;">Đơn GỬI THIẾU — đã trừ: ${escHtml(packShortText(ps.shortItems))}. Nhớ sửa hoá đơn để thu đúng tiền.</div>` : ''}`;
   const last = (()=>{ try{ return localStorage.getItem('ship_last_carrier') || ''; }catch(e){ return ''; } })();
   document.getElementById('shipCarrier').value = (ps.ship && ps.ship.carrier) || (ps.wasUrgent ? PACK_URG[PACK_URG[ps.urgentKind] ? ps.urgentKind : 'pickup'].carrier : last);
   document.getElementById('shipCode').value = shipCodesOf(ps.ship).join('\n');
+  { // chế độ Sale: chỉ cách gửi không cần mã · chế độ Kho/QL: đủ hãng + mã
+    const sale = shipSaleMode();
+    const qk = document.querySelector('#shipModal .ship-quick');
+    if(qk) qk.innerHTML = (sale ? SHIP_SALE_CARRIERS : ['SPX (Shopee Express)','Viettel Post','J&T Express','Khách lấy tại cửa hàng','Gửi xe khách'])
+      .map(c=>`<button type="button" onclick="shipPick('${c.replace(/'/g,"\\'")}')">${escHtml(shipShortName(c))}</button>`).join('');
+    const codeField = document.getElementById('shipCode').closest('.field'); if(codeField) codeField.style.display = sale ? 'none' : '';
+    const dl = document.getElementById('shipCarrierList'); if(dl) dl.innerHTML = (sale ? SHIP_SALE_CARRIERS : SHIP_CARRIERS).map(c=>`<option value="${escHtml(c)}">`).join('');
+    const note = document.getElementById('shipModeNote'); if(note) note.innerHTML = sale
+      ? '🧍 Chỉ dùng cho đơn <b>KHÔNG đi hãng vận chuyển</b>: khách lấy tại cửa hàng, gửi xe, tự giao, Grab/Ahamove. Đơn đi SPX / GHN / J&T… → mã <b>tự về từ Abit</b>, bạn không cần nhập.'
+      : '💡 Đơn đã có trên <b>Abit</b>: mã tự về sau khi bấm "Gửi vận đơn". Ô dưới chỉ để <b>nhập tay</b> khi đơn không qua Abit / Abit lỗi — app kiểm tra trùng mã trước khi lưu.';
+    if(sale && shipNeedCode(document.getElementById('shipCarrier').value)) document.getElementById('shipCarrier').value = '';
+  }
   shipCodePreview();
   document.getElementById('shipUndo').style.display = ps.ship ? '' : 'none';
   shipQuickMark();
@@ -7601,7 +7625,14 @@ function shipSave(){
   const me = currentUser() || {};
   const carrier = String(document.getElementById('shipCarrier').value||'').trim();
   const codes = shipParseCodes(document.getElementById('shipCode').value);
-  if(!carrier){ showToast('Chọn hãng vận chuyển trước (hoặc "Lấy tại cửa hàng").'); document.getElementById('shipCarrier').focus(); return; }
+  if(!carrier){ showToast('Chọn cách gửi trước (VD "Lấy tại cửa hàng" / "Gửi xe").'); document.getElementById('shipCarrier').focus(); return; }
+  if(shipSaleMode() && shipNeedCode(carrier)){ showToast(`Đơn đi ${carrier} → mã vận đơn tự về từ Abit. Bạn chỉ chọn: lấy tại cửa hàng / gửi xe / tự giao / Grab.`); return; }
+  if(codes.length){ // trùng mã với đơn khác → chặn
+    const dup = (state.packStatus||[]).find(p=>p && p.id!==shipInvId && p.ship && shipCodesOf(p.ship).some(c=>codes.map(x=>x.toUpperCase()).includes(String(c).toUpperCase())));
+    if(dup){ const di = packInvById(dup.id) || {}; showToast(`⛔ Mã này đã dùng cho HĐ ${di.invoiceNumber || dup.id} — kiểm tra lại, có thể dán nhầm.`); document.getElementById('shipCode').classList.add('ship-req-err'); return; }
+    const badSpx = /spx|shopee/i.test(carrier) ? codes.filter(c=>!/^SPXVN\d{8,}[A-Z0-9]?$/i.test(c)) : [];
+    if(badSpx.length && !shipSave._okFmt){ askConfirm('Mã SPX có vẻ sai?', `Mã SPX thường có dạng SPXVN + dãy số (VD SPXVN06392915467B). Mã đang nhập: ${badSpx.join(', ')}. Vẫn lưu?`, ()=>{ shipSave._okFmt = true; try{ shipSave(); } finally { shipSave._okFmt = false; } }); return; }
+  }
   if(shipNeedCode(carrier) && !codes.length){
     const el = document.getElementById('shipCode'); el.classList.add('ship-req-err'); el.focus();
     showToast(`⚠ Đơn gửi ${carrier} phải điền MÃ VẬN ĐƠN — dán mã từ Abit / app hãng.`); return;
@@ -7620,7 +7651,7 @@ function shipSave(){
   }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
 }
 // Hãng vận chuyển thật (SPX, Viettel, J&T, GHTK…) → BẮT BUỘC có mã vận đơn. Lấy tại cửa hàng / gửi xe / tự giao thì không cần.
-function shipNeedCode(carrier){ const c = String(carrier||'').trim(); return !!c && !/khách lấy|lấy tại|gửi xe|tự giao/i.test(c); }
+function shipNeedCode(carrier){ const c = String(carrier||'').trim(); return !!c && !/khách lấy|lấy tại|gửi xe|tự giao|grab|ahamove|be giao/i.test(c); }
 function shipCodePreview(){
   const el = document.getElementById('shipCodePrev'); if(!el) return;
   const ci = document.getElementById('shipCode'); if(ci) ci.classList.remove('ship-req-err');
