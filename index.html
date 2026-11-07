@@ -1941,6 +1941,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .abit-tag.transit{ color:#C9A6FF; background:rgba(150,100,255,0.16); border-color:rgba(150,100,255,0.55); }
   .abit-tag.new{ color:#AEB8CC; background:rgba(148,163,184,0.12); border-color:rgba(148,163,184,0.4); }
   .abit-tag.direct{ color:#5FD6C8; background:rgba(45,190,170,0.15); border-color:rgba(45,190,170,0.5); }
+  .urg-approve-pill{ position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:8900; padding:12px 16px; border-radius:999px; border:2px solid #F0A63A;
+    background:#3A2A10; color:#FBE3B8; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .inv-urgent-wait{ color:#F0C04A !important; border-color:rgba(240,192,74,.6) !important; }
+  .inv-urgent-rej{ color:#AEB8CC !important; }
 </style>
 </head>
 <body>
@@ -6233,9 +6237,13 @@ function renderInvoicesPage(){
           : (isOldCustomerInvoice(inv)
             ? `<button class="btn-primary btn-small" style="background:#7C4DCC;" title="Khách cũ — không cần cọc, bấm để đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">🤝 Chốt đơn</button>`
             : `<button class="btn-ghost btn-small inv-await-deposit" title="Khi khách chuyển cọc, bấm để xác nhận → đưa vào Data đã chốt" onclick="markInvoiceDeposited('${inv.id}')">⏳ Chờ cọc · Xác nhận</button>`)}
-        ${(flow==='deposited' || flow==='printed') && inv.saleId===u.id ? (packIsUrgent(inv.id)
+        ${(flow==='deposited' || flow==='printed') && inv.saleId===u.id ? (packUrgPending(packUrgentAll()[inv.id])
+          ? `<button class="btn-ghost btn-small inv-urgent-wait" title="Đang chờ Quản lý chung / Kho duyệt — bấm để huỷ yêu cầu" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">⏳ ${PACK_URG[packUrgKind(packUrgentAll()[inv.id])].icon} Chờ QL duyệt ✕</button>`
+          : (packUrgentAll()[inv.id] && packUrgentAll()[inv.id].rejected)
+          ? `<button class="btn-ghost btn-small inv-urgent-rej" title="Quản lý không duyệt — bấm để xoá thông báo" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">✕ QL không duyệt ưu tiên</button>`
+          : packIsUrgent(inv.id)
           ? `<button class="btn-ghost btn-small inv-urgent-on" title="Bỏ ưu tiên" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">${packUrgentLabel(inv.id)} ✕</button>`
-          : `<button class="btn-ghost btn-small inv-urgent-btn" title="Khách lấy trực tiếp / hàng cần gửi xe → kho nhặt ngay" onclick="event.stopPropagation(); packUrgentChoose('${inv.id}')">⚡ Ưu tiên nhặt</button>`) : ''}
+          : `<button class="btn-ghost btn-small inv-urgent-btn" title="Khách lấy trực tiếp / hàng cần gửi xe → gửi Quản lý duyệt, duyệt xong kho nhặt ngay" onclick="event.stopPropagation(); packUrgentChoose('${inv.id}')">⚡ Ưu tiên nhặt</button>`) : ''}
         ${(flow==='deposited' || flow==='printed' || flow==='short' || flow==='partial') && inv.saleId===u.id ? `<button class="btn-ghost btn-small inv-pack-btn" title="Tự nhặt & đóng đơn này" onclick="event.stopPropagation(); packPanelOpen('${inv.id}')">📦 Đóng</button>` : ''}
         ${locked
           ? `<button class="btn-ghost btn-small inv-locked-btn" title="Kho đã đóng hàng — không sửa được" onclick="editInvoiceDraft('${inv.id}')">🔒 Sửa</button>`
@@ -7681,24 +7689,101 @@ const PACK_URG = {pickup:{icon:'🏃', short:'Khách chờ lấy', long:'KHÁCH 
                   bus:{icon:'🚌', short:'Gửi xe', long:'HÀNG CẦN GỬI XE — kịp chuyến', carrier:'Gửi xe khách'}};
 function packUrgKind(u){ return (u && PACK_URG[u.kind]) ? u.kind : 'pickup'; }
 function packUrgentLabel(invId, long){ const u = packUrgentMap()[invId]; const k = PACK_URG[packUrgKind(u)]; return k.icon + ' ' + (long ? k.long : k.short); }
-function packUrgentMap(){ const m = {}; (state.packUrgent||[]).forEach(u=>{ if(u && u.id) m[u.id] = u; }); return m; }
+function packUrgentMap(){ const m = {}; (state.packUrgent||[]).forEach(u=>{ if(u && u.id && packUrgApproved(u)) m[u.id] = u; }); return m; } // CHỈ đơn đã được QL duyệt
 function packIsUrgent(invId){ return !!packUrgentMap()[invId]; }
 function packUrgentChoose(invId){
   const inv = packInvById(invId); if(!inv) return;
-  document.getElementById('packUrgChooseTitle').textContent = `⚡ Ưu tiên nhặt ngay · HĐ ${inv.invoiceNumber}`;
+  document.getElementById('packUrgChooseTitle').textContent = `⚡ Xin ưu tiên nhặt · HĐ ${inv.invoiceNumber}` + (URG_APPROVER_ROLES.includes((currentUser()||{}).role) ? '' : ' (cần Quản lý chung / Kho duyệt)');
   document.getElementById('packUrgChooseBtns').innerHTML =
     `<button class="urg-choice" onclick="packSetUrgent('${invId}', true, 'pickup')"><span>🏃</span><b>Khách lấy trực tiếp</b><small>Khách đang chờ tại cửa hàng</small></button>
      <button class="urg-choice" onclick="packSetUrgent('${invId}', true, 'bus')"><span>🚌</span><b>Hàng cần gửi xe</b><small>Đóng ngay cho kịp chuyến xe</small></button>`;
   document.getElementById('packUrgChooseModal').classList.add('show');
+}
+// =========================== ⚡ DUYỆT ƯU TIÊN (lấy trực tiếp / gửi xe) ===========================
+// Sale xin ưu tiên → packUrgent/{hoáĐơn}.approved = false (CHỜ DUYỆT): chưa lên đầu danh sách kho, kho chưa bị báo.
+// CHỈ Quản lý chung / Kho duyệt → approved = true (+approvedAt) → kho nhận báo động như cũ.
+// Không duyệt → rejected = true → Sale thấy "QL không duyệt", đơn đi bình thường. QL / Kho tự bấm → duyệt luôn.
+function packUrgentAll(){ const m = {}; (state.packUrgent||[]).forEach(u=>{ if(u && u.id) m[u.id] = u; }); return m; }
+function packUrgApproved(u){ return !!u && !u.rejected && u.approved !== false; } // bản ghi cũ (không có cờ) = đã duyệt
+function packUrgPending(u){ return !!u && !u.rejected && u.approved === false; }
+const URG_APPROVER_ROLES = ['general_manager','warehouse']; // CHỈ Quản lý chung + Kho được duyệt ưu tiên
+function packUrgCanApprove(me, u){ return !!(me && u && URG_APPROVER_ROLES.includes(me.role)); }
+function packUrgPendingForMe(){
+  const me = currentUser(), smap = packStatusMap();
+  return (state.packUrgent||[]).filter(u=>packUrgPending(u) && packUrgCanApprove(me, u) && !(smap[u.id] && (smap[u.id].state==='packed' || smap[u.id].state==='partial')))
+    .sort((a,b)=>(a.at||0)-(b.at||0));
+}
+let packUrgReqSeen = null;
+function packUrgApprovalCheck(){
+  const me = currentUser(); if(!me || !URG_APPROVER_ROLES.includes(me.role)){ const p = document.getElementById('urgApprovePill'); if(p) p.remove(); return; }
+  const list = packUrgPendingForMe();
+  let pill = document.getElementById('urgApprovePill');
+  if(!list.length){ if(pill) pill.remove(); }
+  else {
+    if(!pill){ pill = document.createElement('button'); pill.id = 'urgApprovePill'; pill.className = 'urg-approve-pill'; pill.onclick = ()=>packUrgApproveOpen(); document.body.appendChild(pill); }
+    pill.innerHTML = `⚡ <b>${list.length}</b> đơn xin ưu tiên — bấm để duyệt`;
+  }
+  const key = 'urg_req_seen_' + me.id;
+  if(!packUrgReqSeen){ try{ packUrgReqSeen = JSON.parse(localStorage.getItem(key) || 'null'); }catch(e){} }
+  if(!packUrgReqSeen){ packUrgReqSeen = {}; list.forEach(u=>{ packUrgReqSeen[u.id] = u.at; }); try{ localStorage.setItem(key, JSON.stringify(packUrgReqSeen)); }catch(e){} return; }
+  const fresh = list.filter(u=>packUrgReqSeen[u.id] !== u.at);
+  if(!fresh.length) return;
+  fresh.forEach(u=>{ packUrgReqSeen[u.id] = u.at; }); try{ localStorage.setItem(key, JSON.stringify(packUrgReqSeen)); }catch(e){}
+  try{ playTingSound(); }catch(e){}
+  showToast(`⚡ ${fresh[0].byName || 'Sale'} xin ưu tiên ${PACK_URG[packUrgKind(fresh[0])].short} cho HĐ ${fresh[0].invoiceNumber}${fresh.length > 1 ? ` (+${fresh.length-1} đơn)` : ''} — bấm nút góc màn hình để duyệt`);
+}
+function packUrgApproveOpen(){
+  const list = packUrgPendingForMe();
+  if(!list.length){ showToast('Không còn đơn nào chờ duyệt'); loyalCloseModal(); packUrgApprovalCheck(); return; }
+  document.getElementById('loyalModalBody').innerHTML = `<h2>⚡ Duyệt ưu tiên nhặt (${list.length})</h2>
+    <p class="goal-hint" style="margin:0 0 10px;">Duyệt → đơn lên ĐẦU danh sách kho và kho được báo nhặt ngay. Không duyệt → đơn đi theo thứ tự bình thường.</p>
+    ${list.map(u=>{ const inv = packInvById(u.id) || {}; const K = PACK_URG[packUrgKind(u)];
+      return `<div class="abit-issue" style="border-color:rgba(240,166,58,.5);"><div class="abit-issue-top"><b>${K.icon} ${escHtml(K.short)}</b> · HĐ <b>${escHtml(u.invoiceNumber||'')}</b> · ${escHtml(inv.customerName||'')}</div>
+        <div class="muted-s">Sale <b>${escHtml(u.byName||'')}</b> · xin lúc ${packTimeStr(u.at)} · ${packInvLines(inv).reduce((a,l)=>a+l.qty,0)} sản phẩm${inv.totalAmount ? ' · ' + fmtMoney(inv.totalAmount) + ' đ' : ''}</div>
+        <div style="display:flex; gap:8px; margin-top:8px;"><button class="btn-primary btn-small" onclick="packUrgDecide('${u.id}', true)">✅ Duyệt</button><button class="btn-ghost btn-small" onclick="packUrgDecide('${u.id}', false)">✕ Không duyệt</button></div></div>`; }).join('')}
+    <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
+  loyalShowModal();
+}
+function packUrgDecide(invId, ok){
+  const me = currentUser(), u = packUrgentAll()[invId]; if(!u || !packUrgCanApprove(me, u)) return;
+  const up = ok ? {approved: true, approvedAt: nowMs(), approvedBy: me.id, approvedByName: me.name} : {rejected: true, rejectedAt: nowMs(), rejectedBy: me.id, rejectedByName: me.name};
+  Object.assign(u, up);
+  fbPackUrgent.child(invId).update(up).then(()=>{
+    showToast(ok ? `✅ Đã duyệt ưu tiên HĐ ${u.invoiceNumber} — kho được báo nhặt ngay` : `Đã không duyệt ưu tiên HĐ ${u.invoiceNumber}`);
+    if(ok){ const K = PACK_URG[packUrgKind(u)]; packChatPost(invId, `${K.icon} ${K.long} — QL ${me.name} đã duyệt, nhặt đơn ${u.invoiceNumber} ngay giúp mình nhé.`, null); }
+  }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
+  packUrgApprovalCheck();
+  if(packUrgPendingForMe().length) packUrgApproveOpen(); else loyalCloseModal();
+}
+// Sale: báo khi QL duyệt / không duyệt yêu cầu của mình
+let packUrgMineSeen = null;
+function packUrgSaleNotices(){
+  const me = currentUser(); if(!me || !PACK_SALE_ROLES.includes(me.role)) return;
+  const mine = (state.packUrgent||[]).filter(u=>u && u.by===me.id && (u.approvedAt || u.rejectedAt));
+  const key = 'urg_mine_seen_' + me.id;
+  if(!packUrgMineSeen){ try{ packUrgMineSeen = JSON.parse(localStorage.getItem(key) || 'null'); }catch(e){} }
+  if(!packUrgMineSeen){ packUrgMineSeen = {}; mine.forEach(u=>{ packUrgMineSeen[u.id] = u.approvedAt || u.rejectedAt; }); try{ localStorage.setItem(key, JSON.stringify(packUrgMineSeen)); }catch(e){} return; }
+  const fresh = mine.filter(u=>packUrgMineSeen[u.id] !== (u.approvedAt || u.rejectedAt));
+  if(!fresh.length) return;
+  fresh.forEach(u=>{ packUrgMineSeen[u.id] = u.approvedAt || u.rejectedAt; }); try{ localStorage.setItem(key, JSON.stringify(packUrgMineSeen)); }catch(e){}
+  const u = fresh[0];
+  try{ playTingSound(); }catch(e){}
+  showToast(u.rejected ? `✕ ${u.rejectedByName || 'Quản lý'} không duyệt ưu tiên HĐ ${u.invoiceNumber}` : `✅ ${u.approvedByName || 'Quản lý'} đã duyệt ưu tiên HĐ ${u.invoiceNumber} — kho đang nhặt`);
+  if(currentPageId==='invoices') renderInvoicesPage();
 }
 function packSetUrgent(invId, on, kind){
   const inv = packInvById(invId); const me = currentUser() || {}; if(!inv || !fbPackUrgent) return;
   if(on){
     document.getElementById('packUrgChooseModal').classList.remove('show');
     const k = PACK_URG[kind] ? kind : 'pickup'; const K = PACK_URG[k];
-    const rec = {id: invId, kind: k, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: nowMs()};
+    const auto = URG_APPROVER_ROLES.includes(me.role); // Quản lý chung / Kho tự bấm → duyệt luôn
+    const rec = Object.assign({id: invId, kind: k, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id||'', byName: me.name||'', at: nowMs()},
+      auto ? {approved: true, approvedAt: nowMs(), approvedBy: me.id, approvedByName: me.name} : {approved: false});
     state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId).concat([rec]);
-    fbPackUrgent.child(invId).set(rec).then(()=>{ showToast(`${K.icon} Đã báo kho nhặt ngay`); packChatPost(invId, `${K.icon} ${K.long} — nhặt đơn ${inv.invoiceNumber} ngay giúp mình nhé.`, null); }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
+    fbPackUrgent.child(invId).set(rec).then(()=>{
+      if(auto){ showToast(`${K.icon} Đã báo kho nhặt ngay`); packChatPost(invId, `${K.icon} ${K.long} — nhặt đơn ${inv.invoiceNumber} ngay giúp mình nhé.`, null); }
+      else showToast(`⏳ Đã gửi Quản lý chung / Kho duyệt ưu tiên ${K.short} — duyệt xong kho mới nhặt trước`);
+    }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
     if(currentPageId==='invoices') renderInvoicesPage();
   } else {
     state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId);
@@ -7707,18 +7792,20 @@ function packSetUrgent(invId, on, kind){
     if(currentPageId==='invoices') renderInvoicesPage(); else if(currentPageId==='packInvoices') renderPackInvoicesPage();
   }
 }
-function packUrgentDone(invId){ if(packIsUrgent(invId) && fbPackUrgent){ state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId); fbPackUrgent.child(invId).remove().catch(()=>{}); } }
+function packUrgentDone(invId){ if(packUrgentAll()[invId] && fbPackUrgent){ /* đóng xong → xoá cả yêu cầu đang chờ duyệt */ state.packUrgent = (state.packUrgent||[]).filter(u=>u.id!==invId); fbPackUrgent.child(invId).remove().catch(()=>{}); } }
 // Popup cho máy kho (Kho / Nhân viên đóng gói) khi có đơn khách chờ lấy mới
 let packUrgentSeen = null;
 function packCheckUrgentNotices(){
   const me = currentUser(); if(!me || !['warehouse','packer'].includes(me.role)) return;
   const key = 'pack_urgent_seen_' + me.id;
   if(!packUrgentSeen){ try{ packUrgentSeen = JSON.parse(localStorage.getItem(key) || 'null'); }catch(e){} }
-  if(!packUrgentSeen){ packUrgentSeen = {}; (state.packUrgent||[]).forEach(u=>{ packUrgentSeen[u.id] = u.at; }); try{ localStorage.setItem(key, JSON.stringify(packUrgentSeen)); }catch(e){} return; }
+  const urgKey = u=>u.approvedAt || u.at; // duyệt xong mới tính là đơn gấp mới cho kho
+  const appr = (state.packUrgent||[]).filter(u=>packUrgApproved(u));
+  if(!packUrgentSeen){ packUrgentSeen = {}; appr.forEach(u=>{ packUrgentSeen[u.id] = urgKey(u); }); try{ localStorage.setItem(key, JSON.stringify(packUrgentSeen)); }catch(e){} return; }
   const smap = packStatusMap();
-  const fresh = (state.packUrgent||[]).filter(u=>u && packUrgentSeen[u.id]!==u.at && !(smap[u.id] && smap[u.id].state==='packed'));
+  const fresh = appr.filter(u=>u && packUrgentSeen[u.id]!==urgKey(u) && !(smap[u.id] && smap[u.id].state==='packed'));
   if(!fresh.length) return;
-  fresh.forEach(u=>{ packUrgentSeen[u.id] = u.at; }); try{ localStorage.setItem(key, JSON.stringify(packUrgentSeen)); }catch(e){}
+  fresh.forEach(u=>{ packUrgentSeen[u.id] = urgKey(u); }); try{ localStorage.setItem(key, JSON.stringify(packUrgentSeen)); }catch(e){}
   const body = document.getElementById('packUrgentBody');
   body.innerHTML = fresh.map(u=>{ const inv = packInvById(u.id) || {};
     return `<div class="pack-notice-item urgent"><b>${PACK_URG[packUrgKind(u)].icon} ${PACK_URG[packUrgKind(u)].short}</b> · HĐ <b>${escHtml(u.invoiceNumber)}</b> · ${escHtml(inv.customerName||'')}<div class="pack-sub">Sale ${escHtml(u.byName||'')} · ${packTimeStr(u.at)} · ${packInvLines(inv).reduce((a,l)=>a+l.qty,0)} sản phẩm</div>
@@ -15394,7 +15481,7 @@ function setupRoleScopedListeners(user){
   }, true);
   attachScoped('packUrgent', pcKey, pcKey==='on' ? fbPackUrgent : null, (arr)=>{
     state.packUrgent = arr;
-    packCheckUrgentNotices();
+    packCheckUrgentNotices(); try{ packUrgApprovalCheck(); packUrgSaleNotices(); }catch(e){ console.error(e); }
     if(['packDesk','packInvoices','invoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
   }, true);
   const pbKey = (user && (r==='general_manager' || r==='warehouse')) ? 'on' : 'none';
