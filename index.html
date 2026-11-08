@@ -7974,7 +7974,7 @@ async function packClaimSpecific(invId){
   const cur = packActiveClaimOf(invId); if(cur && cur.by!==me.id){ showToast(`${cur.byName} đã nhận đơn này rồi.`); return; }
   const now = nowMs(); const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
   try{
-    const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && c.by!==me.id) return; return rec; });
+    const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && packClaimStillOpen(c) && c.by!==me.id) return; return rec; });
     if(res && res.committed){ state.packClaims = (state.packClaims||[]).filter(c=>c.id!==invId).concat([rec]); packBeep(true); packPanelOpen(invId); return; }
   }catch(e){}
   showToast('Đơn vừa có người khác nhận.');
@@ -7987,7 +7987,7 @@ const PACK_CLAIM_TTL = 60*60000;
 function packClaimMap(){ const m = {}; (state.packClaims||[]).forEach(c=>{ if(c && c.id) m[c.id] = c; }); return m; }
 // KHÔNG BAO GIỜ tự thu hồi (nghỉ trưa, sang ngày mới vẫn giữ): đơn được giữ tới khi làm xong / tự trả đơn / Kho trưởng trả lại.
 function packClaimActive(c){ return !!(c && c.at); }
-function packActiveClaimOf(invId){ const c = packClaimMap()[invId]; return packClaimActive(c) ? c : null; }
+function packActiveClaimOf(invId){ const c = packClaimMap()[invId]; return packClaimActive(c) && packClaimStillOpen(c) ? c : null; } // phiếu sót (giữ từ trước khi báo thiếu / đơn đã đóng) KHÔNG tính là đang xử lý
 function packInvDone(invId){ const ps = packStatusMap()[invId]; return !!(ps && (ps.state==='packed' || ps.state==='partial' || ps.state==='short')); }
 function packClaimStillOpen(c){
   const st = packStatusMap()[c.id];
@@ -8042,6 +8042,20 @@ function packCheckReplyNotices(){
   try{ playEventTone('packReply'); }catch(e){}
   if(navigator.vibrate) navigator.vibrate([150,80,150]);
 }
+// Dọn phiếu giữ đơn SÓT: đơn đã báo thiếu mà phiếu giữ có từ TRƯỚC lúc báo thiếu, hoặc đơn đã đóng xong → gỡ phiếu
+// (bình thường app tự gỡ sau khi báo thiếu / đóng, nhưng máy mất mạng giữa chừng thì phiếu nằm lại → hiện "đang xử lý" sai).
+let packStaleSweepAt = 0;
+function packClaimSweepStale(){
+  const me = currentUser(); if(!me || !['general_manager','warehouse'].includes(me.role) || !fbPackClaims || !packInvoicesLoaded) return;
+  if(nowMs() - packStaleSweepAt < 60000) return; packStaleSweepAt = nowMs();
+  const smap = packStatusMap();
+  (state.packClaims||[]).forEach(c=>{
+    if(!c || !c.id || !packClaimActive(c)) return;
+    const st = smap[c.id]; if(!st) return;
+    const stale = st.state==='packed' || st.state==='partial' || (st.state==='short' && Number(c.at||0) <= Number(st.shortAt||0));
+    if(stale) fbPackClaims.child(c.id).transaction(cur=>(cur && Number(cur.at||0)===Number(c.at||0)) ? null : undefined).catch(()=>{});
+  });
+}
 function packClaimMinutes(c){ return Math.max(0, Math.round((nowMs() - Number(c.at||0))/60000)); }
 async function packClaimNext(){
   const me = currentUser(); if(!me || me.role==='general_manager' || !fbPackClaims) return;
@@ -8055,7 +8069,7 @@ async function packClaimNext(){
     let res = null;
     try{
       res = await fbPackClaims.child(inv.id).transaction(cur=>{
-        if(cur && packClaimActive(cur) && cur.by!==me.id) return; // người khác vừa nhận
+        if(cur && packClaimActive(cur) && packClaimStillOpen(cur) && cur.by!==me.id) return; // người khác vừa nhận
         return {id: inv.id, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now};
       });
     }catch(e){ res = null; }
@@ -9007,7 +9021,7 @@ async function packClaimAutoForSale(invId){
   const now = nowMs();
   const rec = {id: invId, invoiceNumber: inv.invoiceNumber||'', saleId: inv.saleId||'', by: me.id, byName: me.name||'', at: now, touchAt: now, bySale: true};
   try{
-    const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && c.by!==me.id) return; return rec; });
+    const res = await fbPackClaims.child(invId).transaction(c=>{ if(c && packClaimActive(c) && packClaimStillOpen(c) && c.by!==me.id) return; return rec; });
     if(res && res.committed){
       state.packClaims = (state.packClaims||[]).filter(c=>c.id!==invId).concat([rec]);
       packSaleAutoClaimId = invId;
@@ -15631,7 +15645,7 @@ function setupRoleScopedListeners(user){
   const kKey = (user && (r==='general_manager' || isWarehouse)) ? 'on' : 'none';
   const pcKey = (user && (r==='general_manager' || isWarehouse || PACK_SALE_ROLES.includes(r))) ? 'on' : 'none';
   attachScoped('packClaims', pcKey, pcKey==='on' ? fbPackClaims : null, (arr)=>{
-    state.packClaims = arr;
+    state.packClaims = arr; try{ setTimeout(packClaimSweepStale, 3000); }catch(e){}
     if(['packDesk','packInvoices'].includes(currentPageId) && !isUserActivelyEditing()) refreshCurrentPagePreservingScroll();
   }, true);
   attachScoped('packUrgent', pcKey, pcKey==='on' ? fbPackUrgent : null, (arr)=>{
