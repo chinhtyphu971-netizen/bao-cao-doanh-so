@@ -5007,12 +5007,18 @@ function datinaoTryOpen(){
   d.customerName = j.customerName || ''; d.customerPhone = cleanPhone(j.phone || '') || (j.phone || '');
   d.saleName = me.name; d.datinaoLeadId = j.leadId;
   const warn = []; let lines = 0;
+  const findProduct = code=>(state.products||[]).find(p=>String(p.code||'').toUpperCase()===String(code||'').toUpperCase());
   (j.items||[]).forEach(it=>{
     const base = String(it.base || '').toUpperCase();
-    const product = (state.products||[]).find(p=>String(p.code||'').toUpperCase()===base);
-    if(!product) warn.push(`mã áo "${base || '?'}" (${it.title || it.name}) chưa có trong danh mục`);
-    const dm = datinaoMatchDesign(product, it); if(!dm.ok) warn.push(`mẫu "${dm.design}" chưa có trong danh mục ${base}`);
-    const g = {productCode: product ? product.code : base, colorLines: []}; if(dm.design) g.design = dm.design;
+    // 2 loại dòng: (1) HÌNH IN trên áo nền (có base A55/A57…) → mã SP = áo nền + mẫu in
+    //              (2) SẢN PHẨM MAY SẴN ("mẫu ngoài mục in": A2_Áo Cổ Cúp…, Q9_Quần…) → mã SP = mã đứng đầu tên, KHÔNG có mẫu in
+    const ownCode = String(it.code || (String(it.name||'').match(/^\s*([A-Za-z]+\d+)/)||[])[1] || '').toUpperCase();
+    const isPrint = !!base;
+    const product = isPrint ? findProduct(base) : findProduct(ownCode);
+    const shownCode = isPrint ? base : ownCode;
+    if(!product) warn.push(`mã "${shownCode || '?'}" (${it.title || it.name}) chưa có trong danh mục`);
+    const g = {productCode: product ? product.code : shownCode, colorLines: []};
+    if(isPrint){ const dm = datinaoMatchDesign(product, it); if(!dm.ok) warn.push(`mẫu "${dm.design}" chưa có trong danh mục ${base}`); if(dm.design) g.design = dm.design; }
     Object.keys(it.quantities||{}).forEach(c=>{ const q = Number(it.quantities[c])||0; if(q<=0) return; const cm = datinaoMatchColor(product, c); if(!cm.ok) warn.push(`màu "${c}" (${base})`); g.colorLines.push({color: cm.color, size: '', qty: q}); lines++; });
     if(g.colorLines.length) d.productGroups.push(g);
   });
