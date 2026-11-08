@@ -4955,7 +4955,7 @@ let currentInvoiceDraft = null; // null = đang xem danh sách, có giá trị =
 // =========================== 🧾 NHẬN ĐƠN TỪ APP "ĐẶT IN ÁO" (dat-in-ao.vercel.app) ===========================
 // Bên app đặt in: Sale phụ trách bấm "🧾 Lên hoá đơn" → mở app này với #nhapdon=<dữ liệu đơn>
 // → (sau khi đăng nhập) tạo hoá đơn ĐIỀN SẴN: khách, SĐT, mỗi mẫu = 1 nhóm hàng (mã áo + mẫu in), mỗi màu = 1 dòng.
-// Size để trống cho Sale chọn (khách chỉ chọn màu). Lưu → ghi số HĐ sang app đặt in (chờ cọc). Xác nhận cọc → tự tích "Đã ghi vào hoá đơn"; huỷ cọc → bỏ tích.
+// Size để trống cho Sale chọn (khách chỉ chọn màu). LƯU HOÁ ĐƠN → tự tích "Đã ghi vào hoá đơn" bên app đặt in (kèm số HĐ).
 const DATINAO_CONFIG = {
   apiKey: "AIzaSyDMWR-sbWSE6rCakn9p6v5WBVaEwvD4Q6U",
   authDomain: "dat-in-ao.firebaseapp.com",
@@ -5026,7 +5026,7 @@ function datinaoTryOpen(){
   goPage('invoices'); renderInvoicesPage();
   setTimeout(()=>{ try{ const w = document.getElementById('invoiceEditorWrap'); if(w) w.scrollIntoView({behavior: 'smooth', block: 'start'}); }catch(e){} }, 200);
   askConfirm('🧾 Đã điền sẵn đơn từ app đặt in',
-    `Khách ${j.customerName||''}${j.phone ? ' · ' + j.phone : ''} — ${lines} dòng hàng. 👉 CHỌN SIZE cho từng dòng (khách chưa chọn size), kiểm tra giá rồi bấm Lưu → gửi hoá đơn cho khách để xin cọc. Khi bấm "Khách đã cọc" ở đây, app tự tích "Đã ghi vào hoá đơn" bên app đặt in.` +
+    `Khách ${j.customerName||''}${j.phone ? ' · ' + j.phone : ''} — ${lines} dòng hàng. 👉 CHỌN SIZE cho từng dòng (khách chưa chọn size), kiểm tra giá rồi bấm Lưu — lưu xong app TỰ TÍCH "Đã ghi vào hoá đơn" bên app đặt in.` +
     (j.note ? `\n📝 Ghi chú của khách: ${j.note}` : '') + (warn.length ? `\n⚠ Cần kiểm tra: ${Array.from(new Set(warn)).slice(0,6).join('; ')}.` : ''), ()=>{});
 }
 // Lưu hoá đơn → chỉ GHI SỐ HĐ sang app đặt in ("đã lên HĐ, chờ cọc") — CHƯA trừ khỏi Đơn may.
@@ -5041,7 +5041,7 @@ function datinaoLinkInvoice(leadId, invoiceNumber){
 function datinaoSetBilled(leadId, on, invoiceNumber){
   const db2 = datinaoDb(); if(!db2 || !leadId) return;
   const me = currentUser() || {};
-  db2.ref('customerLeads/' + leadId).update(on ? {billed: true, billedInvoice: invoiceNumber || null, billedAt: nowMs(), billedBy: me.name || null} : {billed: false, billedAt: null, billedBy: null})
+  db2.ref('customerLeads/' + leadId).update(on ? {billed: true, billedInvoice: invoiceNumber || null, invoiceNumber: invoiceNumber || null, billedAt: nowMs(), billedBy: me.name || null} : {billed: false, billedAt: null, billedBy: null})
     .then(()=>showToast(on ? `✅ App đặt in: đã tích "Đã ghi vào hoá đơn" (HĐ ${invoiceNumber}) — trừ khỏi đơn may` : `↩ App đặt in: đã bỏ tích "Đã ghi vào hoá đơn" — số lượng cộng lại vào đơn may`))
     .catch(e=>{ console.warn(e); showToast(on ? '⚠ Chưa tích được "Đã ghi vào hoá đơn" bên app đặt in — vào app đó tích tay giúp nhé.' : '⚠ Chưa bỏ tích được bên app đặt in — vào app đó bỏ tích tay giúp nhé.'); });
 }
@@ -5666,7 +5666,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   try{ if(prevInvForPack) packOnInvoiceEdited(prevInvForPack, finalInvoice); }catch(e){ console.error(e); }
   syncInvoiceItems(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
-  if(isNew && finalInvoice.datinaoLeadId) setTimeout(()=>datinaoLinkInvoice(finalInvoice.datinaoLeadId, invoiceNumber), 1200); // 🧾 báo app đặt in: đã lên HĐ, chờ cọc
+  if(isNew && finalInvoice.datinaoLeadId) setTimeout(()=>datinaoSetBilled(finalInvoice.datinaoLeadId, true, invoiceNumber), 1200); // ✅ lưu hoá đơn → tích "Đã ghi vào hoá đơn" bên app đặt in
   // Ở lại ngay trên hoá đơn vừa lưu (đã có Số HĐ) để chụp gửi khách / sửa tiếp — không đóng về danh sách
   currentInvoiceDraft = JSON.parse(JSON.stringify(finalInvoice));
   renderInvoicesPage();
@@ -5774,7 +5774,6 @@ function markInvoiceDeposited(invoiceId){
     }
     inv.depositLink = link;
     fbInvoices.child(inv.id).update({depositLink: link});
-    if(inv.datinaoLeadId) datinaoSetBilled(inv.datinaoLeadId, true, inv.invoiceNumber); // ✅ xác nhận cọc → tích "Đã ghi vào hoá đơn" bên app đặt in
     depProofSave(inv, oldCust ? 'chat' : 'transfer'); // lưu ảnh chuyển khoản / ảnh đoạn chat kèm theo
     syncInvoiceItems(inv);
     showToast('Đã đưa khách vào "Data đã chốt" ✅');
@@ -6142,7 +6141,6 @@ function unmarkInvoiceDeposited(invoiceId){
     }
     delete inv.depositLink;
     fbInvoices.child(inv.id).child('depositLink').remove();
-    if(inv.datinaoLeadId) datinaoSetBilled(inv.datinaoLeadId, false, inv.invoiceNumber); // ↩ huỷ cọc → bỏ tích bên app đặt in
     if(inv.depositProof){ delete inv.depositProof; depProofRemove(inv.id); }
     syncInvoiceItems(inv);
     showToast('Đã huỷ đánh dấu khách đã cọc.');
