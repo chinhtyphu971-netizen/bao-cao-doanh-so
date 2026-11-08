@@ -103,6 +103,11 @@ async function handleOne(D, o, now){
     } else if(!manualCodes.includes(tracking)){
       result.note = 'Sale đã tự điền mã khác → không ghi đè (mã Abit lưu ở invoices/' + id + '/abit/tracking)';
     }
+  } else if(status === 'Muatructiep'){
+    // 🏪 MUA TRỰC TIẾP (khách lấy tại cửa hàng / gửi xe): không có mã vận đơn → coi như ĐÃ XỬ LÝ vận chuyển
+    // (để Sale không bị khoá "chưa lên vận đơn"). Sale đã tự ghi cách gửi thì giữ nguyên.
+    const ship = (await D.ref('packStatus/' + id + '/ship').once('value')).val();
+    if(!ship){ upd['packStatus/' + id + '/ship'] = {at: now, by: 'abit', byName: 'Abit tự động', auto: true, direct: true, carrier: 'Mua trực tiếp (Abit)', autoAt: now}; result.filled = 'direct'; }
   } else {
     result.note = 'Abit gửi về nhưng không có mã vận đơn (có thể trạng thái này chưa có mã)';
   }
