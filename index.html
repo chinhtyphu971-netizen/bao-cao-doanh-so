@@ -4952,6 +4952,93 @@ function priceForQty(product, qty){
 /* =========================== HOÁ ĐƠN: tạo/sửa/xem/in hoá đơn cho từng đơn hàng khách =========================== */
 let currentInvoiceDraft = null; // null = đang xem danh sách, có giá trị = đang tạo/sửa hoá đơn
 
+// =========================== 🧾 NHẬN ĐƠN TỪ APP "ĐẶT IN ÁO" (dat-in-ao.vercel.app) ===========================
+// Bên app đặt in: Sale phụ trách bấm "🧾 Lên hoá đơn" → mở app này với #nhapdon=<dữ liệu đơn>
+// → (sau khi đăng nhập) tạo hoá đơn ĐIỀN SẴN: khách, SĐT, mỗi mẫu = 1 nhóm hàng (mã áo + mẫu in), mỗi màu = 1 dòng.
+// Size để trống cho Sale chọn (khách chỉ chọn màu). Lưu → ghi số HĐ sang app đặt in (chờ cọc). Xác nhận cọc → tự tích "Đã ghi vào hoá đơn"; huỷ cọc → bỏ tích.
+const DATINAO_CONFIG = {
+  apiKey: "AIzaSyDMWR-sbWSE6rCakn9p6v5WBVaEwvD4Q6U",
+  authDomain: "dat-in-ao.firebaseapp.com",
+  databaseURL: "https://dat-in-ao-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "dat-in-ao",
+};
+const DATINAO_KEY = 'datinao_pending';
+(function datinaoReadHash(){ // đọc ngay khi mở trang (trước cả khi đăng nhập) rồi xoá khỏi địa chỉ
+  try{
+    const m = String(location.hash||'').match(/[#&]nhapdon=([^&]+)/); if(!m) return;
+    const b64 = m[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(Array.prototype.map.call(atob(b64), c=>'%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    const j = JSON.parse(json); if(j && j.leadId) sessionStorage.setItem(DATINAO_KEY, JSON.stringify(j));
+    history.replaceState(null, '', location.pathname + location.search);
+  }catch(e){ console.warn('nhapdon', e); }
+})();
+function datinaoDb(){
+  try{ const app = (firebase.apps||[]).find(a=>a && a.name==='datinao') || firebase.initializeApp(DATINAO_CONFIG, 'datinao'); return app.database(); }catch(e){ console.warn(e); return null; }
+}
+const nameKey = s=>String(s||'').normalize('NFC').toLowerCase().replace(/\s+/g,' ').trim();
+function datinaoMatchDesign(product, it){ // khớp mẫu in theo mã hình (VD "H22") rồi tới tên
+  const opts = product ? parseDesignOptions(product.designs) : [];
+  const code = String(it.code||'').trim().toUpperCase();
+  const byCode = code ? opts.find(o=>{ const m = o.match(/^\s*([A-Za-z]+\d+)/); return m && m[1].toUpperCase()===code; }) : null;
+  if(byCode) return {design: byCode, ok: true};
+  const t = nameKey(it.title || it.name);
+  const byName = opts.find(o=>nameKey(o).includes(t) || t.includes(nameKey(o).replace(/^[a-z]+\d+[_\s-]*/,'')));
+  if(byName) return {design: byName, ok: true};
+  return {design: [it.code, it.title].filter(Boolean).join('_') || it.name || '', ok: !opts.length};
+}
+function datinaoMatchColor(product, c){
+  const opts = product ? parseColorOptions(product.colors) : [];
+  const hit = opts.find(o=>nameKey(o)===nameKey(c));
+  return {color: hit || String(c||'').trim(), ok: !!hit || !opts.length};
+}
+function datinaoTryOpen(){
+  let j; try{ j = JSON.parse(sessionStorage.getItem(DATINAO_KEY) || 'null'); }catch(e){} if(!j) return;
+  const me = currentUser(); if(!me) return; // chưa đăng nhập → đăng nhập xong sẽ gọi lại
+  if(!(state.products||[]).length && !datinaoTryOpen._waited){ datinaoTryOpen._waited = true; setTimeout(datinaoTryOpen, 2500); return; } // chờ danh mục sản phẩm tải xong
+  sessionStorage.removeItem(DATINAO_KEY);
+  if(nameKey(me.name) !== nameKey(j.saleName)){
+    askConfirm('Không đúng Sale phụ trách', `Đơn của khách "${j.customerName||''}" do Sale "${j.saleName||'?'}" phụ trách bên app đặt in, nhưng bạn đang đăng nhập "${me.name}". Chỉ Sale phụ trách mới được lên hoá đơn. (Nếu là cùng 1 người: Quản lý sửa tên ở 2 app cho GIỐNG HỆT nhau.)`, ()=>{});
+    return;
+  }
+  const dup = (state.invoices||[]).find(inv=>inv && inv.datinaoLeadId===j.leadId);
+  if(dup){ askConfirm('Đơn này đã lên hoá đơn', `Đơn của "${j.customerName||''}" đã được lên hoá đơn ${dup.invoiceNumber}. Mở hoá đơn đó?`, ()=>{ goPage('invoices'); editInvoiceDraft(dup.id); }); return; }
+  if(shipLockBlocks()) return;
+  const d = newInvoiceDraft();
+  d.customerName = j.customerName || ''; d.customerPhone = cleanPhone(j.phone || '') || (j.phone || '');
+  d.saleName = me.name; d.datinaoLeadId = j.leadId;
+  const warn = []; let lines = 0;
+  (j.items||[]).forEach(it=>{
+    const base = String(it.base || '').toUpperCase();
+    const product = (state.products||[]).find(p=>String(p.code||'').toUpperCase()===base);
+    if(!product) warn.push(`mã áo "${base || '?'}" (${it.title || it.name}) chưa có trong danh mục`);
+    const dm = datinaoMatchDesign(product, it); if(!dm.ok) warn.push(`mẫu "${dm.design}" chưa có trong danh mục ${base}`);
+    const g = {productCode: product ? product.code : base, colorLines: []}; if(dm.design) g.design = dm.design;
+    Object.keys(it.quantities||{}).forEach(c=>{ const q = Number(it.quantities[c])||0; if(q<=0) return; const cm = datinaoMatchColor(product, c); if(!cm.ok) warn.push(`màu "${c}" (${base})`); g.colorLines.push({color: cm.color, size: '', qty: q}); lines++; });
+    if(g.colorLines.length) d.productGroups.push(g);
+  });
+  currentInvoiceDraft = d;
+  goPage('invoices'); renderInvoicesPage();
+  setTimeout(()=>{ try{ const w = document.getElementById('invoiceEditorWrap'); if(w) w.scrollIntoView({behavior: 'smooth', block: 'start'}); }catch(e){} }, 200);
+  askConfirm('🧾 Đã điền sẵn đơn từ app đặt in',
+    `Khách ${j.customerName||''}${j.phone ? ' · ' + j.phone : ''} — ${lines} dòng hàng. 👉 CHỌN SIZE cho từng dòng (khách chưa chọn size), kiểm tra giá rồi bấm Lưu → gửi hoá đơn cho khách để xin cọc. Khi bấm "Khách đã cọc" ở đây, app tự tích "Đã ghi vào hoá đơn" bên app đặt in.` +
+    (j.note ? `\n📝 Ghi chú của khách: ${j.note}` : '') + (warn.length ? `\n⚠ Cần kiểm tra: ${Array.from(new Set(warn)).slice(0,6).join('; ')}.` : ''), ()=>{});
+}
+// Lưu hoá đơn → chỉ GHI SỐ HĐ sang app đặt in ("đã lên HĐ, chờ cọc") — CHƯA trừ khỏi Đơn may.
+function datinaoLinkInvoice(leadId, invoiceNumber){
+  const db2 = datinaoDb(); if(!db2 || !leadId) return;
+  const me = currentUser() || {};
+  db2.ref('customerLeads/' + leadId).update({invoiceNumber: invoiceNumber || null, invoicedAt: nowMs(), invoicedBy: me.name || null})
+    .then(()=>showToast(`🧾 Đã báo app đặt in: đơn này đã lên HĐ ${invoiceNumber} — chờ khách cọc`))
+    .catch(e=>console.warn('datinaoLinkInvoice', e));
+}
+// Xác nhận cọc → TỰ TÍCH "Đã ghi vào hoá đơn" (trừ khỏi Đơn may) · Huỷ cọc → BỎ TÍCH (cộng lại vào Đơn may)
+function datinaoSetBilled(leadId, on, invoiceNumber){
+  const db2 = datinaoDb(); if(!db2 || !leadId) return;
+  const me = currentUser() || {};
+  db2.ref('customerLeads/' + leadId).update(on ? {billed: true, billedInvoice: invoiceNumber || null, billedAt: nowMs(), billedBy: me.name || null} : {billed: false, billedAt: null, billedBy: null})
+    .then(()=>showToast(on ? `✅ App đặt in: đã tích "Đã ghi vào hoá đơn" (HĐ ${invoiceNumber}) — trừ khỏi đơn may` : `↩ App đặt in: đã bỏ tích "Đã ghi vào hoá đơn" — số lượng cộng lại vào đơn may`))
+    .catch(e=>{ console.warn(e); showToast(on ? '⚠ Chưa tích được "Đã ghi vào hoá đơn" bên app đặt in — vào app đó tích tay giúp nhé.' : '⚠ Chưa bỏ tích được bên app đặt in — vào app đó bỏ tích tay giúp nhé.'); });
+}
 function newInvoiceDraft(){
   const u = currentUser();
   // Nhớ lại tên nhân viên/Team đã dùng ở hoá đơn gần nhất trên chính máy này, đỡ phải nhập lại
@@ -5547,6 +5634,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   if(d.teamId){ finalInvoice.teamId = d.teamId; finalInvoice.teamName = branchName(d.teamId); }
   if(d.leadSource) finalInvoice.leadSource = d.leadSource; // rỗng thì không lưu (hoá đơn không hiện dòng Nguồn) // Nguồn kênh (khi lên HĐ từ Data của tôi)
   if(d.leadId) finalInvoice.leadId = d.leadId;
+  if(d.datinaoLeadId) finalInvoice.datinaoLeadId = d.datinaoLeadId; // 🧾 đơn chuyển từ app đặt in
   if(d.recare || invoiceIsRecare(Object.assign({}, d, {customerPhone: phone}))) finalInvoice.recare = true; // khách chăm sóc lại
   finalInvoice.ownOldCustomer = !!isOldCustomerInvoice(d); // miễn cọc (khách cũ của chính Sale này)
   // Giữ liên kết "Khách đã cọc" (lấy bản mới nhất trong state, không lấy từ bản nháp)
@@ -5572,6 +5660,7 @@ function finishSaveInvoiceDraft(d, invoiceNumber){
   try{ if(prevInvForPack) packOnInvoiceEdited(prevInvForPack, finalInvoice); }catch(e){ console.error(e); }
   syncInvoiceItems(finalInvoice);
   showToast(isNew ? ('Đã lưu hoá đơn ' + invoiceNumber + '.') : 'Đã lưu hoá đơn.');
+  if(isNew && finalInvoice.datinaoLeadId) setTimeout(()=>datinaoLinkInvoice(finalInvoice.datinaoLeadId, invoiceNumber), 1200); // 🧾 báo app đặt in: đã lên HĐ, chờ cọc
   // Ở lại ngay trên hoá đơn vừa lưu (đã có Số HĐ) để chụp gửi khách / sửa tiếp — không đóng về danh sách
   currentInvoiceDraft = JSON.parse(JSON.stringify(finalInvoice));
   renderInvoicesPage();
@@ -5679,6 +5768,7 @@ function markInvoiceDeposited(invoiceId){
     }
     inv.depositLink = link;
     fbInvoices.child(inv.id).update({depositLink: link});
+    if(inv.datinaoLeadId) datinaoSetBilled(inv.datinaoLeadId, true, inv.invoiceNumber); // ✅ xác nhận cọc → tích "Đã ghi vào hoá đơn" bên app đặt in
     depProofSave(inv, oldCust ? 'chat' : 'transfer'); // lưu ảnh chuyển khoản / ảnh đoạn chat kèm theo
     syncInvoiceItems(inv);
     showToast('Đã đưa khách vào "Data đã chốt" ✅');
@@ -6046,6 +6136,7 @@ function unmarkInvoiceDeposited(invoiceId){
     }
     delete inv.depositLink;
     fbInvoices.child(inv.id).child('depositLink').remove();
+    if(inv.datinaoLeadId) datinaoSetBilled(inv.datinaoLeadId, false, inv.invoiceNumber); // ↩ huỷ cọc → bỏ tích bên app đặt in
     if(inv.depositProof){ delete inv.depositProof; depProofRemove(inv.id); }
     syncInvoiceItems(inv);
     showToast('Đã huỷ đánh dấu khách đã cọc.');
@@ -15589,6 +15680,7 @@ function enterApp(){
   try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); }
   try{ shipLockMinListen(); }catch(e){ console.error(e); }
   try{ inboxListen(user); }catch(e){ console.error(e); } // 💬 hộp thư riêng
+  setTimeout(()=>{ try{ datinaoTryOpen(); }catch(e){ console.error(e); } }, 1500); // 🧾 đơn chuyển từ app đặt in
   try{ soundStartWatch(user); }catch(e){ console.error(e); } // 🔇 theo dõi máy tắt chuông // ⏱️ thời gian khoá chưa gửi vận đơn (30/60 phút) // ⭐ khách thân thiết + mẫu tin nhắn (công ty + của tôi)
   if(!RINGTONE_SKIP_ROLES.includes(user.role)){ try{ ringtoneListen(); }catch(e){ console.error(e); } } // 🔔 nhạc chuông data mới (dùng chung) — bộ phận kho/in không cần
   checkNewLeadNotifications();
