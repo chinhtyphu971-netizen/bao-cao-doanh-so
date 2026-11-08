@@ -11105,7 +11105,9 @@ function checkinToday(){
 // Danh sách "Tình trạng" giờ lấy động từ Firebase (Quản lý tự thêm/sửa/xoá ở Cài đặt) — hàm này
 // trả về mảng tên, luôn dùng thay cho việc gõ cứng danh sách như trước.
 // Danh sách "Tình trạng" CỐ ĐỊNH — không cho chỉnh sửa nữa (đã chốt bộ tên cuối cùng, dùng luôn).
-const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã lên HĐ','Đã chốt','Không có nhu cầu','nhắn tin chưa gọi','k liên lạc được','k tìm thấy tk'];
+const LEAD_STATUS_OPTIONS = ['Đã liên hệ','Đang tư vấn','Đã lên HĐ','Đã chốt','Không có nhu cầu','nhắn tin chưa gọi','chặn người lạ','k liên lạc được','k tìm thấy tk'];
+// "chặn người lạ": ZaloCRM chỉ gửi được lời mời kết bạn (khách chặn tin người lạ) → Sale cần GỌI TRỰC TIẾP.
+// Xử lý giống "nhắn tin chưa gọi": thiếu tên khách vẫn tính là tồn (isLeadUnprocessed); KHÔNG tự lưu trữ (không phải data chết).
 function getLeadStatusNames(){ return LEAD_STATUS_OPTIONS; }
 function statusFilterOptionsHtml(){
   return `<option value="">— Tất cả —</option><option value="__unprocessed__">Chưa xử lý</option>` +
@@ -11123,6 +11125,7 @@ const LEAD_STATUS_COLORS = {
   'k liên lạc được':     {bg:'#2A1F3D', color:'#B083E0'},
   'Không có nhu cầu':    {bg:'#3A1519', color:'#EA6B6B'},
   'nhắn tin chưa gọi':   {bg:'#132A42', color:'#5B9FE0'},
+  'chặn người lạ':       {bg:'#3A2412', color:'#F0A050'},
   'k tìm thấy tk':       {bg:'#0F2E33', color:'#3ECDD9'},
 };
 function leadStatusStyle(status){
