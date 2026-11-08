@@ -1945,6 +1945,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     background:#3A2A10; color:#FBE3B8; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); }
   .inv-urgent-wait{ color:#F0C04A !important; border-color:rgba(240,192,74,.6) !important; }
   .inv-urgent-rej{ color:#AEB8CC !important; }
+  #confirmText{ white-space:pre-line; }
 </style>
 </head>
 <body>
@@ -4997,7 +4998,13 @@ function datinaoTryOpen(){
   if(!(state.products||[]).length && !datinaoTryOpen._waited){ datinaoTryOpen._waited = true; setTimeout(datinaoTryOpen, 2500); return; } // chờ danh mục sản phẩm tải xong
   sessionStorage.removeItem(DATINAO_KEY);
   if(nameKey(me.name) !== nameKey(j.saleName)){
-    askConfirm('Không đúng Sale phụ trách', `Đơn của khách "${j.customerName||''}" do Sale "${j.saleName||'?'}" phụ trách bên app đặt in, nhưng bạn đang đăng nhập "${me.name}". Chỉ Sale phụ trách mới được lên hoá đơn. (Nếu là cùng 1 người: Quản lý sửa tên ở 2 app cho GIỐNG HỆT nhau.)`, ()=>{});
+    // Đang đăng nhập TÀI KHOẢN KHÁC → cho đổi tài khoản ngay, GIỮ đơn đang chờ: đăng nhập đúng người là hoá đơn tự mở
+    askConfirm('Đang đăng nhập tài khoản khác',
+      `Đơn của khách "${j.customerName||''}" do "${j.saleName||'?'}" bấm lên hoá đơn bên app đặt in, nhưng app này đang đăng nhập "${me.name}".\n\n` +
+      `👉 Bấm "🔄 Đổi tài khoản" → đăng nhập bằng tài khoản "${j.saleName||'?'}" → hoá đơn sẽ TỰ MỞ, điền sẵn.\nBấm "Huỷ" để giữ tài khoản hiện tại (đơn này bỏ qua, bấm lại bên app đặt in khi cần).\n\n` +
+      `(Nếu đúng là cùng 1 người mà vẫn báo: Quản lý sửa tên ở 2 app cho GIỐNG HỆT nhau.)`,
+      ()=>{ try{ sessionStorage.setItem(DATINAO_KEY, JSON.stringify(j)); }catch(e){} logout(); setTimeout(()=>{ try{ const n = document.getElementById('authName'); if(n){ n.value = j.saleName || ''; } const pin = document.getElementById('authPin'); if(pin) pin.focus(); }catch(e){} }, 100); showToast('Đăng nhập tài khoản "' + (j.saleName||'') + '" — hoá đơn sẽ tự mở'); });
+    document.getElementById('confirmOkBtn').textContent = '🔄 Đổi tài khoản';
     return;
   }
   const dup = (state.invoices||[]).find(inv=>inv && inv.datinaoLeadId===j.leadId);
