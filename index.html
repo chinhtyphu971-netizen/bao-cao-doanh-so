@@ -15873,6 +15873,13 @@ const DEFAULT_THISMONTH_PAGES = {
 const defaultRangeApplied = {};
 function goPage(pageId){
   if(['printReport','printOverview','printOrders'].includes(pageId)){ try{ gmEnsureInvoiceItems(); }catch(e){} }
+  { // Quản lý chung: các trang cá nhân (Data của tôi, Hoá đơn…) nằm trong nhóm "🗂️ Data của tôi" đang thu gọn → mở nhóm TRƯỚC khi kiểm tra quyền
+    const u0 = currentUser();
+    if(u0 && u0.role==='general_manager' && ['myLeads','staffReport','staffHistory','invoices'].includes(pageId)){
+      const g = document.getElementById('navPersonalItems'); if(g) g.style.display = 'block';
+      const lb = document.getElementById('navPersonalToggleLabel'); if(lb) lb.textContent = '🗂️ Data của tôi ▾';
+    }
+  }
   if(!pageAllowedForMe(pageId)){ pageId = homePageForMe(); }
   if(!isAutoRefreshing && pageId!==currentPageId){ rowLimits = {}; pagerPages = {}; } // sang trang khác → bảng dài/phân trang về đầu
   // Đang soạn hoá đơn mà chuyển sang trang khác → tự lưu trước (hoặc hỏi nếu hoá đơn còn thiếu thông tin)
