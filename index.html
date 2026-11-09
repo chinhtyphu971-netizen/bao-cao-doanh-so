@@ -1946,6 +1946,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-urgent-wait{ color:#F0C04A !important; border-color:rgba(240,192,74,.6) !important; }
   .inv-urgent-rej{ color:#AEB8CC !important; }
   #confirmText{ white-space:pre-line; }
+  .goal-daily-bar{ height:8px; border-radius:6px; background:var(--panel2); overflow:hidden; }
+  .goal-daily-bar > div{ height:100%; background:linear-gradient(90deg,#3FB97A,#6FD99A); border-radius:6px; transition:width .25s; }
+  .goal-daily-add{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .goal-daily-add input[type=text], .goal-daily-add #goalDailyNew{ flex:1; min-width:200px; }
+  .goal-daily-x{ margin-left:auto; padding:2px 8px !important; opacity:.6; }
+  .goal-daily-x:hover{ opacity:1; }
+  .goal-daily-nav{ display:flex; gap:6px; align-items:center; }
+  .goal-ok{ color:#6FD99A; } .goal-bad{ color:#FF8A8D; }
+  .goal-daily-rep{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; color:var(--ink-soft); cursor:pointer; }
+  .goal-daily-rep input{ width:18px !important; height:18px !important; min-height:0 !important; padding:0 !important; margin:0; flex:none; }
 </style>
 </head>
 <body>
@@ -15414,7 +15424,7 @@ function confirmLogout(){
 function logout(){
   state.session=null; persistSession();
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
-  try{ goalResetListeners(); }catch(e){}
+  try{ goalResetListeners(); goalDailyResetListeners(); }catch(e){}
   try{ inboxListen(null); soundStartWatch(null); }catch(e){}
   try{ loyalListen(null); loyalTplListen(null); msgTplListen(null); mgrLoyalSubs.forEach(r=>{ try{ r.off(); }catch(e){} }); mgrLoyalSubs = []; mgrLoyalKey = null; }catch(e){}
   resetChatDotCache();
@@ -17094,6 +17104,119 @@ function goalBarHtml(p){
   const w = p===null ? 0 : Math.max(0, Math.min(100, p));
   return `<div class="goal-bar ${p===null ? '' : (p>=100 ? 'ok' : (p>=70 ? 'mid' : ''))}"><i style="width:${w}%"></i></div>`;
 }
+// =========================== ✅ CHECKLIST VIỆC CẦN LÀM THEO NGÀY ===========================
+// goals/{tháng}/{người}/tasks = VIỆC LẶP LẠI MỖI NGÀY (khuôn mẫu, tối thiểu 3 việc).
+// goalDaily/{ngày}/{người} = {branchId, createdAt, items:{id:{id,text,order,done,doneAt,tplId?,removed?}}}
+// → mỗi ngày mới tự tạo từ khuôn mẫu (chưa tích) · thêm việc chỉ hôm nay / lặp lại mỗi ngày · bớt việc hôm nay.
+// Quản lý team xem checklist team mình theo ngày · Quản lý chung xem toàn công ty.
+let goalDaily = {}, goalDailySubs = {}, goalDailyLoaded = {}, goalDailyViewDate = null, goalDailyOpen = {}, goalDailyEnsured = {};
+function goalDailySubscribe(date){
+  const u = currentUser(); if(!u || !fbRoot || !date) return;
+  const r = u.role, scope = r==='general_manager' ? 'all' : (r==='team_manager' ? 'team:' + (u.branchId||'') : (goalHasOwn(u) ? 'me:' + u.id : null));
+  if(!scope) return;
+  const key = date + '|' + scope; if(goalDailySubs[date] && goalDailySubs[date].key===key) return;
+  if(goalDailySubs[date]){ try{ goalDailySubs[date].ref.off(); }catch(e){} }
+  const base = fbRoot.child('goalDaily/' + date);
+  const ref = scope==='all' ? base : (scope.startsWith('team:') ? base.orderByChild('branchId').equalTo(u.branchId||'') : base.child(u.id));
+  goalDailySubs[date] = {key, ref}; goalDailyLoaded[date] = false;
+  ref.on('value', snap=>{
+    if(!goalDailySubs[date] || goalDailySubs[date].key!==key) return;
+    const v = snap.val();
+    goalDaily[date] = scope.startsWith('me:') ? (v ? {[u.id]: v} : {}) : (v || {});
+    if(scope.startsWith('team:') && goalHasOwn(u)){ /* QL team: phần của mình cũng nằm trong team (cùng branchId) */ }
+    goalDailyLoaded[date] = true;
+    try{ goalDailyEnsure(); }catch(e){}
+    if(currentPageId==='goals') renderGoalsPage();
+  }, err=>{ console.error('goalDaily', err); goalDailyLoaded[date] = true; });
+}
+function goalDailyResetListeners(){ Object.values(goalDailySubs).forEach(s=>{ try{ s.ref.off(); }catch(e){} }); goalDailySubs = {}; goalDaily = {}; goalDailyLoaded = {}; goalDailyEnsured = {}; }
+function goalDailyRec(uid, date){ return (goalDaily[date]||{})[uid] || null; }
+function goalDailyItems(uid, date){
+  const d = goalDailyRec(uid, date);
+  return Object.values((d && d.items) || {}).filter(x=>x && !x.removed && String(x.text||'').trim()).sort((a,b)=>(a.order||0)-(b.order||0) || (a.createdAt||0)-(b.createdAt||0));
+}
+function goalDailyTpl(uid){ const m = goalCurMonth(); return goalTasksOf((goalsByMonth[m]||{})[uid]); }
+// Sang ngày mới: tự tạo checklist hôm nay từ "việc lặp lại mỗi ngày" (1 lần / ngày)
+function goalDailyEnsure(){
+  const me = currentUser(); if(!goalHasOwn(me)) return;
+  const d = todayStr(); if(!goalDailyLoaded[d] || goalDailyEnsured[d] || goalDailyRec(me.id, d)) return;
+  const tpl = goalDailyTpl(me.id); if(!tpl.length) return;
+  goalDailyEnsured[d] = true;
+  const items = {}; tpl.forEach((t, i)=>{ const id = 't_' + t.id; items[id] = {id, tplId: t.id, text: t.text, order: i, done: false, createdAt: nowMs()}; });
+  const rec = {branchId: me.branchId || '', createdAt: nowMs(), items};
+  goalDaily[d] = Object.assign({}, goalDaily[d], {[me.id]: rec});
+  fbRoot.child(`goalDaily/${d}/${me.id}`).transaction(cur=>cur ? undefined : rec).catch(()=>{ goalDailyEnsured[d] = false; });
+}
+// Lưu lại "việc lặp lại mỗi ngày" → thêm ngay việc mới vào checklist hôm nay (chưa có thì thôi)
+function goalDailySyncTpl(){
+  const me = currentUser(); if(!goalHasOwn(me)) return; const d = todayStr(); const rec = goalDailyRec(me.id, d);
+  if(!rec){ goalDailyEnsure(); return; }
+  const have = new Set(Object.values(rec.items||{}).map(x=>x.tplId).filter(Boolean)); const up = {};
+  let n = Object.keys(rec.items||{}).length;
+  goalDailyTpl(me.id).forEach(t=>{ if(have.has(t.id)) return; const id = 't_' + t.id; up[`goalDaily/${d}/${me.id}/items/${id}`] = {id, tplId: t.id, text: t.text, order: n++, done: false, createdAt: nowMs()}; });
+  if(Object.keys(up).length) fbRoot.update(up).catch(()=>{});
+}
+function goalDailyToggle(id, on){
+  const me = currentUser(), d = todayStr(); const rec = goalDailyRec(me && me.id, d); if(!rec || !rec.items || !rec.items[id]) return;
+  const patch = {done: !!on, doneAt: on ? nowMs() : null}; Object.assign(rec.items[id], patch);
+  fbRoot.child(`goalDaily/${d}/${me.id}/items/${id}`).update(patch).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  renderGoalsPage();
+}
+function goalDailyAdd(){
+  const me = currentUser(); if(!goalHasOwn(me)) return; const d = todayStr();
+  const inp = document.getElementById('goalDailyNew'), rep = document.getElementById('goalDailyRepeat');
+  const text = String((inp||{}).value||'').trim().slice(0,200); if(!text){ if(inp) inp.focus(); return; }
+  const repeat = !!(rep && rep.checked), id = 'd' + uid(), tplId = repeat ? 'k' + uid() : null;
+  const rec = goalDailyRec(me.id, d) || {branchId: me.branchId || '', createdAt: nowMs(), items: {}};
+  const item = Object.assign({id, text, order: Object.keys(rec.items||{}).length, done: false, createdAt: nowMs()}, tplId ? {tplId} : {});
+  rec.items = Object.assign({}, rec.items, {[id]: item}); goalDaily[d] = Object.assign({}, goalDaily[d], {[me.id]: rec});
+  const up = {[`goalDaily/${d}/${me.id}/items/${id}`]: item, [`goalDaily/${d}/${me.id}/branchId`]: me.branchId || ''};
+  if(repeat){ const m = goalCurMonth(); const n = goalDailyTpl(me.id).length; up[`goals/${m}/${me.id}/tasks/${tplId}`] = {id: tplId, text, order: n, done: false, createdAt: nowMs()};
+    const g = (goalsByMonth[m]||{})[me.id]; if(g){ g.tasks = Object.assign({}, g.tasks, {[tplId]: up[`goals/${m}/${me.id}/tasks/${tplId}`]}); } }
+  fbRoot.update(up).then(()=>showToast(repeat ? '✅ Đã thêm — việc này sẽ lặp lại mỗi ngày' : '✅ Đã thêm việc cho hôm nay')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  renderGoalsPage(); setTimeout(()=>{ const i = document.getElementById('goalDailyNew'); if(i) i.focus(); }, 50);
+}
+function goalDailyRemove(id){
+  const me = currentUser(), d = todayStr(); const rec = goalDailyRec(me && me.id, d); const it = rec && rec.items && rec.items[id]; if(!it) return;
+  askConfirm('Bớt việc khỏi hôm nay?', `"${it.text}" sẽ không tính vào checklist HÔM NAY.${it.tplId ? ' Ngày mai việc lặp lại vẫn quay lại (muốn bỏ hẳn: bấm "Sửa việc lặp lại mỗi ngày").' : ''}`, ()=>{
+    it.removed = true; fbRoot.child(`goalDaily/${d}/${me.id}/items/${id}/removed`).set(true).catch(()=>{}); renderGoalsPage(); });
+}
+// Thẻ checklist hôm nay của chính mình
+function goalDailyCardHtml(me){
+  const d = todayStr(), y = goalAddDays(d, -1);
+  if(!goalDailyLoaded[d]) return '<div class="card"><div class="empty-note">Đang tải việc hôm nay…</div></div>';
+  const items = goalDailyItems(me.id, d), nDone = items.filter(x=>x.done).length;
+  const yItems = goalDailyItems(me.id, y), yDone = yItems.filter(x=>x.done).length;
+  const pct = items.length ? Math.round(nDone*100/items.length) : 0;
+  return `<div class="card">
+    <div class="goal-card-head"><h2>✅ Việc hôm nay — ${goalDM(d)} <span class="goal-hint">(${nDone}/${items.length} xong)</span></h2><button class="btn-ghost btn-small" onclick="goalTasksEdit()">Sửa việc lặp lại mỗi ngày</button></div>
+    <div class="goal-daily-bar"><div style="width:${pct}%;"></div></div>
+    <p class="goal-hint" style="margin:4px 0 8px;">Mỗi sáng tự làm mới từ "việc lặp lại mỗi ngày". Thêm việc riêng cho hôm nay hoặc bớt việc không làm hôm nay.${goalDailyLoaded[y] && yItems.length ? ` · Hôm qua: <b>${yDone}/${yItems.length}</b> xong` : ''}</p>
+    <ul class="goal-tasks">${items.map(t=>`<li class="${t.done ? 'done' : ''}"><label><input type="checkbox" ${t.done ? 'checked' : ''} onchange="goalDailyToggle('${escHtml(t.id)}', this.checked)"><span>${escHtml(t.text)}${t.tplId ? '' : ' <small class="goal-hint">(hôm nay)</small>'}</span></label>${t.done && t.doneAt ? `<small>✓ ${goalTimeStr(t.doneAt).slice(0,5)}</small>` : ''}<button class="btn-ghost btn-small goal-daily-x" title="Bớt khỏi hôm nay" onclick="goalDailyRemove('${escHtml(t.id)}')">✕</button></li>`).join('') || '<li class="goal-hint">Chưa có việc nào hôm nay — thêm bên dưới.</li>'}</ul>
+    <div class="goal-daily-add"><input id="goalDailyNew" maxlength="200" placeholder="➕ Thêm việc, VD: Gọi lại 5 khách hẹn hôm qua" onkeydown="if(event.key==='Enter'){ event.preventDefault(); goalDailyAdd(); }">
+      <label class="goal-daily-rep"><input type="checkbox" id="goalDailyRepeat"> lặp lại mỗi ngày</label><button class="btn-primary btn-small" onclick="goalDailyAdd()">Thêm</button></div>
+  </div>`;
+}
+// Bảng checklist theo ngày cho Quản lý team (team mình) / Quản lý chung (toàn công ty)
+function goalDailyTeamHtml(users, title){
+  const d = goalDailyViewDate || todayStr(); goalDailySubscribe(d);
+  const isToday = d===todayStr();
+  const rows = users.filter(u=>goalHasOwn(u)).map(u=>{ const it = goalDailyItems(u.id, d); return {u, it, done: it.filter(x=>x.done).length}; })
+    .sort((a,b)=>(b.it.length ? b.done/b.it.length : -1) - (a.it.length ? a.done/a.it.length : -1) || a.u.name.localeCompare(b.u.name,'vi'));
+  const tot = rows.reduce((s,r)=>({n: s.n + r.it.length, d: s.d + r.done}), {n:0, d:0});
+  const nav = `<div class="goal-daily-nav"><button class="btn-ghost btn-small" onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),-1); renderGoalsPage()">‹</button><b>${isToday ? 'Hôm nay ' : ''}${goalDM(d)}</b><button class="btn-ghost btn-small" ${isToday ? 'disabled' : ''} onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),1); renderGoalsPage()">›</button>${isToday ? '' : ' <button class="btn-ghost btn-small" onclick="goalDailyViewDate=null; renderGoalsPage()">Hôm nay</button>'}</div>`;
+  return `<div class="card">
+    <div class="goal-card-head"><h2>✅ ${escHtml(title)}</h2>${nav}</div>
+    <p class="goal-hint">Checklist việc cần làm của từng người trong ngày (tự làm mới mỗi sáng). Bấm tên để xem chi tiết.${goalDailyLoaded[d] ? ` Cả nhóm: <b>${tot.d}/${tot.n}</b> việc xong.` : ' Đang tải…'}</p>
+    <div class="table-wrap"><table class="rtable goal-table"><thead><tr><th>Nhân viên</th><th>Team</th><th class="num">Xong</th><th style="width:40%;">Tiến độ</th></tr></thead><tbody>
+    ${rows.map(r=>{ const pc = r.it.length ? Math.round(r.done*100/r.it.length) : 0; const open = goalDailyOpen[r.u.id];
+      let tr = `<tr><td><span class="gt-toggle" onclick="goalDailyOpen['${escHtml(r.u.id)}']=!goalDailyOpen['${escHtml(r.u.id)}']; renderGoalsPage()">${open ? '▾' : '▸'} ${escHtml(r.u.name)}</span></td><td>${escHtml(branchName(r.u.branchId))}</td>
+        <td class="num">${r.it.length ? `<b class="${pc>=100 ? 'goal-ok' : (pc>=50 ? '' : 'goal-bad')}">${r.done}/${r.it.length}</b>` : '<span class="badge badge-warn">Chưa có</span>'}</td>
+        <td>${r.it.length ? `<div class="goal-daily-bar"><div style="width:${pc}%;"></div></div>` : `<span class="goal-hint">${isToday ? 'chưa mở app hôm nay / chưa có việc lặp lại' : 'không có checklist'}</span>`}</td></tr>`;
+      if(open && r.it.length) tr += `<tr class="goal-tasks-row"><td colspan="4"><ul class="goal-tasks">${r.it.map(t=>`<li class="${t.done ? 'done' : ''}"><label><input type="checkbox" disabled ${t.done ? 'checked' : ''}><span>${escHtml(t.text)}${t.tplId ? '' : ' <small class="goal-hint">(thêm trong ngày)</small>'}</span></label>${t.done && t.doneAt ? `<small>✓ ${goalTimeStr(t.doneAt).slice(0,5)}</small>` : ''}</li>`).join('')}</ul></td></tr>`;
+      return tr; }).join('')}
+    </tbody></table></div></div>`;
+}
 function goalTasksOf(g){
   return Object.values((g && g.tasks) || {}).filter(t=>t && String(t.text||'').trim())
     .sort((a,b)=>(a.order||0)-(b.order||0) || (a.createdAt||0)-(b.createdAt||0));
@@ -17484,7 +17607,9 @@ function renderGoalsPage(){
   if(!goalsLoadedMonth[m]){ body.innerHTML = html + '<div class="card"><div class="empty-note">Đang tải mục tiêu…</div></div>'; return; }
   if(goalHasOwn(me)) html += goalOwnHtml(me, m, dep);
   if(isTM) html += goalTeamHtml(me, m, dep);
+  if(isTM && m===cur) html += goalDailyTeamHtml(goalTeamMembers(me), 'Checklist việc của team ' + branchName(me.branchId));
   if(isGM) html += goalGmHtml(m, dep);
+  if(isGM && m===cur) html += goalDailyTeamHtml(reportableUsersInBranch(null).filter(u=>!userInactive(u)), 'Checklist việc của các Sale');
   body.innerHTML = html;
 }
 
@@ -17554,6 +17679,7 @@ function goalOwnHtml(me, m, dep){
   html += goalProgressHtml(me, m, c, editable);
   html += goalDailyChartHtml(c, m);
   if(editable && goalTaskDraft && c.tasks.length >= GOAL_MIN_TASKS) html += goalTaskEditorHtml(c, false);
+  else if(editable && m===goalCurMonth()){ goalDailySubscribe(todayStr()); goalDailySubscribe(goalAddDays(todayStr(), -1)); goalDailyEnsure(); html += goalDailyCardHtml(me); } // ✅ checklist THEO NGÀY
   else if(c.tasks.length >= GOAL_MIN_TASKS || !editable) html += goalTaskListHtml(c, editable, true);
   return html;
 }
@@ -17726,7 +17852,8 @@ function goalTasksSave(){
   const g = (goalsByMonth[m]||{})[me.id];
   if(g) g.tasks = tasks;
   goalTaskDraft = null;
-  showToast(`Đã lưu ${items.length} việc cần làm`);
+  showToast(`Đã lưu ${items.length} việc lặp lại mỗi ngày`);
+  try{ setTimeout(goalDailySyncTpl, 300); }catch(e){}
   renderGoalsPage();
   try{ updateGoalRemindBar(); }catch(e){}
 }
