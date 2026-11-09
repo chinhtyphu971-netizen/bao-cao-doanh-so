@@ -7317,8 +7317,15 @@ async function packFetchInvoiceByNumber(code){
 // Ngoại lệ: "⏸ Hoãn gửi" (lý do + ngày dự kiến) · Quản lý chung "Mở khoá tạm 1 giờ" cho từng Sale.
 let SHIP_LOCK_HOURS = 1; // GIỜ LÀM VIỆC (không tính 18h → 7h sáng) — Quản lý chung chọn 30 / 60 phút (appSettings/shipLockMinutes)
 let shipLockMinSub = null, shipLockMinutes = 60;
+// 📦 Ẩn số đơn chờ trên Bàn đóng gói (cho nhân viên đóng gói bớt áp lực) — appSettings/packHideQueue (mặc định: ẨN)
+let packHideQueue = true, packHideQueueSub = null;
+function packQueueHidden(){ const r = (currentUser()||{}).role; return packHideQueue && r==='packer'; }
+function packHideQueueSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  fbRoot.child('appSettings/packHideQueue').set(!!on).then(()=>showToast(on ? '🙈 Đã ẩn số đơn chờ trên máy nhân viên đóng gói' : '👀 Nhân viên đóng gói thấy lại số đơn chờ')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }
 function shipLockLabel(){ return shipLockMinutes >= 60 && shipLockMinutes % 60 === 0 ? (shipLockMinutes/60) + ' giờ' : shipLockMinutes + ' phút'; }
 function shipLockMinListen(){
+  if(!packHideQueueSub && fbRoot){ packHideQueueSub = fbRoot.child('appSettings/packHideQueue');
+    packHideQueueSub.on('value', snap=>{ const v = snap.val(); packHideQueue = v===null ? true : !!v; if(currentPageId==='packDesk') try{ renderPackDeskPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(shipLockMinSub || !fbRoot) return;
   shipLockMinSub = fbRoot.child('appSettings/shipLockMinutes');
   shipLockMinSub.on('value', snap=>{
@@ -7337,7 +7344,10 @@ function renderShipLockCard(){
   el.style.display = '';
   el.innerHTML = `<h2>⏱️ Thời gian khoá khi chưa gửi vận đơn</h2>
     <p class="goal-hint">Kho đóng xong mà quá thời gian này (tính giờ làm việc 7h–18h, không tính giờ nghỉ) đơn vẫn chưa có mã vận đơn → Sale bị khoá tạo hoá đơn mới. Đơn khách hẹn ngày khác bấm "⏸ Hoãn" thì không bị tính.</p>
-    <div class="chip-row">${[30,60].map(m=>`<div class="chip ${shipLockMinutes===m ? 'selected' : ''}" onclick="shipLockMinSet(${m})">${m===60 ? '60 phút (1 giờ)' : '30 phút'}</div>`).join('')}</div>`;
+    <div class="chip-row">${[30,60].map(m=>`<div class="chip ${shipLockMinutes===m ? 'selected' : ''}" onclick="shipLockMinSet(${m})">${m===60 ? '60 phút (1 giờ)' : '30 phút'}</div>`).join('')}</div>
+    <h2 style="margin-top:16px;">📦 Bàn đóng gói: số đơn chờ</h2>
+    <p class="goal-hint">Ẩn số "đơn chờ nhận / phiếu chờ đóng" trên máy NHÂN VIÊN ĐÓNG GÓI cho các bạn bớt áp lực (vẫn thấy số đã đóng hôm nay + đơn thiếu của mình). Kho / Quản lý vẫn thấy đủ.</p>
+    <div class="chip-row"><div class="chip ${packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(true)">🙈 Ẩn số đơn chờ</div><div class="chip ${!packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(false)">👀 Hiện số đơn chờ</div></div>`;
 }
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
@@ -9864,14 +9874,14 @@ function renderPackDeskPage(){
   const devMe = packDeviceMe(); const personal = !!devMe && devMe!=='shared';
   { // Nút Nhận đơn: đang giữ đơn → "Tiếp tục HĐ…"; số đơn còn chờ nhận
     const myC = packMyClaim(); const qn = packInvoicesLoaded ? packClaimQueue().length : 0;
-    const txt = myC ? `▶ TIẾP TỤC ĐƠN ${myC.invoiceNumber}` : `📥 NHẬN ĐƠN${qn ? ' (' + qn + ' chờ)' : ''}`;
+    const txt = myC ? `▶ TIẾP TỤC ĐƠN ${myC.invoiceNumber}` : `📥 NHẬN ĐƠN${qn && !packQueueHidden() ? ' (' + qn + ' chờ)' : ''}`;
     ['packClaimBtn','packFabClaim'].forEach(id=>{ const b = document.getElementById(id); if(b){ b.textContent = txt; b.classList.toggle('holding', !!myC); b.disabled = !myC && !qn; } });
   }
   const st = document.getElementById('packDeskStats');
   if(st) st.innerHTML = !packInvoicesLoaded ? '<span class="pack-note">Đang tải hoá đơn…</span>'
     : (personal
-      ? `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận</span>` + (shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length ? `<span class="pack-stat warn"><b>${shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length}</b> đơn thiếu của bạn</span>` : '')
-      : `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận (chưa in)</span><span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span><span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
+      ? (packQueueHidden() ? `<span class="pack-stat ok"><b>${doneToday.filter(p=>(p.staffId||'')===devMe).length}</b> bạn đã đóng hôm nay</span>` : `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận</span>`) + (shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length ? `<span class="pack-stat warn"><b>${shorts.filter(p=>(p.shortStaffId || p.staffId)===devMe).length}</b> đơn thiếu của bạn</span>` : '')
+      : `${packQueueHidden() ? '' : `<span class="pack-stat"><b>${packClaimQueue().length}</b> đơn chờ nhận (chưa in)</span><span class="pack-stat"><b>${waiting}</b> phiếu đã in chờ đóng</span>`}<span class="pack-stat ok"><b>${doneToday.length}</b> đã đóng hôm nay</span>${shorts.length ? `<span class="pack-stat warn"><b>${shorts.length}</b> chờ bù hàng</span>` : ''}`);
   // Đơn thiếu: nhân viên cá nhân mặc định xem ĐƠN THIẾU CỦA MÌNH (đơn mình báo), bấm để xem cả kho
   const shortBy = p=>p.shortStaffId || (p.state==='short' ? p.staffId : '');
   const myShorts = personal ? shorts.filter(p=>shortBy(p)===devMe) : shorts;
