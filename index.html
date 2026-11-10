@@ -8138,7 +8138,7 @@ function packClaimReleaseAsk(invId){
 }
 function packClaimGiveBack(invId){
   // 🚫 Nhân viên đóng gói KHÔNG tự trả đơn (tránh chọn đơn nhỏ, né đơn to) — nhờ Kho trưởng / Quản lý trả lại nếu thật sự không làm được
-  if((currentUser()||{}).role==='packer'){ askConfirm('Không tự trả đơn được', 'Đã nhận đơn thì làm tới khi ĐÓNG XONG hoặc BÁO THIẾU. Nếu thật sự không làm tiếp được (máy hỏng, nghỉ đột xuất…), bấm 💬 nhắn Kho trưởng để Kho trả đơn về hàng chờ.', ()=>{}); return; }
+  if((currentUser()||{}).role==='packer' && !((packStatusMap()[invId]||{}).state==='short')){ askConfirm('Không tự trả đơn được', 'Đã nhận đơn thì làm tới khi ĐÓNG XONG hoặc BÁO THIẾU. Nếu thật sự không làm tiếp được (máy hỏng, nghỉ đột xuất…), bấm 💬 nhắn Kho trưởng để Kho trả đơn về hàng chờ.', ()=>{}); return; }
   askConfirm('Trả đơn về hàng chờ?', 'Đơn sẽ quay lại hàng chờ để người khác nhận. Chỉ dùng khi bạn không làm tiếp được đơn này.', ()=>{ packClaimRelease(invId); packPanelClose(); });
 }
 let packClaimTouchAt = 0;
@@ -8686,10 +8686,8 @@ function packSaveShortEdit(inv, old, items){
     if(refilled) packChatPost(inv.id, `🔁 Kho đã bù thêm ${refilled} sp. Còn thiếu: ${packShortText(items)}`, inv.saleId);
     packBeep(true); packFlash(`💾 ĐÃ CẬP NHẬT THIẾU<br><small>${refilled ? 'Bù thêm ' + refilled + ' sp · ' : ''}còn thiếu ${items.reduce((a,x)=>a+x.missing,0)}</small>`, 'warn');
     packPanel.mode = 'view'; renderPackPanel();
-    if(packMyClaimIs(inv.id)) setTimeout(()=>{
-      askConfirm('Giữ đơn để bù tiếp?', 'Còn thiếu hàng. Bấm "Trả lại" nếu kho hết hàng để người khác bù khi có hàng; bấm Huỷ để GIỮ đơn bù tiếp.', ()=>{ packClaimRelease(inv.id); packPanelClose(); });
-      const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = '↩ Trả lại';
-    }, 1200);
+    // Bù được 1 phần, vẫn còn thiếu → TỰ TRẢ đơn về hàng chờ bù (phần thiếu đợi hàng về) → người bù nhận được đơn khác ngay
+    if(packMyClaimIs(inv.id)) setTimeout(()=>{ packClaimRelease(inv.id, true); showToast('↩ Đơn còn thiếu đã về hàng chờ bù — bạn nhận được đơn khác.'); packPanelClose(); }, 1200);
   }).catch(e=>{ packSetBusy(false); console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
 }
 
@@ -9230,7 +9228,7 @@ function renderPackPanel(){
     <div class="pack-st-row1">
       <div class="pack-st-num">${escHtml(inv.invoiceNumber)}</div>
       <div class="pack-st-meta"><b>${Number(inv.totalQty)||lines.reduce((a,l)=>a+l.qty,0)} sp</b> · ${escHtml(inv.customerName||'')} · <span class="pack-sale-tag">👤 Sale ${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</span>${isBoss ? ` · <a href="#" onclick="event.preventDefault(); viewInvoiceReadonly('${inv.id}')">👁 HĐ</a>` : ''}</div>
-      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) && (currentUser()||{}).role!=='packer' ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon pack-st-print" title="In tem dán gói" onclick="packLabelPrint(['${inv.id}'])">🏷️</button><button class="pack-st-icon pack-st-print" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
+      <div class="pack-st-tools">${packChatBtnHtml(inv.id)}${canAct && packMyClaimIs(inv.id) && ((currentUser()||{}).role!=='packer' || (packStatusMap()[inv.id]||{}).state==='short') ? `<button class="pack-st-icon" title="Trả đơn về hàng chờ bù" onclick="packClaimGiveBack('${inv.id}')">↩</button>` : ''}${canAct && ['warehouse','packer'].includes(me.role) ? `<button class="pack-st-icon pack-st-print" title="In tem dán gói" onclick="packLabelPrint(['${inv.id}'])">🏷️</button><button class="pack-st-icon pack-st-print" title="In phiếu đơn này" onclick="packPrintInvoices(['${inv.id}'])">🖨️</button>` : ''}<button class="pack-st-icon" title="Quét đơn khác" onclick="packPanelClose(); packScanStart()">📷</button><button class="pack-st-icon" title="Đóng" onclick="packPanelClose()">✕</button></div>
     </div>
     ${(staffBtn || photoBtn || acts) ? `<div class="pack-st-actions ${packPanel.lockedMe ? 'personal' : ''}">${packPanel.lockedMe ? '' : staffBtn}${photoBtn}${acts}</div>` : ''}
     ${canAct && !short ? `<div class="pack-pkgs" title="Đơn đóng thành mấy kiện (bao) → Sale tạo đúng số vận đơn. Không bắt buộc.">📦 Số kiện <span class="pack-note">(không bắt buộc)</span>
