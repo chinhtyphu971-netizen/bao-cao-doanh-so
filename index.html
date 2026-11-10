@@ -5036,14 +5036,28 @@ function datinaoTryOpen(){
     if(!product) warn.push(`mã "${shownCode || '?'}" (${it.title || it.name}) chưa có trong danh mục`);
     const g = {productCode: product ? product.code : shownCode, colorLines: []};
     if(isPrint){ const dm = datinaoMatchDesign(product, it); if(!dm.ok) warn.push(`mẫu "${dm.design}" chưa có trong danh mục ${base}`); if(dm.design) g.design = dm.design; }
-    Object.keys(it.quantities||{}).forEach(c=>{ const q = Number(it.quantities[c])||0; if(q<=0) return; const cm = datinaoMatchColor(product, c); if(!cm.ok) warn.push(`màu "${c}" (${base})`); g.colorLines.push({color: cm.color, size: '', qty: q}); lines++; });
+    // Có SIZE (app đặt may cho khách chọn size theo bảng giá sỉ): it.sizes = {màu: {size: SL}} → mỗi màu + size = 1 dòng
+    const sizeOpts = product ? parseSizeOptions(product.sizeInfo || product.sizes || '').map(o=>o.code) : []; // mã size: S, M, L, XL, Free…
+    const matchSize = sz=>{ const k = nameKey(sz).replace(/\s+/g,''); const hit = sizeOpts.find(o=>nameKey(o).replace(/\s+/g,'')===k); return hit || String(sz||'').trim().toUpperCase(); };
+    Object.keys(it.quantities||{}).forEach(c=>{
+      const q = Number(it.quantities[c])||0; if(q<=0) return;
+      const cm = datinaoMatchColor(product, c); if(!cm.ok) warn.push(`màu "${c}" (${shownCode})`);
+      const bySz = it.sizes && it.sizes[c];
+      if(bySz && typeof bySz==='object' && Object.keys(bySz).length){
+        let used = 0;
+        Object.keys(bySz).forEach(sz=>{ const n = Number(bySz[sz])||0; if(n<=0) return; const szv = matchSize(sz);
+          if(sizeOpts.length && !sizeOpts.includes(szv)) warn.push(`size "${sz}" (${shownCode})`);
+          g.colorLines.push({color: cm.color, size: szv, qty: n}); used += n; lines++; });
+        if(q - used > 0){ g.colorLines.push({color: cm.color, size: '', qty: q - used}); lines++; } // phần chưa chọn size
+      } else { g.colorLines.push({color: cm.color, size: '', qty: q}); lines++; }
+    });
     if(g.colorLines.length) d.productGroups.push(g);
   });
   currentInvoiceDraft = d;
   goPage('invoices'); renderInvoicesPage();
   setTimeout(()=>{ try{ const w = document.getElementById('invoiceEditorWrap'); if(w) w.scrollIntoView({behavior: 'smooth', block: 'start'}); }catch(e){} }, 200);
   askConfirm('🧾 Đã điền sẵn đơn từ app đặt in',
-    `Khách ${j.customerName||''}${j.phone ? ' · ' + j.phone : ''} — ${lines} dòng hàng. 👉 CHỌN SIZE cho từng dòng (khách chưa chọn size), kiểm tra giá rồi bấm Lưu — lưu xong app TỰ TÍCH "Đã ghi vào hoá đơn" bên app đặt in.` +
+    `Khách ${j.customerName||''}${j.phone ? ' · ' + j.phone : ''} — ${lines} dòng hàng. ` + (()=>{ const ns = d.productGroups.reduce((a,g)=>a + g.colorLines.filter(l=>!l.size).length, 0); return ns ? `👉 Còn ${ns} dòng CHƯA CÓ SIZE — chọn size cho các dòng đó, ` : '✅ Đã có size đủ các dòng — '; })() + `kiểm tra giá rồi bấm Lưu — lưu xong app TỰ TÍCH "Đã ghi vào hoá đơn" bên app đặt in.` +
     (j.note ? `\n📝 Ghi chú của khách: ${j.note}` : '') + (warn.length ? `\n⚠ Cần kiểm tra: ${Array.from(new Set(warn)).slice(0,6).join('; ')}.` : ''), ()=>{});
 }
 // Lưu hoá đơn → chỉ GHI SỐ HĐ sang app đặt in ("đã lên HĐ, chờ cọc") — CHƯA trừ khỏi Đơn may.
