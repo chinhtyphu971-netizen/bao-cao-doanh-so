@@ -1956,6 +1956,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .goal-ok{ color:#6FD99A; } .goal-bad{ color:#FF8A8D; }
   .goal-daily-rep{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; color:var(--ink-soft); cursor:pointer; }
   .goal-daily-rep input{ width:18px !important; height:18px !important; min-height:0 !important; padding:0 !important; margin:0; flex:none; }
+  .goal-daily-tile{ margin-top:10px; padding:8px 12px; border-radius:10px; font-size:13.5px; cursor:pointer; }
+  .goal-daily-tile.todo{ background:rgba(240,166,58,.12); border:1px solid rgba(240,166,58,.45); color:#FBE3B8; }
+  .goal-daily-tile.ok{ background:rgba(63,185,122,.12); border:1px solid rgba(63,185,122,.45); color:#BFF0D3; }
+  .goal-daily-tile .goal-daily-bar{ margin-top:6px; }
 </style>
 </head>
 <body>
@@ -17151,6 +17155,7 @@ function goalDailySubscribe(date){
     goalDailyLoaded[date] = true;
     try{ goalDailyEnsure(); }catch(e){}
     if(currentPageId==='goals') renderGoalsPage();
+    if(currentPageId==='myLeads') try{ renderMyGoalTile(); }catch(e){}
   }, err=>{ console.error('goalDaily', err); goalDailyLoaded[date] = true; });
 }
 function goalDailyResetListeners(){ Object.values(goalDailySubs).forEach(s=>{ try{ s.ref.off(); }catch(e){} }); goalDailySubs = {}; goalDaily = {}; goalDailyLoaded = {}; goalDailyEnsured = {}; }
@@ -17222,13 +17227,31 @@ function goalDailyCardHtml(me){
   </div>`;
 }
 // Bảng checklist theo ngày cho Quản lý team (team mình) / Quản lý chung (toàn công ty)
+// 🔔 Quản lý nhắc người CHƯA XONG checklist hôm nay → goalNudges/{tháng}/{người} = {kind:'daily', date}
+function goalDailyNudgeTargets(users){
+  const d = todayStr();
+  return users.filter(u=>goalHasOwn(u) && !userInactive(u)).filter(u=>{ const it = goalDailyItems(u.id, d); return !it.length || it.some(x=>!x.done); });
+}
+function goalDailyNudge(scope){
+  const me = currentUser(); if(!me || !['general_manager','team_manager'].includes(me.role)) return;
+  const users = scope==='team' ? goalTeamMembers(me) : reportableUsersInBranch(null);
+  const t = goalDailyNudgeTargets(users).filter(u=>u.id!==me.id);
+  if(!t.length){ showToast('Mọi người đã xong checklist hôm nay 🎉'); return; }
+  askConfirm('🔔 Nhắc làm checklist hôm nay?', `Gửi nhắc tới ${t.length} người chưa xong: ${t.map(u=>u.name).join(', ')}. Máy họ hiện thông báo + kêu chuông (ngay nếu đang mở app, hoặc lần mở app tới hôm nay).`, ()=>{
+    const at = nowMs(), m = goalCurMonth(), d = todayStr(), up = {};
+    t.forEach(u=>{ up[`goalNudges/${m}/${u.id}`] = {at, by: me.id, byName: me.name, kind: 'daily', date: d}; });
+    fbRoot.update(up).then(()=>showToast(`Đã nhắc ${t.length} người`)).catch(()=>showToast('Chưa gửi được — kiểm tra mạng'));
+  });
+}
 function goalDailyTeamHtml(users, title){
   const d = goalDailyViewDate || todayStr(); goalDailySubscribe(d);
   const isToday = d===todayStr();
   const rows = users.filter(u=>goalHasOwn(u)).map(u=>{ const it = goalDailyItems(u.id, d); return {u, it, done: it.filter(x=>x.done).length}; })
     .sort((a,b)=>(b.it.length ? b.done/b.it.length : -1) - (a.it.length ? a.done/a.it.length : -1) || a.u.name.localeCompare(b.u.name,'vi'));
   const tot = rows.reduce((s,r)=>({n: s.n + r.it.length, d: s.d + r.done}), {n:0, d:0});
-  const nav = `<div class="goal-daily-nav"><button class="btn-ghost btn-small" onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),-1); renderGoalsPage()">‹</button><b>${isToday ? 'Hôm nay ' : ''}${goalDM(d)}</b><button class="btn-ghost btn-small" ${isToday ? 'disabled' : ''} onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),1); renderGoalsPage()">›</button>${isToday ? '' : ' <button class="btn-ghost btn-small" onclick="goalDailyViewDate=null; renderGoalsPage()">Hôm nay</button>'}</div>`;
+  const nNudge = isToday && goalDailyLoaded[d] ? goalDailyNudgeTargets(users).filter(u=>u.id!==(currentUser()||{}).id).length : 0;
+  const nudgeBtn = nNudge ? `<button class="btn-primary btn-small" onclick="goalDailyNudge('${(currentUser()||{}).role==='team_manager' ? 'team' : 'all'}')">🔔 Nhắc ${nNudge} người chưa xong</button>` : '';
+  const nav = `<div class="goal-daily-nav">${nudgeBtn}<button class="btn-ghost btn-small" onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),-1); renderGoalsPage()">‹</button><b>${isToday ? 'Hôm nay ' : ''}${goalDM(d)}</b><button class="btn-ghost btn-small" ${isToday ? 'disabled' : ''} onclick="goalDailyViewDate=goalAddDays(goalDailyViewDate||todayStr(),1); renderGoalsPage()">›</button>${isToday ? '' : ' <button class="btn-ghost btn-small" onclick="goalDailyViewDate=null; renderGoalsPage()">Hôm nay</button>'}</div>`;
   return `<div class="card">
     <div class="goal-card-head"><h2>✅ ${escHtml(title)}</h2>${nav}</div>
     <p class="goal-hint">Checklist việc cần làm của từng người trong ngày (tự làm mới mỗi sáng). Bấm tên để xem chi tiết.${goalDailyLoaded[d] ? ` Cả nhóm: <b>${tot.d}/${tot.n}</b> việc xong.` : ' Đang tải…'}</p>
@@ -17236,7 +17259,7 @@ function goalDailyTeamHtml(users, title){
     ${rows.map(r=>{ const pc = r.it.length ? Math.round(r.done*100/r.it.length) : 0; const open = goalDailyOpen[r.u.id];
       let tr = `<tr><td><span class="gt-toggle" onclick="goalDailyOpen['${escHtml(r.u.id)}']=!goalDailyOpen['${escHtml(r.u.id)}']; renderGoalsPage()">${open ? '▾' : '▸'} ${escHtml(r.u.name)}</span></td><td>${escHtml(branchName(r.u.branchId))}</td>
         <td class="num">${r.it.length ? `<b class="${pc>=100 ? 'goal-ok' : (pc>=50 ? '' : 'goal-bad')}">${r.done}/${r.it.length}</b>` : '<span class="badge badge-warn">Chưa có</span>'}</td>
-        <td>${r.it.length ? `<div class="goal-daily-bar"><div style="width:${pc}%;"></div></div>` : `<span class="goal-hint">${isToday ? 'chưa mở app hôm nay / chưa có việc lặp lại' : 'không có checklist'}</span>`}</td></tr>`;
+        <td>${r.it.length ? `<div class="goal-daily-bar"><div style="width:${pc}%;"></div></div>` : `<span class="goal-hint">${!isToday ? 'không có checklist' : (goalTasksOf((goalsByMonth[goalCurMonth()]||{})[r.u.id]).length ? 'chưa mở app hôm nay' : 'chưa có việc lặp lại mỗi ngày')}</span>`}</td></tr>`;
       if(open && r.it.length) tr += `<tr class="goal-tasks-row"><td colspan="4"><ul class="goal-tasks">${r.it.map(t=>`<li class="${t.done ? 'done' : ''}"><label><input type="checkbox" disabled ${t.done ? 'checked' : ''}><span>${escHtml(t.text)}${t.tplId ? '' : ' <small class="goal-hint">(thêm trong ngày)</small>'}</span></label>${t.done && t.doneAt ? `<small>✓ ${goalTimeStr(t.doneAt).slice(0,5)}</small>` : ''}</li>`).join('')}</ul></td></tr>`;
       return tr; }).join('')}
     </tbody></table></div></div>`;
@@ -17291,6 +17314,7 @@ function goalSubscribeMonth(m){
     goalsByMonth[m] = scope.startsWith('me:') ? (v ? {[u.id]: v} : {}) : (v || {});
     goalsLoadedMonth[m] = true;
     try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
+    try{ goalDailyEnsure(); }catch(e){} // ✅ checklist hôm nay tạo ngay (không cần vào trang Mục tiêu)
     onDataChanged();
   }, err=>{ console.error('Lỗi tải mục tiêu:', err); goalsLoadedMonth[m] = true; });
 }
@@ -17306,7 +17330,10 @@ function goalSetupListeners(user){
   goalSundaySub.on('value', snap=>{ goalSundayCfg = snap.val() || {}; onDataChanged(); });
   goalSubscribeMonth(goalCurMonth());
   try{ goalNudgeListen(user); }catch(e){ console.error(e); }
+  try{ if(goalHasOwn(user)){ goalDailySubscribe(todayStr()); goalDailyDay = todayStr(); } }catch(e){ console.error(e); } // ✅ checklist hôm nay
 }
+let goalDailyDay = null;
+setInterval(()=>{ try{ const me = currentUser(); if(!goalHasOwn(me)) return; const d = todayStr(); if(d!==goalDailyDay){ goalDailyDay = d; goalDailySubscribe(d); renderMyGoalTile && renderMyGoalTile(); } }catch(e){} }, 5*60000); // qua ngày mới khi app vẫn mở
 function goalNudgeListen(user){
   if(goalNudgeSub){ try{ goalNudgeSub.off(); }catch(e){} goalNudgeSub = null; }
   const m = goalCurMonth();
@@ -17326,6 +17353,17 @@ function goalNudgeCheck(){
   const key = 'goalNudgeSeen_' + m + '_' + me.id;
   if(Number(localStorage.getItem(key)||0) >= n.at) return;
   const g = (goalsByMonth[m]||{})[me.id];
+  if(n.kind==='daily'){ // 🔔 nhắc làm checklist hôm nay
+    if(n.date===todayStr() && !goalDailyLoaded[todayStr()]){ goalDailySubscribe(todayStr()); setTimeout(goalNudgeCheck, 1500); return; }
+    try{ localStorage.setItem(key, String(n.at)); }catch(e){}
+    if(n.date!==todayStr()) return;
+    const it = goalDailyItems(me.id, todayStr()), dn = it.filter(x=>x.done).length;
+    if(it.length && dn>=it.length) return; // đã xong hết
+    askConfirm('🔔 ' + (n.byName || 'Quản lý') + ' nhắc bạn', it.length ? `Checklist hôm nay bạn mới xong ${dn}/${it.length} việc. Làm và tích các việc đã xong nhé!` : `Bạn chưa có việc cần làm hôm nay — vào ghi "việc lặp lại mỗi ngày" (tối thiểu ${GOAL_MIN_TASKS} việc).`, ()=>goPage('goals'));
+    document.getElementById('confirmOkBtn').textContent = 'Mở checklist';
+    try{ playEventTone('goalNudge'); }catch(e){}
+    return;
+  }
   const needGoal = !goalIsCommitted(g), needTasks = !needGoal && goalTasksOf(g).length < GOAL_MIN_TASKS;
   try{ localStorage.setItem(key, String(n.at)); }catch(e){}
   if(!needGoal && !needTasks) return; // đã làm xong rồi
@@ -17577,6 +17615,13 @@ function renderMyGoalTile(){
       ${box(`Tuần ${goalDM(c.weekFrom)}–${goalDM(c.weekTo)}`, c.weekAchieved||0, c.weekTarget||0, doneMonth ? 'Đủ tháng 🎉' : '')}
       ${box('Tháng này', c.achieved, c.amount, '')}
     </div>`;
+  { // ✅ Việc hôm nay (checklist) ngay trên màn hình chính
+    const d = todayStr(); goalDailySubscribe(d);
+    if(goalDailyLoaded[d]){
+      const it = goalDailyItems(me.id, d), dn = it.filter(x=>x.done).length;
+      if(it.length) el.insertAdjacentHTML('beforeend', `<div class="goal-daily-tile ${dn>=it.length ? 'ok' : 'todo'}" onclick="event.stopPropagation(); goPage('goals')">✅ <b>Việc hôm nay: ${dn}/${it.length}</b>${dn>=it.length ? ' — xong hết 🎉' : ' — bấm để tích các việc đã làm →'}<div class="goal-daily-bar"><div style="width:${Math.round(dn*100/it.length)}%;"></div></div></div>`);
+    }
+  }
   if(c.tasks.length < GOAL_MIN_TASKS){ // chưa ghi đủ việc cần làm → nhắc ngay trong ô (dải nhắc chung không hiện ở trang này)
     el.insertAdjacentHTML('afterbegin', `<div class="goal-task-warn">⚠️ Bạn chưa ghi đủ ${GOAL_MIN_TASKS} việc cần làm để đạt mục tiêu (mới có ${c.tasks.length}) — <b>bấm để ghi ngay</b></div>`);
   }
