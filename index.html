@@ -1965,6 +1965,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .oos-add{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
   .oos-add select, .oos-add input{ min-height:36px; } .oos-add #oosCode{ min-width:220px; } .oos-add #oosNote{ flex:1; min-width:160px; }
   .oos-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 4px; border-bottom:1px solid var(--line); }
+  .oos-pend-pill{ bottom:calc(76px + env(safe-area-inset-bottom, 0px)) !important; border-color:#E5484D !important; background:#3A1218 !important; color:#FFD6D8 !important; }
+  .oos-row.oos-pend{ background:rgba(229,72,77,.06); border-radius:8px; }
 </style>
 </head>
 <body>
@@ -8065,7 +8067,7 @@ function packOosListen(user){
   if(packOosSub){ try{ packOosSub.off(); }catch(e){} packOosSub = null; } packOos = {};
   if(!user || !fbRoot || !['general_manager','warehouse','packer'].includes(user.role)) return;
   packOosSub = fbRoot.child('packOos');
-  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
+  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(packOosPendingCheck, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
 }
 const oosNorm = x=>String(x||'').normalize('NFC').trim().toLowerCase();
 function packOosList(){ return Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0)); }
@@ -8090,7 +8092,8 @@ function packOosTagHtml(inv){
 function packOosCanEdit(){ const r = (currentUser()||{}).role; return r==='warehouse' || r==='general_manager'; }
 function packOosRenderTile(){
   const el = document.getElementById('packOosSum'); if(!el) return;
-  const l = packOosList(); el.textContent = l.length ? `${l.length} mục: ${l.slice(0,4).map(packOosLabel).join(', ')}${l.length>4 ? '…' : ''}` : 'Không có — mọi hàng đang đủ';
+  const l = packOosList(); const np = packOosCanEdit() ? new Set(packOosPending().map(x=>x.key)).size : 0;
+  el.innerHTML = (np ? `<b style="color:#FF9DA0;">🔔 ${np} món báo thiếu chờ duyệt</b> · ` : '') + escHtml(l.length ? `${l.length} mục tạm hết: ${l.slice(0,4).map(packOosLabel).join(', ')}${l.length>4 ? '…' : ''}` : 'Không có hàng tạm hết');
 }
 function packOosOpen(){
   const l = packOosList(), can = packOosCanEdit();
@@ -8098,12 +8101,75 @@ function packOosOpen(){
   const nWait = (state.invoices||[]).filter(inv=>inv && inv.depositLink && packOosOfInv(inv).length).length;
   document.getElementById('loyalModalBody').innerHTML = `<h2>⛔ Hàng tạm hết</h2>
     <p class="goal-hint" style="margin:0 0 10px;">Đơn có món tạm hết sẽ <b>xếp cuối hàng chờ</b> — các bạn nhặt hết đơn đủ hàng trước, rồi mới tới đơn tạm hết (vẫn theo giờ cọc). Có hàng lại → bấm <b>✅ Có hàng lại</b>, đơn trở về đúng thứ tự theo giờ cọc. Hiện có <b>${nWait}</b> đơn đang bị xếp cuối.</p>
+    ${packOosPendingHtml()}
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
       <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
     <div class="oos-list">${l.map(o=>`<div class="oos-row"><b>⛔ ${escHtml(packOosLabel(o))}</b>${o.note ? ` <span class="goal-hint">· ${escHtml(o.note)}</span>` : ''}<span class="goal-hint" style="margin-left:auto;">${escHtml(o.byName||'')} · ${packTimeStr(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`).join('') || '<div class="empty-note">Không có hàng nào tạm hết.</div>'}</div>
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
   loyalShowModal();
+}
+// ----- ⛔ BÁO THIẾU → QUẢN LÝ KHO DUYỆT "TẠM HẾT" -----
+// Món trong các lần báo thiếu (3 ngày gần đây) chưa có trong danh sách tạm hết & chưa duyệt → chờ Kho / Quản lý chung duyệt.
+// Quyết định lưu: packStatus/{đơn}/oosReview/{khoáMón} = {d:'oos'|'skip', at, by}  (so với shortAt: báo thiếu lần mới → hỏi lại)
+const oosItemKey = x=>[x.code, x.color, x.size].map(v=>String(v||'').trim().toUpperCase()).join('|').replace(/[.#$\[\]\/]/g, '_');
+function packOosPending(){
+  const out = [], cut = nowMs() - 3*86400000;
+  (state.packStatus||[]).forEach(p=>{
+    if(!p || p.legacy || p.state!=='short' || !p.shortAt || Number(p.shortAt) < cut) return;
+    const inv = packInvById(p.id); if(!inv) return;
+    (p.shortItems||[]).forEach(x=>{
+      if(!(Number(x.missing) > 0) || !x.code) return;
+      if(packOosMatch(x)) return; // đã trong danh sách tạm hết
+      const k = oosItemKey(x), rv = (p.oosReview||{})[k];
+      if(rv && Number(rv.at) >= Number(p.shortAt)) return; // đã quyết định cho lần báo thiếu này
+      out.push({invId: p.id, invoiceNumber: inv.invoiceNumber, key: k, code: x.code, color: x.color||'', size: x.size||'', missing: Number(x.missing), by: p.shortStaffName || (p.staffName||''), at: p.shortAt});
+    });
+  });
+  return out.sort((a,b)=>(a.at||0)-(b.at||0));
+}
+let packOosPendSeen = null;
+function packOosPendingCheck(){
+  const me = currentUser(); const pill0 = document.getElementById('oosPendPill');
+  if(!packOosCanEdit() || !me){ if(pill0) pill0.remove(); return; }
+  const list = packOosPending();
+  // gom theo món (nhiều đơn cùng thiếu 1 món → 1 dòng)
+  const nItems = new Set(list.map(x=>x.key)).size;
+  let pill = pill0;
+  if(!nItems){ if(pill) pill.remove(); }
+  else { if(!pill){ pill = document.createElement('button'); pill.id = 'oosPendPill'; pill.className = 'urg-approve-pill oos-pend-pill'; pill.onclick = ()=>packOosOpen(); document.body.appendChild(pill); }
+    pill.innerHTML = `⛔ <b>${nItems}</b> món báo thiếu chờ duyệt tạm hết`; }
+  const key = 'oos_pend_seen_' + me.id;
+  if(!packOosPendSeen){ try{ packOosPendSeen = JSON.parse(localStorage.getItem(key) || 'null'); }catch(e){} }
+  const sig = x=>x.invId + ':' + x.key + ':' + x.at;
+  if(!packOosPendSeen){ packOosPendSeen = {}; list.forEach(x=>{ packOosPendSeen[sig(x)] = 1; }); try{ localStorage.setItem(key, JSON.stringify(packOosPendSeen)); }catch(e){} return; }
+  const fresh = list.filter(x=>!packOosPendSeen[sig(x)]); if(!fresh.length) return;
+  fresh.forEach(x=>{ packOosPendSeen[sig(x)] = 1; }); try{ localStorage.setItem(key, JSON.stringify(packOosPendSeen)); }catch(e){}
+  try{ playTingSound(); }catch(e){}
+  showToast(`⛔ ${fresh[0].by || 'Kho'} báo thiếu ${packOosLabel(fresh[0])} (HĐ ${fresh[0].invoiceNumber})${fresh.length>1 ? ` +${fresh.length-1} món` : ''} — bấm nút góc màn hình để duyệt tạm hết`);
+}
+function packOosPendingHtml(){
+  const list = packOosPending(); if(!list.length || !packOosCanEdit()) return '';
+  const byItem = {}; list.forEach(x=>{ (byItem[x.key] = byItem[x.key] || {x, rows: []}).rows.push(x); });
+  return `<h3 style="margin:4px 0 6px; font-size:15px;">🔔 Báo thiếu chờ duyệt (${Object.keys(byItem).length} món)</h3>
+    ${Object.values(byItem).map(({x, rows})=>`<div class="oos-row oos-pend"><b>${escHtml(packOosLabel(x))}</b>
+      <span class="goal-hint">thiếu ${rows.reduce((a,r)=>a+r.missing,0)} · ${rows.map(r=>`HĐ ${escHtml(r.invoiceNumber)} (${escHtml(r.by||'')} ${packTimeShort(r.at)})`).join(', ')}</span>
+      <span style="margin-left:auto; display:flex; gap:6px;"><button class="btn-primary btn-small" onclick="packOosDecide('${escHtml(x.key)}', true)">⛔ Duyệt tạm hết</button><button class="btn-ghost btn-small" onclick="packOosDecide('${escHtml(x.key)}', false)">✓ Vẫn còn hàng</button></span></div>`).join('')}
+    <hr style="border:0; border-top:1px solid var(--line); margin:10px 0;">`;
+}
+function packOosDecide(key, isOos){
+  const me = currentUser(); if(!packOosCanEdit()) return;
+  const rows = packOosPending().filter(x=>x.key===key); if(!rows.length){ packOosOpen(); return; }
+  const at = nowMs(), up = {};
+  rows.forEach(r=>{ up[`packStatus/${r.invId}/oosReview/${key}`] = {d: isOos ? 'oos' : 'skip', at, by: me.name}; });
+  const x = rows[0];
+  if(isOos && !packOosList().some(o=>o.code===x.code && (o.color||'')===x.color && (o.size||'')===x.size)){
+    const id = 'o' + uid(); const rec = {code: x.code, color: x.color || null, size: x.size || null, note: `báo thiếu HĐ ${rows.map(r=>r.invoiceNumber).join(', ')}`, by: me.id, byName: me.name, at};
+    up['packOos/' + id] = rec; packOos = Object.assign({}, packOos, {[id]: rec});
+  }
+  rows.forEach(r=>{ const p = packStatusMap()[r.invId]; if(p){ p.oosReview = Object.assign({}, p.oosReview, {[key]: up[`packStatus/${r.invId}/oosReview/${key}`]}); } });
+  fbRoot.update(up).then(()=>showToast(isOos ? `⛔ Đã đưa ${packOosLabel(x)} vào hàng tạm hết` : `✓ Ghi nhận ${packOosLabel(x)} vẫn còn hàng`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  packOosPendingCheck(); packOosOpen();
 }
 function packOosFillOpts(){
   const code = (document.getElementById('oosCode')||{}).value; const p = (state.products||[]).find(x=>x.code===code);
@@ -15775,7 +15841,7 @@ function setupRoleScopedListeners(user){
   // Trạng thái đóng hàng: Kho / Bàn đóng gói / Quản lý chung tải hết; Sale chỉ tải của hoá đơn mình (để nhận báo thiếu)
   const psKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
   attachScoped('packStatus', psKey, psKey==='none' ? null : (psKey==='all' ? fbPackStatus : fbPackStatus.orderByChild('saleId').equalTo(user.id)), (arr)=>{
-    state.packStatus = arr; packStatusLoaded = psKey==='all'; cleanupPackPrints();
+    state.packStatus = arr; try{ setTimeout(()=>{ packOosPendingCheck(); packOosRenderTile(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
     if(psKey.startsWith('mine:')){ packCheckSaleNotices(); packCheckDoneNotices(); setTimeout(shipRemindCheck, 1500); }
     else packCheckReplyNotices();
     onDataChanged();
