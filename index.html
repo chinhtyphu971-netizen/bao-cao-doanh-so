@@ -1967,6 +1967,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .loyal-modal > .modal-x{ position:sticky; top:-22px; float:right; margin:-10px -10px 0 8px; z-index:5; width:38px; height:38px; border-radius:50%;
     border:1px solid var(--line); background:var(--panel2); color:var(--ink); font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.35); }
   .loyal-modal > .actions{ position:sticky; bottom:-22px; margin:12px -22px -22px; padding:12px 22px; background:var(--panel); border-top:1px solid var(--line); z-index:4; }
+  .refill-live td{ vertical-align:top; }
+  .rl-var{ display:inline-block; margin:2px 10px 2px 0; white-space:nowrap; }
+  .rl-var small{ color:var(--ink-soft); } .rl-var .rl-oos{ color:#FF9DA0; }
 </style>
 </head>
 <body>
@@ -2692,6 +2695,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div id="packPager"></div>
         </div>
         <div class="pack-tiles">
+        <details class="card pack-details" id="refillLiveDetails" style="display:none;" ontoggle="if(this.open) refillLiveRender()">
+          <summary>📋 Cần bù — thời gian thực <span class="pack-note" id="refillLiveSum"></span></summary>
+          <div id="refillLiveBox"></div>
+        </details>
         <div class="card pack-details pack-oos-tile" id="packOosTile" onclick="packOosOpen()" style="cursor:pointer;">
           <div class="pack-oos-sum-h">⛔ Hàng tạm hết <span class="pack-note" id="packOosSum"></span></div>
         </div>
@@ -7046,7 +7053,7 @@ function packCurrentList(){
   return {list, counts, map, smap, status};
 }
 function renderPackInvoicesPage(){
-  setTimeout(()=>{ try{ packOosRenderTile(); }catch(e){} }, 0);
+  setTimeout(()=>{ try{ packOosRenderTile(); refillLiveRender(); }catch(e){} }, 0);
   const table = document.getElementById('packTable');
   if(!table) return;
   const me = currentUser();
@@ -8073,7 +8080,7 @@ function packOosListen(user){
   if(packOosSub){ try{ packOosSub.off(); }catch(e){} packOosSub = null; } packOos = {};
   if(!user || !fbRoot || !['general_manager','warehouse','packer'].includes(user.role)) return;
   packOosSub = fbRoot.child('packOos');
-  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(packOosPendingCheck, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
+  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(()=>{ packOosPendingCheck(); if(currentPageId==='packInvoices') refillLiveRender(); }, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
 }
 const oosNorm = x=>String(x||'').normalize('NFC').trim().toLowerCase();
 function packOosList(){ return Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0)); }
@@ -8410,9 +8417,9 @@ function packRefillCompute(){
       const m = Number(x.missing)||0; if(!m) return;
       const isPrint = packIsPrintCode(x.code);
       const gk = (x.code||'') + '|' + (isPrint ? '' : (x.design||''));
-      const g = groups[gk] || (groups[gk] = {code:x.code||'', design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}});
+      const g = groups[gk] || (groups[gk] = {code:x.code||'', design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}, vS:{}, vO:{}, qS:0, qO:0});
       const vk = [x.color, x.size].filter(Boolean).join(' ') || '—';
-      g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m; orders.add(p.id);
+      g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m; orders.add(p.id); g.vS[vk] = (g.vS[vk]||0) + m; g.qS += m; // nguồn: báo thiếu
     });
   });
   // ⛔ HÀNG TẠM HẾT: đơn đã cọc, chưa đóng (và chưa báo thiếu) có món kho đang báo tạm hết → cộng số lượng món đó vào "cần bù"
@@ -8426,9 +8433,9 @@ function packRefillCompute(){
         if(!packOosMatch(x)) return; const m = Number(x.qty)||0; if(!m) return;
         const isPrint = packIsPrintCode(x.code);
         const gk = (x.code||'') + '|' + (isPrint ? '' : (x.design||''));
-        const g = groups[gk] || (groups[gk] = {code:x.code||'', design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}});
+        const g = groups[gk] || (groups[gk] = {code:x.code||'', design: isPrint ? '' : (x.design||''), isPrint, qty:0, vars:{}, vS:{}, vO:{}, qS:0, qO:0});
         const vk = [x.color, x.size].filter(Boolean).join(' ') || '—';
-        g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m; oosQty += m; orders.add(inv.id); oosOrders.add(inv.id);
+        g.vars[vk] = (g.vars[vk]||0) + m; g.qty += m; total += m; oosQty += m; orders.add(inv.id); oosOrders.add(inv.id); g.vO[vk] = (g.vO[vk]||0) + m; g.qO += m; // nguồn: tạm hết
       });
     });
   }
@@ -8436,6 +8443,26 @@ function packRefillCompute(){
   return {list, total, orders: orders.size, oosQty, oosOrders: oosOrders.size, at: nowMs()};
 }
 function refillAbsTime(ms){ const d = new Date(ms); const p2 = n=>String(n).padStart(2,'0'); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`; }
+// 📋 CẦN BÙ — THỜI GIAN THỰC: báo thiếu + hàng tạm hết, tự cập nhật khi dữ liệu đổi (bảng chỉ vẽ khi ô đang mở)
+function refillLiveRender(){
+  const det = document.getElementById('refillLiveDetails'), box = document.getElementById('refillLiveBox'), sumEl = document.getElementById('refillLiveSum');
+  if(!det) return;
+  if(!canSeeRefillSnap()){ det.style.display = 'none'; return; } det.style.display = '';
+  const sn = packRefillCompute();
+  if(sumEl) sumEl.textContent = sn.total ? `${sn.total} sp · ${sn.list.length} mã · ${sn.orders} đơn` : 'không thiếu gì 🎉';
+  if(!det.open || !box) return;
+  const q = String((document.getElementById('refillLiveQ')||{}).value||'').trim().toLowerCase();
+  const list = sn.list.filter(g=>!q || String(g.code).toLowerCase().includes(q) || String(g.design||'').toLowerCase().includes(q));
+  box.innerHTML = `<div class="pack-toolbar" style="margin:8px 0;"><input id="refillLiveQ" type="search" placeholder="🔍 Lọc mã (VD: Q20)" value="${escHtml(q)}" oninput="clearTimeout(window.__rlT); window.__rlT=setTimeout(()=>{ refillLiveRender(); const i=document.getElementById('refillLiveQ'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250)" style="flex:1; min-width:160px;">
+      <button class="btn-small btn-primary" onclick="refillSnapShow(packRefillCompute(), '📋 Cần bù cả kho — ngay bây giờ')">📸 Ảnh / gửi Zalo</button></div>
+    <p class="pack-note" style="margin:0 0 6px;">Tổng <b>${sn.total}</b> sp${sn.oosQty ? ` — <span style="color:#F0A63A;">thiếu ${sn.total - sn.oosQty}</span> (đơn đã báo thiếu) + <span style="color:#FF9DA0;">tạm hết ${sn.oosQty}</span> (${sn.oosOrders} đơn chưa nhặt có hàng ⛔)` : ' (từ các đơn đã báo thiếu)'} · cập nhật ${packTimeStr(sn.at)}</p>
+    ${list.length ? `<div class="table-wrap"><table class="rtable refill-live"><thead><tr><th>Mã</th><th>Màu · size · số lượng</th><th class="num">Tổng</th></tr></thead><tbody>
+      ${list.map(g=>`<tr><td><b>${escHtml(g.code)}</b>${g.design ? `<div class="pack-note">${escHtml(g.design)}</div>` : ''}</td>
+        <td>${Object.keys(g.vars).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(vk=>{ const sS = (g.vS||{})[vk]||0, sO = (g.vO||{})[vk]||0;
+          return `<span class="rl-var">${escHtml(vk)} <b>${g.vars[vk]}</b>${sS && sO ? ` <small>(thiếu ${sS} · tạm hết ${sO})</small>` : (sO ? ' <small class="rl-oos">tạm hết</small>' : '')}</span>`; }).join('')}</td>
+        <td class="num"><b>${g.qty}</b></td></tr>`).join('')}
+    </tbody></table></div>` : `<div class="empty-note">${q ? 'Không có mã khớp.' : 'Không có hàng thiếu / tạm hết 🎉'}</div>`}`;
+}
 function refillSnapText(sn){
   return `📋 CẦN BÙ · CẢ KHO — ${refillAbsTime(sn.at)}\n${sn.orders} đơn · ${sn.list.length} mã · ${sn.total} sp${sn.oosQty ? ` (trong đó ${sn.oosQty} sp từ ${sn.oosOrders} đơn có hàng ⛔ tạm hết)` : ''}\n` +
     sn.list.map(g=>`${g.code}${g.design ? ' ' + packDesignShort(g.design) : ''}: ${Object.entries(g.vars).map(([v,q])=>`${v} ${q}`).join(' · ')} = ${g.qty}`).join('\n');
@@ -15759,7 +15786,7 @@ function setupRoleScopedListeners(user){
   // Trạng thái đóng hàng: Kho / Bàn đóng gói / Quản lý chung tải hết; Sale chỉ tải của hoá đơn mình (để nhận báo thiếu)
   const psKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
   attachScoped('packStatus', psKey, psKey==='none' ? null : (psKey==='all' ? fbPackStatus : fbPackStatus.orderByChild('saleId').equalTo(user.id)), (arr)=>{
-    state.packStatus = arr; try{ setTimeout(()=>{ packOosPendingCheck(); packOosRenderTile(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
+    state.packStatus = arr; try{ setTimeout(()=>{ packOosPendingCheck(); packOosRenderTile(); if(currentPageId==='packInvoices') refillLiveRender(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
     if(psKey.startsWith('mine:')){ packCheckSaleNotices(); packCheckDoneNotices(); setTimeout(shipRemindCheck, 1500); }
     else packCheckReplyNotices();
     onDataChanged();
