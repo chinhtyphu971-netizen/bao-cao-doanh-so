@@ -8107,15 +8107,24 @@ function packOosListen(user){
   packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(()=>{ packOosSaleNotify(); invOosWarnUpdate(); packOosPendingCheck(); if(currentPageId==='packInvoices') refillLiveRender(); }, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
 }
 const oosNorm = x=>String(x||'').normalize('NFC').trim().toLowerCase();
-function packOosList(){ return Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0)); }
-function packOosMatch(line){ // dòng hàng {code,color,size} có thuộc diện tạm hết?
-  const code = oosNorm(line.code), col = oosNorm(line.color), sz = oosNorm(line.size);
-  return packOosList().find(o=>oosNorm(o.code)===code && (!o.color || oosNorm(o.color)===col) && (!o.size || oosNorm(o.size)===sz)) || null;
+// ⚡ Danh sách + mục lục theo mã được TÍNH 1 LẦN, chỉ tính lại khi packOos đổi (trước đây mỗi dòng hàng lại sắp xếp cả danh sách → đơ vài giây)
+let packOosCacheSrc = null, packOosListCache = [], packOosIdx = {};
+function packOosEnsureCache(){
+  if(packOosCacheSrc === packOos) return;
+  packOosCacheSrc = packOos;
+  packOosListCache = Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0));
+  packOosIdx = {}; packOosListCache.forEach(o=>{ const k = oosNorm(o.code); (packOosIdx[k] = packOosIdx[k] || []).push(o); });
+}
+function packOosList(){ packOosEnsureCache(); return packOosListCache; }
+function packOosMatch(line){ // dòng hàng {code,color,size} có thuộc diện tạm hết?  (tra theo mã trong mục lục)
+  packOosEnsureCache(); const arr = packOosIdx[oosNorm(line.code)]; if(!arr) return null;
+  const col = oosNorm(line.color), sz = oosNorm(line.size);
+  return arr.find(o=>(!o.color || oosNorm(o.color)===col) && (!o.size || oosNorm(o.size)===sz)) || null;
 }
 function packOosLabel(o){ return [o.code, o.color, o.size].filter(Boolean).join(' '); }
 // Các món tạm hết của 1 đơn (đơn chờ bù → chỉ xét món còn thiếu)
 function packOosOfInv(inv){
-  if(!inv || !Object.keys(packOos||{}).length) return [];
+  if(!inv || !packOosList().length) return [];
   const ps = packStatusMap()[inv.id];
   const lines = ps && ps.state==='short' ? (ps.shortItems||[]).map(x=>({code: x.code, color: x.color, size: x.size})) : packInvLines(inv);
   const hit = {}; lines.forEach(l=>{ const o = packOosMatch(l); if(o) hit[o.id] = o; });
@@ -8127,6 +8136,17 @@ function packOosTagHtml(inv){
   return `<div class="pack-sub"><span class="pack-badge pack-oos" title="Đơn có món kho đang tạm hết — xếp cuối hàng chờ, nhặt sau khi hết đơn đủ hàng">⛔ Tạm hết: ${escHtml(h.map(packOosLabel).join(', '))}</span></div>`;
 }
 function packOosCanEdit(){ const r = (currentUser()||{}).role; return r==='warehouse' || r==='general_manager'; }
+function packOosCounts(){ // 1 lượt quét hoá đơn → số đơn chờ của TỪNG mục + từng mã
+  const per = {}, perCode = {}, smap = packStatusMap();
+  if(!packOosList().length) return {per, perCode};
+  (state.invoices||[]).forEach(inv=>{ if(!inv || !inv.depositLink) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial' || ps.legacy)) return;
+    const lines = ps && ps.state==='short' ? (ps.shortItems||[]) : packInvLines(inv);
+    const ids = new Set(), cs = new Set();
+    lines.forEach(l=>{ packOosEnsureCache(); const arr = packOosIdx[oosNorm(l.code)]; if(!arr) return; const col = oosNorm(l.color), sz = oosNorm(l.size);
+      arr.forEach(o=>{ if((!o.color || oosNorm(o.color)===col) && (!o.size || oosNorm(o.size)===sz)){ ids.add(o.id); cs.add(o.code); } }); });
+    ids.forEach(id=>{ per[id] = (per[id]||0) + 1; }); cs.forEach(c=>{ perCode[c] = (perCode[c]||0) + 1; }); });
+  return {per, perCode};
+}
 function packOosWaitCount(o){ // số đơn chưa đóng đang có món thuộc mục tạm hết này
   const smap = packStatusMap(); let n = 0;
   (state.invoices||[]).forEach(inv=>{ if(!inv || !inv.depositLink) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial' || ps.legacy)) return;
@@ -8149,14 +8169,14 @@ function packOosOpen(){
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
       <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
-    <div class="oos-list">${(()=>{ if(!l.length) return '<div class="empty-note">Không có hàng nào tạm hết.</div>';
+    <div class="oos-list">${(()=>{ if(!l.length) return '<div class="empty-note">Không có hàng nào tạm hết.</div>'; const CNT = packOosCounts();
       const byCode = {}; l.forEach(o=>{ (byCode[o.code] = byCode[o.code] || []).push(o); });
-      const row = o=>{ const n = packOosWaitCount(o), note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
+      const row = o=>{ const n = CNT.per[o.id] || 0, note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
         return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
           <span class="oos-by">${escHtml(o.byName||'')} · ${packTimeShort(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`; };
       return Object.keys(byCode).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(code=>{ const arr = byCode[code];
         if(arr.length===1) return row(arr[0]);
-        const nWait = (state.invoices||[]).filter(inv=>inv && inv.depositLink && packOosOfInv(inv).some(o=>o.code===code)).length;
+        const nWait = CNT.perCode[code] || 0;
         return `<div class="oos-group"><div class="oos-ghead"><b>${escHtml(code)}</b> <span class="goal-hint">${arr.length} mục</span> ${nWait ? `<span class="oos-cnt">${nWait} đơn chờ</span>` : ''}
             ${can ? `<button class="btn-primary btn-small" style="margin-left:auto;" onclick="packOosRemoveCode('${escHtml(code)}')">✅ Có hàng lại cả mã ${escHtml(code)}</button>` : ''}</div>
           ${arr.map(row).join('')}</div>`; }).join(''); })()}</div>
