@@ -1963,6 +1963,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .oos-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 4px; border-bottom:1px solid var(--line); }
   .oos-pend-pill{ bottom:calc(76px + env(safe-area-inset-bottom, 0px)) !important; border-color:#E5484D !important; background:#3A1218 !important; color:#FFD6D8 !important; }
   .oos-row.oos-pend{ background:rgba(229,72,77,.06); border-radius:8px; }
+  .loyal-modal{ position:relative; }
+  .loyal-modal > .modal-x{ position:sticky; top:-22px; float:right; margin:-10px -10px 0 8px; z-index:5; width:38px; height:38px; border-radius:50%;
+    border:1px solid var(--line); background:var(--panel2); color:var(--ink); font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.35); }
+  .loyal-modal > .actions{ position:sticky; bottom:-22px; margin:12px -22px -22px; padding:12px 22px; background:var(--panel); border-top:1px solid var(--line); z-index:4; }
 </style>
 </head>
 <body>
@@ -16533,7 +16537,12 @@ function loyalOpenForm(id){
   loyalShowModal();
 }
 function loyalCustomRow(k, v){ return `<div class="loyal-custom"><input placeholder="Tên thông tin" value="${escHtml(k)}"><input placeholder="Nội dung" value="${escHtml(v)}"><button class="btn-ghost btn-small" onclick="this.parentElement.remove()" aria-label="Xoá dòng">✕</button></div>`; }
-function loyalShowModal(){ document.getElementById('loyalModal').classList.add('show'); }
+function loyalShowModal(){
+  const body = document.getElementById('loyalModalBody');
+  // ✕ đóng luôn nằm cố định góc trên (bảng dài không phải cuộn xuống tìm nút Đóng)
+  if(body && !body.querySelector(':scope > .modal-x')) body.insertAdjacentHTML('afterbegin', '<button class="modal-x" title="Đóng" aria-label="Đóng" onclick="loyalCloseModal()">✕</button>');
+  document.getElementById('loyalModal').classList.add('show');
+}
 function loyalCloseModal(){ document.getElementById('loyalModal').classList.remove('show'); loyalEditId = null; loyalCareId = null; if(myLeadsActiveTab==='loyal') renderLoyalSection(); }
 function loyalSave(){
   const me = currentUser(); if(!goalHasOwn(me)) return;
