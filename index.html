@@ -2650,6 +2650,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
               <option value="short">🟠 Chờ bù hàng</option>
               <option value="packed">✅ Đã đóng</option>
               <option value="partial">⚠️ Gửi thiếu</option>
+              <option value="oos">⛔ Có hàng tạm hết</option>
+              <option value="okstock">✅ Đủ hàng, chưa đóng</option>
               <option value="all">Tất cả</option>
             </select>
             <select id="packRangeSel" onchange="document.getElementById('packCustomRange').style.display = this.value==='custom' ? 'inline-flex' : 'none'; packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
@@ -7024,10 +7026,14 @@ function packCurrentList(){
   }
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
-  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, partial:0, all:base.length};
+  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, partial:0, oos:0, okstock:0, all:base.length};
   const OPEN = ['new','claimed','changed','done','short']; // "Chưa đóng" gồm cả đơn đang CHỜ BÙ
-  base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; if(packIsPartial(smap[inv.id])) counts.partial++; });
-  const list = status==='all' ? base : base.filter(inv=>{ if(status==='partial') return packIsPartial(smap[inv.id]); const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
+  const isOpenInv = inv=>{ const ps = smap[inv.id]; return !(ps && (ps.state==='packed' || ps.state==='partial')); };
+  base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; if(packIsPartial(smap[inv.id])) counts.partial++;
+    if(isOpenInv(inv)){ if(packOosOfInv(inv).length) counts.oos++; else counts.okstock++; } });
+  const list = status==='all' ? base : base.filter(inv=>{ if(status==='partial') return packIsPartial(smap[inv.id]);
+    if(status==='oos') return isOpenInv(inv) && packOosOfInv(inv).length > 0;
+    if(status==='okstock') return isOpenInv(inv) && !packOosOfInv(inv).length; const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
   const umapL = packUrgentMap(); const smapL = packStatusMap();
   const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
   // Mục "Chờ bù hàng": đơn báo thiếu LÂU NHẤT lên đầu (chờ lâu cần xử lý trước), không theo ô sắp xếp cọc
@@ -7055,7 +7061,7 @@ function renderPackInvoicesPage(){
   { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
-    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, partial:`⚠️ Gửi thiếu (${counts.partial||0})`, all:`Tất cả (${counts.all})`};
+    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, partial:`⚠️ Gửi thiếu (${counts.partial||0})`, oos:`⛔ Có hàng tạm hết (${counts.oos||0})`, okstock:`✅ Đủ hàng, chưa đóng (${counts.okstock||0})`, all:`Tất cả (${counts.all})`};
     Array.from(statusSel.options).forEach(o=>{ if(lab[o.value]) o.textContent = lab[o.value]; });
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
