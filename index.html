@@ -1981,6 +1981,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-oos-warn{ margin:0 0 10px; padding:10px 14px; border-radius:10px; background:rgba(240,192,74,.12); border:1px solid rgba(240,192,74,.5); color:#FBE3B8; font-size:14px; }
   .oos-wait-pill{ display:block; width:fit-content; max-width:260px; margin-top:4px; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; line-height:1.5;
     color:#F0C04A; background:rgba(240,192,74,.12); border:1px solid rgba(240,192,74,.45); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .oos-row{ flex-wrap:nowrap !important; }
+  .oos-row .oos-name{ white-space:nowrap; }
+  .oos-cnt{ font-size:12px; font-weight:700; color:#FF9DA0; background:rgba(229,72,77,.12); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .oos-row .oos-by{ margin-left:auto; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+  .oos-row .goal-hint{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  @media (max-width:560px){ .oos-row{ flex-wrap:wrap !important; } .oos-row .oos-by{ margin-left:0; } }
 </style>
 </head>
 <body>
@@ -8117,6 +8123,13 @@ function packOosTagHtml(inv){
   return `<div class="pack-sub"><span class="pack-badge pack-oos" title="Đơn có món kho đang tạm hết — xếp cuối hàng chờ, nhặt sau khi hết đơn đủ hàng">⛔ Tạm hết: ${escHtml(h.map(packOosLabel).join(', '))}</span></div>`;
 }
 function packOosCanEdit(){ const r = (currentUser()||{}).role; return r==='warehouse' || r==='general_manager'; }
+function packOosWaitCount(o){ // số đơn chưa đóng đang có món thuộc mục tạm hết này
+  const smap = packStatusMap(); let n = 0;
+  (state.invoices||[]).forEach(inv=>{ if(!inv || !inv.depositLink) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial' || ps.legacy)) return;
+    const lines = ps && ps.state==='short' ? (ps.shortItems||[]) : packInvLines(inv);
+    if(lines.some(l=>oosNorm(l.code)===oosNorm(o.code) && (!o.color || oosNorm(o.color)===oosNorm(l.color)) && (!o.size || oosNorm(o.size)===oosNorm(l.size)))) n++; });
+  return n;
+}
 function packOosRenderTile(){
   const el = document.getElementById('packOosSum'); if(!el) return;
   const l = packOosList(); const np = packOosCanEdit() ? new Set(packOosPending().map(x=>x.key)).size : 0;
@@ -8132,7 +8145,9 @@ function packOosOpen(){
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
       <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
-    <div class="oos-list">${l.map(o=>`<div class="oos-row"><b>⛔ ${escHtml(packOosLabel(o))}</b>${o.note ? ` <span class="goal-hint">· ${escHtml(o.note)}</span>` : ''}<span class="goal-hint" style="margin-left:auto;">${escHtml(o.byName||'')} · ${packTimeStr(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`).join('') || '<div class="empty-note">Không có hàng nào tạm hết.</div>'}</div>
+    <div class="oos-list">${l.map(o=>{ const n = packOosWaitCount(o), note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
+      return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
+        <span class="oos-by">${escHtml(o.byName||'')} · ${packTimeShort(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`; }).join('') || '<div class="empty-note">Không có hàng nào tạm hết.</div>'}</div>
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
   loyalShowModal();
 }
@@ -8180,7 +8195,7 @@ function packOosPendingHtml(){
   const byItem = {}; list.forEach(x=>{ (byItem[x.key] = byItem[x.key] || {x, rows: []}).rows.push(x); });
   return `<h3 style="margin:4px 0 6px; font-size:15px;">🔔 Báo thiếu chờ duyệt (${Object.keys(byItem).length} món)</h3>
     ${Object.values(byItem).map(({x, rows})=>`<div class="oos-row oos-pend"><b>${escHtml(packOosLabel(x))}</b>
-      <span class="goal-hint">thiếu ${rows.reduce((a,r)=>a+r.missing,0)} · ${rows.map(r=>`HĐ ${escHtml(r.invoiceNumber)} (${escHtml(r.by||'')} ${packTimeShort(r.at)})`).join(', ')}</span>
+      <span class="goal-hint">thiếu ${rows.reduce((a,r)=>a+r.missing,0)} · ${rows.length} đơn · ${escHtml(Array.from(new Set(rows.map(r=>r.by).filter(Boolean))).join(', '))} · ${packTimeShort(rows[rows.length-1].at)}</span>
       <span style="margin-left:auto; display:flex; gap:6px;"><button class="btn-primary btn-small" onclick="packOosDecide('${escHtml(x.key)}', true)">⛔ Duyệt tạm hết</button><button class="btn-ghost btn-small" onclick="packOosDecide('${escHtml(x.key)}', false)">✓ Vẫn còn hàng</button></span></div>`).join('')}
     <hr style="border:0; border-top:1px solid var(--line); margin:10px 0;">`;
 }
