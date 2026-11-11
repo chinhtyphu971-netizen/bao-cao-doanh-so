@@ -1970,6 +1970,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .refill-live td{ vertical-align:top; }
   .rl-var{ display:inline-block; margin:2px 10px 2px 0; white-space:nowrap; }
   .rl-var small{ color:var(--ink-soft); } .rl-var .rl-oos{ color:#FF9DA0; }
+  .rl-list{ display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:8px; }
+  .rl-code{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--panel2); }
+  .rl-head{ display:flex; align-items:baseline; gap:8px; margin-bottom:6px; font-size:15px; }
+  .rl-head .rl-total{ margin-left:auto; font-weight:800; color:#F0A63A; white-space:nowrap; }
+  .rl-vars{ display:flex; flex-wrap:wrap; gap:4px 6px; }
+  .rl-chip{ font-size:12.5px; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,.05); border:1px solid var(--line); white-space:nowrap; }
+  .rl-chip b{ color:#F0C04A; }
 </style>
 </head>
 <body>
@@ -8443,7 +8450,7 @@ function packRefillCompute(){
   return {list, total, orders: orders.size, oosQty, oosOrders: oosOrders.size, at: nowMs()};
 }
 function refillAbsTime(ms){ const d = new Date(ms); const p2 = n=>String(n).padStart(2,'0'); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`; }
-// 📋 CẦN BÙ — THỜI GIAN THỰC: báo thiếu + hàng tạm hết, tự cập nhật khi dữ liệu đổi (bảng chỉ vẽ khi ô đang mở)
+// 📋 CẦN BÙ — THỜI GIAN THỰC: tổng hợp TOÀN BỘ hàng cần bù (báo thiếu + tạm hết, không tách nguồn), tự cập nhật
 function refillLiveRender(){
   const det = document.getElementById('refillLiveDetails'), box = document.getElementById('refillLiveBox'), sumEl = document.getElementById('refillLiveSum');
   if(!det) return;
@@ -8453,18 +8460,17 @@ function refillLiveRender(){
   if(!det.open || !box) return;
   const q = String((document.getElementById('refillLiveQ')||{}).value||'').trim().toLowerCase();
   const list = sn.list.filter(g=>!q || String(g.code).toLowerCase().includes(q) || String(g.design||'').toLowerCase().includes(q));
+  const varSort = (a,b)=>a.localeCompare(b,'vi',{numeric:true, sensitivity:'base'});
   box.innerHTML = `<div class="pack-toolbar" style="margin:8px 0;"><input id="refillLiveQ" type="search" placeholder="🔍 Lọc mã (VD: Q20)" value="${escHtml(q)}" oninput="clearTimeout(window.__rlT); window.__rlT=setTimeout(()=>{ refillLiveRender(); const i=document.getElementById('refillLiveQ'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250)" style="flex:1; min-width:160px;">
       <button class="btn-small btn-primary" onclick="refillSnapShow(packRefillCompute(), '📋 Cần bù cả kho — ngay bây giờ')">📸 Ảnh / gửi Zalo</button></div>
-    <p class="pack-note" style="margin:0 0 6px;">Tổng <b>${sn.total}</b> sp${sn.oosQty ? ` — <span style="color:#F0A63A;">thiếu ${sn.total - sn.oosQty}</span> (đơn đã báo thiếu) + <span style="color:#FF9DA0;">tạm hết ${sn.oosQty}</span> (${sn.oosOrders} đơn chưa nhặt có hàng ⛔)` : ' (từ các đơn đã báo thiếu)'} · cập nhật ${packTimeStr(sn.at)}</p>
-    ${list.length ? `<div class="table-wrap"><table class="rtable refill-live"><thead><tr><th>Mã</th><th>Màu · size · số lượng</th><th class="num">Tổng</th></tr></thead><tbody>
-      ${list.map(g=>`<tr><td><b>${escHtml(g.code)}</b>${g.design ? `<div class="pack-note">${escHtml(g.design)}</div>` : ''}</td>
-        <td>${Object.keys(g.vars).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(vk=>{ const sS = (g.vS||{})[vk]||0, sO = (g.vO||{})[vk]||0;
-          return `<span class="rl-var">${escHtml(vk)} <b>${g.vars[vk]}</b>${sS && sO ? ` <small>(thiếu ${sS} · tạm hết ${sO})</small>` : (sO ? ' <small class="rl-oos">tạm hết</small>' : '')}</span>`; }).join('')}</td>
-        <td class="num"><b>${g.qty}</b></td></tr>`).join('')}
-    </tbody></table></div>` : `<div class="empty-note">${q ? 'Không có mã khớp.' : 'Không có hàng thiếu / tạm hết 🎉'}</div>`}`;
+    <p class="pack-note" style="margin:0 0 8px;">Tổng <b>${sn.total}</b> sp · ${sn.list.length} mã · ${sn.orders} đơn · cập nhật ${packTimeStr(sn.at)}</p>
+    ${list.length ? `<div class="rl-list">${list.map(g=>`<div class="rl-code">
+        <div class="rl-head"><b>${escHtml(g.code)}</b>${g.design ? ` <span class="pack-note">${escHtml(g.design)}</span>` : ''}<span class="rl-total">${g.qty} sp</span></div>
+        <div class="rl-vars">${Object.keys(g.vars).sort(varSort).map(vk=>`<span class="rl-chip">${escHtml(vk)} <b>${g.vars[vk]}</b></span>`).join('')}</div></div>`).join('')}</div>`
+      : `<div class="empty-note">${q ? 'Không có mã khớp.' : 'Không có hàng cần bù 🎉'}</div>`}`;
 }
 function refillSnapText(sn){
-  return `📋 CẦN BÙ · CẢ KHO — ${refillAbsTime(sn.at)}\n${sn.orders} đơn · ${sn.list.length} mã · ${sn.total} sp${sn.oosQty ? ` (trong đó ${sn.oosQty} sp từ ${sn.oosOrders} đơn có hàng ⛔ tạm hết)` : ''}\n` +
+  return `📋 CẦN BÙ · CẢ KHO — ${refillAbsTime(sn.at)}\n${sn.orders} đơn · ${sn.list.length} mã · ${sn.total} sp\n` +
     sn.list.map(g=>`${g.code}${g.design ? ' ' + packDesignShort(g.design) : ''}: ${Object.entries(g.vars).map(([v,q])=>`${v} ${q}`).join(' · ')} = ${g.qty}`).join('\n');
 }
 // Vẽ bảng thành ẢNH (canvas) để gửi Zalo
@@ -8483,7 +8489,7 @@ function refillSnapCanvas(sn){
   cx.fillStyle = '#111'; cx.font = font(800, 36); cx.textBaseline = 'alphabetic';
   cx.fillText('CẦN BÙ · CẢ KHO', pad, 52);
   cx.fillStyle = '#444'; cx.font = font(700, 22);
-  cx.fillText(`${refillAbsTime(sn.at)}  ·  ${sn.orders} đơn  ·  ${sn.list.length} mã${sn.oosQty ? `  ·  gồm ${sn.oosQty} sp ⛔ tạm hết` : ''}`, pad, 88);
+  cx.fillText(`${refillAbsTime(sn.at)}  ·  ${sn.orders} đơn  ·  ${sn.list.length} mã`, pad, 88);
   cx.fillStyle = '#C2410C'; cx.font = font(900, 44); const tt = `${sn.total} sp`; cx.fillText(tt, W - pad - cx.measureText(tt).width, 60);
   cx.fillStyle = '#111'; cx.fillRect(pad, headH - 14, W - pad*2, 3);
   let y = headH;
