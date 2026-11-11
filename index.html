@@ -1987,6 +1987,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .oos-row .oos-by{ margin-left:auto; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
   .oos-row .goal-hint{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   @media (max-width:560px){ .oos-row{ flex-wrap:wrap !important; } .oos-row .oos-by{ margin-left:0; } }
+  .oos-group{ border:1px solid var(--line); border-radius:10px; margin:8px 0; padding:2px 8px 4px; background:rgba(255,255,255,.02); }
+  .oos-ghead{ display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line); font-size:15px; }
+  .oos-group .oos-row{ padding-left:14px; }
+  .oos-group .oos-row:last-child{ border-bottom:0; }
 </style>
 </head>
 <body>
@@ -8145,9 +8149,17 @@ function packOosOpen(){
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
       <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
-    <div class="oos-list">${l.map(o=>{ const n = packOosWaitCount(o), note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
-      return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
-        <span class="oos-by">${escHtml(o.byName||'')} · ${packTimeShort(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`; }).join('') || '<div class="empty-note">Không có hàng nào tạm hết.</div>'}</div>
+    <div class="oos-list">${(()=>{ if(!l.length) return '<div class="empty-note">Không có hàng nào tạm hết.</div>';
+      const byCode = {}; l.forEach(o=>{ (byCode[o.code] = byCode[o.code] || []).push(o); });
+      const row = o=>{ const n = packOosWaitCount(o), note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
+        return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
+          <span class="oos-by">${escHtml(o.byName||'')} · ${packTimeShort(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`; };
+      return Object.keys(byCode).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(code=>{ const arr = byCode[code];
+        if(arr.length===1) return row(arr[0]);
+        const nWait = (state.invoices||[]).filter(inv=>inv && inv.depositLink && packOosOfInv(inv).some(o=>o.code===code)).length;
+        return `<div class="oos-group"><div class="oos-ghead"><b>${escHtml(code)}</b> <span class="goal-hint">${arr.length} mục</span> ${nWait ? `<span class="oos-cnt">${nWait} đơn chờ</span>` : ''}
+            ${can ? `<button class="btn-primary btn-small" style="margin-left:auto;" onclick="packOosRemoveCode('${escHtml(code)}')">✅ Có hàng lại cả mã ${escHtml(code)}</button>` : ''}</div>
+          ${arr.map(row).join('')}</div>`; }).join(''); })()}</div>
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
   loyalShowModal();
 }
@@ -8267,6 +8279,13 @@ function packOosAdd(){
   packOos = Object.assign({}, packOos, {[id]: rec});
   fbRoot.child('packOos/' + id).set(rec).then(()=>showToast(`⛔ Đã báo tạm hết ${packOosLabel(rec)} — đơn có món này xếp cuối hàng chờ`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   packOosOpen();
+}
+function packOosRemoveCode(code){
+  if(!packOosCanEdit()) return; const ids = packOosList().filter(o=>o.code===code).map(o=>o.id); if(!ids.length) return;
+  askConfirm(`Có hàng lại cả mã ${code}?`, `Bỏ tạm hết toàn bộ ${ids.length} mục của ${code} (mọi màu / size đang báo). Các đơn chờ mã này trở về đúng thứ tự theo giờ cọc.`, ()=>{
+    const up = {}; ids.forEach(id=>{ up['packOos/' + id] = null; }); const n = Object.assign({}, packOos); ids.forEach(id=>delete n[id]); packOos = n;
+    fbRoot.update(up).then(()=>showToast(`✅ ${code} có hàng lại (${ids.length} mục)`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+    packOosOpen(); });
 }
 function packOosRemove(id){
   if(!packOosCanEdit()) return; const o = (packOos||{})[id]; if(!o) return;
