@@ -1337,10 +1337,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .pack-chg-tag{ display:inline-block; font-size:11px; font-weight:900; color:#111; background:#F0C23A; border-radius:6px; padding:0 6px; margin-left:4px; vertical-align:middle; }
   .chg-add{ color:#6FD99A; font-size:13.5px; margin-top:3px; } .chg-mod{ color:#F6C27A; font-size:13.5px; margin-top:3px; } .chg-rem{ color:#FF8A8D; font-size:13.5px; margin-top:3px; }
   .pack-edited-after{ font-size:12px; font-weight:700; color:#FF8A8D; margin-top:3px; }
-  .swap-btn{ margin-left:6px; padding:3px 10px !important; font-size:12.5px !important; background:#2EA05A !important; border-color:#2EA05A !important; }
-  .swap-card{ border:1.5px solid rgba(46,160,90,0.5); background:rgba(46,160,90,0.07); border-radius:12px; padding:10px 12px; margin-bottom:10px; }
-  .swap-head{ font-size:14px; margin-bottom:6px; }
-  .swap-move{ font-size:13.5px; padding:4px 0 4px 6px; border-left:3px solid #F0A63A; margin:4px 0; }
   .deduct-line{ margin-top:4px; font-size:13px; background:rgba(240,166,58,0.10); border-radius:8px; padding:5px 8px; }
   .deduct-line s{ opacity:0.6; }
   .refill-snap-img{ width:100%; border-radius:8px; border:1px solid var(--line); background:#fff; }
@@ -8937,94 +8933,7 @@ function packEditedAfterPackClear(invId){ fbPackStatus.child(invId).child('edite
 // để bù cho đơn ưu tiên cao → đơn đó ĐỦ HẲN thì mới gợi ý (không san lẻ tẻ).
 // Không lấy hàng từ: đơn khách chờ lấy, đơn Sale đã chọn "Gửi thiếu" / "Đổi mẫu", đơn người khác đang giữ.
 function packSku(x){ return [String(x.code||'').trim().toUpperCase(), normalizeSearchText(x.design||''), normalizeSearchText(x.color||''), normalizeSearchText(x.size||'')].join('|'); }
-function packSwapPlan(staffId){
-  const me = currentUser() || {};
-  const umap = packUrgentMap();
-  const orders = (state.packStatus||[]).filter(p=>p && !p.legacy && p.state==='short' && (p.shortStaffId || p.staffId)===staffId && packInvById(p.id))
-    .filter(p=>{ const c = packActiveClaimOf(p.id); return !c || c.by===staffId || c.by===me.id; });
-  const info = orders.map(p=>{
-    const inv = packInvById(p.id); const lines = packInvLines(inv);
-    const missByKey = {}; packFixShortKeys(p.shortItems).forEach(x=>{ missByKey[x.key] = Number(x.missing)||0; });
-    const picked = {}, need = {}, lineBySku = {};
-    lines.forEach(l=>{ const sku = packSku(l); const m = Math.min(l.qty, missByKey[l.key]||0); lineBySku[sku] = l;
-      if(l.qty - m > 0) picked[sku] = (picked[sku]||0) + (l.qty - m);
-      if(m > 0) need[sku] = (need[sku]||0) + m; });
-    const reply = packHasReply(p) ? p.saleReply.choice : '';
-    const urgent = !!umap[p.id];
-    return {p, inv, picked, need, lineBySku, urgent, reply, donor: !urgent && reply!=='partial' && reply!=='change',
-      rank: urgent ? 0 : (reply==='change' ? 1 : 2), dep: packDepositMs(inv)};
-  }).filter(o=>Object.keys(o.need).length);
-  info.sort((a,b)=>a.rank-b.rank || a.dep-b.dep);
-  const done = new Set(); const plans = [];
-  info.forEach((r, ri)=>{
-    if(done.has(r.p.id)) return;
-    const moves = []; const tmp = info.map(o=>Object.assign({}, o.picked)); let ok = true;
-    Object.keys(r.need).forEach(sku=>{
-      let n = r.need[sku];
-      for(let di = info.length-1; di > ri && n > 0; di--){ // lấy từ đơn ưu tiên THẤP nhất trước
-        const d = info[di]; if(!d.donor || done.has(d.p.id)) continue;
-        const have = tmp[di][sku] || 0; if(!have) continue;
-        const take = Math.min(have, n); tmp[di][sku] = have - take; n -= take;
-        moves.push({fromId: d.p.id, fromNum: d.inv.invoiceNumber, sku, qty: take, line: r.lineBySku[sku], fromLine: d.lineBySku[sku]});
-      }
-      if(n > 0) ok = false;
-    });
-    if(ok && moves.length){
-      plans.push({toId: r.p.id, toNum: r.inv.invoiceNumber, urgent: r.urgent, moves});
-      info.forEach((o, i)=>{ o.picked = tmp[i]; });
-      moves.forEach(m=>{ const d = info.find(o=>o.p.id===m.fromId); d.need[m.sku] = (d.need[m.sku]||0) + m.qty; });
-      done.add(r.p.id);
-    }
-  });
-  return plans;
-}
-function packSwapOpen(){
-  const me = packDeviceMe(); if(!me || me==='shared') return;
-  const plans = packSwapPlan(me);
-  document.getElementById('packPhotosTitle').textContent = '🔄 San hàng giữa đơn thiếu của bạn';
-  document.getElementById('packPhotosBody').innerHTML = plans.length
-    ? `<div class="pack-note" style="margin-bottom:8px;">Chuyển hàng theo gợi ý rồi bấm <b>Đã chuyển</b> — đơn nhận sẽ <b>đủ hàng</b>, đóng được ngay.</div>` + plans.map((pl, i)=>`<div class="swap-card">
-        <div class="swap-head">✅ Đơn <b>${escHtml(pl.toNum)}</b> ${packSaleTag(pl.toId)} sẽ <b>ĐỦ HÀNG</b>${pl.urgent ? ` <span class="pack-badge pack-urgent">${packUrgentLabel(pl.toId)}</span>` : ''}</div>
-        ${pl.moves.map(m=>`<div class="swap-move">↪ Lấy <b>${m.qty}</b> ${escHtml(m.line.code)}${m.line.design ? ' <i class="iv-design">' + escHtml(m.line.design) + '</i>' : ''} ${escHtml([m.line.color, m.line.size].filter(Boolean).join(' '))} từ túi đơn <b>${escHtml(m.fromNum)}</b></div>`).join('')}
-        <div style="text-align:right; margin-top:6px;"><button class="btn-primary btn-small" onclick="packSwapApply(${i})">✔ Đã chuyển</button></div></div>`).join('')
-    : '<div class="pack-note">Chưa san được đơn nào — các đơn thiếu của bạn đang thiếu những món giống nhau, hoặc không có đơn nào để lấy bớt hàng.</div>';
-  packSwapPlansCache = plans;
-  document.getElementById('packPhotosModal').classList.add('show');
-}
-let packSwapPlansCache = [];
-function packSwapApply(i){
-  const pl = packSwapPlansCache[i]; if(!pl || !fbRoot) return;
-  const smap = packStatusMap(); const me = currentUser() || {}; const now = nowMs(); const upd = {};
-  const to = smap[pl.toId]; if(!to || to.state!=='short'){ showToast('Đơn này đã thay đổi — mở lại gợi ý.'); packSwapOpen(); return; }
-  upd[`packStatus/${pl.toId}`] = Object.assign({}, to, {shortItems: [], swappedFull: true, at: now,
-    swapIn: (to.swapIn||[]).concat(pl.moves.map(m=>({from: m.fromNum, sku: m.sku, qty: m.qty, at: now})))});
-  const byDonor = {}; pl.moves.forEach(m=>{ (byDonor[m.fromId] = byDonor[m.fromId] || []).push(m); });
-  Object.keys(byDonor).forEach(did=>{
-    const d = smap[did]; if(!d) return;
-    const items = (d.shortItems||[]).map(x=>Object.assign({}, x));
-    byDonor[did].forEach(m=>{
-      const l = m.fromLine; const ex = items.find(x=>x.key===l.key);
-      if(ex) ex.missing = (Number(ex.missing)||0) + m.qty;
-      else items.push({key:l.key, code:l.code, design:l.design, color:l.color, size:l.size, qty:l.qty, missing:m.qty});
-    });
-    upd[`packStatus/${did}`] = Object.assign({}, d, {shortItems: items, at: now,
-      swapOut: (d.swapOut||[]).concat(byDonor[did].map(m=>({to: pl.toNum, sku: m.sku, qty: m.qty, at: now})))});
-  });
-  fbRoot.update(upd).then(()=>{
-    const toInv = packInvById(pl.toId) || {};
-    packChatPost(pl.toId, `✅ Kho đã san hàng từ đơn khác — đơn ${pl.toNum} đã ĐỦ HÀNG, sẽ đóng ngay.`, toInv.saleId);
-    Object.keys(byDonor).forEach(did=>{ const dInv = packInvById(did) || {}; const it = byDonor[did].map(m=>`${m.qty} ${m.line.code}${m.line.design ? ' ' + m.line.design : ''} ${[m.line.color, m.line.size].filter(Boolean).join(' ')}`).join(', ');
-      packChatPost(did, `🔄 Kho đã chuyển ${it} sang đơn ${pl.toNum} (ưu tiên hơn). Đơn ${dInv.invoiceNumber||''} thiếu thêm phần này, sẽ bù khi có hàng.`, dInv.saleId); });
-    packBeep(true); packFlash(`🔄 ĐÃ SAN HÀNG<br><small>Đơn ${escHtml(pl.toNum)} đủ hàng — chụp ảnh &amp; Bù đủ · Đóng</small>`, 'ok');
-    document.getElementById('packPhotosModal').classList.remove('show');
-    setTimeout(()=>packPanelOpen(pl.toId), 900);
-  }).catch(()=>showToast('Lỗi lưu — kiểm tra mạng.'));
-}
-
-// ===================== GỬI THIẾU → TỰ TRỪ MÓN THIẾU KHỎI HOÁ ĐƠN =====================
-// GIỮ NGUYÊN ĐƠN GIÁ CŨ (không tính lại bậc giá): chỉ trừ số lượng × đơn giá của món thiếu.
-// Khoá đơn giá cũ cho các dòng cùng mã (priceText) để sau này Sale mở sửa cũng không bị nhảy bậc giá.
-// Ghi lịch sử trừ (shortDeducted) ngay trên hoá đơn. Không tính là "Sale sửa sau khi đóng".
+// (Đã bỏ chức năng San hàng giữa các đơn thiếu)
 function packDeductShortPlan(inv, items){
   if(!inv || !items || !items.length) return null;
   const nv = JSON.parse(JSON.stringify(inv)); const removed = []; let amount = 0; const codes = new Set();
@@ -9279,7 +9188,6 @@ function renderPackPanel(){
   else if(ps && ps.state==='short'){ banner = `<div class="pack-banner warn">🟠 Đang CHỜ BÙ HÀNG · <b>cần bù ${packMissTotal(ps)} sp</b> (báo lúc ${packTimeStr(ps.shortAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}):${packShortGrid(ps.shortItems)}${ps.note ? `<div>Ghi chú: ${escHtml(ps.note)}</div>` : ''}${packReplyHtml(ps, true)}</div>`; }
   else if(ps && (ps.state==='partial' || (ps.state==='packed' && ps.shortSent))){ canAct = false; banner = `<div class="pack-banner ok">✅ ĐÃ ĐÓNG · GỬI THIẾU lúc ${packTimeStr(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. Không gửi bù — đã trừ:${packShortGrid(ps.shortItems)}</div>`; }
   else if(false){ banner = `<div class="pack-banner warn">📦 ĐÃ GỬI 1 PHẦN lúc ${packTimeStr(ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''}. <b>Còn nợ khách: ${escHtml(packShortText(ps.shortItems))}</b> — có hàng thì đóng gửi bù phần này.${packReplyHtml(ps, true)}</div>`; }
-  if(ps && ps.state==='short' && ps.swappedFull && !packMissTotal(ps)) banner = `<div class="pack-banner ok">✅ ĐÃ ĐỦ HÀNG sau khi san từ đơn khác — tick, chụp ảnh rồi bấm <b>Bù đủ · Đóng</b>.</div>` + banner;
   if(packReadyShort(ps)) banner = `<div class="pack-banner ok">🔁 ĐƠN BÙ — Sale chọn <b>${escHtml(PACK_REPLY[ps.saleReply.choice]||'')}</b>${ps.saleReply.choice==='change' ? ': làm theo hoá đơn MỚI bên dưới (Sale đã sửa mẫu)' : ': đóng phần đang có, bấm 📦 Gửi thiếu'}.</div>` + banner;
   if(packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'))) banner = `<div class="pack-banner bad pack-urgent-banner">${packUrgentLabel(inv.id, true)} — nhặt &amp; đóng ngay</div>` + banner;
   // Đơn đang có NGƯỜI KHÁC nhận → không cho đóng trùng
@@ -10083,12 +9991,12 @@ function renderPackDeskPage(){
   else if(packDeskShortFilter==='busy') shortList = shortList.filter(p=>claimedBy(p));
   const st2 = document.getElementById('packDeskShortTitle');
   if(st2) st2.innerHTML = personal
-    ? `⚠ ${showAllShort ? 'Đơn thiếu cả kho' : 'Đơn thiếu của bạn'} <span class="pack-note">(${shortList.length} đơn · cần bù ${shortList.reduce((a,p)=>a+packMissTotal(p),0)} sp)</span>${!showAllShort && myShorts.length >= 2 ? ` <button class="btn-small btn-primary swap-btn" onclick="packSwapOpen()">🔄 San hàng${packSwapPlan(devMe).length ? ' (' + packSwapPlan(devMe).length + ')' : ''}</button>` : ''} <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllShort=!packDeskShowAllShort; renderPackDeskPage()">${showAllShort ? 'Chỉ của tôi' : 'Xem cả kho (' + shorts.length + ')'}</a>`
+    ? `⚠ ${showAllShort ? 'Đơn thiếu cả kho' : 'Đơn thiếu của bạn'} <span class="pack-note">(${shortList.length} đơn · cần bù ${shortList.reduce((a,p)=>a+packMissTotal(p),0)} sp)</span> <a href="#" class="pack-switch" onclick="event.preventDefault(); packDeskShowAllShort=!packDeskShowAllShort; renderPackDeskPage()">${showAllShort ? 'Chỉ của tôi' : 'Xem cả kho (' + shorts.length + ')'}</a>`
     : `⚠ Chờ bù hàng <span class="pack-note">(${shorts.length} đơn · cần bù ${shorts.reduce((a,p)=>a+packMissTotal(p),0)} sp)</span>`;
   // Đơn thiếu bạn đã báo và đã được xử lý xong HÔM NAY (bù đủ / gửi thiếu)
   const myShortDone = personal && !showAllShort ? (state.packStatus||[]).filter(p=>p && p.shortStaffId===devMe && (p.state==='packed' || p.state==='partial') && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===todayStr()) : [];
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>` + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${p.swappedFull && !packMissTotal(p) ? '<span class="pack-miss-tag" style="background:#2EA05A;">✅ Đủ sau san — đóng ngay</span>' : packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
+  if(sh) sh.innerHTML = `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>` + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
     + (myShortDone.length ? `<div class="pack-short-done"><div class="pack-note" style="margin:10px 0 4px;">Đã xử lý hôm nay (${myShortDone.length}):</div>${myShortDone.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${(p.shortSent || p.state==='partial') ? '📦 gửi thiếu' : '✅ đã bù đủ'} · ${packTimeStr(p.packedAt||p.at)}${p.staffName && p.staffId!==devMe ? ' · ' + escHtml(p.staffName) : ''}</span></div>`).join('')}</div>` : '');
   const dn = document.getElementById('packDeskDone');
   const showAllDone = !personal || packDeskShowAllDone;
