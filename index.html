@@ -20858,14 +20858,23 @@ function saveEditUser(){
   const isSelf = currentUser() && currentUser().id===u.id;
   const newZalo = cleanPhone(document.getElementById('editUserZalo').value || '');
   if(newZalo && !/^0\d{9,10}$/.test(newZalo)){ errEl.textContent = 'SĐT Zalo chưa đúng (10–11 số, bắt đầu bằng 0).'; return; }
+  { // Tài khoản Abit DÙNG CHUNG với người khác → cho phép, nhưng hỏi xác nhận (đơn của 2 người gộp chung 1 nhân viên bên Abit)
+    const abitRow = document.getElementById('editUserAbitRow');
+    const nA = abitRow && abitRow.style.display!=='none' ? (document.getElementById('editUserAbit').value || '').trim() : '';
+    const shared = nA ? state.users.filter(x=>x.id!==u.id && (x.abitAccount||'').trim().toLowerCase()===nA.toLowerCase()) : [];
+    if(shared.length && saveEditUser._abitOk !== nA.toLowerCase()){
+      askConfirm('Dùng chung tài khoản Abit?', `Tài khoản Abit "${nA}" đang được ${shared.map(x=>x.name).join(', ')} dùng. Dùng chung vẫn đẩy đơn & nhận mã vận đơn bình thường (app báo cáo vẫn tách đúng từng người), nhưng BÊN ABIT đơn của các bạn sẽ gộp chung 1 nhân viên. Vẫn lưu?`,
+        ()=>{ saveEditUser._abitOk = nA.toLowerCase(); try{ saveEditUser(); } finally { saveEditUser._abitOk = null; } });
+      document.getElementById('confirmOkBtn').textContent = 'Vẫn dùng chung';
+      return;
+    }
+  }
   u.name = newName;
   u.pin = newPin;
   u.zaloPhone = newZalo || '';
   const patch = {name:newName, pin:newPin, zaloPhone: newZalo || null};
   if(document.getElementById('editUserAbitRow').style.display!=='none'){
     const newAbit = (document.getElementById('editUserAbit').value || '').trim();
-    const abitTaken = newAbit && state.users.find(x=>x.id!==u.id && (x.abitAccount||'').trim().toLowerCase()===newAbit.toLowerCase());
-    if(abitTaken){ errEl.textContent = `Tài khoản Abit này đang gán cho ${abitTaken.name}.`; return; }
     u.abitAccount = newAbit; patch.abitAccount = newAbit || null;
   }
   if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
