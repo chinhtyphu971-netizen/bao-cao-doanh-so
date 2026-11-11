@@ -1977,6 +1977,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .rl-vars{ display:flex; flex-wrap:wrap; gap:4px 6px; }
   .rl-chip{ font-size:12.5px; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,.05); border:1px solid var(--line); white-space:nowrap; }
   .rl-chip b{ color:#F0C04A; }
+  .pack-sale-badge.oos-wait{ background:rgba(240,192,74,.12); color:#F0C04A; border:1px solid rgba(240,192,74,.45); white-space:normal; }
+  .inv-oos-warn{ margin:0 0 10px; padding:10px 14px; border-radius:10px; background:rgba(240,192,74,.12); border:1px solid rgba(240,192,74,.5); color:#FBE3B8; font-size:14px; }
 </style>
 </head>
 <body>
@@ -6470,7 +6472,10 @@ function productOptionsHtmlFor(selectedCode){
     state.products.slice().sort((a,b)=>a.code.localeCompare(b.code,'vi',{numeric:true}))
       .map(p=>`<option value="${p.code}" ${p.code===selectedCode?'selected':''}>${codeWithMark(p.code)} - ${p.name}</option>`).join('');
 }
-function renderInvoiceEditor(){
+document.addEventListener('change', e=>{ if(e.target && e.target.closest && e.target.closest('#invoiceEditorWrap')) setTimeout(()=>{ try{ invOosWarnUpdate(); }catch(_){} }, 50); }, true);
+document.addEventListener('input', e=>{ if(e.target && e.target.closest && e.target.closest('#invoiceEditorWrap')) { clearTimeout(window.__oosW); window.__oosW = setTimeout(()=>{ try{ invOosWarnUpdate(); }catch(_){} }, 300); } }, true);
+function renderInvoiceEditor(){ renderInvoiceEditor0(); try{ invOosWarnUpdate(); }catch(e){} }
+function renderInvoiceEditor0(){
   const d = currentInvoiceDraft;
   const wrap = document.getElementById('invoiceEditorWrap');
   const totals = computeDraftTotals();
@@ -8085,9 +8090,9 @@ function packShortReporter(ps){ return ps.shortStaffId || ps.staffId || ''; }
 let packOos = {}, packOosSub = null;
 function packOosListen(user){
   if(packOosSub){ try{ packOosSub.off(); }catch(e){} packOosSub = null; } packOos = {};
-  if(!user || !fbRoot || !['general_manager','warehouse','packer'].includes(user.role)) return;
+  if(!user || !fbRoot || !(['general_manager','warehouse','packer'].includes(user.role) || PACK_SALE_ROLES.includes(user.role))) return;
   packOosSub = fbRoot.child('packOos');
-  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(()=>{ packOosPendingCheck(); if(currentPageId==='packInvoices') refillLiveRender(); }, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
+  packOosSub.on('value', snap=>{ packOos = snap.val() || {}; try{ setTimeout(()=>{ packOosSaleNotify(); invOosWarnUpdate(); packOosPendingCheck(); if(currentPageId==='packInvoices') refillLiveRender(); }, 300); }catch(e){} if(['packInvoices','packDesk'].includes(currentPageId)) try{ currentPageId==='packDesk' ? renderPackDeskPage() : renderPackInvoicesPage(); }catch(e){} packOosRenderTile(); });
 }
 const oosNorm = x=>String(x||'').normalize('NFC').trim().toLowerCase();
 function packOosList(){ return Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0)); }
@@ -8190,6 +8195,41 @@ function packOosDecide(key, isOos){
   rows.forEach(r=>{ const p = packStatusMap()[r.invId]; if(p){ p.oosReview = Object.assign({}, p.oosReview, {[key]: up[`packStatus/${r.invId}/oosReview/${key}`]}); } });
   fbRoot.update(up).then(()=>showToast(isOos ? `⛔ Đã đưa ${packOosLabel(x)} vào hàng tạm hết` : `✓ Ghi nhận ${packOosLabel(x)} vẫn còn hàng`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   packOosPendingCheck(); packOosOpen();
+}
+// ----- ⏳ HÀNG TẠM HẾT — PHÍA SALE -----
+// Nhãn vàng "⏳ Chờ hàng về" trên hoá đơn của Sale (kèm ghi chú kho, VD "hàng về thứ 6") · báo khi có hàng lại · nhắc khi lên hoá đơn.
+function packOosSaleTagHtml(inv){
+  const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return '';
+  const h = packOosOfInv(inv); if(!h.length) return '';
+  const items = h.map(o=>`<b>${escHtml(packOosLabel(o))}</b>${o.note && !/^báo thiếu HĐ/i.test(o.note) ? ` (${escHtml(o.note)})` : ''}`).join(', ');
+  return `<div class="pack-sale-badge oos-wait" title="Kho đang nhập mẫu này — đơn sẽ được đóng ngay khi có hàng. Nên báo khách chờ thêm, hoặc gợi ý đổi mẫu khác đang có.">⏳ Chờ hàng về: ${items} <span class="pack-note">— kho đóng ngay khi có hàng</span></div>`;
+}
+let packOosSalePrev = null;
+function packOosSaleNotify(){
+  const me = currentUser(); if(!me || !PACK_SALE_ROLES.includes(me.role)) return;
+  const smap = packStatusMap(), cur = {};
+  (state.invoices||[]).forEach(inv=>{ if(!inv || inv.saleId!==me.id) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return;
+    const h = packOosOfInv(inv); if(h.length) cur[inv.id] = h.map(packOosLabel).join(', '); });
+  if(packOosSalePrev){
+    const back = Object.keys(packOosSalePrev).filter(id=>!cur[id] && !(smap[id] && (smap[id].state==='packed' || smap[id].state==='partial')));
+    if(back.length){ const inv = (state.invoices||[]).find(x=>x.id===back[0]) || {};
+      showToast(`✅ ${packOosSalePrev[back[0]]} đã có hàng — đơn ${inv.invoiceNumber||''} sắp được đóng${back.length>1 ? ` (+${back.length-1} đơn)` : ''}`);
+      try{ playTingSound(); }catch(e){} }
+  }
+  packOosSalePrev = cur;
+  if(currentPageId==='invoices' && !currentInvoiceDraft) try{ renderInvoicesPage(); }catch(e){}
+}
+// Nhắc ngay trong khung lên hoá đơn khi chọn mẫu đang tạm hết
+function invOosWarnUpdate(){
+  const wrap = document.getElementById('invoiceEditorWrap'); const d = currentInvoiceDraft; if(!wrap || !d) return;
+  let el = document.getElementById('invOosWarn');
+  const hit = {};
+  (d.productGroups||[]).forEach(g=>(g.colorLines||[]).forEach(l=>{ if(!(Number(l.qty) > 0) || !g.productCode) return; const o = packOosMatch({code: g.productCode, color: l.color, size: l.size}); if(o) hit[o.id] = o; }));
+  const list = Object.values(hit);
+  if(!list.length){ if(el) el.remove(); return; }
+  const html = `⚠ <b>Đang tạm hết:</b> ${list.map(o=>escHtml(packOosLabel(o)) + (o.note && !/^báo thiếu HĐ/i.test(o.note) ? ` <span class="pack-note">(${escHtml(o.note)})</span>` : '')).join(', ')} — <b>báo khách trước khi chốt</b> (chờ hàng về hoặc đổi mẫu khác). Đơn có mẫu này sẽ được đóng sau các đơn đủ hàng.`;
+  if(!el){ el = document.createElement('div'); el.id = 'invOosWarn'; el.className = 'inv-oos-warn'; wrap.insertBefore(el, wrap.firstChild); }
+  el.innerHTML = html;
 }
 function packOosFillOpts(){
   const code = (document.getElementById('oosCode')||{}).value; const p = (state.products||[]).find(x=>x.code===code);
@@ -10194,7 +10234,8 @@ function packSaleNoticeAck(){
   document.getElementById('packSaleNoticeModal').classList.remove('show');
 }
 function packWhoTag(name, label){ return name ? `<span class="pack-who-tag" title="${escHtml(label||'')}">👤 ${escHtml(name)}</span>` : ''; }
-function packSaleBadgeHtml(inv){
+function packSaleBadgeHtml(inv){ return packSaleBadgeHtml0(inv) + packOosSaleTagHtml(inv); }
+function packSaleBadgeHtml0(inv){
   const ps = (state.packStatus||[]).find(p=>p && p.id===inv.id);
   const clS = packActiveClaimOf(inv.id);
   if(!ps){
@@ -15792,7 +15833,7 @@ function setupRoleScopedListeners(user){
   // Trạng thái đóng hàng: Kho / Bàn đóng gói / Quản lý chung tải hết; Sale chỉ tải của hoá đơn mình (để nhận báo thiếu)
   const psKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
   attachScoped('packStatus', psKey, psKey==='none' ? null : (psKey==='all' ? fbPackStatus : fbPackStatus.orderByChild('saleId').equalTo(user.id)), (arr)=>{
-    state.packStatus = arr; try{ setTimeout(()=>{ packOosPendingCheck(); packOosRenderTile(); if(currentPageId==='packInvoices') refillLiveRender(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
+    state.packStatus = arr; try{ setTimeout(()=>{ packOosSaleNotify(); packOosPendingCheck(); packOosRenderTile(); if(currentPageId==='packInvoices') refillLiveRender(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
     if(psKey.startsWith('mine:')){ packCheckSaleNotices(); packCheckDoneNotices(); setTimeout(shipRemindCheck, 1500); }
     else packCheckReplyNotices();
     onDataChanged();
