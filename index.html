@@ -1979,6 +1979,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .rl-chip b{ color:#F0C04A; }
   .pack-sale-badge.oos-wait{ background:rgba(240,192,74,.12); color:#F0C04A; border:1px solid rgba(240,192,74,.45); white-space:normal; }
   .inv-oos-warn{ margin:0 0 10px; padding:10px 14px; border-radius:10px; background:rgba(240,192,74,.12); border:1px solid rgba(240,192,74,.5); color:#FBE3B8; font-size:14px; }
+  .oos-wait-pill{ display:block; width:fit-content; max-width:260px; margin-top:4px; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; line-height:1.5;
+    color:#F0C04A; background:rgba(240,192,74,.12); border:1px solid rgba(240,192,74,.45); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -8201,8 +8203,12 @@ function packOosDecide(key, isOos){
 function packOosSaleTagHtml(inv){
   const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return '';
   const h = packOosOfInv(inv); if(!h.length) return '';
-  const items = h.map(o=>`<b>${escHtml(packOosLabel(o))}</b>${o.note && !/^báo thiếu HĐ/i.test(o.note) ? ` (${escHtml(o.note)})` : ''}`).join(', ');
-  return `<div class="pack-sale-badge oos-wait" title="Kho đang nhập mẫu này — đơn sẽ được đóng ngay khi có hàng. Nên báo khách chờ thêm, hoặc gợi ý đổi mẫu khác đang có.">⏳ Chờ hàng về: ${items} <span class="pack-note">— kho đóng ngay khi có hàng</span></div>`;
+  const noteOf = o=>o.note && !/^báo thiếu HĐ/i.test(o.note) ? String(o.note).replace(/^hàng\s+/i, '') : '';
+  const lab = o=>packOosLabel(o) + (noteOf(o) ? ' · ' + noteOf(o) : '');
+  const shown = h.slice(0, 2).map(lab).join(', '), more = h.length > 2 ? ` +${h.length-2} mẫu` : '';
+  const full = h.map(o=>'• ' + packOosLabel(o) + (noteOf(o) ? ' (' + noteOf(o) + ')' : '')).join('\n');
+  const tip = `Đơn chờ hàng về:\n${full}\n\nKho đóng ngay khi có hàng. Nên báo khách chờ thêm hoặc gợi ý đổi mẫu khác đang có.`;
+  return `<div class="oos-wait-pill" title="${escHtml(tip)}" onclick="event.stopPropagation(); askConfirm('⏳ Đơn ${escHtml(inv.invoiceNumber||'')} chờ hàng về', this.title, ()=>{})">⏳ Chờ hàng: ${escHtml(shown)}${more}</div>`;
 }
 let packOosSalePrev = null;
 function packOosSaleNotify(){
