@@ -1991,6 +1991,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .oos-ghead{ display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid var(--line); font-size:15px; }
   .oos-group .oos-row{ padding-left:14px; }
   .oos-group .oos-row:last-child{ border-bottom:0; }
+  /* 🖨️ Không in các thanh nhắc / nút nổi dành cho nhân viên (hoá đơn gửi khách phải sạch) */
+  @media print{
+    #invOosWarn, .inv-oos-warn, #appUpdateBar, .app-update-bar, #clockWarnBar, #soundBanner, .sound-banner, #urgApprovePill, #oosPendPill, .urg-approve-pill,
+    #localNetBanner, #demoNote, .toast, #toast, .oos-wait-pill{ display:none !important; }
+  }
 </style>
 </head>
 <body>
@@ -8296,7 +8301,7 @@ function invOosWarnUpdate(){
   const list = Object.values(hit);
   if(!list.length){ if(el) el.remove(); return; }
   const html = `⚠ <b>Đang tạm hết:</b> ${list.map(o=>escHtml(packOosLabel(o)) + (o.note && !/^báo thiếu HĐ/i.test(o.note) ? ` <span class="pack-note">(${escHtml(o.note)})</span>` : '')).join(', ')} — <b>báo khách trước khi chốt</b> (chờ hàng về hoặc đổi mẫu khác). Đơn có mẫu này sẽ được đóng sau các đơn đủ hàng.`;
-  if(!el){ el = document.createElement('div'); el.id = 'invOosWarn'; el.className = 'inv-oos-warn'; wrap.insertBefore(el, wrap.firstChild); }
+  if(!el){ el = document.createElement('div'); el.id = 'invOosWarn'; el.className = 'inv-oos-warn no-print'; wrap.insertBefore(el, wrap.firstChild); }
   el.innerHTML = html;
 }
 function packOosFillOpts(){
