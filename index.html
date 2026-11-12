@@ -2310,9 +2310,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="card">
             <h2>Data tự tìm <span id="selfLeadsCount" style="font-weight:400; font-size:13px; color:var(--ink-soft);"></span></h2>
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin:4px 0 10px;">
+              <button class="btn-primary" onclick="addSelfLeadRow()">+ Thêm dòng</button>
+              <button class="btn-ghost" onclick="selfBulkOpen()">📋 Nhập nhiều SĐT</button>
+            </div>
             <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
-            <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
-            <button class="btn-ghost" style="margin-top:10px; margin-left:6px;" onclick="selfBulkOpen()">📋 Nhập nhiều SĐT</button>
           </div>
         </div>
 
@@ -14101,18 +14103,18 @@ function selfLeadStatusOpts(cur){ return SELF_LEAD_STATUS_OPTIONS.concat(cur && 
 function renderSelfLeadsTable(){
   const user = currentUser();
   if(!user) return;
-  const mine = state.selfLeads.filter(l=>l.userId===user.id).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const mine = state.selfLeads.filter(l=>l.userId===user.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)); // dòng MỚI NHẤT trên cùng
   const countEl = document.getElementById('selfLeadsCount');
   if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
   const table = document.getElementById('selfLeadsTable');
   if(!table) return;
   if(mine.length===0){
-    table.innerHTML = '<tr><td class="empty-note">Chưa có dòng nào — bấm "+ Thêm dòng" để bắt đầu ghi lại data bạn tự tìm được.</td></tr>';
+    table.innerHTML = '<tr><td class="empty-note">Chưa có dòng nào — bấm "+ Thêm dòng" (phía trên) để bắt đầu ghi lại data bạn tự tìm được.</td></tr>';
     return;
   }
   table.innerHTML = `<thead><tr><th>STT</th><th>SĐT / Link FB</th><th>Tên khách</th><th>Nguồn</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead><tbody>` +
     mine.map((l,idx)=>`<tr>
-      <td data-label="STT">${idx+1}</td>
+      <td data-label="STT">${mine.length-idx}</td>
       <td data-label="SĐT / Link FB">
         <div style="display:flex; align-items:center; gap:6px;">
           <input type="text" id="selfPhone_${l.id}" value="${l.phone||''}" placeholder="SĐT hoặc link FB" style="width:135px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateSelfLeadField('${l.id}','phone',this.value)">
@@ -14202,6 +14204,7 @@ function addSelfLeadRow(){
   state.selfLeads.push(row);
   fbSetSelfLead(row);
   renderSelfLeadsTable();
+  setTimeout(()=>{ try{ const t = document.getElementById('selfLeadsTable'); const inp = t && t.querySelector('tbody tr input'); if(inp){ inp.focus(); inp.scrollIntoView({block:'center', behavior:'smooth'}); } }catch(e){} }, 50); // dòng mới ở trên cùng → gõ luôn
 }
 function updateSelfLeadField(id, field, value){
   const row = state.selfLeads.find(l=>l.id===id);
