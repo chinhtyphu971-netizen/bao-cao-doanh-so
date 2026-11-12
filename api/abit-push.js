@@ -55,7 +55,7 @@ function buildOrder(inv, ps, username, part){
     address: inv.shipAddress || 'Chưa có địa chỉ — bổ sung trên Abit',
     note: `HĐ app ${inv.invoiceNumber || ''}${part ? ` · KIỆN ${part.i}/${part.n}` : ''} · Sale ${inv.saleName || ''}${custPhone && custPhone !== phone ? ' · SĐT khách đặt: ' + custPhone : ''}`,
     ghichu1,
-    ghichu2: String(inv.invoiceNumber || ''),
+    ghichu2: String(inv.invoiceNumber || '') + (part ? '-K' + part.i : ''), // mỗi kiện 1 mã đơn ngoài riêng → Abit không gộp
     notevanchuyen: part ? `Kiện ${part.i}/${part.n} của HĐ ${inv.invoiceNumber || ''} (đơn tách ${part.n} kiện, mỗi kiện 1 vận đơn)` : (pkgs > 1 ? `⚠️ ĐƠN ${pkgs} KIỆN — lấy & giao đủ ${pkgs} kiện` : (ps && ps.pkgs ? '1 kiện' : '')),
     discount_percent: '0.000', discount_amount: '0.000', s_h_amount: '0.000',
     giamgia: '0', phuthu: '0', phivanchuyen: '0', adjustment: '0.000',
@@ -73,7 +73,7 @@ function buildOrder(inv, ps, username, part){
 
 // Đơn kho đã chia nhiều kiện (packStatus.pkgSplit) → danh sách kiện; cọc trừ lần lượt từ kiện 1
 function splitParts(inv, ps){
-  const sp = ps && ps.state === 'packed' && ps.pkgSplit; const n = sp ? Number(sp.n) || 0 : 0;
+  const sp = ps && (ps.state === 'packed' || ps.state === 'partial') && ps.pkgSplit; const n = sp ? Number(sp.n) || 0 : 0;
   if(!sp || n < 2 || !Array.isArray(sp.lines)) return null;
   const parts = Array.from({length: n}, (_, k)=>({i: k + 1, n, items: [], value: 0, deposit: 0}));
   sp.lines.forEach(l=>(l.q || []).forEach((qty, k)=>{ qty = Number(qty) || 0; if(qty > 0 && parts[k]){ parts[k].items.push({code: l.code, price: num(l.price), qty, label: l.label}); parts[k].value += qty * num(l.price); } }));
@@ -120,7 +120,9 @@ module.exports = async (req, res)=>{
     if(!inv) return res.status(404).json({ok:false, error:'Không thấy hoá đơn'});
     if(!ps || ps.legacy || !(ps.state === 'packed' || ps.state === 'partial')) return res.status(400).json({ok:false, error:'Đơn chưa đóng xong — chưa đẩy sang Abit'});
     const parts = splitParts(inv, ps);
-    let doneParts = (inv.abit && inv.abit.parts) || {};
+    // Kiện có mã Abit TRÙNG với kiện trước (Abit gộp đơn ở lần đẩy cũ) → coi như chưa tạo, tạo lại
+    const dedupParts = pp=>{ const seen = new Set(), out = {}; Object.keys(pp||{}).sort((a,b)=>a-b).forEach(k=>{ const v = pp[k]; if(!v || !v.invoice_no) return; if(seen.has(v.invoice_no)) return; seen.add(v.invoice_no); out[k] = v; }); return out; };
+    let doneParts = dedupParts((inv.abit && inv.abit.parts) || {});
     if(inv.abit && inv.abit.invoice_no && (!parts || parts.every(p=>doneParts[p.i] && doneParts[p.i].invoice_no))) return res.json({ok:true, invoice_no: inv.abit.invoice_no, existed:true}); // đã đẩy rồi → không tạo trùng
     // Tên đăng nhập Abit của Sale (Quản lý chung điền ở Cài đặt → Sửa). Chưa có → KHÔNG đẩy, tránh Abit chia đơn ngẫu nhiên
     const username = inv.saleId ? String((await D.ref('users/' + inv.saleId + '/abitAccount').once('value')).val() || '').trim() : '';
@@ -133,8 +135,8 @@ module.exports = async (req, res)=>{
       const fresh = (await D.ref('invoices/' + id + '/abit').once('value')).val();
       if(fresh) inv.abit = fresh;
       const done2 = (fresh && fresh.parts) || {};
-      if(fresh && fresh.invoice_no && (!parts || parts.every(p=>done2[p.i] && done2[p.i].invoice_no))){ await lockRef.remove(); lockRef = null; return res.json({ok:true, invoice_no: fresh.invoice_no, existed:true}); }
-      doneParts = done2;
+      if(fresh && fresh.invoice_no && (!parts || parts.every(p=>dedupParts(done2)[p.i] && dedupParts(done2)[p.i].invoice_no))){ await lockRef.remove(); lockRef = null; return res.json({ok:true, invoice_no: fresh.invoice_no, existed:true}); }
+      doneParts = dedupParts(done2);
     }
     const createOne = async (order)=>{
       if(!order.listProduct.length) throw new Error('Hoá đơn không có sản phẩm');
@@ -161,6 +163,8 @@ module.exports = async (req, res)=>{
       made[p.i] = {invoice_no: out.invNo, invoiceid: out.invoiceid, value: p.value, deposit: p.deposit, at: now};
       up[mapKey(out.invNo)] = id;
     }
+    { const nos = Object.values(made).map(x=>x.invoice_no); const dup = nos.find((x,i)=>nos.indexOf(x)!==i);
+      if(dup && !firstErr) firstErr = `Abit trả về TRÙNG mã ${dup} cho nhiều kiện (Abit gộp đơn) — kiểm tra trên Abit`; }
     const first = (made[1] && made[1].invoice_no) || (Object.values(made)[0] || {}).invoice_no || null;
     up['invoices/' + id + '/abit'] = Object.assign({username, at: now, pkgCount: parts.length, parts: made}, first ? {invoice_no: first} : {}, firstErr ? {error: firstErr} : {});
     await D.ref().update(up);

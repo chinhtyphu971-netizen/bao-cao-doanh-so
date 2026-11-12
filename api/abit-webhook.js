@@ -54,7 +54,8 @@ async function findInvoiceId(D, invNo, appNo){
     const id = (await D.ref('abitMap/' + safeKey(invNo)).once('value')).val();
     if(id) return {id, via: 'abitMap'};
   }
-  if(appNo){ // số hoá đơn app (ghichu2) — dùng chỉ mục invoiceNumber đã có trong Rules
+  if(appNo){ // số hoá đơn app (ghichu2) — dùng chỉ mục invoiceNumber đã có trong Rules · đơn tách kiện có đuôi -K1, -K2…
+    appNo = String(appNo).replace(/-K\d+$/i, '');
     const snap = await D.ref('invoices').orderByChild('invoiceNumber').equalTo(appNo).limitToFirst(1).once('value');
     const v = snap.val(); const id = v ? Object.keys(v)[0] : null;
     if(id) return {id, via: 'invoiceNumber'};
