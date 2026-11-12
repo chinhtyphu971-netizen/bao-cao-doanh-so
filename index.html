@@ -7587,6 +7587,7 @@ function abitDirectAutoShip(){
   });
 }
 setInterval(()=>{ try{ abitDirectAutoShip(); }catch(e){} }, 20000);
+function abitPartsDup(a){ const nos = Object.values((a && a.parts) || {}).map(x=>x && x.invoice_no).filter(Boolean); return new Set(nos).size < nos.length; } // 2 kiện trùng 1 mã Abit
 const abitSweepTried = {}; let abitSweepBusy = false;
 async function abitAutoSweep(){
   const me = currentUser(); if(abitSweepBusy || !me || !['general_manager','warehouse','packer'].includes(me.role) || !navigator.onLine) return;
@@ -7596,7 +7597,7 @@ async function abitAutoSweep(){
     if(now - Math.max(Number(p.packedAt)||0, Number(p.at)||0) > 3*86400000) return false;
     if(now - Math.max(Number(p.packedAt)||0, Number(p.at)||0) < 20000) return false; // vừa đóng → để lần đẩy ngay sau đóng chạy trước
     const a = inv.abit || {};
-    if(a.invoice_no && !(a.pkgCount > 1 && a.error)) return false; // đã có trên Abit (đơn nhiều kiện còn thiếu kiện → đẩy tiếp)
+    if(a.invoice_no && !(a.pkgCount > 1 && a.error)) return false; // đã có trên Abit (đơn nhiều kiện còn thiếu kiện do lỗi → đẩy tiếp) · KHÔNG truy lại đơn cũ bị gộp
     if(a.error && now - (Number(a.at)||0) < 10*60000) return false;
     if(now - (abitSweepTried[inv.id]||0) < 3*60000) return false;
     return !!abitSaleAccount(inv.id);
