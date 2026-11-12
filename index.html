@@ -8129,16 +8129,23 @@ let packOosCacheSrc = null, packOosListCache = [], packOosIdx = {};
 function packOosEnsureCache(){
   if(packOosCacheSrc === packOos) return;
   packOosCacheSrc = packOos;
-  packOosListCache = Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>String(a.code).localeCompare(String(b.code)) || (a.at||0)-(b.at||0));
+  // TẠM HẾT THEO MÀU: bỏ qua size — các mục cũ báo theo size của cùng mã + màu được GỘP thành 1 (giữ mọi id để "Có hàng lại" xoá hết)
+  const merged = {};
+  Object.entries(packOos||{}).map(([id,v])=>Object.assign({id}, v)).filter(v=>v && v.code).sort((a,b)=>(a.at||0)-(b.at||0)).forEach(v=>{
+    const k = oosNorm(v.code) + '|' + oosNorm(v.color);
+    if(!merged[k]) merged[k] = Object.assign({}, v, {size: null, ids: [v.id]});
+    else { merged[k].ids.push(v.id); if(!merged[k].note && v.note) merged[k].note = v.note; }
+  });
+  packOosListCache = Object.values(merged).sort((a,b)=>String(a.code).localeCompare(String(b.code),'vi',{numeric:true}) || String(a.color||'').localeCompare(String(b.color||''),'vi') || (a.at||0)-(b.at||0));
   packOosIdx = {}; packOosListCache.forEach(o=>{ const k = oosNorm(o.code); (packOosIdx[k] = packOosIdx[k] || []).push(o); });
 }
 function packOosList(){ packOosEnsureCache(); return packOosListCache; }
 function packOosMatch(line){ // dòng hàng {code,color,size} có thuộc diện tạm hết?  (tra theo mã trong mục lục)
   packOosEnsureCache(); const arr = packOosIdx[oosNorm(line.code)]; if(!arr) return null;
   const col = oosNorm(line.color), sz = oosNorm(line.size);
-  return arr.find(o=>(!o.color || oosNorm(o.color)===col) && (!o.size || oosNorm(o.size)===sz)) || null;
+  return arr.find(o=>!o.color || oosNorm(o.color)===col) || null; // theo MÀU — mọi size
 }
-function packOosLabel(o){ return [o.code, o.color, o.size].filter(Boolean).join(' '); }
+function packOosLabel(o){ return [o.code, o.color].filter(Boolean).join(' '); } // tạm hết theo màu (mọi size)
 // Các món tạm hết của 1 đơn (đơn chờ bù → chỉ xét món còn thiếu)
 function packOosOfInv(inv){
   if(!inv || !packOosList().length) return [];
@@ -8160,7 +8167,7 @@ function packOosCounts(){ // 1 lượt quét hoá đơn → số đơn chờ c�
     const lines = ps && ps.state==='short' ? (ps.shortItems||[]) : packInvLines(inv);
     const ids = new Set(), cs = new Set();
     lines.forEach(l=>{ packOosEnsureCache(); const arr = packOosIdx[oosNorm(l.code)]; if(!arr) return; const col = oosNorm(l.color), sz = oosNorm(l.size);
-      arr.forEach(o=>{ if((!o.color || oosNorm(o.color)===col) && (!o.size || oosNorm(o.size)===sz)){ ids.add(o.id); cs.add(o.code); } }); });
+      arr.forEach(o=>{ if(!o.color || oosNorm(o.color)===col){ ids.add(o.id); cs.add(o.code); } }); });
     ids.forEach(id=>{ per[id] = (per[id]||0) + 1; }); cs.forEach(c=>{ perCode[c] = (perCode[c]||0) + 1; }); });
   return {per, perCode};
 }
@@ -8168,7 +8175,7 @@ function packOosWaitCount(o){ // số đơn chưa đóng đang có món thuộc 
   const smap = packStatusMap(); let n = 0;
   (state.invoices||[]).forEach(inv=>{ if(!inv || !inv.depositLink) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial' || ps.legacy)) return;
     const lines = ps && ps.state==='short' ? (ps.shortItems||[]) : packInvLines(inv);
-    if(lines.some(l=>oosNorm(l.code)===oosNorm(o.code) && (!o.color || oosNorm(o.color)===oosNorm(l.color)) && (!o.size || oosNorm(o.size)===oosNorm(l.size)))) n++; });
+    if(lines.some(l=>oosNorm(l.code)===oosNorm(o.code) && (!o.color || oosNorm(o.color)===oosNorm(l.color)))) n++; });
   return n;
 }
 function packOosRenderTile(){
@@ -8185,7 +8192,7 @@ function packOosOpen(){
     ${(currentUser()||{}).role==='general_manager' ? `<div class="chip-row" style="margin:0 0 10px;"><span class="goal-hint" style="align-self:center;">Sale thấy "⏳ Chờ hàng":</span><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Hiện</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn</div></div>` : ''}
     ${packOosPendingHtml()}
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
-      <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
+      <select id="oosColor"><option value="">Cả mã (mọi màu)</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
     <div class="oos-list">${(()=>{ if(!l.length) return '<div class="empty-note">Không có hàng nào tạm hết.</div>'; const CNT = packOosCounts();
       const byCode = {}; l.forEach(o=>{ (byCode[o.code] = byCode[o.code] || []).push(o); });
@@ -8204,7 +8211,7 @@ function packOosOpen(){
 // ----- ⛔ BÁO THIẾU → QUẢN LÝ KHO DUYỆT "TẠM HẾT" -----
 // Món trong các lần báo thiếu (3 ngày gần đây) chưa có trong danh sách tạm hết & chưa duyệt → chờ Kho / Quản lý chung duyệt.
 // Quyết định lưu: packStatus/{đơn}/oosReview/{khoáMón} = {d:'oos'|'skip', at, by}  (so với shortAt: báo thiếu lần mới → hỏi lại)
-const oosItemKey = x=>[x.code, x.color, x.size].map(v=>String(v||'').trim().toUpperCase()).join('|').replace(/[.#$\[\]\/]/g, '_');
+const oosItemKey = x=>[x.code, x.color].map(v=>String(v||'').trim().toUpperCase()).join('|').replace(/[.#$\[\]\/]/g, '_'); // theo MÀU
 function packOosPending(){
   const out = [], cut = nowMs() - 3*86400000;
   (state.packStatus||[]).forEach(p=>{
@@ -8213,9 +8220,9 @@ function packOosPending(){
     (p.shortItems||[]).forEach(x=>{
       if(!(Number(x.missing) > 0) || !x.code) return;
       if(packOosMatch(x)) return; // đã trong danh sách tạm hết
-      const k = oosItemKey(x), rv = (p.oosReview||{})[k];
+      const k = oosItemKey(x), rvAll = p.oosReview||{}, rv = rvAll[k] || Object.keys(rvAll).filter(z=>z.startsWith(k + '|')).map(z=>rvAll[z]).sort((a,b)=>(b.at||0)-(a.at||0))[0]; // nhận cả quyết định cũ (theo size)
       if(rv && Number(rv.at) >= Number(p.shortAt)) return; // đã quyết định cho lần báo thiếu này
-      out.push({invId: p.id, invoiceNumber: inv.invoiceNumber, key: k, code: x.code, color: x.color||'', size: x.size||'', missing: Number(x.missing), by: p.shortStaffName || (p.staffName||''), at: p.shortAt});
+      out.push({invId: p.id, invoiceNumber: inv.invoiceNumber, key: k, code: x.code, color: x.color||'', size: '', missing: Number(x.missing), by: p.shortStaffName || (p.staffName||''), at: p.shortAt});
     });
   });
   return out.sort((a,b)=>(a.at||0)-(b.at||0));
@@ -8255,8 +8262,8 @@ function packOosDecide(key, isOos){
   const at = nowMs(), up = {};
   rows.forEach(r=>{ up[`packStatus/${r.invId}/oosReview/${key}`] = {d: isOos ? 'oos' : 'skip', at, by: me.name}; });
   const x = rows[0];
-  if(isOos && !packOosList().some(o=>o.code===x.code && (o.color||'')===x.color && (o.size||'')===x.size)){
-    const id = 'o' + uid(); const rec = {code: x.code, color: x.color || null, size: x.size || null, note: `báo thiếu HĐ ${rows.map(r=>r.invoiceNumber).join(', ')}`, by: me.id, byName: me.name, at};
+  if(isOos && !packOosList().some(o=>oosNorm(o.code)===oosNorm(x.code) && oosNorm(o.color)===oosNorm(x.color))){
+    const id = 'o' + uid(); const rec = {code: x.code, color: x.color || null, size: null, note: `báo thiếu HĐ ${rows.map(r=>r.invoiceNumber).join(', ')}`, by: me.id, byName: me.name, at};
     up['packOos/' + id] = rec; packOos = Object.assign({}, packOos, {[id]: rec});
   }
   rows.forEach(r=>{ const p = packStatusMap()[r.invId]; if(p){ p.oosReview = Object.assign({}, p.oosReview, {[key]: up[`packStatus/${r.invId}/oosReview/${key}`]}); } });
@@ -8308,15 +8315,14 @@ function invOosWarnUpdate(){
 function packOosFillOpts(){
   const code = (document.getElementById('oosCode')||{}).value; const p = (state.products||[]).find(x=>x.code===code);
   const cols = p ? parseColorOptions(p.colors) : [], szs = p ? parseSizeOptions(p.sizeInfo || '').map(o=>o.code) : [];
-  document.getElementById('oosColor').innerHTML = '<option value="">Mọi màu</option>' + cols.map(c=>`<option>${escHtml(c)}</option>`).join('');
-  document.getElementById('oosSize').innerHTML = '<option value="">Mọi size</option>' + szs.map(c=>`<option>${escHtml(c)}</option>`).join('');
+  document.getElementById('oosColor').innerHTML = '<option value="">Cả mã (mọi màu)</option>' + cols.map(c=>`<option>${escHtml(c)}</option>`).join('');
 }
 function packOosAdd(){
   const me = currentUser(); if(!packOosCanEdit()) return;
   const code = (document.getElementById('oosCode')||{}).value; if(!code){ showToast('Chọn mã sản phẩm trước'); return; }
-  const color = (document.getElementById('oosColor')||{}).value || '', size = (document.getElementById('oosSize')||{}).value || '', note = String((document.getElementById('oosNote')||{}).value||'').trim();
-  if(packOosList().some(o=>o.code===code && (o.color||'')===color && (o.size||'')===size)){ showToast('Mục này đã báo tạm hết rồi'); return; }
-  const id = 'o' + uid(), rec = {code, color: color || null, size: size || null, note: note || null, by: me.id, byName: me.name, at: nowMs()};
+  const color = (document.getElementById('oosColor')||{}).value || '', note = String((document.getElementById('oosNote')||{}).value||'').trim();
+  if(packOosList().some(o=>oosNorm(o.code)===oosNorm(code) && oosNorm(o.color)===oosNorm(color))){ showToast('Mục này đã báo tạm hết rồi'); return; }
+  const id = 'o' + uid(), rec = {code, color: color || null, size: null, note: note || null, by: me.id, byName: me.name, at: nowMs()};
   packOos = Object.assign({}, packOos, {[id]: rec});
   fbRoot.child('packOos/' + id).set(rec).then(()=>showToast(`⛔ Đã báo tạm hết ${packOosLabel(rec)} — đơn có món này xếp cuối hàng chờ`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   packOosOpen();
@@ -8324,14 +8330,16 @@ function packOosAdd(){
 function packOosRemoveCode(code){
   if(!packOosCanEdit()) return; const ids = packOosList().filter(o=>o.code===code).map(o=>o.id); if(!ids.length) return;
   askConfirm(`Có hàng lại cả mã ${code}?`, `Bỏ tạm hết toàn bộ ${ids.length} mục của ${code} (mọi màu / size đang báo). Các đơn chờ mã này trở về đúng thứ tự theo giờ cọc.`, ()=>{
-    const up = {}; ids.forEach(id=>{ up['packOos/' + id] = null; }); const n = Object.assign({}, packOos); ids.forEach(id=>delete n[id]); packOos = n;
+    const all = []; packOosList().filter(o=>o.code===code).forEach(o=>(o.ids||[o.id]).forEach(x=>all.push(x)));
+    const up = {}; all.forEach(id=>{ up['packOos/' + id] = null; }); const n = Object.assign({}, packOos); all.forEach(id=>delete n[id]); packOos = n;
     fbRoot.update(up).then(()=>showToast(`✅ ${code} có hàng lại (${ids.length} mục)`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
     packOosOpen(); });
 }
 function packOosRemove(id){
-  if(!packOosCanEdit()) return; const o = (packOos||{})[id]; if(!o) return;
-  const n = Object.assign({}, packOos); delete n[id]; packOos = n;
-  fbRoot.child('packOos/' + id).remove().then(()=>showToast(`✅ ${packOosLabel(o)} có hàng lại — đơn trở về đúng thứ tự theo giờ cọc`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  if(!packOosCanEdit()) return; const m = packOosList().find(x=>x.id===id || (x.ids||[]).includes(id)); const o = m || (packOos||{})[id]; if(!o) return;
+  const ids = (m && m.ids) || [id]; const n = Object.assign({}, packOos); ids.forEach(x=>delete n[x]); packOos = n;
+  const up = {}; ids.forEach(x=>{ up['packOos/' + x] = null; });
+  fbRoot.update(up).then(()=>showToast(`✅ ${packOosLabel(o)} có hàng lại — đơn trở về đúng thứ tự theo giờ cọc`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   packOosOpen();
 }
 function packClaimQueue(){
