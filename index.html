@@ -7385,11 +7385,19 @@ let SHIP_LOCK_HOURS = 1; // GIỜ LÀM VIỆC (không tính 18h → 7h sáng) �
 let shipLockMinSub = null, shipLockMinutes = 60;
 // 📦 Ẩn số đơn chờ trên Bàn đóng gói (cho nhân viên đóng gói bớt áp lực) — appSettings/packHideQueue (mặc định: ẨN)
 let packHideQueue = true, packHideQueueSub = null;
+// ⏳ Cho Sale thấy "Chờ hàng về" (hàng tạm hết) — appSettings/oosShowSale (mặc định: HIỆN). Tắt → Sale không thấy nhãn / thông báo / cảnh báo.
+let oosShowSale = true, oosShowSaleSub = null;
+function oosSaleVisible(){ return oosShowSale; }
+function oosShowSaleSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  fbRoot.child('appSettings/oosShowSale').set(!!on).then(()=>showToast(on ? '👀 Sale thấy lại "Chờ hàng về"' : '🙈 Đã ẩn "Chờ hàng về" với Sale')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  oosShowSale = !!on; try{ if(document.getElementById('loyalModal').classList.contains('show')) packOosOpen(); renderShipLockCard(); }catch(e){} }
 function packQueueHidden(){ const r = (currentUser()||{}).role; return packHideQueue && r==='packer'; }
 function packHideQueueSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
   fbRoot.child('appSettings/packHideQueue').set(!!on).then(()=>showToast(on ? '🙈 Đã ẩn số đơn chờ trên máy nhân viên đóng gói' : '👀 Nhân viên đóng gói thấy lại số đơn chờ')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }
 function shipLockLabel(){ return shipLockMinutes >= 60 && shipLockMinutes % 60 === 0 ? (shipLockMinutes/60) + ' giờ' : shipLockMinutes + ' phút'; }
 function shipLockMinListen(){
+  if(!oosShowSaleSub && fbRoot){ oosShowSaleSub = fbRoot.child('appSettings/oosShowSale');
+    oosShowSaleSub.on('value', snap=>{ const v = snap.val(); oosShowSale = v===null ? true : !!v; if(currentPageId==='invoices') try{ currentInvoiceDraft ? invOosWarnUpdate() : renderInvoicesPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(!packHideQueueSub && fbRoot){ packHideQueueSub = fbRoot.child('appSettings/packHideQueue');
     packHideQueueSub.on('value', snap=>{ const v = snap.val(); packHideQueue = v===null ? true : !!v; if(currentPageId==='packDesk') try{ renderPackDeskPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(shipLockMinSub || !fbRoot) return;
@@ -7413,7 +7421,10 @@ function renderShipLockCard(){
     <div class="chip-row">${[30,60].map(m=>`<div class="chip ${shipLockMinutes===m ? 'selected' : ''}" onclick="shipLockMinSet(${m})">${m===60 ? '60 phút (1 giờ)' : '30 phút'}</div>`).join('')}</div>
     <h2 style="margin-top:16px;">📦 Bàn đóng gói: số đơn chờ</h2>
     <p class="goal-hint">Ẩn số "đơn chờ nhận / phiếu chờ đóng" trên máy NHÂN VIÊN ĐÓNG GÓI cho các bạn bớt áp lực (vẫn thấy số đã đóng hôm nay + đơn thiếu của mình). Kho / Quản lý vẫn thấy đủ.</p>
-    <div class="chip-row"><div class="chip ${packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(true)">🙈 Ẩn số đơn chờ</div><div class="chip ${!packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(false)">👀 Hiện số đơn chờ</div></div>`;
+    <div class="chip-row"><div class="chip ${packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(true)">🙈 Ẩn số đơn chờ</div><div class="chip ${!packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(false)">👀 Hiện số đơn chờ</div></div>
+    <h2 style="margin-top:16px;">⏳ Sale thấy "Chờ hàng về"</h2>
+    <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
+    <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>`;
 }
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
@@ -8165,6 +8176,7 @@ function packOosOpen(){
   const nWait = (state.invoices||[]).filter(inv=>inv && inv.depositLink && packOosOfInv(inv).length).length;
   document.getElementById('loyalModalBody').innerHTML = `<h2>⛔ Hàng tạm hết</h2>
     <p class="goal-hint" style="margin:0 0 10px;">Đơn có món tạm hết sẽ <b>xếp cuối hàng chờ</b> — các bạn nhặt hết đơn đủ hàng trước, rồi mới tới đơn tạm hết (vẫn theo giờ cọc). Có hàng lại → bấm <b>✅ Có hàng lại</b>, đơn trở về đúng thứ tự theo giờ cọc. Hiện có <b>${nWait}</b> đơn đang bị xếp cuối.</p>
+    ${(currentUser()||{}).role==='general_manager' ? `<div class="chip-row" style="margin:0 0 10px;"><span class="goal-hint" style="align-self:center;">Sale thấy "⏳ Chờ hàng":</span><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Hiện</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn</div></div>` : ''}
     ${packOosPendingHtml()}
     ${can ? `<div class="oos-add"><select id="oosCode" onchange="packOosFillOpts()"><option value="">— Mã sản phẩm —</option>${prods.map(p=>`<option value="${escHtml(p.code)}">${escHtml(p.code)} · ${escHtml(p.name||'')}</option>`).join('')}</select>
       <select id="oosColor"><option value="">Mọi màu</option></select><select id="oosSize"><option value="">Mọi size</option></select>
@@ -8248,6 +8260,7 @@ function packOosDecide(key, isOos){
 // ----- ⏳ HÀNG TẠM HẾT — PHÍA SALE -----
 // Nhãn vàng "⏳ Chờ hàng về" trên hoá đơn của Sale (kèm ghi chú kho, VD "hàng về thứ 6") · báo khi có hàng lại · nhắc khi lên hoá đơn.
 function packOosSaleTagHtml(inv){
+  if(!oosSaleVisible() && PACK_SALE_ROLES.includes((currentUser()||{}).role)) return ''; // QL tắt hiển thị cho Sale
   const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return '';
   const h = packOosOfInv(inv); if(!h.length) return '';
   const noteOf = o=>o.note && !/^báo thiếu HĐ/i.test(o.note) ? String(o.note).replace(/^hàng\s+/i, '') : '';
@@ -8260,6 +8273,7 @@ function packOosSaleTagHtml(inv){
 let packOosSalePrev = null;
 function packOosSaleNotify(){
   const me = currentUser(); if(!me || !PACK_SALE_ROLES.includes(me.role)) return;
+  if(!oosSaleVisible()){ packOosSalePrev = null; return; } // QL tắt hiển thị cho Sale
   const smap = packStatusMap(), cur = {};
   (state.invoices||[]).forEach(inv=>{ if(!inv || inv.saleId!==me.id) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return;
     const h = packOosOfInv(inv); if(h.length) cur[inv.id] = h.map(packOosLabel).join(', '); });
@@ -8276,6 +8290,7 @@ function packOosSaleNotify(){
 function invOosWarnUpdate(){
   const wrap = document.getElementById('invoiceEditorWrap'); const d = currentInvoiceDraft; if(!wrap || !d) return;
   let el = document.getElementById('invOosWarn');
+  if(!oosSaleVisible() && PACK_SALE_ROLES.includes((currentUser()||{}).role)){ if(el) el.remove(); return; } // QL tắt hiển thị cho Sale
   const hit = {};
   (d.productGroups||[]).forEach(g=>(g.colorLines||[]).forEach(l=>{ if(!(Number(l.qty) > 0) || !g.productCode) return; const o = packOosMatch({code: g.productCode, color: l.color, size: l.size}); if(o) hit[o.id] = o; }));
   const list = Object.values(hit);
