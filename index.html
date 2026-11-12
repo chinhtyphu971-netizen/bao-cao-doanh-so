@@ -2312,6 +2312,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-2px;">Data bạn tự kiếm được (không phải hệ thống tự chia) — tự ghi lại để theo dõi riêng</p>
             <div class="table-wrap"><table id="selfLeadsTable" class="rtable"></table></div>
             <button class="btn-ghost" style="margin-top:10px;" onclick="addSelfLeadRow()">+ Thêm dòng</button>
+            <button class="btn-ghost" style="margin-top:10px; margin-left:6px;" onclick="selfBulkOpen()">📋 Nhập nhiều SĐT</button>
           </div>
         </div>
 
@@ -14134,6 +14135,57 @@ function renderSelfLeadsTable(){
       <td data-label="Ghi chú"><input type="text" value="${l.note||''}" placeholder="Ghi chú..." style="width:135px; min-height:30px; padding:3px 6px; font-size:12.5px;" onchange="updateSelfLeadField('${l.id}','note',this.value)"></td>
       <td><span class="copy-icon" title="Xoá dòng" onclick="deleteSelfLeadRow('${l.id}')">🗑️</span></td>
     </tr>`).join('') + `</tbody>`;
+}
+// 📋 NHẬP NHIỀU SĐT VÀO DATA TỰ TÌM: dán danh sách (mỗi dòng 1 số, có thể kèm tên phía sau) → làm sạch, bỏ trùng, xem trước → thêm 1 lần
+function selfBulkNormPhone(raw){
+  let d = String(raw||'').replace(/[^\d+]/g, '');
+  if(d.startsWith('+84')) d = '0' + d.slice(3); else if(d.startsWith('84') && d.length===11) d = '0' + d.slice(2);
+  d = d.replace(/\D/g, '');
+  if(d.length===9 && /^[35789]/.test(d)) d = '0' + d; // thiếu số 0 đầu
+  return /^0[35789]\d{8}$/.test(d) ? d : null;
+}
+function selfBulkParse(text){
+  const me = currentUser() || {};
+  const have = new Set(state.selfLeads.filter(l=>l.userId===me.id).map(l=>selfBulkNormPhone(l.phone)).filter(Boolean));
+  const seen = new Set(), ok = [], dup = [], bad = [];
+  String(text||'').split(/\n|;|,(?=\s*[\d+])/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
+    const m = line.match(/(\+?\d[\d\s.\-()]{7,16}\d)/);
+    const phone = m ? selfBulkNormPhone(m[1]) : null;
+    if(!phone){ bad.push(line); return; }
+    const name = line.replace(m[1], '').replace(/^[\s\-–:|,.]+|[\s\-–:|,.]+$/g, '').slice(0, 80);
+    if(have.has(phone) || seen.has(phone)){ dup.push(phone); return; }
+    seen.add(phone); ok.push({phone, name});
+  });
+  return {ok, dup, bad};
+}
+function selfBulkOpen(){
+  document.getElementById('loyalModalBody').innerHTML = `<h2>📋 Nhập nhiều SĐT</h2>
+    <p class="goal-hint" style="margin:0 0 8px;">Dán danh sách số điện thoại — mỗi dòng 1 số (có thể ghi tên khách phía sau, VD <b>0912345678 Chị Hoa</b>), hoặc cách nhau bằng dấu phẩy. App tự làm sạch số, bỏ số trùng.</p>
+    <textarea id="selfBulkText" rows="8" style="width:100%; box-sizing:border-box;" placeholder="0912345678 Chị Hoa&#10;0987 654 321&#10;+84 903 111 222 Shop Lan" oninput="selfBulkPreview()"></textarea>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      <select id="selfBulkSource"><option value="">— Nguồn —</option>${SELF_LEAD_SOURCE_OPTIONS.map(x=>`<option>${escHtml(x)}</option>`).join('')}</select>
+      <select id="selfBulkStatus"><option value="">— Trạng thái —</option>${SELF_LEAD_STATUS_OPTIONS.map(x=>`<option>${escHtml(x)}</option>`).join('')}</select>
+      <input id="selfBulkNote" maxlength="120" placeholder="Ghi chú chung (không bắt buộc)" style="flex:1; min-width:160px;">
+    </div>
+    <div id="selfBulkPrev" class="goal-hint" style="margin-top:8px;"></div>
+    <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Huỷ</button><button class="btn-primary" id="selfBulkBtn" disabled onclick="selfBulkSave()">Thêm</button></div>`;
+  loyalShowModal(); setTimeout(()=>{ const t = document.getElementById('selfBulkText'); if(t) t.focus(); }, 50);
+}
+function selfBulkPreview(){
+  const r = selfBulkParse((document.getElementById('selfBulkText')||{}).value);
+  const el = document.getElementById('selfBulkPrev'), btn = document.getElementById('selfBulkBtn');
+  if(el) el.innerHTML = `✅ <b>${r.ok.length}</b> số hợp lệ` + (r.dup.length ? ` · 🔁 <b>${r.dup.length}</b> trùng (bỏ qua)` : '') + (r.bad.length ? ` · ⚠ <b>${r.bad.length}</b> dòng không nhận ra số: <span style="color:#FF9DA0;">${escHtml(r.bad.slice(0,3).join(' | '))}${r.bad.length>3 ? '…' : ''}</span>` : '');
+  if(btn){ btn.disabled = !r.ok.length; btn.textContent = r.ok.length ? `Thêm ${r.ok.length} số` : 'Thêm'; }
+}
+function selfBulkSave(){
+  const me = currentUser(); if(!me) return;
+  const r = selfBulkParse((document.getElementById('selfBulkText')||{}).value); if(!r.ok.length) return;
+  const source = (document.getElementById('selfBulkSource')||{}).value || '', status = (document.getElementById('selfBulkStatus')||{}).value || '', note = String((document.getElementById('selfBulkNote')||{}).value||'').trim();
+  const now = nowMs(), up = {};
+  r.ok.forEach((x,i)=>{ const row = {id: 'self_' + uid(), userId: me.id, phone: x.phone, customerName: x.name || '', source, status, note, createdAt: now + i};
+    state.selfLeads.push(row); up['selfLeads/' + row.id] = row; });
+  fbRoot.update(up).then(()=>showToast(`✅ Đã thêm ${r.ok.length} số vào Data tự tìm`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  loyalCloseModal(); renderSelfLeadsTable();
 }
 function addSelfLeadRow(){
   const user = currentUser();
