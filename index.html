@@ -8266,6 +8266,7 @@ function packOosPending(){
     const inv = packInvById(p.id); if(!inv) return;
     (p.shortItems||[]).forEach(x=>{
       if(!(Number(x.missing) > 0) || !x.code) return;
+      if(packIsPrintCode(x.code) || ['A55','A57'].includes(String(x.code).trim().toUpperCase())) return; // 🖨️ mã IN HÌNH (A55, A57…): thiếu do chưa in kịp → không cần Kho duyệt tạm hết
       if(packOosMatch(x)) return; // đã trong danh sách tạm hết
       const k = oosItemKey(x), rvAll = p.oosReview||{}, rv = rvAll[k] || Object.keys(rvAll).filter(z=>z.startsWith(k + '|')).map(z=>rvAll[z]).sort((a,b)=>(b.at||0)-(a.at||0))[0]; // nhận cả quyết định cũ (theo size)
       if(rv && Number(rv.at) >= Number(p.shortAt)) return; // đã quyết định cho lần báo thiếu này
