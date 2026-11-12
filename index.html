@@ -7393,6 +7393,11 @@ let shipLockMinSub = null, shipLockMinutes = 60;
 let packHideQueue = true, packHideQueueSub = null;
 // ⏳ Cho Sale thấy "Chờ hàng về" (hàng tạm hết) — appSettings/oosShowSale (mặc định: HIỆN). Tắt → Sale không thấy nhãn / thông báo / cảnh báo.
 let oosShowSale = true, oosShowSaleSub = null;
+// 🚚 Cho Sale NHẬP TAY mã vận đơn (khi Abit chưa gửi mã về) — appSettings/saleManualShip (mặc định: BẬT)
+let saleManualShip = true, saleManualShipSub = null;
+function saleManualShipSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  fbRoot.child('appSettings/saleManualShip').set(!!on).then(()=>showToast(on ? '✍️ Sale nhập tay được mã vận đơn' : '🔒 Sale không nhập tay — mã tự về từ Abit')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  saleManualShip = !!on; try{ renderShipLockCard(); }catch(e){} }
 function oosSaleVisible(){ return oosShowSale; }
 function oosShowSaleSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
   fbRoot.child('appSettings/oosShowSale').set(!!on).then(()=>showToast(on ? '👀 Sale thấy lại "Chờ hàng về"' : '🙈 Đã ẩn "Chờ hàng về" với Sale')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
@@ -7402,6 +7407,8 @@ function packHideQueueSet(on){ const me = currentUser(); if(!me || me.role!=='ge
   fbRoot.child('appSettings/packHideQueue').set(!!on).then(()=>showToast(on ? '🙈 Đã ẩn số đơn chờ trên máy nhân viên đóng gói' : '👀 Nhân viên đóng gói thấy lại số đơn chờ')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }
 function shipLockLabel(){ return shipLockMinutes >= 60 && shipLockMinutes % 60 === 0 ? (shipLockMinutes/60) + ' giờ' : shipLockMinutes + ' phút'; }
 function shipLockMinListen(){
+  if(!saleManualShipSub && fbRoot){ saleManualShipSub = fbRoot.child('appSettings/saleManualShip');
+    saleManualShipSub.on('value', snap=>{ const v = snap.val(); saleManualShip = v===null ? true : !!v; if(currentPageId==='invoices' && !currentInvoiceDraft) try{ renderInvoicesPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(!oosShowSaleSub && fbRoot){ oosShowSaleSub = fbRoot.child('appSettings/oosShowSale');
     oosShowSaleSub.on('value', snap=>{ const v = snap.val(); oosShowSale = v===null ? true : !!v; if(currentPageId==='invoices') try{ currentInvoiceDraft ? invOosWarnUpdate() : renderInvoicesPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(!packHideQueueSub && fbRoot){ packHideQueueSub = fbRoot.child('appSettings/packHideQueue');
@@ -7428,6 +7435,9 @@ function renderShipLockCard(){
     <h2 style="margin-top:16px;">📦 Bàn đóng gói: số đơn chờ</h2>
     <p class="goal-hint">Ẩn số "đơn chờ nhận / phiếu chờ đóng" trên máy NHÂN VIÊN ĐÓNG GÓI cho các bạn bớt áp lực (vẫn thấy số đã đóng hôm nay + đơn thiếu của mình). Kho / Quản lý vẫn thấy đủ.</p>
     <div class="chip-row"><div class="chip ${packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(true)">🙈 Ẩn số đơn chờ</div><div class="chip ${!packHideQueue ? 'selected' : ''}" onclick="packHideQueueSet(false)">👀 Hiện số đơn chờ</div></div>
+    <h2 style="margin-top:16px;">✍️ Sale nhập tay mã vận đơn</h2>
+    <p class="goal-hint">Bật khi Abit CHƯA gửi mã về (webhook lỗi): Sale tự chọn hãng + dán mã như trước (app vẫn chặn mã trùng, hỏi lại mã SPX sai mẫu). Tắt → Sale chỉ chờ mã tự về từ Abit.</p>
+    <div class="chip-row"><div class="chip ${saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(true)">✍️ Cho Sale nhập tay</div><div class="chip ${!saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(false)">🔒 Chỉ mã tự về từ Abit</div></div>
     <h2 style="margin-top:16px;">⏳ Sale thấy "Chờ hàng về"</h2>
     <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
     <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>`;
@@ -7800,7 +7810,7 @@ function shipLineHtml(inv, ps){
   if(shipHoldActive(ps)) return `<div class="pack-sale-badge printed">⏸ Hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().join('/'))} — ${escHtml(ps.shipHold.reason||'')} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipHoldOpen('${inv.id}')">sửa</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
   // Đơn đã có trên Abit → Sale chỉ cần bấm "Gửi vận đơn" trên Abit, mã tự về; nhập tay chỉ để dự phòng
   const kho = !shipSaleMode();
-  if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> — mã tự về, không cần nhập${kho ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay (Kho/QL)</a>` : ''}</div>`;
+  if(inv && inv.abit && inv.abit.invoice_no) return `<div class="pack-sale-badge printed">⏳ Chờ mã từ Abit — vào Abit mở đơn <b>${escHtml(inv.abit.invoice_no)}</b>, <b>kiểm tra hàng + địa chỉ</b> rồi bấm <b>"Gửi vận đơn"</b> — mã tự về${kho ? (PACK_SALE_ROLES.includes((currentUser()||{}).role) ? ` · <button class="btn-small btn-primary" style="margin-left:4px;" onclick="event.stopPropagation(); shipOpen('${inv.id}')">✍️ Nhập mã vận đơn</button>` : ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">nhập tay (Kho/QL)</a>`) : ', không cần nhập'}</div>`;
   return `<div class="pack-sale-actions"><button class="btn-small btn-primary ship-btn" onclick="event.stopPropagation(); shipOpen('${inv.id}')">${kho ? '🚚 Lên vận đơn (nhập tay)' : '🏪 Lấy tại cửa hàng / gửi xe'}</button></div>`;
 }
 let shipInvId = null;
@@ -7810,7 +7820,7 @@ function shipFillCarriers(){ const dl = document.getElementById('shipCarrierList
 // 🚫 Sale KHÔNG tự gõ mã vận đơn nữa (hay gõ sai / dán nhầm): đơn có trên Abit → mã tự về; Sale chỉ chọn cách gửi KHÔNG cần mã.
 // Kho / Quản lý chung vẫn nhập tay đủ hãng + mã (trường hợp đặc biệt), có kiểm tra trùng mã & sai mẫu SPX.
 const SHIP_SALE_CARRIERS = ['Khách lấy tại cửa hàng','Gửi xe khách','Tự giao','Grab / Be giao','Ahamove'];
-function shipSaleMode(){ const r = (currentUser()||{}).role; return PACK_SALE_ROLES.includes(r); }
+function shipSaleMode(){ const r = (currentUser()||{}).role; return PACK_SALE_ROLES.includes(r) && !saleManualShip; } // QL bật "Cho Sale nhập tay" → Sale dùng như Kho (đủ hãng + mã, vẫn kiểm tra trùng)
 function shipOpen(invId){
   shipFillCarriers();
   const inv = packInvById(invId); const ps = packStatusMap()[invId]; if(!inv || !ps) return;
