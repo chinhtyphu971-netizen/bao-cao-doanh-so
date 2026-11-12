@@ -7599,6 +7599,36 @@ function abitDirectAutoShip(){
 }
 setInterval(()=>{ try{ abitDirectAutoShip(); }catch(e){} }, 20000);
 function abitPartsDup(a){ const nos = Object.values((a && a.parts) || {}).map(x=>x && x.invoice_no).filter(Boolean); return new Set(nos).size < nos.length; } // 2 kiện trùng 1 mã Abit
+// 🔁 DỰ PHÒNG WEBHOOK: máy Kho / QL chung ~3 phút gửi danh sách đơn đã đẩy Abit (10 ngày) chưa có mã / chưa giao xong
+// → /api/abit-poll hỏi Abit & ghi giống webhook. Máy chủ chưa có token Abit → tự ngừng hỏi 1 giờ.
+const ABIT_FINAL = ['Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat','Daphathoanthanhcong','Huyvandon','Matdonhang'];
+let abitPollOffUntil = 0, abitPollBusy = false;
+async function abitPollTick(){
+  const me = currentUser(); if(!me || !['general_manager','warehouse'].includes(me.role) || !navigator.onLine || abitPollBusy || nowMs() < abitPollOffUntil) return;
+  if(!packInvoicesLoaded) return;
+  const ps = packStatusMap(), cut = nowMs() - 10*86400000;
+  const need = [], later = [];
+  (state.invoices||[]).forEach(inv=>{
+    const a = inv && inv.abit; const p = inv && ps[inv.id];
+    if(!a || !a.invoice_no || !p || !(p.state==='packed' || p.state==='partial')) return;
+    if(Math.max(Number(p.packedAt)||0, Number(p.at)||0) < cut) return;
+    const noCode = !(p.ship && ((p.ship.codes||[]).length || p.ship.code || p.ship.direct)) && a.status!=='Muatructiep';
+    if(noCode) need.push(inv.id); else if(!ABIT_FINAL.includes(a.status) && a.status!=='Muatructiep') later.push(inv.id);
+  });
+  const ids = need.concat(later).slice(0, 80); if(!ids.length) return;
+  abitPollBusy = true;
+  try{
+    const tok = await firebase.auth().currentUser.getIdToken();
+    const r = await fetch(ABIT_API.replace(/abit-push$/, 'abit-poll'), {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + tok}, body: JSON.stringify({invoiceIds: ids})});
+    const j = await r.json().catch(()=>({}));
+    if(j && j.notConfigured) abitPollOffUntil = nowMs() + 3600000;
+    else if(j && j.updated) console.log('🔁 Abit dự phòng: cập nhật', j.updated, 'đơn', j.changes);
+    if(r.status===404) abitPollOffUntil = nowMs() + 3600000; // chưa đưa file api/abit-poll.js lên
+  }catch(e){ console.warn('abitPollTick', e); }
+  abitPollBusy = false;
+}
+setInterval(()=>{ try{ abitPollTick(); }catch(e){} }, 3*60000);
+setTimeout(()=>{ try{ abitPollTick(); }catch(e){} }, 45000);
 const abitSweepTried = {}; let abitSweepBusy = false;
 async function abitAutoSweep(){
   const me = currentUser(); if(abitSweepBusy || !me || !['general_manager','warehouse','packer'].includes(me.role) || !navigator.onLine) return;
@@ -9964,19 +9994,26 @@ function packPkgConfirmOpen(invOverride, mode){
   packPkgRender();
   document.getElementById('packPkgModal').classList.add('show');
 }
-// TỰ CHIA ĐỀU: xếp lần lượt theo thứ tự danh sách nhặt hàng, mỗi kiện ~ tổng món / số kiện (chênh tối đa 1 món)
-// → cùng mẫu/màu nằm chung kiện nhiều nhất có thể, kho dễ bỏ vào thùng.
+// TỰ CHIA ĐỀU THEO TIỀN + CÂN NẶNG (số món ≈ cân nặng — hàng quần áo nặng gần như nhau):
+// món ĐẮT xếp trước, từng cái bỏ vào kiện đang "nhẹ" nhất (tính chung % tiền + % số món) → các kiện gần bằng nhau cả 2 mặt.
+// Được CHIA LẺ mã (1 dòng hàng tách sang nhiều kiện) nếu giúp đều hơn. Kho vẫn "✏️ Chỉnh tay" được.
 function packPkgAuto(){
-  const n = packPkg.n, total = packPkg.lines.reduce((a,l)=>a+l.qty, 0);
-  const base = Math.floor(total / n), extra = total % n;
-  const cap = Array.from({length: n}, (_,k)=>base + (k < extra ? 1 : 0));
-  let k = 0;
-  packPkg.lines.forEach(l=>{
-    const q = Array(n).fill(0); let left = l.qty;
-    while(left > 0 && k < n){ const take = Math.min(left, cap[k]); q[k] += take; cap[k] -= take; left -= take; if(cap[k] === 0) k++; }
-    if(left > 0) q[n-1] += left;
-    l.alloc = q.slice(1);
+  const n = packPkg.n, L = packPkg.lines;
+  const totV = L.reduce((a,l)=>a + (Number(l.price)||0) * l.qty, 0) || 1, totC = L.reduce((a,l)=>a + l.qty, 0) || 1;
+  const v = Array(n).fill(0), c = Array(n).fill(0), alloc = L.map(()=>Array(n).fill(0));
+  const order = L.map((l,i)=>i).sort((a,b)=>(Number(L[b].price)||0) - (Number(L[a].price)||0) || L[b].qty - L[a].qty);
+  order.forEach(i=>{
+    const p = Number(L[i].price)||0;
+    for(let u = 0; u < L[i].qty; u++){
+      let best = 0, bestScore = Infinity;
+      for(let k = 0; k < n; k++){
+        const score = Math.max((v[k] + p) / totV, (c[k] + 1) / totC) + 1e-9 * k; // kiện nào thêm vào vẫn "nhẹ" nhất
+        if(score < bestScore - 1e-12){ bestScore = score; best = k; }
+      }
+      alloc[i][best]++; v[best] += p; c[best]++;
+    }
   });
+  L.forEach((l,i)=>{ l.alloc = alloc[i].slice(1); }); // kiện 1 = phần còn lại
 }
 function packPkgCalc(){
   const n = packPkg.n, kien = Array.from({length: n}, ()=>({qty:0, amt:0}));
@@ -9999,7 +10036,7 @@ function packPkgRender(){
     // Xem nhanh từng kiện (app đã tự chia đều) — kho chỉ việc xác nhận
     const per = Array.from({length: n}, ()=>[]);
     packPkg.lines.forEach(l=>{ const q = [Math.max(0, l.k1)].concat(l.alloc.map(x=>Math.max(0, Math.floor(Number(x)||0)))); q.forEach((v,k)=>{ if(v > 0) per[k].push(`${escHtml(l.label)} <b>×${v}</b>`); }); });
-    table = `<p class="pack-note" style="margin:8px 0;">App đã <b>tự chia đều</b> theo thứ tự danh sách nhặt hàng. Bỏ hàng vào thùng đúng như dưới rồi bấm xác nhận — mỗi kiện thành <b>1 đơn riêng trên Abit</b>, tiền = hàng trong kiện.</p>
+    table = `<p class="pack-note" style="margin:8px 0;">App đã <b>tự chia đều tiền + số món</b> giữa các kiện (có thể tách 1 mã sang nhiều kiện). Bỏ hàng vào thùng đúng như dưới rồi bấm xác nhận — mỗi kiện thành <b>1 đơn riêng trên Abit</b>, tiền = hàng trong kiện.</p>
       <div class="pkg-auto">${per.map((items,k)=>`<div class="pkg-box"><div class="pkg-box-h"><b>📦 Kiện ${k+1}</b><span>${kien[k].qty} món · ${fmtMoney(kien[k].amt)} đ</span></div><div>${items.join('<br>') || '<i>trống</i>'}</div></div>`).join('')}</div>
       <a href="#" class="pack-note" style="color:var(--accent);" onclick="event.preventDefault(); packPkg.manual = true; packPkgRender()">✏️ Chỉnh tay (ít khi cần)</a>`;
   } else if(n > 1){
