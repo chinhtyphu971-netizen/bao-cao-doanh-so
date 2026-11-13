@@ -9024,6 +9024,29 @@ async function packDraftRestore(invId){
 // ===================== CAMERA CHỤP ẢNH ĐƠN HÀNG (trong app) =====================
 // Bấm "📷 Chụp ảnh" → mở camera ngay trong app: nút tròn giữa để chụp (chụp liền nhiều tấm),
 // góc dưới trái có nút ＋ để lấy ảnh đã chụp từ trước trong thư viện máy. Không mở được camera → mở chọn ảnh của máy.
+// 📷 GIỮ CAMERA MỞ SẴN: đóng khung chụp / quét → chưa tắt hẳn camera mà giữ 2 phút.
+// Mở lại trong 2 phút → dùng luôn, KHÔNG phải xin quyền lại (iPhone / máy chọn "chỉ lần này" hay hỏi lại mỗi lần mở).
+let camShared = null, camSharedTimer = null;
+function camSharedAlive(){ return !!(camShared && camShared.getVideoTracks().some(t=>t.readyState==='live')); }
+async function camAcquire(constraints){
+  clearTimeout(camSharedTimer); camSharedTimer = null;
+  if(camSharedAlive()) return camShared;
+  camShared = await navigator.mediaDevices.getUserMedia(constraints);
+  try{ localStorage.setItem('cam_granted_once', '1'); }catch(e){}
+  return camShared;
+}
+function camRelease(){ // không tắt ngay — giữ 2 phút
+  clearTimeout(camSharedTimer);
+  camSharedTimer = setTimeout(()=>{ if(camShared){ camShared.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); camShared = null; } }, 120000);
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && camShared){ clearTimeout(camSharedTimer); camShared.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); camShared = null; } }); // ẩn app → tắt camera (đỡ pin, riêng tư)
+// Hướng dẫn cho phép camera VĨNH VIỄN (hiện khi bị từ chối / lần đầu)
+function camPermHelpHtml(){
+  const ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/i.test(ua), crios = /CriOS/i.test(ua);
+  if(ios && !crios) return '📱 iPhone (Safari): bấm <b>"aA"</b> trên thanh địa chỉ → <b>Cài đặt trang web</b> → <b>Camera: Cho phép</b>. Lần sau không phải hỏi lại.';
+  if(ios && crios) return '📱 iPhone (Chrome): vào <b>Cài đặt</b> của iPhone → <b>Chrome</b> → bật <b>Camera</b>.';
+  return '🤖 Android / máy tính (Chrome): khi hiện hỏi quyền, chọn <b>"Cho phép mỗi lần truy cập"</b> (không chọn "Chỉ lần này"). Đã chọn rồi thì bấm biểu tượng <b>🔒 cạnh địa chỉ web</b> → <b>Quyền</b> → <b>Camera: Cho phép</b>.';
+}
 let packCamStream = null, packCamTorchOn = false;
 async function packCamOpen(){
   if(!packPanel) return;
@@ -9031,17 +9054,21 @@ async function packCamOpen(){
   msg.textContent = ''; m.classList.add('show'); packCamUpdate();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = 'Máy không mở được camera trong app — bấm ＋ để chọn ảnh.'; return; }
   try{
-    packCamStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false});
+    let firstTime = false; try{ firstTime = !localStorage.getItem('cam_granted_once') && !camSharedAlive(); }catch(e){}
+    if(firstTime) msg.innerHTML = '👉 Khi máy hỏi quyền camera, chọn <b>"Cho phép mỗi lần truy cập"</b> (đừng chọn "Chỉ lần này") để lần sau không phải hỏi lại.';
+    packCamStream = await camAcquire({video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}, audio:false}); // 📷 dùng lại camera đang mở sẵn
+    if(firstTime) msg.textContent = '';
     v.srcObject = packCamStream; try{ await v.play(); }catch(e){}
     packCamTorchOn = false;
     const tb = document.getElementById('packCamTorch');
     try{ const tr = packCamStream.getVideoTracks()[0]; const caps = tr.getCapabilities ? tr.getCapabilities() : {}; tb.style.visibility = caps && caps.torch ? 'visible' : 'hidden'; tb.classList.remove('on'); }catch(e){ tb.style.visibility = 'hidden'; }
   }catch(err){
+    if(err && err.name==='NotAllowedError'){ msg.innerHTML = '⚠ Chưa cho phép camera.<br>' + camPermHelpHtml(); return; }
     msg.textContent = (err && err.name==='NotAllowedError') ? 'Chưa cho phép camera — bấm biểu tượng ổ khoá trên thanh địa chỉ để cho phép, hoặc bấm ＋ chọn ảnh.' : 'Không mở được camera — bấm ＋ để chọn ảnh có sẵn.';
   }
 }
 function packCamStop(){
-  if(packCamStream){ packCamStream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); packCamStream = null; }
+  if(packCamStream){ try{ const tr = packCamStream.getVideoTracks()[0]; if(packCamTorchOn && tr && tr.applyConstraints) tr.applyConstraints({advanced:[{torch:false}]}).catch(()=>{}); }catch(e){} packCamStream = null; camRelease(); } // giữ camera 2 phút, không tắt hẳn
   const v = document.getElementById('packCamVideo'); if(v) v.srcObject = null;
 }
 function packCamClose(){ packCamStop(); document.getElementById('packCamModal').classList.remove('show'); if(packPanel) renderPackPanel(); }
@@ -10919,7 +10946,7 @@ async function packScanStart(){
     msg.textContent = '⚠ Trình duyệt này không mở được camera. Camera chỉ chạy khi mở app bằng link https (Vercel). Dùng súng quét hoặc gõ Số HĐ thay thế.'; msg.style.color = '#E5484D'; return;
   }
   try{
-    packScanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+    packScanStream = await camAcquire({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false}); // 📷 dùng lại camera đang mở sẵn
   }catch(err){
     msg.style.color = '#E5484D';
     msg.textContent = (err && err.name==='NotAllowedError')
@@ -10968,7 +10995,7 @@ async function packScanTick(){
 }
 function packScanStop(){
   clearInterval(packScanTimer); packScanTimer = null;
-  if(packScanStream){ packScanStream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); packScanStream = null; }
+  if(packScanStream){ packScanStream = null; camRelease(); } // giữ camera 2 phút, không tắt hẳn
   const video = document.getElementById('packScanVideo'); if(video) video.srcObject = null;
   document.getElementById('packScanModal').classList.remove('show');
 }
