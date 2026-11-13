@@ -3849,7 +3849,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ===== GIỜ CHUẨN THEO MÁY CHỦ =====
 // Điện thoại / máy tính chỉnh sai giờ → giờ cọc, giờ đóng… bị lệch (VD hiện "19:40 hôm nay" khi mới 11h).
 // App lấy độ lệch giữa máy và máy chủ Firebase (.info/serverTimeOffset) rồi dùng giờ đã chỉnh cho MỌI thao tác.
-var appServerOffset = 0;
+var appServerOffset = 0, appServerOffsetReady = false; // ready = đã lấy được giờ chuẩn máy chủ
+setTimeout(()=>{ if(!appServerOffsetReady){ appServerOffsetReady = true; try{ tryAutoDistribute(); }catch(e){} } }, 8000); // dự phòng: 8 giây chưa có giờ chuẩn → dùng giờ máy, không để kẹt chia data
 function nowMs(){ return Date.now() + (appServerOffset||0); }
 
 /* =========================================================================
@@ -4054,7 +4055,7 @@ function startFirebaseListeners(){
   fbPackLabels = db.ref('packLabels');
   fbRefillSnaps = db.ref('packRefillSnaps'); // Ảnh chụp "Cần bù · cả kho" lúc 18h hằng ngày: packRefillSnaps/{ngày} // Đã in tem dán gói: packLabels/{hoáĐơn} = {at, n, byName}
   db.ref('.info/serverTimeOffset').on('value', snap=>{
-    appServerOffset = Number(snap.val())||0;
+    appServerOffset = Number(snap.val())||0; const wasReady = appServerOffsetReady; appServerOffsetReady = true; if(!wasReady) setTimeout(()=>{ try{ tryAutoDistribute(); }catch(e){} }, 300);
     const bar = document.getElementById('clockWarnBar');
     if(bar){ const mins = Math.round(Math.abs(appServerOffset)/60000);
       bar.style.display = mins >= 5 ? 'flex' : 'none';
@@ -4128,10 +4129,7 @@ function startFirebaseListeners(){
     if(v > lastReloadAt){ lastReloadAt = v; location.reload(); }
   });
 
-  fbEnforceUnprocessedLock.on('value', snap=>{
-    state.enforceUnprocessedLock = !!snap.val();
-    onDataChanged(); tryAutoDistribute();
-  });
+  // (đã bỏ công tắc khoá tồn data — không lắng nghe system/enforceUnprocessedLock nữa)
 }
 function broadcastRefresh(){
   askConfirm('Làm mới cho tất cả', 'Mọi người đang mở app (kể cả ai đã thêm icon ra màn hình chính) sẽ tự động tải lại trang trong vài giây. Tiếp tục?', ()=>{
@@ -11580,10 +11578,8 @@ function hasUnprocessedBacklog(userId){
 }
 // Nếu bật khoá (state.enforceUnprocessedLock), người có TỪ 5 DATA CHƯA CẬP NHẬT TÌNH TRẠNG TRỞ
 // LÊN sẽ bị loại khỏi vòng chia data mới, cho tới khi xử lý bớt xuống dưới 5.
-function isEligibleForNewData(userId, date){
-  if(!isEligibleTodayByAttendance(userId, date)) return false;
-  if(state.enforceUnprocessedLock && hasUnprocessedBacklog(userId)) return false;
-  return true;
+function isEligibleForNewData(userId, date){ // (đã BỎ luật khoá khi tồn data — có tồn vẫn được chia)
+  return isEligibleTodayByAttendance(userId, date);
 }
 function dailyReceivedCount(userId, date){
   return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
@@ -11638,13 +11634,19 @@ function setTodayRotationBranches(branchIds){
   renderMgrLeads();
   tryAutoDistribute(); // co the dang co data cho san, chia luon ngay khi vua chon xong
 }
+// ⏱ "Lần nhận gần nhất" nằm ở TƯƠNG LAI (máy chia có đồng hồ chạy nhanh) → coi như chưa nhận, để người đó không bị xếp cuối hàng cả ngày
+function lastDataAtSafe(u){ const v = Number(u && u.lastDataAt) || 0; return v > nowMs() + 60000 ? 0 : v; }
+function fixFutureLastDataAt(){ // máy đang chia (Quản lý chung / Quản lý data) tự sửa giờ sai trong dữ liệu
+  const now = nowMs();
+  state.users.forEach(u=>{ if(Number(u.lastDataAt) > now + 60000){ u.lastDataAt = 0; try{ fbUpdateUser(u.id, {lastDataAt: 0}); }catch(e){} } });
+}
 function buildLeadPool(branchIds, date){
   return state.users.filter(u=>
     isLeadEligibleRole(u) && !u.loginBlocked && // 🚪 nghỉ việc → không chia data
     branchIds.includes(u.branchId) &&
     isEligibleForNewData(u.id, date) &&
     dailyReceivedCount(u.id, date) < DAILY_LEAD_CAP
-  ).sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
+  ).sort((a,b)=>lastDataAtSafe(a)-lastDataAtSafe(b));
 }
 function buildAdminPool(date){
   return state.users.filter(u=>
@@ -11677,6 +11679,7 @@ function runDistribution(){
   if(unassigned.length===0) return 0;
   const rotation = getOrComputeTodayRotation();
   if(!rotation) return 0;
+  try{ fixFutureLastDataAt(); }catch(e){}
   let assignedCount = 0;
 
   let pool = buildLeadPool(rotation.branchIds, today).concat(buildAdminPool(today));
@@ -11692,7 +11695,7 @@ function runDistribution(){
     // Chia đều theo LƯỢT: ai lâu chưa nhận nhất (lastDataAt cũ nhất) thì tới lượt tiếp theo.
     // Người mới được xác nhận (chưa từng nhận, lastDataAt cũ/0) sẽ được xếp vào đúng vị trí
     // hàng đợi kể từ lúc đó, không bị bắt "nhận dồn" để bù cho bằng số của người làm từ sáng.
-    arr.sort((a,b)=>(a.lastDataAt||0)-(b.lastDataAt||0));
+    arr.sort((a,b)=>lastDataAtSafe(a)-lastDataAtSafe(b));
   }
   sortPool(pool);
 
@@ -11743,7 +11746,7 @@ function distributionDiagnosis(today){
   if(!people.length) return 'Các team đã chọn không có Sale nào đang hoạt động.';
   const confirmed = people.filter(u=>isEligibleTodayByAttendance(u.id, today));
   if(!confirmed.length) return `Chưa ai ở các team đã chọn được Quản lý XÁC NHẬN đi làm hôm nay (0/${people.length} người) — data chỉ chia cho người đã được xác nhận.`;
-  const locked = state.enforceUnprocessedLock ? confirmed.filter(u=>hasUnprocessedBacklog(u.id)).length : 0;
+  const locked = 0; // (đã bỏ khoá tồn data)
   const capped = confirmed.filter(u=>dailyReceivedCount(u.id, today) >= DAILY_LEAD_CAP).length;
   const parts = [`${confirmed.length} người đã xác nhận`];
   if(capped) parts.push(`${capped} người đã đủ ${DAILY_LEAD_CAP}/ngày`);
@@ -11764,6 +11767,7 @@ function runDistributionManual(retried){
 }
 let autoDistributeTimer = null;
 function tryAutoDistribute(){
+  if(!appServerOffsetReady) return; // ⏱ chưa có giờ chuẩn máy chủ → CHƯA chia (tránh ghi giờ nhận theo đồng hồ máy bị lệch)
   if(!appReady || !leadsDataReady) return;
   const user=currentUser();
   if(!user || (user.role!=='general_manager' && user.role!=='data_manager')) return; // chỉ máy có TOÀN BỘ data mới chia (Quản lý team giờ chỉ tải data team)
@@ -15265,10 +15269,7 @@ function renderMgrLeads(){
     } else {
       lockToggleWrap.style.display = 'block';
       lockToggleWrap.innerHTML = `
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
-          <input type="checkbox" ${state.enforceUnprocessedLock?'checked':''} style="width:16px; height:16px; margin:0;" onchange="toggleEnforceUnprocessedLock(this.checked)">
-          <span>Khoá không cho nhận data mới nếu còn data chưa xử lý</span>
-        </label>
+        
         <div style="color:var(--ink-soft); font-size:12px; margin-top:4px;">Bật lên: ai còn data chưa cập nhật Tình trạng sẽ tạm không được chia thêm, cho tới khi xử lý hết.</div>
       `;
     }
@@ -15309,7 +15310,7 @@ function renderMgrLeads(){
       const checked = isCheckedInToday(u.id, today);
       const confirmed = isManagerConfirmed(u.id, today);
       const cnt = dailyReceivedCount(u.id, today);
-      const isLocked = state.enforceUnprocessedLock && hasUnprocessedBacklog(u.id);
+      const isLocked = false; // (đã bỏ khoá tồn data)
       const status = u.active===false ? 'Tạm nghỉ'
         : (isLocked ? '🔒 Bị khoá (còn tồn đọng)'
         : (cnt>=DAILY_LEAD_CAP ? 'Đã đầy' : (confirmed ? 'Sẵn sàng' : 'Chưa xác nhận')));
