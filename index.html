@@ -2015,6 +2015,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   @keyframes seasonSnowFall{ 0%{ transform:translate(0,-30px); } 50%{ transform:translate(18px,50vh); } 100%{ transform:translate(-10px,105vh); } }
   @media (max-width: 760px){ .season-snow{ display:none; } }
   @media (prefers-reduced-motion: reduce){ .season-snow{ display:none; } }
+  .defer-tag{ display:inline-block; font-size:12px; font-weight:600; color:#9EC5FF; background:rgba(79,140,255,.12); border:1px solid rgba(79,140,255,.45); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .defer-on{ color:#9EC5FF !important; border-color:rgba(79,140,255,.5) !important; }
 </style>
 </head>
 <body>
@@ -2703,6 +2705,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
               <option value="partial">⚠️ Gửi thiếu</option>
               <option value="oos">⛔ Có hàng tạm hết</option>
               <option value="okstock">✅ Đủ hàng, chưa đóng</option>
+              <option value="defer">⏰ Hẹn ngày nhặt</option>
               <option value="all">Tất cả</option>
             </select>
             <select id="packRangeSel" onchange="document.getElementById('packCustomRange').style.display = this.value==='custom' ? 'inline-flex' : 'none'; packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
@@ -6446,6 +6449,9 @@ function renderInvoicesPage(){
           : packIsUrgent(inv.id)
           ? `<button class="btn-ghost btn-small inv-urgent-on" title="Bỏ ưu tiên" onclick="event.stopPropagation(); packSetUrgent('${inv.id}', false)">${packUrgentLabel(inv.id)} ✕</button>`
           : `<button class="btn-ghost btn-small inv-urgent-btn" title="Khách lấy trực tiếp / hàng cần gửi xe → gửi Quản lý duyệt, duyệt xong kho nhặt ngay" onclick="event.stopPropagation(); packUrgentChoose('${inv.id}')">⚡ Ưu tiên nhặt</button>`) : ''}
+        ${(flow==='deposited' || flow==='printed') && inv.saleId===u.id && !packActiveClaimOf(inv.id) ? (invPickDeferred(inv)
+          ? `<button class="btn-ghost btn-small defer-on" title="Đổi / huỷ ngày hẹn" onclick="event.stopPropagation(); invDeferOpen('${inv.id}')">⏰ Kho nhặt từ ${invPickAfterDM(inv)}</button>`
+          : `<button class="btn-ghost btn-small" title="Khách chưa cần gửi ngay — chọn ngày kho mới nhặt" onclick="event.stopPropagation(); invDeferOpen('${inv.id}')">⏰ Hẹn ngày nhặt</button>`) : ''}
         ${(flow==='deposited' || flow==='printed' || flow==='short' || flow==='partial') && inv.saleId===u.id ? `<button class="btn-ghost btn-small inv-pack-btn" title="Tự nhặt & đóng đơn này" onclick="event.stopPropagation(); packPanelOpen('${inv.id}')">📦 Đóng</button>` : ''}
         ${locked
           ? `<button class="btn-ghost btn-small inv-locked-btn" title="Kho đã đóng hàng — không sửa được" onclick="editInvoiceDraft('${inv.id}')">🔒 Sửa</button>`
@@ -7089,14 +7095,15 @@ function packCurrentList(){
   }
   if(saleF) base = base.filter(inv=>(inv.saleId||'')===saleF);
   const smap = packStatusMap();
-  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, partial:0, oos:0, okstock:0, all:base.length};
+  const counts = {open:0, new:0, claimed:0, changed:0, done:0, short:0, packed:0, partial:0, oos:0, okstock:0, defer:0, all:base.length};
   const OPEN = ['new','claimed','changed','done','short']; // "Chưa đóng" gồm cả đơn đang CHỜ BÙ
   const isOpenInv = inv=>{ const ps = smap[inv.id]; return !(ps && (ps.state==='packed' || ps.state==='partial')); };
   base.forEach(inv=>{ const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); counts[st]++; if(OPEN.includes(st)) counts.open++; if(packIsPartial(smap[inv.id])) counts.partial++;
-    if(isOpenInv(inv)){ if(packOosOfInv(inv).length) counts.oos++; else counts.okstock++; } });
+    if(isOpenInv(inv)){ if(packOosOfInv(inv).length) counts.oos++; else counts.okstock++; if(invPickDeferred(inv)) counts.defer++; } });
   const list = status==='all' ? base : base.filter(inv=>{ if(status==='partial') return packIsPartial(smap[inv.id]);
     if(status==='oos') return isOpenInv(inv) && packOosOfInv(inv).length > 0;
-    if(status==='okstock') return isOpenInv(inv) && !packOosOfInv(inv).length; const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
+    if(status==='okstock') return isOpenInv(inv) && !packOosOfInv(inv).length;
+    if(status==='defer') return isOpenInv(inv) && invPickDeferred(inv); const st = packFlowStatus(inv, map[inv.id], smap[inv.id]); return status==='open' ? OPEN.includes(st) : st===status; });
   const umapL = packUrgentMap(); const smapL = packStatusMap();
   const isUrgOpen = id=>!!umapL[id] && !(smapL[id] && (smapL[id].state==='packed' || smapL[id].state==='partial')); // đã đóng thì thôi ưu tiên
   // Mục "Chờ bù hàng": đơn báo thiếu LÂU NHẤT lên đầu (chờ lâu cần xử lý trước), không theo ô sắp xếp cọc
@@ -7124,7 +7131,7 @@ function renderPackInvoicesPage(){
   { const ls = document.getElementById('packLabelSize'); if(ls && !ls.dataset.init){ ls.dataset.init = '1'; try{ const v = localStorage.getItem('pack_label_size'); if(v) ls.value = v; const t2 = localStorage.getItem('pack_label_two'); const c2 = document.getElementById('packLabelTwo'); if(c2 && t2!==null) c2.checked = t2==='1'; }catch(e){} } }
   const statusSel = document.getElementById('packStatusSel');
   if(statusSel){
-    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, partial:`⚠️ Gửi thiếu (${counts.partial||0})`, oos:`⛔ Có hàng tạm hết (${counts.oos||0})`, okstock:`✅ Đủ hàng, chưa đóng (${counts.okstock||0})`, all:`Tất cả (${counts.all})`};
+    const lab = {open:`📦 Chưa đóng (${counts.open})`, new:`🆕 Chưa in (${counts.new})`, claimed:`📱 Đang được nhận (${counts.claimed||0})`, changed:`⚠ Đã sửa sau khi in (${counts.changed})`, done:`🖨️ Đã in, chưa đóng (${counts.done})`, short:`🟠 Chờ bù hàng (${counts.short})`, packed:`✅ Đã đóng (${counts.packed})`, partial:`⚠️ Gửi thiếu (${counts.partial||0})`, oos:`⛔ Có hàng tạm hết (${counts.oos||0})`, defer:`⏰ Hẹn ngày nhặt (${counts.defer||0})`, okstock:`✅ Đủ hàng, chưa đóng (${counts.okstock||0})`, all:`Tất cả (${counts.all})`};
     Array.from(statusSel.options).forEach(o=>{ if(lab[o.value]) o.textContent = lab[o.value]; });
   }
   const sd = document.getElementById('packStatsDetails'); if(sd && sd.open) renderPackStats();
@@ -8458,10 +8465,43 @@ function packOosRemove(id){
   fbRoot.update(up).then(()=>showToast(`✅ ${packOosLabel(o)} có hàng lại — đơn trở về đúng thứ tự theo giờ cọc`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   packOosOpen();
 }
+// ⏰ HẸN NGÀY NHẶT: khách cọc nhưng chưa cần gửi → Sale chọn ngày, kho chưa nhặt tới ngày đó.
+// invoices/{id}.pickAfter = 'YYYY-MM-DD' (+ pickAfterNote, pickAfterBy, pickAfterAt). Tới ngày → vào hàng chờ theo đúng giờ cọc.
+function invPickDeferred(inv){ return !!(inv && inv.pickAfter && String(inv.pickAfter) > todayStr()); }
+function invPickAfterDM(inv){ const p = String((inv && inv.pickAfter) || '').split('-'); return p.length===3 ? `${p[2]}/${p[1]}` : ''; }
+function invDeferOpen(invId){
+  const inv = (state.invoices||[]).find(x=>x && x.id===invId); if(!inv) return;
+  const tmr = new Date(nowMs() + 86400000), max = new Date(nowMs() + 60*86400000);
+  const iso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('loyalModalBody').innerHTML = `<h2>⏰ Hẹn ngày nhặt · HĐ ${escHtml(inv.invoiceNumber||'')}</h2>
+    <p class="goal-hint" style="margin:0 0 10px;">Khách chưa cần gửi ngay? Chọn ngày — kho sẽ <b>chưa nhặt</b> đơn này cho tới ngày đó, tới ngày đơn tự vào hàng chờ (theo đúng giờ cọc).</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <input type="date" id="invDeferDate" min="${iso(tmr)}" max="${iso(max)}" value="${escHtml(inv.pickAfter && inv.pickAfter > todayStr() ? inv.pickAfter : iso(tmr))}">
+      <input id="invDeferNote" maxlength="80" placeholder="Ghi chú cho kho (VD: khách gom đơn tuần sau)" value="${escHtml(inv.pickAfterNote||'')}" style="flex:1; min-width:180px;">
+    </div>
+    <div class="actions">${inv.pickAfter ? `<button class="btn-ghost" onclick="invDeferSave('${inv.id}', null)">Huỷ hẹn — nhặt luôn</button>` : ''}<button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button><button class="btn-primary" onclick="invDeferSave('${inv.id}', document.getElementById('invDeferDate').value)">⏰ Hẹn ngày</button></div>`;
+  loyalShowModal();
+}
+function invDeferSave(invId, date){
+  const me = currentUser() || {}; const inv = (state.invoices||[]).find(x=>x && x.id===invId); if(!inv) return;
+  if(date && date <= todayStr()){ showToast('Chọn ngày từ ngày mai trở đi'); return; }
+  if(date && packActiveClaimOf(invId)){ showToast('Kho đang nhặt đơn này — không hẹn ngày được nữa.'); return; }
+  const note = date ? String((document.getElementById('invDeferNote')||{}).value||'').trim().slice(0,80) : null;
+  const up = date ? {pickAfter: date, pickAfterNote: note || null, pickAfterBy: me.name || null, pickAfterAt: nowMs()} : {pickAfter: null, pickAfterNote: null, pickAfterBy: null, pickAfterAt: null};
+  Object.assign(inv, up);
+  fbInvoices.child(invId).update(up).then(()=>showToast(date ? `⏰ Kho sẽ nhặt đơn ${inv.invoiceNumber} từ ${invPickAfterDM(inv)}` : `✅ Đã huỷ hẹn — đơn ${inv.invoiceNumber} vào hàng chờ nhặt`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  if(date && packIsUrgent(invId)) try{ packSetUrgent(invId, false); }catch(e){} // hẹn muộn thì bỏ ưu tiên
+  loyalCloseModal(); if(currentPageId==='invoices') renderInvoicesPage(); if(currentPageId==='packInvoices') renderPackInvoicesPage();
+}
+function invDeferTagHtml(inv){
+  if(!invPickDeferred(inv)) return '';
+  const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return '';
+  return `<div class="pack-sub"><span class="defer-tag" title="${escHtml((inv.pickAfterBy ? inv.pickAfterBy + ' hẹn' : 'Sale hẹn') + (inv.pickAfterNote ? ': ' + inv.pickAfterNote : ''))}">⏰ Hẹn nhặt ${invPickAfterDM(inv)}${inv.pickAfterNote ? ' · ' + escHtml(inv.pickAfterNote) : ''}</span></div>`;
+}
 function packClaimQueue(){
   const me = currentUser() || {};
   const smap = packStatusMap(), pmap = packPrintMap(), umap = packUrgentMap();
-  const invs = (state.invoices||[]).filter(inv=>inv && inv.depositLink && !packActiveClaimOf(inv.id));
+  const invs = (state.invoices||[]).filter(inv=>inv && inv.depositLink && !packActiveClaimOf(inv.id) && !invPickDeferred(inv)); // ⏰ đơn hẹn ngày: chưa vào hàng chờ
   const normal = invs.filter(inv=>!smap[inv.id]); // mọi đơn đã cọc chưa đóng (in phiếu hay chưa đều vào hàng chờ)
   const ready = invs.filter(inv=>{
     const ps = smap[inv.id]; if(!packReadyShort(ps)) return false;
@@ -9280,7 +9320,7 @@ function packShortGrid(items, cls){
 function packShortText(items){
   return (items||[]).filter(x=>x && Number(x.missing)>0).map(x=>`${x.code}${x.design ? ' '+packDesignShort(x.design) : ''}${x.color ? ' '+x.color : ''}${x.size ? ' '+x.size : ''} ×${x.missing}`).join(' · ');
 }
-function packStatusBadgeHtml(inv, pp, ps){ const p2 = ps || packStatusMap()[inv.id]; return packStatusBadgeHtml0(inv, pp, ps) + (packRefillReady(p2) ? '<div class="pack-sub"><span class="refill-ready-tag">✅ Có hàng bù</span></div>' : '') + packOosTagHtml(inv); }
+function packStatusBadgeHtml(inv, pp, ps){ const p2 = ps || packStatusMap()[inv.id]; return packStatusBadgeHtml0(inv, pp, ps) + invDeferTagHtml(inv) + (packRefillReady(p2) ? '<div class="pack-sub"><span class="refill-ready-tag">✅ Có hàng bù</span></div>' : '') + packOosTagHtml(inv); }
 function packStatusBadgeHtml0(inv, pp, ps){
   const urg = packIsUrgent(inv.id) && !(ps && (ps.state==='packed' || ps.state==='partial'));
   if(urg){ const me = currentUser() || {}; return `<span class="pack-badge pack-urgent">${packUrgentLabel(inv.id)}</span>` + packStatusBadgeInner(inv, pp, ps) + (['warehouse','general_manager'].includes(me.role) ? `<div class="pack-sub"><a href="#" class="pack-ph-link" onclick="event.preventDefault(); packSetUrgent('${inv.id}', false)">bỏ ưu tiên</a></div>` : ''); }
