@@ -1998,6 +1998,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     #localNetBanner, #demoNote, .toast, #toast, .oos-wait-pill{ display:none !important; }
   }
   .refill-ready-tag{ display:inline-block; font-size:12px; font-weight:700; color:#6FD99A; background:rgba(63,185,122,.14); border:1px solid rgba(63,185,122,.5); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  /* 📐 Quản lý đóng hàng: vừa màn hình, không kéo ngang */
+  #packTable td.pack-act-cell{ min-width:0 !important; width:1%; }
+  #packTable td.pack-act-cell .act-t{ display:none; }
+  #packTable td.pack-act-cell .btn-small{ padding:5px 7px !important; min-width:30px; margin:1px; }
+  #packTable td[data-label="Trạng thái"]{ min-width:170px !important; max-width:250px !important; }
+  #packTable td.pack-sale-col{ white-space:normal !important; max-width:120px; overflow:visible; }
+  #packTable .psc-name{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
+  #packTable .psc-time{ font-size:11.5px; color:var(--ink-soft); white-space:nowrap; margin-top:2px; }
+  #packTable td[data-label="Khách hàng"]{ max-width:130px; }
+  #packTable td[data-label="Khách hàng"] .inv-cust-name{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:130px; }
+  #packTable td.pack-items{ min-width:150px !important; max-width:280px !important; }
+  #packTable .pack-items-clamp:not(.open){ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  #packTable td, #packTable th{ padding-left:6px; padding-right:6px; }
 </style>
 </head>
 <body>
@@ -7140,7 +7153,7 @@ function renderPackInvoicesPage(){
     table.innerHTML = `<tr><td class="empty-note">${status==='new' ? 'Không còn hoá đơn nào chưa in 🎉' : (status==='changed' ? 'Không có hoá đơn nào bị sửa sau khi in.' : (status==='short' ? 'Không có đơn nào chờ bù hàng 🎉' : 'Không có hoá đơn nào phù hợp.'))}</td></tr>`;
     return;
   }
-  table.innerHTML = `<thead><tr><th style="width:34px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th style="min-width:230px;">Trạng thái</th><th>Sale</th><th>Cọc lúc</th><th>Khách hàng</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
+  table.innerHTML = `<thead><tr><th style="width:30px;"></th><th style="width:1%;"></th><th>Số HĐ</th><th>Trạng thái</th><th>Sale · cọc lúc</th><th>Khách hàng</th><th>Sản phẩm</th><th class="num">SL</th></tr></thead><tbody>` +
     pageSlice('packInv', list, PACK_PER_PAGE).map(inv=>{
       const pp = map[inv.id]; const stt = packStatusOf(inv, pp);
       const stHtml = packStatusBadgeHtml(inv, pp, smap[inv.id]);
@@ -7153,8 +7166,7 @@ function renderPackInvoicesPage(){
         </td>
         <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${(()=>{ const lb = (state.packLabels||[]).find(x=>x && x.id===inv.id); return lb ? ` <span class="lbl-done-mark" title="Đã in tem ${lb.n||1} lần · lần cuối ${packTimeStr(lb.at)}${lb.byName ? ' · ' + escHtml(lb.byName) : ''}">🏷️${(lb.n||1) > 1 ? '×' + lb.n : ''}</span>` : ''; })()}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
         <td data-label="Trạng thái">${stHtml}</td>
-        <td data-label="Sale" class="pack-sale-col">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</td>
-        <td data-label="Cọc lúc" style="white-space:nowrap;">${packTimeStr(packDepositMs(inv))}</td>
+        <td data-label="Sale · cọc lúc" class="pack-sale-col"><div class="psc-name">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</div><div class="psc-time">${packTimeStr(packDepositMs(inv))}</div></td>
         <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span></td>
         <td data-label="Sản phẩm" class="pack-items"><div class="pack-items-clamp" title="Bấm để xem đủ / thu gọn" onclick="this.classList.toggle('open')">${packItemsSummaryHtml(inv)}</div></td>
         <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
