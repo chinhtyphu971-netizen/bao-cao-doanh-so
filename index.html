@@ -2017,6 +2017,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   @media (prefers-reduced-motion: reduce){ .season-snow{ display:none; } }
   .defer-tag{ display:inline-block; font-size:12px; font-weight:600; color:#9EC5FF; background:rgba(79,140,255,.12); border:1px solid rgba(79,140,255,.45); border-radius:999px; padding:1px 8px; white-space:nowrap; }
   .defer-on{ color:#9EC5FF !important; border-color:rgba(79,140,255,.5) !important; }
+  .oos-qty{ font-size:12px; font-weight:700; color:#F0C04A; background:rgba(240,192,74,.12); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .oos-total{ margin:2px 0 8px; padding:8px 10px; border-radius:8px; background:rgba(240,192,74,.08); border:1px solid rgba(240,192,74,.3); font-size:14px; }
 </style>
 </head>
 <body>
@@ -8249,16 +8251,19 @@ function packOosTagHtml(inv){
   return `<div class="pack-sub"><span class="pack-badge pack-oos" title="Đơn có món kho đang tạm hết — xếp cuối hàng chờ, nhặt sau khi hết đơn đủ hàng">⛔ Tạm hết: ${escHtml(h.map(packOosLabel).join(', '))}</span></div>`;
 }
 function packOosCanEdit(){ const r = (currentUser()||{}).role; return r==='warehouse' || r==='general_manager'; }
-function packOosCounts(){ // 1 lượt quét hoá đơn → số đơn chờ của TỪNG mục + từng mã
-  const per = {}, perCode = {}, smap = packStatusMap();
-  if(!packOosList().length) return {per, perCode};
+function packOosCounts(){ // 1 lượt quét hoá đơn → số đơn chờ + SỐ LƯỢNG CẦN của TỪNG mục + từng mã
+  const per = {}, perCode = {}, qty = {}, qtyCode = {}, smap = packStatusMap();
+  if(!packOosList().length) return {per, perCode, qty, qtyCode};
   (state.invoices||[]).forEach(inv=>{ if(!inv || !inv.depositLink) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial' || ps.legacy)) return;
-    const lines = ps && ps.state==='short' ? (ps.shortItems||[]) : packInvLines(inv);
+    const isShort = ps && ps.state==='short';
+    const lines = isShort ? (ps.shortItems||[]) : packInvLines(inv);
     const ids = new Set(), cs = new Set();
-    lines.forEach(l=>{ packOosEnsureCache(); const arr = packOosIdx[oosNorm(l.code)]; if(!arr) return; const col = oosNorm(l.color), sz = oosNorm(l.size);
-      arr.forEach(o=>{ if(!o.color || oosNorm(o.color)===col){ ids.add(o.id); cs.add(o.code); } }); });
+    lines.forEach(l=>{ packOosEnsureCache(); const arr = packOosIdx[oosNorm(l.code)]; if(!arr) return; const col = oosNorm(l.color);
+      const q = isShort ? (Number(l.missing)||0) : (Number(l.qty)||0); // đơn báo thiếu: phần còn thiếu · đơn chưa nhặt: cả số lượng
+      const o = arr.find(o=>!o.color || oosNorm(o.color)===col); if(!o) return;
+      ids.add(o.id); cs.add(o.code); qty[o.id] = (qty[o.id]||0) + q; qtyCode[o.code] = (qtyCode[o.code]||0) + q; });
     ids.forEach(id=>{ per[id] = (per[id]||0) + 1; }); cs.forEach(c=>{ perCode[c] = (perCode[c]||0) + 1; }); });
-  return {per, perCode};
+  return {per, perCode, qty, qtyCode};
 }
 function packOosWaitCount(o){ // số đơn chưa đóng đang có món thuộc mục tạm hết này
   const smap = packStatusMap(); let n = 0;
@@ -8284,14 +8289,16 @@ function packOosOpen(){
       <select id="oosColor"><option value="">Cả mã (mọi màu)</option></select>
       <input id="oosNote" maxlength="80" placeholder="Ghi chú (VD: hàng về thứ 6)"><button class="btn-primary btn-small" onclick="packOosAdd()">⛔ Báo tạm hết</button></div>` : ''}
     <div class="oos-list">${(()=>{ if(!l.length) return '<div class="empty-note">Không có hàng nào tạm hết.</div>'; const CNT = packOosCounts();
+      const totQ = Object.values(CNT.qtyCode).reduce((a,b)=>a+b,0);
       const byCode = {}; l.forEach(o=>{ (byCode[o.code] = byCode[o.code] || []).push(o); });
       const row = o=>{ const n = CNT.per[o.id] || 0, note = o.note && !/^báo thiếu HĐ/i.test(o.note) ? o.note : '';
-        return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
+        const q = CNT.qty[o.id] || 0;
+        return `<div class="oos-row"><b class="oos-name">⛔ ${escHtml(packOosLabel(o))}</b>${n ? `<span class="oos-cnt">${n} đơn chờ</span><span class="oos-qty">cần ${q} cái</span>` : '<span class="goal-hint">0 đơn</span>'}${note ? `<span class="goal-hint">· ${escHtml(note)}</span>` : ''}
           <span class="oos-by">${escHtml(o.byName||'')} · ${packTimeShort(o.at)}</span>${can ? `<button class="btn-ghost btn-small" onclick="packOosRemove('${escHtml(o.id)}')">✅ Có hàng lại</button>` : ''}</div>`; };
-      return Object.keys(byCode).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(code=>{ const arr = byCode[code];
+      return `<div class="oos-total">📦 Tổng cần nhập: <b>${totQ} cái</b> · ${l.length} mục tạm hết</div>` + Object.keys(byCode).sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})).map(code=>{ const arr = byCode[code];
         if(arr.length===1) return row(arr[0]);
-        const nWait = CNT.perCode[code] || 0;
-        return `<div class="oos-group"><div class="oos-ghead"><b>${escHtml(code)}</b> <span class="goal-hint">${arr.length} mục</span> ${nWait ? `<span class="oos-cnt">${nWait} đơn chờ</span>` : ''}
+        const nWait = CNT.perCode[code] || 0, qWait = CNT.qtyCode[code] || 0;
+        return `<div class="oos-group"><div class="oos-ghead"><b>${escHtml(code)}</b> <span class="goal-hint">${arr.length} mục</span> ${nWait ? `<span class="oos-cnt">${nWait} đơn chờ</span><span class="oos-qty">cần ${qWait} cái</span>` : ''}
             ${can ? `<button class="btn-primary btn-small" style="margin-left:auto;" onclick="packOosRemoveCode('${escHtml(code)}')">✅ Có hàng lại cả mã ${escHtml(code)}</button>` : ''}</div>
           ${arr.map(row).join('')}</div>`; }).join(''); })()}</div>
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
