@@ -7420,6 +7420,11 @@ let packHideQueue = true, packHideQueueSub = null;
 let oosShowSale = true, oosShowSaleSub = null;
 // 🚚 Cho Sale NHẬP TAY mã vận đơn (khi Abit chưa gửi mã về) — appSettings/saleManualShip (mặc định: BẬT)
 let saleManualShip = true, saleManualShipSub = null;
+// 🔗 TỰ ĐẨY ĐƠN SANG ABIT sau khi kho đóng — appSettings/abitAutoPush (mặc định: BẬT). Tắt → chỉ đẩy tay ("⚠ Chưa lên Abit — bấm đẩy").
+let abitAutoPush = true, abitAutoPushSub = null;
+function abitAutoPushSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  fbRoot.child('appSettings/abitAutoPush').set(!!on).then(()=>showToast(on ? '🔗 Đã BẬT tự đẩy đơn sang Abit' : '⏸ Đã TẮT tự đẩy — đơn chỉ lên Abit khi bấm đẩy tay')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  abitAutoPush = !!on; try{ renderShipLockCard(); }catch(e){} }
 function saleManualShipSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
   fbRoot.child('appSettings/saleManualShip').set(!!on).then(()=>showToast(on ? '✍️ Sale nhập tay được mã vận đơn' : '🔒 Sale không nhập tay — mã tự về từ Abit')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   saleManualShip = !!on; try{ renderShipLockCard(); }catch(e){} }
@@ -7432,6 +7437,8 @@ function packHideQueueSet(on){ const me = currentUser(); if(!me || me.role!=='ge
   fbRoot.child('appSettings/packHideQueue').set(!!on).then(()=>showToast(on ? '🙈 Đã ẩn số đơn chờ trên máy nhân viên đóng gói' : '👀 Nhân viên đóng gói thấy lại số đơn chờ')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }
 function shipLockLabel(){ return shipLockMinutes >= 60 && shipLockMinutes % 60 === 0 ? (shipLockMinutes/60) + ' giờ' : shipLockMinutes + ' phút'; }
 function shipLockMinListen(){
+  if(!abitAutoPushSub && fbRoot){ abitAutoPushSub = fbRoot.child('appSettings/abitAutoPush');
+    abitAutoPushSub.on('value', snap=>{ const v = snap.val(); abitAutoPush = v===null ? true : !!v; if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(!saleManualShipSub && fbRoot){ saleManualShipSub = fbRoot.child('appSettings/saleManualShip');
     saleManualShipSub.on('value', snap=>{ const v = snap.val(); saleManualShip = v===null ? true : !!v; if(currentPageId==='invoices' && !currentInvoiceDraft) try{ renderInvoicesPage(); }catch(e){} if(currentPageId==='mgrSettings') try{ renderShipLockCard(); }catch(e){} }); }
   if(!oosShowSaleSub && fbRoot){ oosShowSaleSub = fbRoot.child('appSettings/oosShowSale');
@@ -7463,6 +7470,9 @@ function renderShipLockCard(){
     <h2 style="margin-top:16px;">🎨 Chủ đề giao diện</h2>
     <p class="goal-hint">Trang trí nền + câu động viên trên mọi máy. "Tự động" đổi theo mùa: tháng 10 → 20/10 · 10/11–31/12 → Noel · 1/1 → hết rằm tháng Giêng → Tết · còn lại → không trang trí.</p>
     <div class="chip-row">${[['auto','🔄 Tự động (đang: ' + SEASON_THEMES[seasonAutoKey()].label + ')'],['noel','🎄 Noel'],['tet','🧧 Tết'],['women','🌸 20/10'],['plain','⬛ Không trang trí']].map(([k,l])=>`<div class="chip ${seasonThemeSetting===k ? 'selected' : ''}" onclick="seasonThemeSet('${k}')">${l}</div>`).join('')}</div>
+    <h2 style="margin-top:16px;">🔗 Tự đẩy đơn sang Abit</h2>
+    <p class="goal-hint">Bật: kho đóng xong là tự tạo đơn trên Abit (lỗi thì tự đẩy lại). Tắt: không tự đẩy — Quản lý chung bấm "⚠ Chưa lên Abit — bấm đẩy" để đẩy tay khi cần (chỉ Quản lý chung đẩy tay được). Nhận mã vận đơn / trạng thái từ Abit vẫn chạy bình thường.</p>
+    <div class="chip-row"><div class="chip ${abitAutoPush ? 'selected' : ''}" onclick="abitAutoPushSet(true)">🔗 Bật tự đẩy</div><div class="chip ${!abitAutoPush ? 'selected' : ''}" onclick="abitAutoPushSet(false)">⏸ Tắt — chỉ đẩy tay</div></div>
     <h2 style="margin-top:16px;">✍️ Sale nhập tay mã vận đơn</h2>
     <p class="goal-hint">Bật khi Abit CHƯA gửi mã về (webhook lỗi): Sale tự chọn hãng + dán mã như trước (app vẫn chặn mã trùng, hỏi lại mã SPX sai mẫu). Tắt → Sale chỉ chờ mã tự về từ Abit.</p>
     <div class="chip-row"><div class="chip ${saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(true)">✍️ Cho Sale nhập tay</div><div class="chip ${!saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(false)">🔒 Chỉ mã tự về từ Abit</div></div>
@@ -7598,6 +7608,7 @@ function abitSaleAccount(invId){
   return sale && sale.abitAccount ? sale.abitAccount : '';
 }
 function abitPushAfterPack(invId){
+  if(!abitAutoPush) return; // ⏸ Quản lý đã TẮT tự đẩy → chỉ đẩy tay
   if(!abitSaleAccount(invId)) return; // người lên hoá đơn chưa có tài khoản Abit → không tự đẩy
   setTimeout(async ()=>{
     const res = await abitPush(invId, false);
@@ -7659,7 +7670,7 @@ setInterval(()=>{ try{ abitPollTick(); }catch(e){} }, 3*60000);
 setTimeout(()=>{ try{ abitPollTick(); }catch(e){} }, 45000);
 const abitSweepTried = {}; let abitSweepBusy = false;
 async function abitAutoSweep(){
-  const me = currentUser(); if(abitSweepBusy || !me || !['general_manager','warehouse','packer'].includes(me.role) || !navigator.onLine) return;
+  const me = currentUser(); if(!abitAutoPush || abitSweepBusy || !me || !['general_manager','warehouse','packer'].includes(me.role) || !navigator.onLine) return; // ⏸ tắt tự đẩy → không tự đẩy lại
   const ps = packStatusMap(), now = nowMs();
   const list = (state.invoices||[]).filter(inv=>{
     const p = inv && ps[inv.id]; if(!p || p.legacy || !(p.state==='packed' || p.state==='partial') || p.ship) return false;
@@ -7683,7 +7694,9 @@ async function abitAutoSweep(){
   abitSweepBusy = false;
 }
 setInterval(()=>{ try{ abitAutoSweep(); }catch(e){} }, 90000);
+function abitCanManualPush(){ return (currentUser()||{}).role==='general_manager'; } // 🔒 đẩy tay sang Abit: CHỈ Quản lý chung
 async function abitRetry(invId){
+  if(!abitCanManualPush()){ showToast('🔒 Chỉ Quản lý chung được đẩy tay sang Abit — báo Quản lý giúp nhé.'); return; }
   showToast('🔗 Đang đẩy sang Abit…');
   const res = await abitPush(invId, true);
   showToast(res.ok ? `✅ Đã tạo đơn trên Abit · ${res.invoice_no || ''}` : `⚠ Không đẩy được sang Abit: ${res.error}`);
@@ -7715,12 +7728,12 @@ function abitStatusCls(status, statusAt){
 }
 function abitTagHtml(inv){
   const a = inv && inv.abit; if(!a) return '';
-  if(a.error && !a.invoice_no) return ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>`;
+  if(a.error && !a.invoice_no) return abitCanManualPush() ? ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ Abit lỗi — đẩy lại</a>` : ` <span class="abit-tag bad" title="${escHtml(a.error)}">⚠ Abit lỗi — báo Quản lý đẩy</span>`;
   // Đơn tách nhiều kiện → hiện từng kiện: mã đơn Abit · trạng thái
   if(a.parts && typeof a.parts === 'object' && Object.keys(a.parts).length > 1){
     const ps = Object.keys(a.parts).sort((x,y)=>Number(x)-Number(y)).map(k=>{ const p = a.parts[k] || {}; const st = p.status ? abitStatusLabel(p.status, p.statusAt) : 'chưa gửi';
       return `<span class="abit-tag ${abitStatusCls(p.status, p.statusAt)}" title="Kiện ${k} · đơn Abit ${escHtml(p.invoice_no||'')}${p.tracking ? ' · mã VĐ ' + escHtml(p.tracking) : ''}">📦${k} ${escHtml(p.invoice_no||'—')} · ${escHtml(st)}</span>`; }).join(' ');
-    const err = a.error ? ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ ${escHtml(a.error)} — đẩy tiếp</a>` : '';
+    const err = a.error ? (abitCanManualPush() ? ` <a href="#" class="abit-tag bad" title="${escHtml(a.error)}" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${inv.id}')">⚠ ${escHtml(a.error)} — đẩy tiếp</a>` : ` <span class="abit-tag bad" title="${escHtml(a.error)}">⚠ Còn kiện chưa lên Abit — báo Quản lý</span>`) : '';
     return ` <span class="abit-parts">🔗 ${Object.keys(a.parts).length} kiện:</span> ${ps}${err}`;
   }
   const st = a.status ? abitStatusLabel(a.status, a.statusAt) : '';
@@ -7780,7 +7793,7 @@ function shipKhoLine(ps){
   // Đơn ĐÃ ĐÓNG mà CHƯA có trên Abit (không có mã đơn Abit, chưa lên vận đơn) → báo rõ lý do + nút đẩy, không im lặng bỏ qua
   if(invK && !abitH && !ps.ship && (ps.state==='packed' || ps.state==='partial') && !(invK.abit && (invK.abit.invoice_no || invK.abit.error))){
     const acc = abitSaleAccount(invK.id);
-    abitH = acc ? ` <a href="#" class="abit-tag bad" title="Đơn đã đóng nhưng chưa tạo được trên Abit" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${invK.id}')">⚠ Chưa lên Abit — bấm đẩy</a>`
+    abitH = acc ? (abitCanManualPush() ? ` <a href="#" class="abit-tag bad" title="Đơn đã đóng nhưng chưa tạo được trên Abit" onclick="event.preventDefault(); event.stopPropagation(); abitRetry('${invK.id}')">⚠ Chưa lên Abit — bấm đẩy</a>` : ` <span class="abit-tag bad" title="Đơn đã đóng nhưng chưa lên Abit — chỉ Quản lý chung đẩy tay được">⚠ Chưa lên Abit — báo Quản lý đẩy</span>`)
                 : ` <span class="abit-tag bad" title="Quản lý chung vào Chi nhánh & nhân sự → Sửa tài khoản Sale này → điền Tài khoản Abit, rồi bấm đẩy lại">⚠ Sale chưa gắn TK Abit — chưa đẩy được</span>`;
   }
   if(abitH && !ps.ship){ const l2 = shipKhoLine2(ps); return l2 ? l2.replace(/^(<div[^>]*>)/, '$1' + abitH.trim() + ' ') : `<div class="pack-sub">${abitH}</div>`; } // mã đơn Abit + "Chưa gửi vận đơn" chung 1 hàng
