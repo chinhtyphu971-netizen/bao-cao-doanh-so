@@ -2199,7 +2199,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <input id="f_date" type="date" onchange="onReportDateChange()">
           </div>
           <div class="grid-3">
-            <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
+            <div class="field"><label>Data khách mới</label><input id="f_newdata" type="number" min="0" placeholder="0" oninput="updateReportPreview()"><div id="f_newdataHint" class="goal-hint" style="margin-top:4px;"></div></div>
             <div class="field"><label>Data tự tìm</label><input id="f_selffound" type="number" min="0" placeholder="0" oninput="updateReportPreview()"></div>
             <div class="field"><label>Khách đã tư vấn</label><input id="f_consulted" type="number" min="0" placeholder="0"></div>
             <div class="field"><label>Khách tiềm năng</label><input id="f_potential" type="number" min="0" placeholder="0"></div>
@@ -19395,8 +19395,27 @@ function renderReportClosedHint(){
     <span style="color:var(--ink-soft);">Bạn vẫn nộp được bình thường. Nếu có đơn chưa lên hoá đơn trên app hoặc chưa bấm xác nhận cọc, hãy làm cho đủ; đơn mới lên hoá đơn mà chưa cọc thì chưa tính là chốt.</span>
   </div>`;
 }
+// 📥 Data khách mới: so với số data HỆ THỐNG đã chia cho Sale trong ngày báo cáo → nhập ÍT hơn thì cảnh báo
+function reportSysNewData(date){ // data app chia trong ngày mà Sale ĐÃ XỬ LÝ (đã chọn tình trạng)
+  const u = currentUser(); if(!u || !date) return 0;
+  return state.leads.filter(l=>l.assignedTo===u.id && l.distributedDate===date && String(l.status||'').trim()).length;
+}
+function reportSysNewDataTotal(date){ const u = currentUser(); return u && date ? dailyReceivedCount(u.id, date) : 0; }
+function reportNewDataCheck(){
+  const el = document.getElementById('f_newdataHint'), inp = document.getElementById('f_newdata'); if(!el || !inp) return;
+  const date = (document.getElementById('f_date')||{}).value, sys = reportSysNewData(date);
+  if(!leadsDataReady){ el.textContent = ''; return; }
+  const v = inp.value==='' ? null : Number(inp.value)||0;
+  inp.style.borderColor = (v!==null && v < sys) ? 'var(--danger)' : '';
+  el.innerHTML = (v!==null && v < sys)
+    ? `<span style="color:var(--danger); font-weight:600;">⚠ Bạn nhập ${v} — ít hơn ${sys} data app bạn đã xử lý (đã chọn tình trạng)</span> <a href="#" onclick="event.preventDefault(); document.getElementById('f_newdata').value=${sys}; updateReportPreview();">Điền ${sys}</a>`
+    : (v!==null && v > sys)
+    ? `📥 <b>${sys}</b> data từ app <b>+ ${v - sys}</b> data ngoài app`
+    : `📥 Bạn đã xử lý <b>${sys}</b> data app chia ngày này (đã chọn tình trạng${reportSysNewDataTotal(date) > sys ? ` · còn ${reportSysNewDataTotal(date) - sys}/${reportSysNewDataTotal(date)} data chưa xử lý` : ''}) — có data ngoài app (không phải data tự tìm) thì <b>cộng thêm</b> vào${v!==sys ? ` · <a href="#" onclick="event.preventDefault(); document.getElementById('f_newdata').value=${sys}; updateReportPreview();">Điền ${sys}</a>` : ''}`;
+}
 function updateReportPreview(){
   try{ renderReportClosedHint(); }catch(e){}
+  try{ reportNewDataCheck(); }catch(e){}
   const newdata=Number(document.getElementById('f_newdata').value)||0;
   const selffound=Number(document.getElementById('f_selffound').value)||0;
   const orders=Number(document.getElementById('f_orders').value)||0;
@@ -19431,6 +19450,7 @@ function loadReportForDate(){
              : `${isToday ? 'Chưa nộp hôm nay' : 'Chưa có báo cáo cho ngày này'} — điền số liệu ngày ${fmtDate(date)} bên dưới.`;
   const fields=['revenue','orders','groupposts','wallposts','selffound','fbposts','thanks','newdata','consulted','potential','returning','loyal','note'];
   fields.forEach(f=>{ document.getElementById('f_'+f).value = existing ? (existing[keyFor(f)] ?? '') : ''; });
+  if(!existing && leadsDataReady){ const sysN = reportSysNewData(date); if(sysN) document.getElementById('f_newdata').value = sysN; } // 📥 chưa nộp → tự điền số data hệ thống đã chia
   document.getElementById('staffReportMsg').textContent='';
   updateReportPreview();
 }
@@ -19467,6 +19487,13 @@ function submitReport(){
   msgEl.style.color='var(--danger)';
   if(!date){ msgEl.textContent='Vui lòng chọn ngày báo cáo.'; return; }
   if(date > todayStr()){ msgEl.textContent='Không thể nộp báo cáo cho ngày trong tương lai.'; return; }
+  { const sysN = reportSysNewData(date), vN = Number(document.getElementById('f_newdata').value)||0;
+    if(leadsDataReady && vN < sysN && !submitReport._okLow){
+      askConfirm('Data khách mới ÍT HƠN hệ thống', `Bạn nhập ${vN} data khách mới, nhưng trong app bạn đã xử lý (đã chọn tình trạng) ${sysN} data được chia ngày ${date.split('-').reverse().slice(0,2).join('/')}. Báo thiếu data làm sai tỉ lệ chốt. Bấm "Huỷ" để sửa lại, hoặc "Vẫn nộp" nếu bạn chắc chắn.`,
+        ()=>{ submitReport._okLow = true; try{ submitReport(); } finally{ submitReport._okLow = false; } });
+      document.getElementById('confirmOkBtn').textContent = 'Vẫn nộp';
+      return;
+    } }
   const data = {
     revenue: Number(document.getElementById('f_revenue').value)||0,
     orderCount: Number(document.getElementById('f_orders').value)||0,
