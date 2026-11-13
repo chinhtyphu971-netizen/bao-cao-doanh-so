@@ -2019,6 +2019,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .defer-on{ color:#9EC5FF !important; border-color:rgba(79,140,255,.5) !important; }
   .oos-qty{ font-size:12px; font-weight:700; color:#F0C04A; background:rgba(240,192,74,.12); border-radius:999px; padding:1px 8px; white-space:nowrap; }
   .oos-total{ margin:2px 0 8px; padding:8px 10px; border-radius:8px; background:rgba(240,192,74,.08); border:1px solid rgba(240,192,74,.3); font-size:14px; }
+  .pack-short-hist{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-bottom:10px; background:rgba(255,255,255,.02); font-size:13.5px; }
+  .psh-row{ padding:3px 0; } .psh-row.bad{ color:#FFB4B6; } .psh-row.ok{ color:#9BE3B8; } .psh-row.wait{ color:#F0C04A; }
+  .psh-cap{ font-size:13px; margin:2px 0 6px; } .psh-cap.bad{ color:#FFB4B6; } .psh-cap.ok{ color:#9BE3B8; } .psh-cap.wait{ color:#F0C04A; }
 </style>
 </head>
 <body>
@@ -9175,7 +9178,11 @@ function packSaveShortEdit(inv, old, items){
   const missOrig = (old.missOrig!=null ? Number(old.missOrig) : (old.shortItems||[]).reduce((a,x)=>a+(Number(x.missing)||0),0)) + more;
   const rec = Object.assign({}, old, {shortItems: items, note: String(packPanel.note||'').trim(), at: now, missOrig});
   if(!rec.shortItemsOrig) rec.shortItemsOrig = old.shortItems || items;
-  if(refilled) rec.refills = (old.refills||[]).concat([{at: now, by: packPanel.staffId || me.id || '', byName: packStaffName(packPanel.staffId) || me.name || '', qty: refilled}]);
+  if(refilled){
+    const lab = {}; (old.shortItems||[]).concat(items).forEach(x=>{ lab[x.key] = shortItemLabel(x); });
+    const ritems = Object.keys(oldMap).map(k=>({label: lab[k] || k, qty: (oldMap[k]||0) - (newMap[k]||0)})).filter(x=>x.qty>0);
+    rec.refills = (old.refills||[]).concat([{at: now, by: packPanel.staffId || me.id || '', byName: packStaffName(packPanel.staffId) || me.name || '', qty: refilled, items: ritems}]); // ✅ lưu bù MÓN NÀO
+  }
   packSetBusy(true);
   fbPackStatus.child(inv.id).set(rec).then(()=>{
     packSetBusy(false);
@@ -10087,22 +10094,42 @@ function packLoadSavedPhotos(invId){
     packPanel.savedPhotos = snap.val() || {}; renderPackPanel();
   }).catch(()=>showToast('Không tải được ảnh — kiểm tra mạng.'));
 }
-function packPhotoGroupsHtml(obj){
+function shortItemLabel(x){ return [x.code, x.design && !packIsPrintCode(x.code) ? '' : x.design, x.color, x.size].filter(Boolean).join(' ') || x.label || x.key || ''; }
+function shortItemsText(arr, key){ return (arr||[]).filter(x=>Number(x[key||'missing'])>0).map(x=>`${escHtml(shortItemLabel(x))} ×${Number(x[key||'missing'])}`).join(' · '); }
+// 🧾 Lịch sử THIẾU / BÙ của đơn (hiện trên màn ảnh đơn hàng)
+function packShortHistoryHtml(ps){
+  if(!ps || !(ps.shortItemsOrig || ps.shortAt || (ps.refills||[]).length)) return '';
+  const rows = [];
+  const orig = ps.shortItemsOrig || (ps.state==='short' ? ps.shortItems : null);
+  if(ps.shortAt || orig) rows.push(`<div class="psh-row bad">⚠ <b>${packTimeStr(ps.shortAt || ps.at)}</b>${ps.shortStaffName ? ' · ' + escHtml(ps.shortStaffName) : ''} báo thiếu: ${orig ? shortItemsText(orig) : '—'}${ps.missOrig ? ` <span class="pack-note">(${ps.missOrig} sp)</span>` : ''}</div>`);
+  (ps.refills||[]).forEach(r=>rows.push(`<div class="psh-row ok">✅ <b>${packTimeStr(r.at)}</b>${r.byName ? ' · ' + escHtml(r.byName) : ''} ${r.final ? 'bù đủ & đóng' : 'bù'}: ${(r.items||[]).length ? r.items.map(x=>`${escHtml(x.label)} ×${x.qty}`).join(' · ') : `${r.qty || '?'} sp`}</div>`));
+  if(ps.state==='short'){ const rest = shortItemsText(ps.shortItems); if(rest) rows.push(`<div class="psh-row wait">⏳ <b>Còn thiếu:</b> ${rest}</div>`); }
+  if(packIsPartial(ps) && (ps.shortItems||[]).length) rows.push(`<div class="psh-row wait">📦 <b>Gửi thiếu (không bù):</b> ${shortItemsText(ps.shortItems)}</div>`);
+  return `<div class="pack-short-hist">${rows.join('')}</div>`;
+}
+function packPhotoGroupsHtml(obj, ps){
   const arr = Object.values(obj||{}).filter(photoHas).sort((a,b)=>a.at-b.at);
+  const capOf = g=>{ if(!ps) return '';
+    if(g.kind==='short'){ const t = shortItemsText(ps.shortItemsOrig || ps.shortItems); return t ? `<div class="psh-cap bad">⚠ Thiếu: ${t}</div>` : ''; }
+    if(g.kind==='refill'){ const r = (ps.refills||[]).filter(x=>x.final).sort((a,b)=>Math.abs(a.at-g.at)-Math.abs(b.at-g.at))[0];
+      return r && (r.items||[]).length ? `<div class="psh-cap ok">✅ Bù: ${r.items.map(x=>`${escHtml(x.label)} ×${x.qty}`).join(' · ')}</div>` : ''; }
+    if(g.kind==='partial'){ const t = shortItemsText(ps.shortItems); return t ? `<div class="psh-cap wait">📦 Gửi thiếu: ${t}</div>` : ''; }
+    return ''; };
   if(!arr.length) return `<div class="pack-note">Không còn ảnh (có thể đã quá ${INVOICE_KEEP_DAYS} ngày).</div>`;
   const groups = [];
   arr.forEach(p=>{ const g = groups.find(x=>x.kind===p.kind && Math.abs(x.at-p.at) < 60000); if(g) g.items.push(p); else groups.push({kind:p.kind, at:p.at, byName:p.byName, items:[p]}); });
-  return groups.map(g=>`<div class="pack-photo-group"><div class="pack-p-label">📷 ${PACK_PHOTO_KIND[g.kind] || 'Ảnh'} <span class="pack-note">${packTimeStr(g.at)}${g.byName ? ' · ' + escHtml(g.byName) : ''}</span></div>
+  return groups.map(g=>`<div class="pack-photo-group"><div class="pack-p-label">📷 ${PACK_PHOTO_KIND[g.kind] || 'Ảnh'} <span class="pack-note">${packTimeStr(g.at)}${g.byName ? ' · ' + escHtml(g.byName) : ''}</span></div>${capOf(g)}
     <div class="pack-thumbs">${g.items.map(p=>`<div class="pack-thumb"><img src="${photoSrc(p)}" loading="lazy" onclick="packPhotoZoom(this.src)"></div>`).join('')}</div></div>`).join('');
 }
 // Xem ảnh từ ngoài panel (Sale / danh sách)
 function packOpenPhotosViewer(invId){
   const m = document.getElementById('packPhotosModal'), body = document.getElementById('packPhotosBody');
   const ps = packStatusMap()[invId];
-  document.getElementById('packPhotosTitle').textContent = '📷 Ảnh đơn hàng ' + ((ps && ps.invoiceNumber) || '');
-  body.innerHTML = '<div class="pack-note">⏳ Đang tải ảnh…</div>';
+  document.getElementById('packPhotosTitle').textContent = '📷 Ảnh đơn hàng ' + ((ps && ps.invoiceNumber) || (packInvById(invId)||{}).invoiceNumber || '');
+  const hist = packShortHistoryHtml(ps);
+  body.innerHTML = hist + '<div class="pack-note">⏳ Đang tải ảnh…</div>';
   m.classList.add('show');
-  fbPackPhotos.child(invId).once('value').then(snap=>{ body.innerHTML = packPhotoGroupsHtml(snap.val()); })
+  fbPackPhotos.child(invId).once('value').then(snap=>{ body.innerHTML = hist + packPhotoGroupsHtml(snap.val(), ps); })
     .catch(()=>{ body.innerHTML = '<div class="pack-note">Không tải được ảnh — kiểm tra mạng.</div>'; });
 }
 function packPickStaff(id){ if(packPanel){ packPanel.staffId = id; packPanel.pickStaff = false; renderPackPanel(); } }
@@ -10274,6 +10301,10 @@ function packDoPackedSave(){
   const old = packStatusMap()[inv.id];
   const kind = (old && (old.state==='short' || old.state==='partial')) ? 'refill' : 'packed';
   const rec = Object.assign({}, old||{}, packBaseRecord(inv), {state:'packed', packedAt: nowMs()}, packIsUrgent(inv.id) ? {wasUrgent: true, urgentKind: packUrgKind(packUrgentMap()[inv.id])} : {});
+  if(kind==='refill'){ // ✅ lần bù cuối (bù đủ & đóng): lưu các món còn thiếu đã được bù
+    const rest = (old.shortItems||[]).filter(x=>Number(x.missing)>0);
+    rec.refills = (old.refills||[]).concat([{at: nowMs(), by: rec.staffId || '', byName: rec.staffName || '', qty: rest.reduce((a,x)=>a+(Number(x.missing)||0),0), items: rest.map(x=>({label: shortItemLabel(x), qty: Number(x.missing)||0})), final: true}]);
+  }
   packPhotosWrite(inv.id, rec, kind).then(()=>{
     if(old && (old.state==='short' || old.state==='partial')) packChatPost(inv.id, old.state==='partial' ? '✅ Kho đã gửi bù phần còn nợ — đơn đã đủ.' : '✅ Kho đã bù đủ hàng và đóng đơn.', inv.saleId);
     packUrgentDone(inv.id);
