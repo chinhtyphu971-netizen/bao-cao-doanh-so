@@ -8829,17 +8829,33 @@ async function refillSnapShare(){
   copyText(text, '📋 Đã tải ảnh bảng + copy chữ — mở Zalo, gửi ảnh (hoặc dán chữ) vào nhóm');
 }
 // Mỗi phút: máy Quản lý chung / Quản lý kho sau 18h → chụp (1 lần / ngày cho cả hệ thống) + hiện popup (1 lần / ngày / máy)
+// Firebase không cho . # $ [ ] / trong TÊN TRƯỜNG (VD size "S/M") → làm sạch trước khi lưu, tránh lưu hỏng lặng lẽ
+function fbSafeKey(k){ return String(k||'—').replace(/[.#$\[\]\/]/g, '·').slice(0, 200) || '—'; }
+function refillSnapForSave(sn, me){
+  const list = (sn.list||[]).map(g=>{ const vars = {}; Object.keys(g.vars||{}).forEach(k=>{ const kk = fbSafeKey(k); vars[kk] = (vars[kk]||0) + (Number(g.vars[k])||0); });
+    return {code: g.code||'', design: g.design||'', isPrint: !!g.isPrint, qty: Number(g.qty)||0, vars}; });
+  return {at: sn.at, by: (me && me.name) || '', total: sn.total||0, orders: sn.orders||0, list, oosQty: sn.oosQty||0, oosOrders: sn.oosOrders||0};
+}
+let refillSnapPending = null;
 function refillSnapCheck(){
   const me = currentUser(); if(!canSeeRefillSnap(me) || !fbRefillSnaps || !packStatusLoaded) return;
   const now = new Date(nowMs()); if(now.getHours() < REFILL_SNAP_HOUR) return;
   const day = todayStr(); const seenKey = 'refill_snap_seen_' + me.id;
+  // bảng chờ hiện (lúc chụp đang mở cửa sổ khác) → đợi đóng rồi hiện
+  if(refillSnapPending && refillSnapPending.day===day){ if(!document.querySelector('.modal-backdrop.show')){ const sn = refillSnapPending.sn; refillSnapPending = null; refillSnapShow(sn, `🕕 Cần bù cả kho lúc ${packTimeStr(sn.at)} — gửi vào nhóm Zalo`); } return; }
   let seen = ''; try{ seen = localStorage.getItem(seenKey) || ''; }catch(e){}
-  if(seen===day) return;
-  if(document.querySelector('.modal-backdrop.show')) return; // đợi đóng cửa sổ khác
-  try{ localStorage.setItem(seenKey, day); }catch(e){}
-  fbRefillSnaps.child(day).transaction(cur=>{ if(cur) return; const sn = packRefillCompute(); return {at: sn.at, by: me.name||'', total: sn.total, orders: sn.orders, list: sn.list, oosQty: sn.oosQty||0, oosOrders: sn.oosOrders||0}; })
-    .then(res=>{ const v = res && res.snapshot && res.snapshot.val ? res.snapshot.val() : null; const sn = v ? Object.assign({list: []}, v) : packRefillCompute(); refillSnapShow(sn, `🕕 Cần bù cả kho lúc ${packTimeStr(sn.at)} — gửi vào nhóm Zalo`); })
-    .catch(()=>{ refillSnapShow(packRefillCompute()); });
+  if(seen===day || refillSnapCheck._busy) return;
+  refillSnapCheck._busy = true;
+  fbRefillSnaps.child(day).transaction(cur=>{ if(cur) return; return refillSnapForSave(packRefillCompute(), me); })
+    .then(res=>{
+      try{ localStorage.setItem(seenKey, day); }catch(e){} // CHỈ đánh dấu khi lưu thành công (lỗi → phút sau thử lại)
+      const v = res && res.snapshot && res.snapshot.val ? res.snapshot.val() : null;
+      const sn = v ? Object.assign({list: []}, v) : packRefillCompute();
+      if(document.querySelector('.modal-backdrop.show')) refillSnapPending = {day, sn};
+      else refillSnapShow(sn, `🕕 Cần bù cả kho lúc ${packTimeStr(sn.at)} — gửi vào nhóm Zalo`);
+    })
+    .catch(e=>{ console.warn('Chụp 18h lỗi — thử lại sau 1 phút', e); })
+    .finally(()=>{ refillSnapCheck._busy = false; });
 }
 setInterval(()=>{ try{ refillSnapCheck(); }catch(e){} }, 60000);
 // Lịch sử các lần chụp 18h (trang Quản lý đóng hàng — Quản lý chung + Quản lý kho)
@@ -16358,7 +16374,7 @@ function setupRoleScopedListeners(user){
   // Trạng thái đóng hàng: Kho / Bàn đóng gói / Quản lý chung tải hết; Sale chỉ tải của hoá đơn mình (để nhận báo thiếu)
   const psKey = !user ? 'none' : ((r==='general_manager' || isWarehouse) ? 'all' : (invKey.startsWith('mine:') ? 'mine:'+user.id : 'none'));
   attachScoped('packStatus', psKey, psKey==='none' ? null : (psKey==='all' ? fbPackStatus : fbPackStatus.orderByChild('saleId').equalTo(user.id)), (arr)=>{
-    state.packStatus = arr; try{ setTimeout(()=>{ packRefillReadyNotify(); packOosSaleNotify(); packOosPendingCheck(); packOosRenderTile(); if(currentPageId==='packInvoices') refillLiveRender(); }, 400); }catch(e){} // ⛔ báo thiếu → chờ Kho duyệt tạm hết packStatusLoaded = psKey==='all'; cleanupPackPrints();
+    state.packStatus = arr; try{ setTimeout(()=>{ packRefillReadyNotify(); packOosSaleNotify(); packOosPendingCheck(); packOosRenderTile(); if(currentPageId==='packInvoices') refillLiveRender(); }, 400); }catch(e){} /* ⛔ báo thiếu → chờ Kho duyệt tạm hết */ packStatusLoaded = psKey==='all'; cleanupPackPrints();
     if(psKey.startsWith('mine:')){ packCheckSaleNotices(); packCheckDoneNotices(); setTimeout(shipRemindCheck, 1500); }
     else packCheckReplyNotices();
     onDataChanged();
