@@ -4166,6 +4166,7 @@ function onDataChanged(){
   if(state.session && currentUser()){
     checkNewLeadNotifications(); try{ abitIssueCheckNew(); abitDirectAutoShip(); }catch(e){}
     try{ syncPendingInvoiceLeadStatuses(); }catch(e){ console.error(e); }
+    try{ if(currentInvoiceDraft && currentPageId==='invoices') invDraftDeductSync(); }catch(e){}
     // "staffReport", "mktInput" và "invoices" bị loại trừ khỏi việc tự vẽ lại: đây là các trang
     // có form đang gõ/chỉnh dở (nộp báo cáo / nhập data MKT / đang soạn 1 hoá đơn) — nếu cứ có
     // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
@@ -5662,6 +5663,10 @@ function saveInvoiceDraft(afterSave){
   if(err){ showToast(err); return; }
   const done = (typeof afterSave==='function') ? afterSave : null;
   const isNew = !d.id;
+  if(!isNew && invDraftIsStale(d)){ // kho vừa trừ món thiếu sau khi mở → không cho lưu đè bản cũ (sẽ trả lại món đã trừ)
+    askConfirm('Kho vừa trừ món thiếu', 'Hoá đơn đang mở là bản CŨ — kho đã gửi thiếu và tự trừ món thiếu sau khi bạn mở. Lưu bây giờ sẽ TRẢ LẠI các món đã trừ. Bấm Xác nhận để mở bản mới nhất rồi sửa lại.', invDraftReloadLive);
+    return;
+  }
   if(isNew){
     if(invoiceSaving) return; // chặn bấm Lưu 2 lần khi đang xin số HĐ
     invoiceSaving = true;
@@ -6527,7 +6532,7 @@ function productOptionsHtmlFor(selectedCode){
 }
 document.addEventListener('change', e=>{ if(e.target && e.target.closest && e.target.closest('#invoiceEditorWrap')) setTimeout(()=>{ try{ invOosWarnUpdate(); }catch(_){} }, 50); }, true);
 document.addEventListener('input', e=>{ if(e.target && e.target.closest && e.target.closest('#invoiceEditorWrap')) { clearTimeout(window.__oosW); window.__oosW = setTimeout(()=>{ try{ invOosWarnUpdate(); }catch(_){} }, 300); } }, true);
-function renderInvoiceEditor(){ renderInvoiceEditor0(); try{ invOosWarnUpdate(); }catch(e){} }
+function renderInvoiceEditor(){ renderInvoiceEditor0(); try{ invOosWarnUpdate(); }catch(e){} try{ invDeductWarnUpdate(); }catch(e){} }
 function renderInvoiceEditor0(){
   const d = currentInvoiceDraft;
   const wrap = document.getElementById('invoiceEditorWrap');
@@ -9335,14 +9340,104 @@ function packDeductShortPlan(inv, items){
   nv.shortDeducted = (inv.shortDeducted||[]).concat([{at: nowMs(), by: me.id||'', byName: me.name||'', amount, items: removed.map(r=>`${r.qty} ${r.label}`).join(', ')}]);
   return {nv, amount, removed, finalBefore: Number(inv.finalAmount)||0, finalAfter: nv.finalAmount, totalBefore: Number(inv.totalAmount)||0};
 }
-function packApplyDeduct(plan){
-  if(!plan || !fbInvoices) return;
+function packApplyDeduct(plan){ // cập nhật bản trên máy (bản Firebase đã ghi CÙNG LÚC với trạng thái đóng — xem packDeductUpd)
+  if(!plan) return;
   const nv = plan.nv;
   state.invoices = (state.invoices||[]).filter(x=>x.id!==nv.id).concat([nv]);
   if(packExtraInv[nv.id]) packExtraInv[nv.id] = nv;
-  fbInvoices.child(nv.id).set(nv).catch(()=>{});
   try{ syncInvoiceItems(nv); }catch(e){}
   try{ if(nv.depositLink && nv.depositLink.leadId) fbUpdateLead(nv.depositLink.leadId, {closedAmount: nv.totalAmount}); }catch(e){}
+}
+// Chỉ ghi các trường bị trừ (KHÔNG ghi đè cả hoá đơn → không xoá mất liên kết Abit / ảnh cọc máy khác vừa ghi)
+function packDeductUpd(nv){
+  const b = 'invoices/' + nv.id + '/';
+  return {[b+'productGroups']: nv.productGroups, [b+'totalQty']: nv.totalQty, [b+'totalAmount']: nv.totalAmount,
+          [b+'finalAmount']: nv.finalAmount, [b+'shortDeducted']: nv.shortDeducted, [b+'updatedAt']: nv.updatedAt};
+}
+// 🧮 Đơn GỬI THIẾU mà hoá đơn CHƯA bị trừ (máy kho bản cũ / mất mạng giữa chừng / Sale lưu đè bản cũ)
+function packDeductLastAt(inv){ return ((inv && inv.shortDeducted) || []).reduce((a,d)=>Math.max(a, Number(d && d.at)||0), 0); }
+function packNeedsDeduct(inv, ps){
+  if(!inv || !packIsPartial(ps) || ps.deductAt || ps.deductSkip) return false;
+  if(!(ps.shortItems||[]).some(x=>x && Number(x.missing)>0)) return false;
+  const t = Number(ps.partialAt || ps.packedAt || ps.at) || 0;
+  if(!t || nowMs() - t > 20*86400000) return false; // chỉ xét đơn gửi thiếu 20 ngày gần đây
+  return !(packDeductLastAt(inv) >= t - 15*60000); // có lần trừ quanh lúc gửi thiếu → đã trừ
+}
+function packCanFixDeduct(inv){ const me = currentUser() || {}; return ['general_manager','warehouse'].includes(me.role) || (inv && inv.saleId===me.id); }
+function packDeductFixLinkHtml(inv, ps){
+  if(!packNeedsDeduct(inv, ps)) return '';
+  if(!packCanFixDeduct(inv)) return `<div class="pack-sub" style="color:#F0A63A;">🧮 HĐ chưa trừ món thiếu</div>`;
+  return `<div class="pack-sub" style="color:#F0A63A;">🧮 HĐ chưa trừ món thiếu · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); packDeductFix('${inv.id}')">Trừ vào HĐ</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); packDeductSkip('${inv.id}')">đã sửa tay</a></div>`;
+}
+function packDeductFix(invId){
+  const ps = packStatusMap()[invId]; if(!ps || !fbInvoices) return;
+  fbInvoices.child(invId).once('value').then(sn=>{
+    const live = sn.val(); if(!live){ showToast('Không thấy hoá đơn'); return; }
+    live.id = invId;
+    if(!packNeedsDeduct(live, ps)){ showToast('Hoá đơn đã trừ món thiếu rồi.'); return; }
+    const plan = packDeductShortPlan(live, ps.shortItems);
+    if(!plan){ askConfirm('Không còn món để trừ', 'Hoá đơn không còn dòng nào khớp món thiếu (có thể Sale đã sửa tay). Đánh dấu là ĐÃ XỬ LÝ?', ()=>packDeductSkip(invId, true)); return; }
+    const abitNo = live.abit && live.abit.invoice_no;
+    askConfirm('Trừ món thiếu vào hoá đơn ' + (live.invoiceNumber||''),
+      `Sẽ bỏ khỏi hoá đơn: ${plan.removed.map(r=>r.qty + ' ' + r.label).join(', ')} (−${fmtMoney(plan.amount)} đ). Còn phải thu ${fmtMoney(plan.finalBefore)} đ → ${fmtMoney(plan.finalAfter)} đ.${plan.finalAfter < 0 ? ' ⚠ Cọc nhiều hơn tiền hàng: hoàn khách ' + fmtMoney(-plan.finalAfter) + ' đ.' : ''}${abitNo ? ' ⚠ Đơn đã lên Abit (' + abitNo + ') với tiền cũ — nhớ sửa tiền thu hộ trên Abit.' : ''}`,
+      ()=>{
+        const up = packDeductUpd(plan.nv);
+        up['packStatus/' + invId + '/deductAt'] = nowMs(); up['packStatus/' + invId + '/deductAmount'] = plan.amount;
+        up['packStatus/' + invId + '/finalBefore'] = plan.finalBefore; up['packStatus/' + invId + '/finalAfter'] = plan.finalAfter;
+        up['packStatus/' + invId + '/qty'] = plan.nv.totalQty;
+        fbRoot.update(up).then(()=>{
+          packApplyDeduct(plan);
+          packChatPost(invId, `🧮 Đã trừ món thiếu vào hoá đơn ${live.invoiceNumber||''}: ${plan.removed.map(r=>r.qty + ' ' + r.label).join(', ')} (−${fmtMoney(plan.amount)} đ). Còn phải thu ${fmtMoney(plan.finalAfter)} đ.${abitNo ? ' Nhớ sửa tiền thu hộ trên Abit.' : ''}`, live.saleId);
+          showToast('✅ Đã trừ món thiếu vào hoá đơn');
+          packDeductRefreshViews(invId);
+        }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng rồi bấm lại.'));
+      });
+  }).catch(()=>showToast('Chưa tải được hoá đơn — kiểm tra mạng.'));
+}
+function packDeductSkip(invId, noAsk){
+  const go = ()=>fbPackStatus.child(invId).child('deductSkip').set({at: nowMs(), by: (currentUser()||{}).id||'', byName: (currentUser()||{}).name||''}).then(()=>{ showToast('Đã đánh dấu: hoá đơn đã sửa tay'); packDeductRefreshViews(invId); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  if(noAsk) go(); else askConfirm('Hoá đơn đã sửa tay?', 'Chỉ bấm khi Sale ĐÃ tự bỏ các món thiếu khỏi hoá đơn. App sẽ không nhắc trừ đơn này nữa.', go);
+}
+function packDeductRefreshViews(invId){
+  try{ if(currentPageId==='packInvoices') renderPackInvoicesPage(); }catch(e){}
+  try{ invDraftDeductSync(true); }catch(e){}
+}
+// Đang mở hoá đơn mà kho vừa tự trừ món thiếu → bản đang mở là bản CŨ:
+//  - chưa sửa gì → tự nạp bản mới · đã sửa dở → hiện cảnh báo, chặn Lưu đè (xem saveInvoiceDraft)
+function invDraftIsStale(d){
+  if(!d || !d.id) return null;
+  const live = (state.invoices||[]).find(x=>x.id===d.id); if(!live) return null;
+  return packDeductLastAt(live) > packDeductLastAt(d) ? live : null;
+}
+function invDraftDeductSync(force){
+  const d = currentInvoiceDraft; const live = invDraftIsStale(d);
+  if(live && currentPageId==='invoices'){
+    if(!invoiceDraftChanged()){
+      currentInvoiceDraft = JSON.parse(JSON.stringify(live)); renderInvoicesPage(); markInvoiceDraftClean();
+      showToast('📦 Kho vừa gửi thiếu & tự trừ món thiếu — đã cập nhật hoá đơn đang mở.');
+      return;
+    }
+  }
+  invDeductWarnUpdate();
+}
+function invDeductWarnUpdate(){
+  const wrap = document.getElementById('invoiceEditorWrap'); const d = currentInvoiceDraft;
+  let el = document.getElementById('invDeductWarn');
+  let html = '';
+  if(wrap && d && d.id){
+    const live = (state.invoices||[]).find(x=>x.id===d.id) || d; const ps = packStatusMap()[d.id];
+    if(invDraftIsStale(d)) html = `⚠ <b>Kho vừa trừ món thiếu</b> sau khi bạn mở hoá đơn này — bản đang mở là bản CŨ. <a href="#" onclick="event.preventDefault(); invDraftReloadLive()">Mở bản mới nhất</a> rồi sửa lại (lưu bây giờ sẽ bị chặn để không trả lại món đã trừ).`;
+    else if(packNeedsDeduct(live, ps)) html = `🧮 <b>Kho đã GỬI THIẾU</b> (${escHtml(packShortText(ps.shortItems))}) nhưng hoá đơn <b>chưa trừ</b> món thiếu.${packCanFixDeduct(live) ? ` <a href="#" onclick="event.preventDefault(); packDeductFix('${d.id}')">Trừ vào HĐ</a> · <a href="#" onclick="event.preventDefault(); packDeductSkip('${d.id}')">đã sửa tay</a>` : ''}`;
+  }
+  if(!html){ if(el) el.remove(); return; }
+  if(!el){ el = document.createElement('div'); el.id = 'invDeductWarn'; el.className = 'inv-oos-warn no-print'; wrap.insertBefore(el, wrap.firstChild); }
+  el.innerHTML = html;
+}
+function invDraftReloadLive(){
+  const d = currentInvoiceDraft; if(!d || !d.id) return;
+  const live = (state.invoices||[]).find(x=>x.id===d.id); if(!live) return;
+  currentInvoiceDraft = JSON.parse(JSON.stringify(live)); renderInvoicesPage(); markInvoiceDraftClean();
+  showToast('Đã mở bản mới nhất của hoá đơn.');
 }
 // ===================== ĐÓNG HÀNG (Bàn đóng gói) =====================
 // packStatus/{hoáĐơn} = {state:'packed'|'short', at, staffId, staffName, saleId, invoiceNumber, sig,
@@ -9394,7 +9489,7 @@ function packStatusBadgeInner2(inv, pp, ps){
   if(cl){ const me = currentUser() || {}; const pg = packPickProgressOf(inv.id); return `<span class="pack-badge pack-new">📱 ${escHtml(cl.byName||'')} đang nhận</span>${pg && pg.need ? ` <span class="pick-prog ${pg.got>=pg.need ? 'full' : ''}">✓ ${pg.got}/${pg.need}</span>` : ''}<div class="pack-sub">${packClaimMinutes(cl)} phút${['warehouse','general_manager'].includes(me.role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại hàng chờ</a>` : ''}</div>`; }
   const ph = packPhotoCount(ps) ? ` · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); packOpenPhotosViewer('${inv.id}')">📷 ${packPhotoCount(ps)}</a>` : '';
   if(ps && ps.state==='packed' && ps.legacy) return `<span class="pack-badge pack-done">✅ Đã xử lý</span><div class="pack-sub">đơn cũ (trước quy trình)</div>`;
-  if(packIsPartial(ps)) return `<span class="pack-badge pack-partial" title="Khách nhận KHÔNG đủ hàng">⚠️ Gửi thiếu${packMissTotal(ps) ? ' ' + packMissTotal(ps) + ' món' : ''}</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}${packChatLinkHtml(inv.id)}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${shipKhoLine(ps)}`;
+  if(packIsPartial(ps)) return `<span class="pack-badge pack-partial" title="Khách nhận KHÔNG đủ hàng">⚠️ Gửi thiếu${packMissTotal(ps) ? ' ' + packMissTotal(ps) + ' món' : ''}</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ph}${packChatLinkHtml(inv.id)}</span><div class="pack-sub pack-clamp" title="${escHtml(packShortText(ps.shortItems))}">đã trừ: ${escHtml(packShortText(ps.shortItems))}</div>${packDeductFixLinkHtml(inv, ps)}${shipKhoLine(ps)}`;
   if(ps && ps.state==='packed') return `<span class="pack-badge pack-done">✅ Đóng đủ${packWasRefilled(ps) ? '<small> · đã bù</small>' : ''}</span> <span class="pack-sub pack-inline">${packTimeShort(ps.packedAt||ps.at)}${ps.staffName ? ' · '+escHtml(ps.staffName) : ''}${ps.bySale ? ` <b style="color:#8DB4FF;">(${ps.staffId===ps.saleId ? 'Sale tự đóng' : 'Sale đóng hộ'})</b>` : ''}${ph}${packChatLinkHtml(inv.id)}</span>${shipKhoLine(ps)}`;
   if(ps && ps.state==='short'){ const rep0 = ps.shortStaffName || ps.staffName || ''; const clK = packActiveClaimOf(inv.id);
     // GỌN trong bảng: chi tiết món thiếu xem khi bấm Mở
@@ -10104,9 +10199,9 @@ async function stgMigrateOld(){
   }catch(e){ showToast('⚠ Dừng giữa chừng (mạng?) — bấm lại để chuyển tiếp phần còn lại'); }
   stgMigrating = false;
 }
-function packPhotosWrite(invId, rec, kind){
-  const upd = {}; const meta = Object.assign({}, rec.photos || {});
-  const photos = (packPanel.photos||[]).slice();
+function packPhotosWrite(invId, rec, kind, extraUpd){
+  const upd = Object.assign({}, extraUpd || {}); const meta = Object.assign({}, rec.photos || {});
+  const photos = ((packPanel && packPanel.photos)||[]).slice();
   packSetBusy(true);
   return Promise.all(photos.map((p,i)=>{
     const pid = 'ph' + nowMs().toString(36) + i + Math.random().toString(36).slice(2,6);
@@ -10664,7 +10759,7 @@ function packSaleBadgeHtml0(inv){
     const shipPart = ps.ship
       ? `<span class="inv-ol-ship">🚚 ${escHtml(shipShortName(ps.ship.carrier) || 'Đã lên vận đơn')}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : ''} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></span>`
       : `<button class="btn-small btn-primary ship-btn ship-inline" onclick="event.stopPropagation(); shipOpen('${inv.id}')">🚚 Lên vận đơn</button>`;
-    return `<div class="pack-sale-badge warn inv-one-line" title="Kho gửi thiếu — báo khách & sửa hoá đơn bỏ món thiếu">📦 Gửi thiếu ${packTimeShort(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} · <span>trừ ${escHtml(packShortText(ps.shortItems))}${ps.deductAmount ? ` (−${fmtMoney(ps.deductAmount)} đ, HĐ đã tự trừ)` : ''}</span>${phS}</div><div class="inv-one-line" style="margin-top:2px;">${shipPart}${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
+    return `<div class="pack-sale-badge warn inv-one-line" title="Kho gửi thiếu — báo khách & sửa hoá đơn bỏ món thiếu">📦 Gửi thiếu ${packTimeShort(ps.packedAt||ps.partialAt||ps.at)}${ps.staffName ? ' · ' + escHtml(ps.staffName) : ''} · <span>trừ ${escHtml(packShortText(ps.shortItems))}${ps.deductAmount ? ` (−${fmtMoney(ps.deductAmount)} đ, HĐ đã tự trừ)` : ''}</span>${phS}</div>${packDeductFixLinkHtml(inv, ps)}<div class="inv-one-line" style="margin-top:2px;">${shipPart}${packChatBtnHtml(inv.id)}${packZaloBtnHtml(inv.id)}</div>`;
   }
   if(ps.state==='packed' && !ps.legacy && inv.abit){ const base0 = packSaleBadgeHtmlPacked(inv, ps); return base0.replace(/<\/div>/, abitTagHtml(inv) + '</div>'); }
   return packSaleBadgeHtmlPacked(inv, ps);
@@ -10810,20 +10905,25 @@ function packDoPartial(){
   }
   const go = ()=>packNeedPhotos(()=>{
     const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
-    const plan = packDeductShortPlan(inv, ps.shortItems);
-    const rec = Object.assign({}, ps, packBaseRecord(inv), {state:'packed', shortSent:true, packedAt: nowMs(), partialAt: nowMs()},
-      plan ? {deductAmount: plan.amount, finalBefore: plan.finalBefore, finalAfter: plan.finalAfter} : {});
-    if(plan) rec.qty = plan.nv.totalQty;
-    packPhotosWrite(inv.id, rec, 'partial').then(()=>{
-      packApplyDeduct(plan); // tự trừ món thiếu khỏi hoá đơn (giữ đơn giá cũ)
-      const money = plan ? ` Hoá đơn đã TỰ TRỪ ${fmtMoney(plan.amount)} đ — còn phải thu ${fmtMoney(plan.finalBefore)} đ → ${fmtMoney(plan.finalAfter)} đ.${plan.finalAfter < 0 ? ' ⚠ Cọc nhiều hơn tiền hàng: HOÀN LẠI KHÁCH ' + fmtMoney(-plan.finalAfter) + ' đ.' : ''}` : '';
+    let plan = null; packSetBusy(true);
+    // Đọc hoá đơn MỚI NHẤT trên Firebase rồi trừ → ghi trừ hoá đơn + trạng thái đóng CÙNG 1 LẦN (không thể có "đã đóng thiếu" mà HĐ chưa trừ)
+    fbInvoices.child(inv.id).once('value').then(sn=>{
+      const live = sn.val() ? Object.assign({}, sn.val(), {id: inv.id}) : inv;
+      plan = packNeedsDeduct(live, Object.assign({}, ps, {state:'packed', shortSent:true, partialAt: nowMs()})) ? packDeductShortPlan(live, ps.shortItems) : null;
+      const rec = Object.assign({}, ps, packBaseRecord(live), {state:'packed', shortSent:true, packedAt: nowMs(), partialAt: nowMs()},
+        plan ? {deductAt: nowMs(), deductAmount: plan.amount, finalBefore: plan.finalBefore, finalAfter: plan.finalAfter} : {});
+      if(plan) rec.qty = plan.nv.totalQty;
+      return packPhotosWrite(inv.id, rec, 'partial', plan ? packDeductUpd(plan.nv) : null);
+    }).then(()=>{
+      packApplyDeduct(plan); // bản trên máy (Firebase đã ghi cùng lúc ở trên)
+      const money = plan ? ` Hoá đơn đã TỰ TRỪ ${fmtMoney(plan.amount)} đ — còn phải thu ${fmtMoney(plan.finalBefore)} đ → ${fmtMoney(plan.finalAfter)} đ.${plan.finalAfter < 0 ? ' ⚠ Cọc nhiều hơn tiền hàng: HOÀN LẠI KHÁCH ' + fmtMoney(-plan.finalAfter) + ' đ.' : ''}` : ' ⚠ Hoá đơn KHÔNG còn dòng khớp món thiếu để tự trừ — Sale kiểm tra lại hoá đơn.';
       packChatPost(inv.id, `📦 Kho đã GỬI THIẾU (không gửi bù). Đã trừ: ${packShortText(ps.shortItems)}.${money} Bạn báo khách nhé.`, inv.saleId);
       packUrgentDone(inv.id);
       packBeep(true); packFlash(`📦 ĐÃ ĐÓNG · GỬI THIẾU<br><small>${escHtml(inv.invoiceNumber)}</small>`, 'warn');
       const shareId = inv.id;
       packAfterActionNoCam();
       setTimeout(()=>packAskShareZalo(shareId), 400);
-    }).catch(e=>{ console.error(e); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
+    }).catch(e=>{ console.error(e); packSetBusy(false); showToast('Lỗi lưu — kiểm tra mạng rồi bấm lại.'); });
   });
   if(!(packHasReply(ps) && ps.saleReply.choice==='partial')) askConfirm('Sale chưa đồng ý gửi thiếu', 'Sale chưa chọn "Gửi thiếu, không bù". Vẫn đóng gửi phần đang có và TRỪ phần thiếu (không gửi bù)?', go);
   else go();
