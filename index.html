@@ -1661,6 +1661,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .tbl-line{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:300px; }
   .tbl-reply{ color:var(--ink-soft); font-weight:600; text-decoration:underline dotted; cursor:pointer; }
   .tbl-reply.ok{ color:#6FD99A; }
+  .roq-row{ border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .roq-row .roq-t{ font-weight:800; font-size:15px; }
+  .roq-row .roq-s{ font-size:12.5px; color:var(--ink-soft); margin:2px 0 8px; }
+  .roq-btns{ display:flex; gap:6px; }
+  .roq-btns button{ flex:1; padding:10px 6px; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; }
+  .roq-btns button.on.many{ background:rgba(60,190,110,.18); border-color:#3CBE6E; color:#7BE0A0; }
+  .roq-btns button.on.one{ background:rgba(240,166,58,.16); border-color:#F0A63A; color:#F6C27A; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
@@ -3646,6 +3653,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 <!-- Kho: Sale vừa sửa đơn đang làm -->
+<div class="modal-backdrop" id="refillOosModal" style="z-index:93;">
+  <div class="modal" style="max-width:440px;">
+    <h2>⛔ Món bạn vừa bù đang báo TẠM HẾT</h2>
+    <p style="margin:4px 0 10px;">Trong kho còn <b>nhiều</b> không, hay chỉ có <b>vừa đủ</b> cho đơn này?</p>
+    <div id="refillOosBody"></div>
+    <div class="actions"><button class="btn-ghost" onclick="packRefillOosCancel()">Huỷ</button><button class="btn-primary" id="refillOosGoBtn" onclick="packRefillOosGo()">Lưu tiếp</button></div>
+  </div>
+</div>
 <div class="modal-backdrop" id="packChangeModal">
   <div class="modal" style="max-width:420px;">
     <h2>✏️ Sale vừa sửa đơn bạn đang làm</h2>
@@ -8314,8 +8329,16 @@ function packOosOpen(){
         return `<div class="oos-group"><div class="oos-ghead"><b>${escHtml(code)}</b> <span class="goal-hint">${arr.length} mục</span> ${nWait ? `<span class="oos-cnt">${nWait} đơn chờ</span><span class="oos-qty">cần ${qWait} cái</span>` : ''}
             ${can ? `<button class="btn-primary btn-small" style="margin-left:auto;" onclick="packOosRemoveCode('${escHtml(code)}')">✅ Có hàng lại cả mã ${escHtml(code)}</button>` : ''}</div>
           ${arr.map(row).join('')}</div>`; }).join(''); })()}</div>
+    ${can ? `<details class="oos-log" ontoggle="if(this.open) packOosLogLoad()"><summary class="goal-hint" style="cursor:pointer; margin-top:10px;">🕘 Người bù trả lời gần đây (còn nhiều / vừa đủ)</summary><div id="oosLogBody" class="goal-hint">⏳ Đang tải…</div></details>` : ''}
     <div class="actions"><button class="btn-ghost" onclick="loyalCloseModal()">Đóng</button></div>`;
   loyalShowModal();
+}
+function packOosLogLoad(){ // chỉ tải khi bấm mở — 15 dòng gần nhất
+  fbRoot.child('packOosLog').orderByChild('at').limitToLast(15).once('value').then(sn=>{
+    const el = document.getElementById('oosLogBody'); if(!el) return;
+    const arr = Object.values(sn.val()||{}).sort((a,b)=>(b.at||0)-(a.at||0));
+    el.innerHTML = arr.length ? arr.map(x=>`<div style="padding:3px 0;">${packTimeShort(x.at)} · <b>${escHtml(x.byName||'')}</b> bù ${x.qty||''} ${escHtml([x.code, x.color].filter(Boolean).join(' '))}${x.inv ? ' (HĐ ' + escHtml(x.inv) + ')' : ''} → ${x.d==='many' ? '<b style="color:#7BE0A0;">📦 còn nhiều · đã bật có hàng lại</b>' : '<b style="color:#F6C27A;">🤏 vừa đủ · vẫn tạm hết</b>'}</div>`).join('') : 'Chưa có.';
+  }).catch(()=>{ const el = document.getElementById('oosLogBody'); if(el) el.textContent = 'Chưa tải được.'; });
 }
 // ----- ⛔ BÁO THIẾU → QUẢN LÝ KHO DUYỆT "TẠM HẾT" -----
 // Món trong các lần báo thiếu (3 ngày gần đây) chưa có trong danh sách tạm hết & chưa duyệt → chờ Kho / Quản lý chung duyệt.
@@ -9215,6 +9238,49 @@ function packScanTypeGo(){
 // ----- Cập nhật đơn đang thiếu (bù dần từng phần) — KHÔNG bắt chụp ảnh -----
 // Giảm số thiếu ở dòng đã bù được → lưu. Người bù được ghi nhận số sp đã bù (refills) để tính thống kê.
 // Giữ nguyên lúc báo thiếu + câu trả lời của Sale. Bù hết (thiếu = 0) → bấm "Bù đủ · Đóng" (lúc này mới cần ảnh).
+// ===== ⛔ BÙ HÀNG mà món đó đang báo TẠM HẾT → hỏi người bù: còn NHIỀU (bật có hàng lại luôn) hay chỉ VỪA ĐỦ đơn này (vẫn tạm hết) =====
+// Ai bù cũng trả lời được (không cần chờ Kho trưởng). Ghi lại packOosLog để Kho trưởng xem ai bật lại, lúc nào, đơn nào.
+let packRefillOosQ = null;
+function packRefillOosHits(items){ // items: [{code,color,size,qty}] — món VỪA BÙ lần này
+  const hit = {};
+  (items||[]).forEach(x=>{ const q = Number(x.qty)||0; if(!q || !x.code) return; const o = packOosMatch(x); if(!o) return;
+    const h = hit[o.id] || (hit[o.id] = {o, qty:0, sizes:{}}); h.qty += q; if(x.size) h.sizes[x.size] = (h.sizes[x.size]||0) + q; });
+  return Object.values(hit);
+}
+function packRefillOosAsk(items, done){
+  const hits = packRefillOosHits(items); if(!hits.length){ done(); return; }
+  packRefillOosQ = {hits, ans:{}, done};
+  packRefillOosRender(); document.getElementById('refillOosModal').classList.add('show');
+  try{ playTingSound(); }catch(e){}
+}
+function packRefillOosRender(){
+  const q = packRefillOosQ; if(!q) return;
+  document.getElementById('refillOosBody').innerHTML = q.hits.map((h,i)=>{ const a = q.ans[i]; const sz = Object.entries(h.sizes).map(([k,v])=>`${k}×${v}`).join(', ');
+    return `<div class="roq-row"><div class="roq-t">${escHtml(packOosLabel(h.o))}</div>
+      <div class="roq-s">Bạn vừa bù <b>${h.qty}</b> cái${sz ? ' (' + escHtml(sz) + ')' : ''}${h.o.note ? ' · ' + escHtml(h.o.note) : ''}${h.o.byName ? ' · báo hết: ' + escHtml(h.o.byName) : ''}</div>
+      <div class="roq-btns"><button class="many ${a==='many' ? 'on' : ''}" onclick="packRefillOosPick(${i},'many')">📦 Còn nhiều<br><small>bật CÓ HÀNG LẠI</small></button>
+      <button class="one ${a==='one' ? 'on' : ''}" onclick="packRefillOosPick(${i},'one')">🤏 Chỉ vừa đủ đơn này<br><small>vẫn TẠM HẾT</small></button></div></div>`; }).join('');
+  const all = q.hits.every((h,i)=>q.ans[i]); const b = document.getElementById('refillOosGoBtn'); b.disabled = !all; b.style.opacity = all ? '' : '.5';
+}
+function packRefillOosPick(i, v){ if(packRefillOosQ){ packRefillOosQ.ans[i] = v; packRefillOosRender(); } }
+function packRefillOosCancel(){ packRefillOosQ = null; document.getElementById('refillOosModal').classList.remove('show'); }
+function packRefillOosGo(){
+  const q = packRefillOosQ; if(!q || !q.hits.every((h,i)=>q.ans[i])) return;
+  const me = currentUser() || {}; const who = (packPanel && packStaffName(packPanel.staffId)) || me.name || '';
+  const inv = packPanel ? packInvById(packPanel.invId) : null; const now = nowMs();
+  const up = {}, back = [], n = Object.assign({}, packOos);
+  q.hits.forEach((h,i)=>{
+    const d = q.ans[i];
+    up['packOosLog/' + 'l' + uid()] = {code: h.o.code, color: h.o.color || null, d, qty: h.qty, inv: (inv && inv.invoiceNumber) || '', by: me.id || '', byName: who, at: now};
+    if(d==='many'){ (h.o.ids || [h.o.id]).forEach(id=>{ up['packOos/' + id] = null; delete n[id]; }); back.push(h.o); }
+  });
+  if(back.length){
+    packOos = n;
+    try{ packMarkRefillReady(x=>back.some(o=>oosNorm(x.code)===oosNorm(o.code) && (!o.color || oosNorm(x.color)===oosNorm(o.color)))); }catch(e){}
+  }
+  fbRoot.update(up).then(()=>{ if(back.length) showToast(`✅ Đã bật CÓ HÀNG LẠI: ${back.map(packOosLabel).join(', ')}`); }).catch(()=>showToast('Chưa lưu được trạng thái tạm hết — kiểm tra mạng'));
+  const done = q.done; packRefillOosCancel(); done();
+}
 function packSaveShortEdit(inv, old, items){
   if(!items.length){
     packPanel.mode = 'view'; renderPackPanel(); packBeep(true);
@@ -9227,6 +9293,10 @@ function packSaveShortEdit(inv, old, items){
   let refilled = 0, more = 0;
   Object.keys(Object.assign({}, oldMap, newMap)).forEach(k=>{ const d = (oldMap[k]||0) - (newMap[k]||0); if(d>0) refilled += d; else more += -d; });
   if(!refilled && !more && String(packPanel.note||'').trim()===String(old.note||'')){ packPanel.mode = 'view'; renderPackPanel(); showToast('Không có gì thay đổi.'); return; }
+  if(refilled && !packPanel._oosAsked){ // ⛔ món vừa bù đang tạm hết → hỏi còn nhiều không
+    const ri = Object.keys(oldMap).map(k=>{ const x = (old.shortItems||[]).find(s=>s && s.key===k) || {}; return {code: x.code, color: x.color, size: x.size, qty: (oldMap[k]||0) - (newMap[k]||0)}; }).filter(x=>x.qty>0);
+    if(packRefillOosHits(ri).length){ packRefillOosAsk(ri, ()=>{ if(!packPanel) return; packPanel._oosAsked = true; packSaveShortEdit(inv, old, items); if(packPanel) packPanel._oosAsked = false; }); return; }
+  }
   const now = nowMs();
   const missOrig = (old.missOrig!=null ? Number(old.missOrig) : (old.shortItems||[]).reduce((a,x)=>a+(Number(x.missing)||0),0)) + more;
   const rec = Object.assign({}, old, {shortItems: items, note: String(packPanel.note||'').trim(), at: now, missOrig});
@@ -10419,6 +10489,13 @@ function packDoPacked(){
     if(ch.remove.length){
       askConfirm('Đã lấy món thừa ra khỏi gói chưa?', 'Sale đã đổi / bớt: ' + ch.remove.map(r=>`${r.qty} ${r.label}`).join(', ') + '. Lấy ra rồi mới đóng.', ()=>{ packPanel._outOk = true; packDoPacked(); });
       return;
+    }
+  }
+  if(packPanel && !packPanel._oosAsked && !packPanel.viewOnly && (currentUser()||{}).role!=='general_manager'){ // ⛔ bù đủ mà có món đang tạm hết → hỏi còn nhiều không
+    const ps0 = packStatusMap()[packPanel.invId];
+    if(ps0 && ps0.state==='short'){
+      const rest = (ps0.shortItems||[]).filter(x=>x && Number(x.missing)>0).map(x=>({code: x.code, color: x.color, size: x.size, qty: Number(x.missing)}));
+      if(packRefillOosHits(rest).length){ packRefillOosAsk(rest, ()=>{ if(!packPanel) return; packPanel._oosAsked = true; packDoPacked(); }); return; }
     }
   }
   if(packPanel && !packPanel._pkgOk && !packPanel.viewOnly && (currentUser()||{}).role!=='general_manager' && packOnline && !packSaving){
