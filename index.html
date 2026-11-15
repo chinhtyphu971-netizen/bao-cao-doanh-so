@@ -3845,6 +3845,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <input id="editUserAbit" placeholder="Đúng tên người này dùng để đăng nhập Abit, VD: demo" autocomplete="off" autocapitalize="off" spellcheck="false">
       <div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Có tài khoản → đơn của người này tự đẩy sang Abit khi kho đóng xong, đúng tên nhân viên. Để trống → không tự đẩy.</div>
     </div>
+    <label class="field" id="editUserNoReportRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
+      <input type="checkbox" id="editUserNoReport" style="width:auto; min-height:0;">
+      <span>📋 <b>Không cần làm báo cáo</b> <span style="color:var(--ink-soft); font-size:12px;">(nick test / người không làm báo cáo — không hiện "chưa nộp", không bị khoá nhập data)</span></span>
+    </label>
     <label class="field" id="editUserCanPackersRow" style="display:none; flex-direction:row; align-items:center; gap:8px; cursor:pointer;">
       <input type="checkbox" id="editUserCanPackers" style="width:auto; min-height:0;">
       <span>🔑 Được tạo / quản lý tài khoản <b>Nhân viên đóng gói</b></span>
@@ -12486,7 +12490,7 @@ function mraDatesInRange(){
 }
 function mraScopeMembers(){
   const me = currentUser();
-  let users = state.users.filter(u=>u.role==='mkt' || u.role==='mkt_manager');
+  let users = state.users.filter(u=>(u.role==='mkt' || u.role==='mkt_manager') && !userNoReport(u));
   if(me && me.role==='mkt_manager') users = users.filter(u=>u.mktBranchId && u.mktBranchId===me.mktBranchId);
   else if(mraTeam) users = users.filter(u=>(u.mktBranchId||'')===mraTeam);
   if(mraMember) users = users.filter(u=>u.id===mraMember);
@@ -13794,7 +13798,7 @@ function mktYesterday(){ const d = new Date(nowMs()); d.setDate(d.getDate()-1); 
 // Các ngày MKT PHẢI có báo cáo: từ ngày bắt đầu tính (01/10/2026, hoặc NGÀY TẠO TÀI KHOẢN nếu là người
 // mới vào sau) cho tới HÔM QUA. Thiếu bất kỳ ngày nào → khoá Nhập data.
 function mktMissingReportDates(user){
-  if(!user || !['mkt','mkt_manager'].includes(user.role)) return [];
+  if(!user || !['mkt','mkt_manager'].includes(user.role) || userNoReport(user)) return [];
   if(!mktReportsLoaded) return []; // chưa tải xong báo cáo → không khoá vội
   let start = MKT_REPORT_LOCK_FROM;
   if(user.createdAt){ const c = toLocalDateStr(new Date(user.createdAt)); if(c > start) start = c; }
@@ -19905,7 +19909,7 @@ function updateReportDeadlineBar(){
   const bar = document.getElementById('reportDeadlineBar'); if(!bar) return;
   const u = currentUser();
   const hide = ()=>{ bar.style.display = 'none'; };
-  if(!u || !['staff','team_manager'].includes(u.role)) return hide();
+  if(!u || !['staff','team_manager'].includes(u.role) || userNoReport(u)) return hide();
   const today = todayStr();
   if(myReportForDate(u.id, today)) return hide();        // đã nộp → không nhắc nữa
   if(currentPageId==='staffReport') return hide();         // đang ở trang nộp báo cáo
@@ -19942,7 +19946,7 @@ function renderReportDeadlineStats(scope){
   let end = `${rdlStatsMonth}-${String(lastDay).padStart(2,'0')}`;
   const capEnd = nowPastDeadline ? todayStr() : toLocalDateStr(new Date(nowMs()-86400000));
   if(end > capEnd) end = capEnd;
-  const users = reportableUsersInBranch(scope);
+  const users = reportableUsersInBranch(scope).filter(u=>!userNoReport(u));
   const rows = users.map(u=>{
     let start = first; if(u.createdAt){ const c = toLocalDateStr(new Date(u.createdAt)); if(c > start) start = c; }
     let ok = 0, late = 0, miss = 0; const lateDays = [], missDays = [];
@@ -19993,6 +19997,7 @@ function toggleResign(userId){
     renderMgrSettings();
   });
 }
+function userNoReport(u){ return !!(u && u.noReport); } // 📋 Quản lý chung tick "Không cần làm báo cáo" (nick test…)
 function reportableUsersInBranch(branchId){
   return state.users.filter(u=>(u.role==='staff' || u.role==='team_manager') && (!branchId || u.branchId===branchId));
 }
@@ -20107,7 +20112,7 @@ function renderMgrDashboard(){
   document.getElementById('mgrReminderTitle').textContent = isReminderToday
     ? 'Hôm nay còn ai chưa nộp báo cáo?'
     : `Ngày ${fmtDate(reminderDate)} còn ai chưa nộp báo cáo?`;
-  const staff=reportableUsersInBranch(scope).filter(u=>!userInactive(u) || (userInactiveDate(u) && reminderDate < userInactiveDate(u)) || myReportForDate(u.id, reminderDate)); // 🚪 người đã nghỉ việc không bị nhắc
+  const staff=reportableUsersInBranch(scope).filter(u=>!userNoReport(u)).filter(u=>!userInactive(u) || (userInactiveDate(u) && reminderDate < userInactiveDate(u)) || myReportForDate(u.id, reminderDate)); // 🚪 người đã nghỉ việc không bị nhắc
   const notSubmitted = staff.filter(u=>!myReportForDate(u.id, reminderDate));
   const lateUsers = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && reportIsLate(r); });
   const submitted = staff.filter(u=>{ const r = myReportForDate(u.id, reminderDate); return r && !reportIsLate(r); });
@@ -21557,6 +21562,8 @@ function openEditUserModal(userId){
   const me0 = currentUser();
   document.getElementById('editUserAbitRow').style.display = (me0 && me0.role==='general_manager') ? 'block' : 'none'; // mọi tài khoản tự lên hoá đơn
   document.getElementById('editUserAbit').value = u.abitAccount || '';
+  document.getElementById('editUserNoReportRow').style.display = (me0 && me0.role==='general_manager' && ['staff','team_manager','mkt','mkt_manager'].includes(u.role)) ? 'flex' : 'none';
+  document.getElementById('editUserNoReport').checked = !!u.noReport;
   document.getElementById('editUserCanPackersRow').style.display = (me0 && me0.role==='general_manager' && u.role==='warehouse') ? 'flex' : 'none';
   document.getElementById('editUserCanPackers').checked = !!u.canManagePackers;
   document.getElementById('editUserCanDepositsRow').style.display = document.getElementById('editUserCanPackersRow').style.display;
@@ -21599,6 +21606,9 @@ function saveEditUser(){
   if(document.getElementById('editUserAbitRow').style.display!=='none'){
     const newAbit = (document.getElementById('editUserAbit').value || '').trim();
     u.abitAccount = newAbit; patch.abitAccount = newAbit || null;
+  }
+  if(document.getElementById('editUserNoReportRow').style.display!=='none'){
+    u.noReport = !!document.getElementById('editUserNoReport').checked; patch.noReport = u.noReport || null;
   }
   if(document.getElementById('editUserCanPackersRow').style.display!=='none'){
     u.canManagePackers = !!document.getElementById('editUserCanPackers').checked;
