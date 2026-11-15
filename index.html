@@ -2707,7 +2707,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           </div>
           <div id="shipLockedBox"></div>
           <div class="pack-toolbar">
-            <select id="packStatusSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
+            <select id="packStatusSel" onchange="packFilterSync('status'); packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="open" selected>📦 Chưa đóng</option>
               <option value="new">🆕 Chưa in</option>
               <option value="claimed">📱 Đang được nhận</option>
@@ -2731,8 +2731,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
             <span id="packCustomRange" class="pack-range" style="display:none;">
               <input id="packFrom" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Từ ngày"> → <input id="packTo" type="date" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Đến ngày">
             </span>
-            <select id="packShipSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo việc Sale lên vận đơn"><option value="">🚚 Vận đơn: tất cả</option></select>
-            <select id="packDelivSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo trạng thái giao hàng Abit báo về"><option value="">📍 Giao hàng: tất cả</option></select>
+            <select id="packShipSel" onchange="packFilterSync('ship'); packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo việc Sale lên vận đơn"><option value="">🚚 Vận đơn: tất cả</option></select>
+            <select id="packDelivSel" onchange="packFilterSync('deliv'); packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()" title="Lọc đơn đã đóng theo trạng thái giao hàng Abit báo về"><option value="">📍 Giao hàng: tất cả</option></select>
             <select id="packSaleSel" onchange="packSelected.clear(); pagerPages.packInv=1; renderPackInvoicesPage()"><option value="">👤 Tất cả Sale</option></select>
             <select id="packSortSel" onchange="pagerPages.packInv=1; renderPackInvoicesPage()">
               <option value="asc">↑ Cọc cũ trước</option>
@@ -7038,7 +7038,17 @@ function packItemsSummaryHtml(inv){
   });
   return parts.join('<span class="pack-sep"> · </span>') || '<span style="color:var(--ink-soft);">—</span>';
 }
+// Lọc "Vận đơn" / "Giao hàng" chỉ có nghĩa với đơn ĐÃ ĐÓNG → chọn 2 lọc này thì Trạng thái tự về "Tất cả";
+// chọn lại trạng thái CHƯA đóng (Chưa đóng, Chờ bù…) thì tự bỏ 2 lọc kia (tránh kết quả 0 đơn khó hiểu)
+function packFilterSync(which){
+  const st = document.getElementById('packStatusSel'), sh = document.getElementById('packShipSel'), dv = document.getElementById('packDelivSel');
+  const packedOk = v=>['all','packed','partial'].includes(v);
+  if(which==='status'){ if(st && !packedOk(st.value)){ if(sh) sh.value = ''; if(dv) dv.value = ''; } return; }
+  const el = which==='ship' ? sh : dv;
+  if(el && el.value && st && !packedOk(st.value)) st.value = 'all';
+}
 function packCurrentList(){
+  { const sh = document.getElementById('packShipSel'), dv = document.getElementById('packDelivSel'); if((sh && sh.value) || (dv && dv.value)) packFilterSync(sh && sh.value ? 'ship' : 'deliv'); }
   const map = packPrintMap();
   const statusSel = document.getElementById('packStatusSel');
   const rangeSel = document.getElementById('packRangeSel');
