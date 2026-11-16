@@ -18293,11 +18293,11 @@ function goalTierAnnounce(){
   }, i*4500));
   if(currentPageId==='goals') try{ renderGoalsPage(); }catch(e){}
 }
-function goalTierPop(html, p){
+function goalTierPop(html, p, ms){
   const el = document.createElement('div'); el.className = 'goal-tier-pop gt' + p; el.innerHTML = html + '<span class="gtp-x">✕</span>';
   el.onclick = ()=>el.remove(); document.body.appendChild(el);
   try{ playTingSound(); }catch(e){}
-  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(), 600); }, 9000);
+  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(), 600); }, ms || 9000);
 }
 function goalNudgeListen(user){
   if(goalNudgeSub){ try{ goalNudgeSub.off(); }catch(e){} goalNudgeSub = null; }
@@ -18410,12 +18410,21 @@ function goalCalc(uid, m, dep, asOf){ // asOf: tính số liệu ngày/tuần th
   const remDays = goalWorkDays(m, today, end).length;
   const todayWork = goalWorkDays(m, today, today).length===1;
   r.remDays = remDays; r.todayOff = !todayWork;
-  // 🏅 Đã đủ mục tiêu tháng → mục tiêu ngày/tuần tính tiếp theo MỐC KẾ TIẾP (120% → 150% → 200% → +50%…), không về 0
-  const aimFor = done=>{ if(!amount) return {amt: 0, p: 100}; let p = 100; const nextP = x=>x<120 ? 120 : (x<150 ? 150 : (x<200 ? 200 : x+50));
-    while(amount * p / 100 <= done && p < 2000) p = nextP(p); return {amt: amount * p / 100, p}; };
-  const aimD = aimFor(before(today));
-  r.aimTier = aimD.p; // 100 = mục tiêu gốc · 120/150/200… = đang hướng tới mốc vượt
-  r.todayTarget = (amount && todayWork && remDays) ? goalRoundUp(Math.max(0, aimD.amt - before(today)) / remDays) : 0;
+  // 🚀 ĐÃ ĐỦ MỤC TIÊU → HỆ THỐNG TỰ NÂNG: giữ NHỊP NGÀY ban đầu (mục tiêu ÷ số ngày làm cả tháng) × số ngày làm CÒN LẠI.
+  //    Lưu goals/{tháng}/{người}/raised = {amount, at, n, prev, daily} (ghi 1 lần mỗi lần nâng) → báo cho Sale kèm lời động viên.
+  const wdAll = goalWorkDays(m, start, end).length;
+  const baseDaily = amount && wdAll ? amount / wdAll : 0;
+  const stored = g && g.raised && Number(g.raised.amount) > amount ? Number(g.raised.amount) : 0;
+  const curAim = Math.max(amount, stored);
+  const remAfter = remDays - (todayWork ? 1 : 0);
+  if(stored) r.missing = Math.max(0, stored - achieved); // còn thiếu tính theo mục tiêu đã nâng
+  r.baseDaily = goalRoundUp(baseDaily); r.raised = stored; r.raiseN = stored ? (Number(g.raised.n)||1) : 0;
+  const bT = before(today);
+  if(amount && r.isCurrent && !asOf && achieved >= curAim && remAfter > 0) // cần nâng (chưa ghi): vượt từ hôm trước → tính cả hôm nay; vượt trong hôm nay → từ mai
+    r.raiseTo = goalRoundUp(Math.max(achieved + baseDaily * remAfter, bT >= curAim ? bT + baseDaily * remDays : 0));
+  const aimD = (amount && bT >= curAim) ? bT + baseDaily * remDays : curAim; // đã vượt từ hôm trước mà chưa ghi nâng → vẫn giữ nhịp ngày
+  r.aimRaised = aimD > amount;
+  r.todayTarget = (amount && todayWork && remDays) ? goalRoundUp(Math.max(0, aimD - bT) / remDays) : 0;
   r.todayAchieved = byDay[today] || 0;
   // Tuần này (Thứ 2 → Chủ nhật, cắt trong tháng & từ ngày bắt đầu)
   const monday = goalAddDays(today, -((goalDateObj(today).getDay()+6)%7));
@@ -18423,8 +18432,8 @@ function goalCalc(uid, m, dep, asOf){ // asOf: tính số liệu ngày/tuần th
   const ws = monday > start ? monday : start, we = sunday < end ? sunday : end;
   const remWs = goalWorkDays(m, ws, end).length, wkDays = goalWorkDays(m, ws, we).length;
   r.weekFrom = ws; r.weekTo = we;
-  const aimW = aimFor(before(ws)); r.weekAimTier = aimW.p;
-  r.weekTarget = (amount && remWs) ? goalRoundUp(Math.max(0, aimW.amt - before(ws)) / remWs * wkDays) : 0;
+  const bW = before(ws); const aimW = (amount && bW >= curAim) ? bW + baseDaily * remWs : curAim; r.weekRaised = aimW > amount;
+  r.weekTarget = (amount && remWs) ? goalRoundUp(Math.max(0, aimW - bW) / remWs * wkDays) : 0;
   r.weekAchieved = sum(ws, we); // ngày tương lai chưa có cọc nên cộng tới cuối tuần cũng đúng
   return r;
 }
@@ -18535,14 +18544,31 @@ function goalMiniChartHtml(achieved, target, p){
   const doneColor = (p!==null && p>=100) ? '#37C878' : GOAL_C_DONE;
   return `<div class="gp-chart" role="img" aria-label="Mục tiêu ${goalMoney(t)}, đã đạt ${goalMoney(a)}">${col(t, GOAL_C_TARGET, 'Mục tiêu')}${col(a, doneColor, 'Đã đạt')}</div>`;
 }
-function goalAimTag(p){ return p > 100 ? ` <span class="goal-aim" title="Đã đủ mục tiêu tháng — mục tiêu tính tiếp theo mốc ${p}%">→ mốc ${p}%</span>` : ''; }
+function goalAimTag(on){ return on ? ` <span class="goal-aim" title="Đã đủ mục tiêu tháng — hệ thống tự nâng, giữ nhịp ngày như ban đầu">↑ nâng</span>` : ''; }
+// 🚀 Ghi lần nâng mục tiêu (máy Sale tự ghi · máy Quản lý chung ghi hộ) — giao dịch: ai ghi trước thì thôi
+function goalRaiseRecord(u, m, c){
+  if(!u || !c || !c.raiseTo || !fbRoot || m!==goalCurMonth()) return;
+  const k = 'grs_' + m + u.id + c.raiseTo; if(goalRaiseRecord[k]) return; goalRaiseRecord[k] = 1;
+  const ach = c.achieved, prev = Math.max(c.amount, c.raised||0);
+  fbRoot.child(`goals/${m}/${u.id}/raised`).transaction(old=>(old && Number(old.amount) > ach) ? undefined
+    : {amount: c.raiseTo, at: nowMs(), n: ((old && Number(old.n)) || 0) + 1, prev, daily: c.baseDaily}).catch(()=>{ delete goalRaiseRecord[k]; });
+}
+const GOAL_CHEERS = ['Phong độ này mà giữ đều thì tháng này phá kỷ lục luôn! 💪', 'Bạn đang là động lực của cả team đó — cứ thế mà tiến! 🔥',
+  'Mục tiêu cũ đã chinh phục, giờ là lúc vượt giới hạn của chính mình! 🚀', 'Mỗi đơn hôm nay là một bước lên mốc mới — cố lên nhé! 🌟',
+  'Đã làm được 1 lần thì làm được lần nữa — giữ lửa nha! 🔥', 'Khách tin bạn, team tin bạn — tiếp tục toả sáng nào! ✨'];
+function goalRaiseNotify(me, m, g){
+  const rz = g && g.raised; if(!rz || !rz.at || nowMs() - Number(rz.at) > 3*86400000) return;
+  const k = 'goal_raise_seen_' + m + '_' + me.id + '_' + rz.at; try{ if(localStorage.getItem(k)) return; localStorage.setItem(k, '1'); }catch(e){ return; }
+  const cheer = GOAL_CHEERS[Math.floor(Math.random()*GOAL_CHEERS.length)];
+  setTimeout(()=>goalTierPop(`🚀 <b>Bạn đã vượt mục tiêu ${goalMoney(Number(rz.prev)||Number(g.amount)||0)}!</b><br>Hệ thống tự <b>nâng mục tiêu tháng lên ${goalMoney(Number(rz.amount)||0)}</b> — giữ nhịp <b>${goalMoney(Number(rz.daily)||0)}/ngày</b> cho những ngày còn lại${Number(rz.n) > 1 ? ` (lần nâng thứ ${rz.n})` : ''}.<br><i>${cheer}</i>`, 200, 20000), 5500);
+}
 function goalPeriodsHtml(c){
   const doneMonth = c.amount && c.achieved >= c.amount;
   const todayNa = c.todayOff ? 'Hôm nay nghỉ' : (doneMonth ? 'Đã đủ tháng 🎉' : '');
   const weekNa = doneMonth ? 'Đã đủ tháng 🎉' : '';
   return `<div class="goal-periods">
-    ${goalPeriodBox('Hôm nay' + goalAimTag(c.aimTier), c.todayAchieved||0, c.todayTarget||0, todayNa)}
-    ${goalPeriodBox(`Tuần này <span style="white-space:nowrap;">(${goalDM(c.weekFrom)}–${goalDM(c.weekTo)})</span>` + goalAimTag(c.weekAimTier), c.weekAchieved||0, c.weekTarget||0, weekNa)}
+    ${goalPeriodBox('Hôm nay' + goalAimTag(c.aimRaised), c.todayAchieved||0, c.todayTarget||0, todayNa)}
+    ${goalPeriodBox(`Tuần này <span style="white-space:nowrap;">(${goalDM(c.weekFrom)}–${goalDM(c.weekTo)})</span>` + goalAimTag(c.weekRaised), c.weekAchieved||0, c.weekTarget||0, weekNa)}
     ${goalPeriodBox('Tháng này', c.achieved, c.amount, '')}
   </div>`;
 }
@@ -18550,7 +18576,7 @@ function goalFiguresHtml(c){
   return `<div class="goal-figures">
     <div><span>Đã đạt</span> <b class="goal-pct-ok">${goalMoney(c.achieved)}</b></div>
     <div><span>Còn thiếu</span> <b>${goalMoney(c.missing)}</b></div>
-    <div><span>Mục tiêu hôm nay</span> <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b>${c.todayOff ? '' : goalAimTag(c.aimTier)}</div>
+    <div><span>Mục tiêu hôm nay</span> <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b>${c.todayOff ? '' : goalAimTag(c.aimRaised)}</div>
     <div><span>Còn</span> <b>${c.remDays||0}</b> <span>ngày làm việc</span></div>
   </div>`;
 }
@@ -18564,7 +18590,7 @@ function renderMyGoalTile(){
   if(!goalsLoadedMonth[m]){ el.style.display = 'none'; return; }
   const c = goalCalc(me.id, m, goalDepositIndex());
   el.style.display = '';
-  try{ goalTierRecord(me, m, c); }catch(e){}
+  try{ goalTierRecord(me, m, c); goalRaiseRecord(me, m, c); goalRaiseNotify(me, m, c.g); }catch(e){}
   if(!c.amount){
     el.className = 'goal-tile empty';
     el.innerHTML = `<div class="goal-tile-head">🎯 Bạn chưa đặt mục tiêu ${goalMonthLabel(m)}<span>Đặt mục tiêu →</span></div>
@@ -18580,12 +18606,12 @@ function renderMyGoalTile(){
     const pct = (p===null && na) ? `<b class="gpc-na">${na}</b>` : `<b class="${goalPctCls(p)}">${goalPctTxt(p)}</b>`;
     return `<div class="goal-period gpc2"><div class="gpc2-l"><span class="gp-label">${label}</span>${pct}<small>${goalShortMoney(a)} / ${t>0 ? goalShortMoney(t) : '—'}</small></div>${goalMiniChartHtml(a, t, p)}</div>`;
   };
-  el.innerHTML = `<div class="goal-tile-head"><div>🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}${goalTierBadge(c.monthPct)}
+  el.innerHTML = `<div class="goal-tile-head"><div>🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}${goalTierBadge(c.monthPct)}${c.raised ? ` <span class="goal-aim">🚀 hệ thống đã nâng lên ${goalMoney(c.raised)}</span>` : ''}
       <small>Đã đạt <b class="goal-pct-ok">${goalMoney(c.achieved)}</b> · Còn thiếu <b>${goalMoney(c.missing)}</b> · Hôm nay cần <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b> · Còn ${c.remDays||0} ngày làm</small></div><span>Xem chi tiết →</span></div>
     <div class="goal-legend gpc2-legend"><span><i style="background:${GOAL_C_TARGET}"></i>Mục tiêu</span><span><i style="background:${GOAL_C_DONE}"></i>Đã đạt</span><span><i style="background:#37C878"></i>Đạt đủ</span></div>
     <div class="goal-periods">
-      ${box('Hôm nay' + goalAimTag(c.aimTier), c.todayAchieved||0, c.todayTarget||0, c.todayOff ? 'Nghỉ' : (doneMonth ? 'Đủ tháng 🎉' : ''))}
-      ${box(`Tuần ${goalDM(c.weekFrom)}–${goalDM(c.weekTo)}` + goalAimTag(c.weekAimTier), c.weekAchieved||0, c.weekTarget||0, doneMonth ? 'Đủ tháng 🎉' : '')}
+      ${box('Hôm nay' + goalAimTag(c.aimRaised), c.todayAchieved||0, c.todayTarget||0, c.todayOff ? 'Nghỉ' : (doneMonth ? 'Đủ tháng 🎉' : ''))}
+      ${box(`Tuần ${goalDM(c.weekFrom)}–${goalDM(c.weekTo)}` + goalAimTag(c.weekRaised), c.weekAchieved||0, c.weekTarget||0, doneMonth ? 'Đủ tháng 🎉' : '')}
       ${box('Tháng này', c.achieved, c.amount, '')}
     </div>`;
   { // ✅ Việc hôm nay (checklist) ngay trên màn hình chính
@@ -19025,9 +19051,9 @@ function goalGmHtml(m, dep){
     const nd = goalNudges[r.u.id], ndTxt = nd && nd.at && m===goalCurMonth() ? `<div class="goal-nudged">🔔 đã nhắc ${goalTimeStr(nd.at).replace(' ngày ', ' ').slice(0,11)}</div>` : '';
     const lacking = c.amount && c.tasks.length < GOAL_MIN_TASKS;
     const taskCell = (c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>${lacking ? ' <span class="badge badge-warn">thiếu</span>' : ''}` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—')) + ((lacking || !c.amount) ? ndTxt : '');
-    const aimP = period==='day' ? c.aimTier : (period==='week' ? c.weekAimTier : 100);
-    const tCell = !c.amount ? '<span class="badge badge-warn">Chưa đặt</span>' : (r.v.off ? 'nghỉ' : fmtMoney(r.v.t) + goalAimTag(aimP));
-    if(m===goalCurMonth()) try{ goalTierRecord(r.u, m, c); }catch(e){}
+    const aimOn = period==='day' ? c.aimRaised : (period==='week' ? c.weekRaised : false);
+    const tCell = !c.amount ? '<span class="badge badge-warn">Chưa đặt</span>' : (r.v.off ? 'nghỉ' : fmtMoney(r.v.t) + goalAimTag(aimOn)) + (c.raised && period==='month' ? `<div class="goal-aim">↑ nâng ${goalShortMoney(c.raised)}</div>` : '');
+    if(m===goalCurMonth()) try{ goalTierRecord(r.u, m, c); goalRaiseRecord(r.u, m, goalCalc(r.u.id, m, dep)); }catch(e){}
     let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}${goalTierBadge(r.monthPct)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
       <td class="num">${tCell}</td><td class="num">${fmtMoney(r.v.a)}</td>${goalPctTd(r.pct)}${showMonthCol ? goalPctTd(r.monthPct) : ''}
       <td>${taskCell}</td><td>${c.g && c.g.committedAt ? goalTimeStr(c.g.committedAt) : '—'}</td></tr>`;
