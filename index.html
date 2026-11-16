@@ -7551,7 +7551,7 @@ function renderShipLockCard(){
     <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
     <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>
     <h2 style="margin-top:16px;">⚡ Tiết kiệm lượt tải (giảm phí Firebase)</h2>
-    <p class="goal-hint">Bật: mỗi máy NHỚ data / hoá đơn / trạng thái đóng hàng trên máy, lần mở sau chỉ tải phần THAY ĐỔI (mỗi máy vẫn tải lại toàn bộ ~1 lần/ngày cho chắc). <b>Chỉ bật sau khi đã thêm index "_u" vào Firebase Rules.</b>${deltaCfg===null ? ' (đang tải…)' : ''}</p>
+    <p class="goal-hint">Bật: mỗi máy NHỚ data / hoá đơn / trạng thái đóng hàng trên máy, lần mở sau chỉ tải phần THAY ĐỔI (mỗi máy vẫn tải lại toàn bộ ~1 lần/ngày cho chắc). Rules đã thêm index "_u" (16/11). ${deltaCfg && deltaCfg.on===undefined ? '<b>Tự bật từ 6h sáng 17/11</b> nếu không ai bấm Tắt.' : ''}${deltaCfg===null ? ' (đang tải…)' : ''}</p>
     <div class="chip-row"><div class="chip ${deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(true)">⚡ Bật tiết kiệm</div><div class="chip ${!deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(false)">Tắt — tải toàn bộ như cũ</div><div class="chip" onclick="deltaForceFull()">🔄 Bắt mọi máy tải lại toàn bộ</div></div>
     ${Object.keys(deltaActive).length ? `<div class="goal-hint">Máy này: ${Object.entries(deltaActive).map(([n, st])=>`${n} ${st.stats.mode==='cache' ? '✅ dùng bản nhớ' : (st.stats.mode==='full' ? '⬇ tải toàn bộ' : '…')} (${st.stats.items} mục, +${st.stats.delta} thay đổi)`).join(' · ')}</div>` : ''}
     </div></details>`;
@@ -16528,7 +16528,8 @@ function deltaAttach(name, baseRef, h){
 function deltaSaveAll(){ Object.values(deltaActive).forEach(st=>{ try{ st.saveNow && st.saveNow(); }catch(e){} }); }
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) deltaSaveAll(); });
 window.addEventListener('pagehide', deltaSaveAll);
-function deltaEnabled(){ return !!(deltaCfg && deltaCfg.on); }
+const DELTA_AUTO_ON_AT = new Date('2026-11-17T06:00:00+07:00').getTime(); // ⏰ tự BẬT từ 6h sáng 17/11 (sau khi mọi máy đã lên bản mới) — Quản lý chung bấm Tắt thì thôi
+function deltaEnabled(){ if(!deltaCfg) return false; if(deltaCfg.on===true) return true; if(deltaCfg.on===false) return false; return nowMs() >= DELTA_AUTO_ON_AT; }
 function deltaNodeOfRef(q){ return q===fbInvoices ? 'invoices' : (q===fbPackStatus ? 'packStatus' : (q===fbInvoiceItems ? 'invoiceItems' : (q===fbLeads ? 'leads' : null))); }
 // Quản lý chung: bật/tắt + bắt mọi máy tải lại toàn bộ
 function deltaSyncSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
