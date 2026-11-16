@@ -1682,6 +1682,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .goal-tier-pop.out{ opacity:0; transform:translate(-50%,-20px); }
   @keyframes gtpIn{ from{ opacity:0; transform:translate(-50%,-30px) scale(.95); } to{ opacity:1; transform:translate(-50%,0) scale(1); } }
   .goal-aim{ font-size:11px; font-weight:700; color:#FF9A6A; white-space:nowrap; }
+  .inv-ship-note{ margin-top:14px; padding:10px 12px; text-align:center; font-size:20px; font-weight:800; letter-spacing:.3px; color:#c0392b !important; background:#FFF4E5; border:2px dashed #E67E22; border-radius:10px; line-height:1.35; }
+  @media (max-width:640px){ .inv-ship-note{ font-size:17px; } }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
@@ -6671,6 +6673,7 @@ function renderInvoiceEditor0(){
           <div class="inv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(totals.finalAmount)}đ</span></div>
         </div>
       </div>
+      <div class="inv-ship-note">⚠ TỔNG THANH TOÁN CHƯA BAO GỒM PHÍ SHIP HÀNG</div>
     </div>
   `;
   updateInvoiceWatermark();
@@ -6978,7 +6981,8 @@ function invoiceReadonlyHtml(inv){
         <div><span>Cọc:</span><span>${fmtMoney(inv.deposit||0)}đ</span></div>
         <div class="iv-grand"><span>TỔNG THANH TOÁN:</span><span>${fmtMoney(inv.finalAmount||0)}đ</span></div>
       </div>
-    </div>`;
+    </div>
+    <div class="inv-ship-note">⚠ TỔNG THANH TOÁN CHƯA BAO GỒM PHÍ SHIP HÀNG</div>`;
 }
 function closeInvoiceView(){ document.getElementById('invViewModal').classList.remove('show'); }
 function printInvoiceView(){
