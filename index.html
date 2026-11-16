@@ -1671,6 +1671,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .sett-switches > summary::-webkit-details-marker{ display:none; }
   .sett-arrow{ display:inline-block; transition:transform .15s; }
   .sett-switches[open] .sett-arrow{ transform:rotate(90deg); }
+  .goal-tier{ display:inline-block; font-size:11.5px; font-weight:800; padding:1px 7px; border-radius:999px; margin-left:4px; vertical-align:middle; white-space:nowrap; }
+  .goal-tier.gt100{ background:rgba(55,200,120,.16); color:#7BE0A0; border:1px solid rgba(55,200,120,.5); }
+  .goal-tier.gt120{ background:rgba(255,120,60,.16); color:#FF9A6A; border:1px solid rgba(255,120,60,.55); }
+  .goal-tier.gt150{ background:rgba(120,140,255,.18); color:#A9B8FF; border:1px solid rgba(120,140,255,.6); }
+  .goal-tier.gt200{ background:linear-gradient(90deg,rgba(255,200,60,.28),rgba(255,150,40,.22)); color:#FFD76A; border:1px solid rgba(255,200,60,.7); }
+  .goal-tier-pop{ position:fixed; left:50%; top:18px; transform:translateX(-50%); z-index:95; max-width:min(520px, calc(100vw - 32px)); padding:14px 40px 14px 18px; border-radius:14px; font-size:15px; line-height:1.45; color:#fff; background:#1B2A3F; border:2px solid #37C878; box-shadow:0 10px 40px rgba(0,0,0,.5); cursor:pointer; animation:gtpIn .35s ease-out; transition:opacity .5s, transform .5s; }
+  .goal-tier-pop.gt120{ border-color:#FF7A3C; } .goal-tier-pop.gt150{ border-color:#7C8CFF; } .goal-tier-pop.gt200{ border-color:#FFC83C; background:linear-gradient(135deg,#2A2312,#1B2A3F); }
+  .goal-tier-pop .gtp-x{ position:absolute; right:12px; top:10px; opacity:.6; }
+  .goal-tier-pop.out{ opacity:0; transform:translate(-50%,-20px); }
+  @keyframes gtpIn{ from{ opacity:0; transform:translate(-50%,-30px) scale(.95); } to{ opacity:1; transform:translate(-50%,0) scale(1); } }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
@@ -18243,10 +18253,51 @@ function goalSetupListeners(user){
   goalSundaySub.on('value', snap=>{ goalSundayCfg = snap.val() || {}; onDataChanged(); });
   goalSubscribeMonth(goalCurMonth());
   try{ goalNudgeListen(user); }catch(e){ console.error(e); }
+  try{ goalTierListen(user); }catch(e){ console.error(e); }
   try{ if(goalHasOwn(user)){ goalDailySubscribe(todayStr()); goalDailyDay = todayStr(); } }catch(e){ console.error(e); } // ✅ checklist hôm nay
 }
 let goalDailyDay = null;
 setInterval(()=>{ try{ const me = currentUser(); if(!goalHasOwn(me)) return; const d = todayStr(); if(d!==goalDailyDay){ goalDailyDay = d; goalDailySubscribe(d); renderMyGoalTile && renderMyGoalTile(); } }catch(e){} }, 5*60000); // qua ngày mới khi app vẫn mở
+// ===== 🏅 MỐC VƯỢT MỤC TIÊU THÁNG: 100% · 120% · 150% · 200% =====
+// Đạt mốc → huy hiệu cạnh tên (bảng mục tiêu, ô mục tiêu) + báo cả team (Quản lý chung thấy mọi team).
+// goalTiers/{tháng}/{người} = {tier, at, name, branchId} — chỉ ghi khi mốc CAO HƠN (giao dịch) · máy Sale tự ghi, máy QL chung ghi hộ.
+const GOAL_TIERS = [{p:100, ic:'✅', l:'Đạt mục tiêu'}, {p:120, ic:'🔥', l:'Vượt 120%'}, {p:150, ic:'🚀', l:'Vượt 150%'}, {p:200, ic:'👑', l:'Gấp đôi 200%'}];
+function goalTierOf(pct){ let t = null; GOAL_TIERS.forEach(x=>{ if(pct!=null && pct >= x.p) t = x; }); return t; }
+function goalTierBadge(pct){ const t = goalTierOf(pct); return t ? ` <span class="goal-tier gt${t.p}" title="${t.l} tháng này">${t.ic} ${t.p}%</span>` : ''; }
+let goalTiers = {}, goalTierSub = null, goalTierSubMonth = '';
+function goalTierListen(user){
+  if(goalTierSub){ try{ goalTierSub.off(); }catch(e){} goalTierSub = null; }
+  if(!user || !fbRoot || !(user.role==='general_manager' || goalHasOwn(user))) return;
+  goalTierSubMonth = goalCurMonth();
+  goalTierSub = fbRoot.child('goalTiers/' + goalTierSubMonth);
+  goalTierSub.on('value', snap=>{ goalTiers = snap.val() || {}; setTimeout(goalTierAnnounce, 800); });
+}
+function goalTierRecord(u, m, c){ // ghi mốc mới đạt (chỉ tháng hiện tại, người đã cam kết)
+  if(!u || !c || !c.amount || m!==goalCurMonth() || !fbRoot) return;
+  if(goalTierSubMonth && goalTierSubMonth!==m) try{ goalTierListen(currentUser()); }catch(e){} // sang tháng mới
+  const t = goalTierOf(c.monthPct); if(!t) return;
+  const cur = goalTiers[u.id]; if(cur && Number(cur.tier) >= t.p) return;
+  const k = 'gtr_' + m + u.id + t.p; if(goalTierRecord[k]) return; goalTierRecord[k] = 1;
+  fbRoot.child('goalTiers/' + m + '/' + u.id).transaction(old=>(old && Number(old.tier) >= t.p) ? undefined : {tier: t.p, at: nowMs(), name: u.name || '', branchId: u.branchId || null}).catch(()=>{ delete goalTierRecord[k]; });
+}
+function goalTierAnnounce(){
+  const me = currentUser(); if(!me) return;
+  const fresh = Object.entries(goalTiers||{}).filter(([uid, r])=>r && r.tier && nowMs() - Number(r.at||0) < 3*86400000
+    && (me.role==='general_manager' || uid===me.id || (me.branchId && r.branchId===me.branchId))).filter(([uid, r])=>{
+      const k = 'goal_tier_seen_' + goalTierSubMonth + '_' + uid + '_' + r.tier; try{ if(localStorage.getItem(k)) return false; localStorage.setItem(k, '1'); }catch(e){ return false; } return true; });
+  if(!fresh.length) return;
+  fresh.sort((a,b)=>(a[1].at||0)-(b[1].at||0)).forEach(([uid, r], i)=>setTimeout(()=>{
+    const t = GOAL_TIERS.find(x=>x.p===Number(r.tier)) || GOAL_TIERS[0]; const mine = uid===me.id;
+    goalTierPop(mine ? `${t.ic} Chúc mừng! Bạn đã đạt <b>${t.p}%</b> mục tiêu tháng — ${t.l}!` : `${t.ic} <b>${escHtml(r.name||userName(uid)||'')}</b>${me.role==='general_manager' && r.branchId ? ' (' + escHtml(branchName(r.branchId)) + ')' : ''} vừa đạt <b>${t.p}%</b> mục tiêu tháng — ${t.l}! 🎉`, t.p);
+  }, i*4500));
+  if(currentPageId==='goals') try{ renderGoalsPage(); }catch(e){}
+}
+function goalTierPop(html, p){
+  const el = document.createElement('div'); el.className = 'goal-tier-pop gt' + p; el.innerHTML = html + '<span class="gtp-x">✕</span>';
+  el.onclick = ()=>el.remove(); document.body.appendChild(el);
+  try{ playTingSound(); }catch(e){}
+  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(), 600); }, 9000);
+}
 function goalNudgeListen(user){
   if(goalNudgeSub){ try{ goalNudgeSub.off(); }catch(e){} goalNudgeSub = null; }
   const m = goalCurMonth();
@@ -18505,6 +18556,7 @@ function renderMyGoalTile(){
   if(!goalsLoadedMonth[m]){ el.style.display = 'none'; return; }
   const c = goalCalc(me.id, m, goalDepositIndex());
   el.style.display = '';
+  try{ goalTierRecord(me, m, c); }catch(e){}
   if(!c.amount){
     el.className = 'goal-tile empty';
     el.innerHTML = `<div class="goal-tile-head">🎯 Bạn chưa đặt mục tiêu ${goalMonthLabel(m)}<span>Đặt mục tiêu →</span></div>
@@ -18520,7 +18572,7 @@ function renderMyGoalTile(){
     const pct = (p===null && na) ? `<b class="gpc-na">${na}</b>` : `<b class="${goalPctCls(p)}">${goalPctTxt(p)}</b>`;
     return `<div class="goal-period gpc2"><div class="gpc2-l"><span class="gp-label">${label}</span>${pct}<small>${goalShortMoney(a)} / ${t>0 ? goalShortMoney(t) : '—'}</small></div>${goalMiniChartHtml(a, t, p)}</div>`;
   };
-  el.innerHTML = `<div class="goal-tile-head"><div>🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}
+  el.innerHTML = `<div class="goal-tile-head"><div>🎯 Mục tiêu ${goalMonthLabel(m)}: ${goalMoney(c.amount)}${goalTierBadge(c.monthPct)}
       <small>Đã đạt <b class="goal-pct-ok">${goalMoney(c.achieved)}</b> · Còn thiếu <b>${goalMoney(c.missing)}</b> · Hôm nay cần <b>${c.todayOff ? 'nghỉ' : goalMoney(c.todayTarget||0)}</b> · Còn ${c.remDays||0} ngày làm</small></div><span>Xem chi tiết →</span></div>
     <div class="goal-legend gpc2-legend"><span><i style="background:${GOAL_C_TARGET}"></i>Mục tiêu</span><span><i style="background:${GOAL_C_DONE}"></i>Đã đạt</span><span><i style="background:#37C878"></i>Đạt đủ</span></div>
     <div class="goal-periods">
@@ -18888,7 +18940,7 @@ function goalTeamHtml(me, m, dep){
   const missing = rows.filter(r=>!r.c.amount).map(r=>escHtml(r.u.name));
   const body = rows.map(r=>{
     const c = r.c;
-    return `<tr class="${r.u.id===me.id ? 'goal-me' : ''}"><td>${escHtml(r.u.name)}${r.u.role==='team_manager' ? ' <span class="goal-hint">(QL team)</span>' : ''}</td>
+    return `<tr class="${r.u.id===me.id ? 'goal-me' : ''}"><td>${escHtml(r.u.name)}${r.u.role==='team_manager' ? ' <span class="goal-hint">(QL team)</span>' : ''}${goalTierBadge(r.pct)}</td>
       <td class="num">${c.amount ? fmtMoney(c.amount) : '<span class="badge badge-warn">Chưa đặt</span>'}</td>
       <td class="num">${fmtMoney(c.achieved)}</td>${goalPctTd(r.pct)}
       ${isCur ? `<td class="num">${c.amount ? (c.todayOff ? 'nghỉ' : `${fmtMoney(c.todayAchieved||0)} / ${fmtMoney(c.todayTarget||0)}`) : '—'}</td>${goalPctTd(c.amount && !c.todayOff ? goalPctNum(c.todayAchieved||0, c.todayTarget||0) : null)}${goalPctTd(c.amount ? goalPctNum(c.weekAchieved||0, c.weekTarget||0) : null)}` : ''}
@@ -18966,7 +19018,8 @@ function goalGmHtml(m, dep){
     const lacking = c.amount && c.tasks.length < GOAL_MIN_TASKS;
     const taskCell = (c.tasks.length ? `<span class="gt-toggle" onclick="goalToggleTasks('${escHtml(r.u.id)}')">${nDone}/${c.tasks.length} ${goalOpenTasks[r.u.id] ? '▾' : '▸'}</span>${lacking ? ' <span class="badge badge-warn">thiếu</span>' : ''}` : (c.amount ? '<span class="badge badge-warn">Chưa ghi</span>' : '—')) + ((lacking || !c.amount) ? ndTxt : '');
     const tCell = !c.amount ? '<span class="badge badge-warn">Chưa đặt</span>' : (r.v.off ? 'nghỉ' : fmtMoney(r.v.t));
-    let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
+    if(m===goalCurMonth()) try{ goalTierRecord(r.u, m, c); }catch(e){}
+    let tr = `<tr><td><span class="goal-rank">${rank || ''}</span> ${escHtml(r.u.name)}${goalTierBadge(r.monthPct)}</td><td>${escHtml(branchName(r.u.branchId))}</td>
       <td class="num">${tCell}</td><td class="num">${fmtMoney(r.v.a)}</td>${goalPctTd(r.pct)}${showMonthCol ? goalPctTd(r.monthPct) : ''}
       <td>${taskCell}</td><td>${c.g && c.g.committedAt ? goalTimeStr(c.g.committedAt) : '—'}</td></tr>`;
     if(goalOpenTasks[r.u.id] && c.tasks.length) tr += `<tr class="goal-tasks-row"><td colspan="${colN}">${goalTaskItemsHtml(c.tasks, false)}</td></tr>`;
