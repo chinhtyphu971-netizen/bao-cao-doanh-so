@@ -10,6 +10,10 @@
 // khi mã không tự điền (mở Firebase Console → Realtime Database → abitWebhookLog).
 const {db, carrierName} = require('./_shared');
 
+// ⚡ App nhớ dữ liệu trên máy, chỉ tải phần THAY ĐỔI theo dấu giờ "_u" → mọi lần ghi vào hoá đơn / trạng thái đóng hàng phải gắn _u
+function stampDelta(upd){ const recs = new Set(); Object.keys(upd).forEach(k=>{ const m = k.match(/^(invoices|packStatus|invoiceItems|leads)\/([^\/]+)\/./); if(m) recs.add(m[1] + '/' + m[2]); });
+  recs.forEach(r=>{ if(!(r in upd)) upd[r + '/_u'] = {'.sv': 'timestamp'}; }); return upd; }
+
 const KEY_INVNO = ['invoice_no', 'invoiceno', 'invoice_number', 'invoicenumber', 'ma_don', 'madon', 'order_no', 'orderno', 'so_hd', 'sohd'];
 const KEY_TRACK = ['tracking_no', 'trackingno', 'tracking_code', 'trackingcode', 'tracking', 'mavandon', 'ma_van_don', 'ma_vd', 'mavd',
   'billcode', 'bill_code', 'shipping_code', 'shippingcode', 'shipment_code', 'waybill', 'waybill_no', 'label_id', 'ma_vc', 'mavc'];
@@ -122,7 +126,7 @@ async function handleOne(D, o, now){
              if(tracking) upd['invoices/' + id + '/abit/parts/' + k + '/tracking'] = codeSet.length > 1 ? codeSet.join(', ') : tracking; result.part = Number(k); }
     }
   }
-  if(Object.keys(upd).length) await D.ref().update(upd);
+  if(Object.keys(upd).length) await D.ref().update(stampDelta(upd));
   return result;
 }
 

@@ -2,6 +2,10 @@
 // Kho đóng xong → tạo đơn bên Abit từ hoá đơn trong app. Gộp theo MÃ SP (Abit không có màu), màu/mẫu ghi vào ghi chú.
 const {admin, db, carrierName} = require('./_shared');
 
+// ⚡ App nhớ dữ liệu trên máy, chỉ tải phần THAY ĐỔI theo dấu giờ "_u" → mọi lần ghi vào hoá đơn / trạng thái đóng hàng phải gắn _u
+function stampDelta(upd){ const recs = new Set(); Object.keys(upd).forEach(k=>{ const m = k.match(/^(invoices|packStatus|invoiceItems|leads)\/([^\/]+)\/./); if(m) recs.add(m[1] + '/' + m[2]); });
+  recs.forEach(r=>{ if(!(r in upd)) upd[r + '/_u'] = {'.sv': 'timestamp'}; }); return upd; }
+
 function num(v){ const n = Number(v); return isFinite(n) ? n : 0; }
 // part (tuỳ chọn) = 1 kiện khi đơn tách nhiều kiện: {i, n, items:[{code, price, qty, label}], deposit}
 function buildOrder(inv, ps, username, part){
@@ -150,8 +154,8 @@ module.exports = async (req, res)=>{
     const now = Date.now();
     if(!parts){ // 1 kiện → 1 đơn như cũ
       const out = await createOne(buildOrder(inv, ps, username));
-      if(out.error){ await D.ref('invoices/' + id + '/abit').set({error: out.error, at: Date.now()}); return res.status(502).json({ok:false, error: out.error}); }
-      await D.ref().update({['invoices/' + id + '/abit']: {invoice_no: out.invNo, invoiceid: out.invoiceid, username, at: now}, [mapKey(out.invNo)]: id});
+      if(out.error){ await D.ref().update(stampDelta({['invoices/' + id + '/abit']: {error: out.error, at: Date.now()}})); return res.status(502).json({ok:false, error: out.error}); }
+      await D.ref().update(stampDelta({['invoices/' + id + '/abit']: {invoice_no: out.invNo, invoiceid: out.invoiceid, username, at: now}, [mapKey(out.invNo)]: id}));
       return res.json({ok:true, invoice_no: out.invNo});
     }
     // Nhiều kiện → MỖI KIỆN 1 ĐƠN (bỏ qua kiện đã tạo ở lần trước nếu lần trước lỗi giữa chừng)
@@ -167,7 +171,7 @@ module.exports = async (req, res)=>{
       if(dup && !firstErr) firstErr = `Abit trả về TRÙNG mã ${dup} cho nhiều kiện (Abit gộp đơn) — kiểm tra trên Abit`; }
     const first = (made[1] && made[1].invoice_no) || (Object.values(made)[0] || {}).invoice_no || null;
     up['invoices/' + id + '/abit'] = Object.assign({username, at: now, pkgCount: parts.length, parts: made}, first ? {invoice_no: first} : {}, firstErr ? {error: firstErr} : {});
-    await D.ref().update(up);
+    await D.ref().update(stampDelta(up));
     if(firstErr) return res.status(502).json({ok:false, error: firstErr, created: Object.keys(made).length});
     return res.json({ok:true, invoice_no: first, parts: Object.values(made).map(x=>x.invoice_no)});
   }catch(e){
