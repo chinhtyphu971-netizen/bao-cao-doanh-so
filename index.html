@@ -4058,6 +4058,7 @@ function initFirebase(){
 }
 function startFirebaseListeners(){
   const db = firebase.database();
+  try{ deltaInstallPatch(); }catch(e){ console.error('delta patch', e); } // ⚡ gắn dấu giờ _u cho mọi lần ghi (để tải phần thay đổi)
   fbBranches = db.ref('branches');
   fbMktBranches = db.ref('mktBranches');
   fbMktSources = db.ref('mktSources');
@@ -7526,7 +7527,7 @@ function renderShipLockCard(){
   const el = document.getElementById('shipLockCard'); if(!el) return;
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
   el.style.display = '';
-  const sum = [`⏱️ ${shipLockMinutes}p`, packHideQueue ? '🙈 ẩn số chờ' : '👀 hiện số chờ', SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting] ? '🎨 ' + SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting].label : '', abitAutoPush ? '🔗 tự đẩy Abit' : '⏸ đẩy tay Abit', saleManualShip ? '✍️ Sale nhập mã' : '🔒 mã tự về', oosShowSale ? '⏳ Sale thấy chờ hàng' : '🙈 ẩn chờ hàng'].filter(Boolean).join(' · ');
+  const sum = [deltaEnabled() ? '⚡ tiết kiệm lượt tải' : '', `⏱️ ${shipLockMinutes}p`, packHideQueue ? '🙈 ẩn số chờ' : '👀 hiện số chờ', SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting] ? '🎨 ' + SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting].label : '', abitAutoPush ? '🔗 tự đẩy Abit' : '⏸ đẩy tay Abit', saleManualShip ? '✍️ Sale nhập mã' : '🔒 mã tự về', oosShowSale ? '⏳ Sale thấy chờ hàng' : '🙈 ẩn chờ hàng'].filter(Boolean).join(' · ');
   el.innerHTML = `<details class="sett-switches" ${renderShipLockCard._open ? 'open' : ''} ontoggle="renderShipLockCard._open = this.open">
     <summary style="cursor:pointer; list-style:none;"><h2 style="display:inline;"><span class="sett-arrow">▸</span> ⚙️ Công tắc vận hành <span style="font-size:13px; font-weight:400; color:var(--ink-soft);">(bấm để mở / thu gọn)</span></h2>
       <div class="goal-hint" style="margin-top:6px;">${escHtml(sum)}</div></summary>
@@ -7549,7 +7550,12 @@ function renderShipLockCard(){
     <h2 style="margin-top:16px;">⏳ Sale thấy "Chờ hàng về"</h2>
     <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
     <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>
+    <h2 style="margin-top:16px;">⚡ Tiết kiệm lượt tải (giảm phí Firebase)</h2>
+    <p class="goal-hint">Bật: mỗi máy NHỚ data / hoá đơn / trạng thái đóng hàng trên máy, lần mở sau chỉ tải phần THAY ĐỔI (mỗi máy vẫn tải lại toàn bộ ~1 lần/ngày cho chắc). <b>Chỉ bật sau khi đã thêm index "_u" vào Firebase Rules.</b>${deltaCfg===null ? ' (đang tải…)' : ''}</p>
+    <div class="chip-row"><div class="chip ${deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(true)">⚡ Bật tiết kiệm</div><div class="chip ${!deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(false)">Tắt — tải toàn bộ như cũ</div><div class="chip" onclick="deltaForceFull()">🔄 Bắt mọi máy tải lại toàn bộ</div></div>
+    ${Object.keys(deltaActive).length ? `<div class="goal-hint">Máy này: ${Object.entries(deltaActive).map(([n, st])=>`${n} ${st.stats.mode==='cache' ? '✅ dùng bản nhớ' : (st.stats.mode==='full' ? '⬇ tải toàn bộ' : '…')} (${st.stats.items} mục, +${st.stats.delta} thay đổi)`).join(' · ')}</div>` : ''}
     </div></details>`;
+  if(deltaCfg===null && fbRoot) deltaLoadCfg().then(()=>{ try{ renderShipLockCard(); }catch(e){} });
 }
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
@@ -16391,17 +16397,178 @@ function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'
    - products / productSheetUrl / invoiceSettings / selfLeads: mọi người TRỪ MKT
    - videoShoots / actors / mktLegacyCounts: chỉ MKT, Quản lý MKT, Quản lý Data, Quản lý chung
    Lọc "chỉ của mình" dùng chỉ mục trong Firebase Rules (".indexOn": userId / saleId) để server lọc sẵn. */
+// ===================== ⚡ TIẾT KIỆM LƯỢT TẢI: NHỚ DỮ LIỆU TRÊN MÁY + CHỈ TẢI PHẦN THAY ĐỔI =====================
+// Trước: mỗi lần mở app, máy Quản lý / Kho tải LẠI TOÀN BỘ data, hoá đơn… (~15 MB) → tốn phí Firebase.
+// Giờ: mọi lần ghi vào 4 nhánh lớn tự gắn dấu giờ máy chủ "_u"; xoá thì ghi "bia mộ" _del/{nhánh}/{mã} = giờ xoá.
+//   Máy nhớ dữ liệu trong IndexedDB → lần mở sau chỉ hỏi "những mục có _u mới hơn lần trước" (+ các mục đã xoá).
+//   Mỗi máy vẫn tải lại TOÀN BỘ 1 lần / DELTA_MAX_AGE (phòng trường hợp sót) — hoặc khi Quản lý chung bấm "bắt tải lại toàn bộ".
+// Bật/tắt: appSettings/deltaSync = {on, epoch} (Quản lý chung · Công tắc vận hành). CHỈ BẬT sau khi đã thêm ".indexOn": ["_u"] vào Rules.
+const DELTA_NODES = ['leads','invoices','invoiceItems','packStatus'];
+const DELTA_MAX_AGE = 20*3600000;   // tải lại toàn bộ tối đa 1 lần / ~1 ngày / máy
+const DELTA_MARGIN = 10*60000;      // lùi 10 phút cho chắc (lệch giờ / ghi chậm)
+const DELTA_TOMB_KEEP = 10*86400000; // bia mộ giữ 10 ngày
+const DELTA_VER = 1;
+let deltaCfg = null, deltaCfgP = null; const deltaActive = {};
+function fbPathSegs(ref){ const s = []; let r = ref; while(r && r.key !== null){ s.unshift(r.key); r = r.parent; } return s; }
+function deltaInstallPatch(){
+  const P = firebase.database.Reference.prototype; if(!P || P.__deltaPatched) return; P.__deltaPatched = true;
+  const oSet = P.set, oUpd = P.update, oRem = P.remove, oTx = P.transaction, oPush = P.push;
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  let mainRoot = ''; const isMain = r=>{ try{ if(!mainRoot) mainRoot = firebase.database().ref().toString(); return r.root.toString()===mainRoot; }catch(e){ return false; } };
+  // entries: [[đường dẫn đầy đủ (mảng), giá trị]] → bản ghi multi-path ở gốc, đã gắn _u / bia mộ. null nếu không đụng nhánh theo dõi
+  const expand = entries=>{
+    let touched = false; const out = {}, bump = {};
+    entries.forEach(([full, v])=>{
+      const p = full.join('/');
+      if(full.length >= 2 && DELTA_NODES.includes(full[0])){
+        touched = true; const rec = full[0] + '/' + full[1];
+        if(full.length===2){
+          if(v===null || v===undefined){ out[p] = null; out['_del/' + rec] = TS; }
+          else if(typeof v==='object' && !Array.isArray(v)){ const o = Object.assign({}, v); o._u = TS; out[p] = o; }
+          else out[p] = v;
+        } else { out[p] = v===undefined ? null : v; bump[rec] = 1; }
+      } else out[p] = v;
+    });
+    if(!touched) return null;
+    Object.keys(bump).forEach(rec=>{ if(!(rec in out) && out[rec]!==null) out[rec + '/_u'] = TS; });
+    return out;
+  };
+  const tracked = segs=>segs.length===0 || DELTA_NODES.includes(segs[0]);
+  P.set = function(value, onComplete){
+    if(!isMain(this)) return oSet.apply(this, arguments);
+    const segs = fbPathSegs(this); if(segs.length < 2 || !DELTA_NODES.includes(segs[0])) return oSet.apply(this, arguments);
+    const out = expand([[segs, value]]); return oUpd.call(this.root, out, onComplete);
+  };
+  P.remove = function(onComplete){
+    if(!isMain(this)) return oRem.apply(this, arguments);
+    const segs = fbPathSegs(this); if(segs.length < 2 || !DELTA_NODES.includes(segs[0])) return oRem.apply(this, arguments);
+    return oUpd.call(this.root, expand([[segs, null]]), onComplete);
+  };
+  P.update = function(values, onComplete){
+    if(!isMain(this) || !values || typeof values!=='object') return oUpd.apply(this, arguments);
+    const segs = fbPathSegs(this); if(!tracked(segs)) return oUpd.apply(this, arguments);
+    const out = expand(Object.keys(values).map(k=>[segs.concat(k.split('/').filter(Boolean)), values[k]]));
+    if(!out) return oUpd.apply(this, arguments);
+    return oUpd.call(this.root, out, onComplete);
+  };
+  P.transaction = function(fn, onComplete, applyLocally){
+    if(!isMain(this)) return oTx.apply(this, arguments);
+    const segs = fbPathSegs(this); if(segs.length < 2 || !DELTA_NODES.includes(segs[0])) return oTx.apply(this, arguments);
+    const rec = segs[0] + '/' + segs[1], root = this.root;
+    const after = (err, committed, snap)=>{
+      if(!err && committed){ root.child(rec).once('value').then(s=>{ oUpd.call(root, s.exists() ? {[rec + '/_u']: TS} : {['_del/' + rec]: TS}); }).catch(()=>{}); }
+      if(typeof onComplete==='function') onComplete(err, committed, snap);
+    };
+    return oTx.call(this, fn, after, applyLocally);
+  };
+  P.push = function(value, onComplete){
+    if(value===undefined || !isMain(this)) return oPush.apply(this, arguments);
+    const segs = fbPathSegs(this); if(segs.length!==1 || !DELTA_NODES.includes(segs[0])) return oPush.apply(this, arguments);
+    const ref = oPush.call(this); const pr = ref.set(value, onComplete); ref.then = pr.then.bind(pr); ref.catch = pr.catch.bind(pr); return ref;
+  };
+}
+// ----- Kho nhớ trên máy (IndexedDB) -----
+let deltaDbP = null;
+function deltaDb(){
+  if(deltaDbP) return deltaDbP;
+  deltaDbP = new Promise(res=>{ try{ const rq = indexedDB.open('qls_delta', 1); rq.onupgradeneeded = ()=>{ try{ rq.result.createObjectStore('kv'); }catch(e){} }; rq.onsuccess = ()=>res(rq.result); rq.onerror = ()=>res(null); rq.onblocked = ()=>res(null); }catch(e){ res(null); } });
+  return deltaDbP;
+}
+async function deltaGet(k){ const db = await deltaDb(); if(!db) return null; return new Promise(res=>{ try{ const q = db.transaction('kv','readonly').objectStore('kv').get(k); q.onsuccess = ()=>res(q.result || null); q.onerror = ()=>res(null); }catch(e){ res(null); } }); }
+async function deltaPut(k, v){ const db = await deltaDb(); if(!db) return; try{ db.transaction('kv','readwrite').objectStore('kv').put(v, k); }catch(e){ console.warn('delta cache', e); } }
+async function deltaDelAll(){ const db = await deltaDb(); if(!db) return; try{ db.transaction('kv','readwrite').objectStore('kv').clear(); }catch(e){} }
+function deltaLoadCfg(){
+  if(deltaCfgP) return deltaCfgP;
+  deltaCfgP = fbRoot.child('appSettings/deltaSync').once('value').then(s=>{ deltaCfg = s.val() || {}; return deltaCfg; }).catch(()=>{ deltaCfg = {}; return deltaCfg; });
+  return deltaCfgP;
+}
+// Gắn nhánh theo kiểu tiết kiệm. h = {ready(map), update(map, nAdded)}. Trả về {off()}.
+function deltaAttach(name, baseRef, h){
+  const ck = 'd' + DELTA_VER + '|' + name;
+  const st = {map: {}, lastU: 0, ready: false, off: false, qs: [], fullAt: 0, nAdd: 0, flushT: null, saveT: null, stats: {mode: '', items: 0, delta: 0}};
+  deltaActive[name] = st;
+  const track = u=>{ u = Number(u)||0; if(u > st.lastU) st.lastU = u; };
+  const save = (now)=>{ clearTimeout(st.saveT); const go = ()=>{ if(!st.off && st.ready) deltaPut(ck, {map: st.map, lastU: st.lastU, fullAt: st.fullAt, epoch: (deltaCfg && deltaCfg.epoch) || 0, savedAt: nowMs()}); };
+    if(now) go(); else st.saveT = setTimeout(go, 20000); };
+  st.saveNow = ()=>save(true);
+  const flush = ()=>{ clearTimeout(st.flushT); st.flushT = setTimeout(()=>{ if(st.off || !st.ready) return; const n = st.nAdd; st.nAdd = 0; try{ h.update(st.map, n); }catch(e){ console.error(e); } save(); }, 120); };
+  const live = since=>{
+    if(st.off) return;
+    const q = baseRef.orderByChild('_u').startAt(since);
+    const onV = s=>{ const v = s.val(); if(v===null) return; if(st.map[s.key]===undefined) st.nAdd++; st.map[s.key] = v; track(v._u); st.stats.delta++; if(st.ready) flush(); };
+    q.on('child_added', onV); q.on('child_changed', onV);
+    const dq = fbRoot.child('_del/' + name).orderByValue().startAt(since);
+    dq.on('child_added', s=>{ const t = Number(s.val())||0; const cur = st.map[s.key];
+      if(cur && Number(cur._u) > t) return; // xoá rồi tạo lại → giữ bản mới
+      if(cur!==undefined){ delete st.map[s.key]; if(st.ready) flush(); } });
+    st.qs.push(q, dq);
+  };
+  (async ()=>{
+    const cfg = await deltaLoadCfg(); if(st.off) return;
+    const c = await deltaGet(ck); if(st.off) return;
+    const okCache = c && c.map && (c.epoch||0)===(cfg.epoch||0) && nowMs() - Number(c.fullAt||0) < DELTA_MAX_AGE;
+    if(okCache){
+      st.map = c.map; st.lastU = Number(c.lastU)||0; st.fullAt = Number(c.fullAt)||0; st.stats.mode = 'cache';
+      st.ready = true; st.stats.items = Object.keys(st.map).length;
+      try{ h.ready(st.map); }catch(e){ console.error(e); }
+      live(Math.min(st.lastU || Number(c.savedAt) || 0, Number(c.savedAt) || nowMs()) - DELTA_MARGIN);
+      return;
+    }
+    const t0 = nowMs();
+    const snap = await baseRef.once('value'); if(st.off) return;
+    st.map = snap.val() || {}; st.fullAt = t0; st.stats.mode = 'full';
+    Object.values(st.map).forEach(v=>{ if(v) track(v._u); });
+    st.ready = true; st.stats.items = Object.keys(st.map).length;
+    try{ h.ready(st.map); }catch(e){ console.error(e); }
+    save(true);
+    live(Math.min(st.lastU || t0, t0) - DELTA_MARGIN);
+  })().catch(e=>{ console.error('delta ' + name, e); });
+  return {off(){ st.off = true; clearTimeout(st.flushT); clearTimeout(st.saveT); st.qs.forEach(q=>{ try{ q.off(); }catch(e){} }); if(deltaActive[name]===st) delete deltaActive[name]; }};
+}
+function deltaSaveAll(){ Object.values(deltaActive).forEach(st=>{ try{ st.saveNow && st.saveNow(); }catch(e){} }); }
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) deltaSaveAll(); });
+window.addEventListener('pagehide', deltaSaveAll);
+function deltaEnabled(){ return !!(deltaCfg && deltaCfg.on); }
+function deltaNodeOfRef(q){ return q===fbInvoices ? 'invoices' : (q===fbPackStatus ? 'packStatus' : (q===fbInvoiceItems ? 'invoiceItems' : (q===fbLeads ? 'leads' : null))); }
+// Quản lý chung: bật/tắt + bắt mọi máy tải lại toàn bộ
+function deltaSyncSet(on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  const go = ()=>fbRoot.child('appSettings/deltaSync').update({on: !!on, at: nowMs(), by: me.name||''}).then(()=>{ deltaCfg = Object.assign({}, deltaCfg, {on: !!on}); showToast(on ? '⚡ Đã BẬT tiết kiệm lượt tải — các máy áp dụng từ lần mở app tiếp theo' : 'Đã TẮT tiết kiệm lượt tải'); try{ renderShipLockCard(); }catch(e){} }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  if(on) askConfirm('Bật tiết kiệm lượt tải?', 'Chỉ bật SAU KHI đã thêm ".indexOn": ["_u"] cho leads, invoices, invoiceItems, packStatus và ".indexOn": ".value" cho _del trong Firebase → Realtime Database → Rules. Chưa thêm mà bật thì KHÔNG tiết kiệm được (còn tốn hơn).', go); else go(); }
+function deltaForceFull(){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  askConfirm('Bắt mọi máy tải lại toàn bộ?', 'Dùng khi nghi máy nào đó hiển thị thiếu / sai dữ liệu. Mỗi máy sẽ tải lại toàn bộ 1 lần ở lần mở app tiếp theo (tốn lượt tải như trước 1 lần).', ()=>{
+    fbRoot.child('appSettings/deltaSync/epoch').set(nowMs()).then(()=>{ deltaDelAll(); showToast('✅ Đã yêu cầu — các máy tải lại toàn bộ ở lần mở app tiếp theo'); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }); }
+// Dọn bia mộ cũ (máy Quản lý chung, 1 lần / ngày)
+function deltaCleanTombs(){ const me = currentUser(); if(!me || me.role!=='general_manager' || !fbRoot) return;
+  const k = 'delta_tomb_clean'; try{ if(localStorage.getItem(k)===todayStr()) return; localStorage.setItem(k, todayStr()); }catch(e){ return; }
+  DELTA_NODES.forEach(n=>{ fbRoot.child('_del/' + n).orderByValue().endAt(nowMs() - DELTA_TOMB_KEEP).limitToFirst(500).once('value').then(s=>{ const up = {}; Object.keys(s.val()||{}).forEach(id=>{ up[id] = null; }); if(Object.keys(up).length) fbRoot.child('_del/' + n).update(up); }).catch(()=>{}); }); }
+
 const scopedSubs = {};
 function attachScoped(name, key, query, apply, childMode, onFirstLoad){
   const cur = scopedSubs[name];
   if(cur && cur.key===key) return;               // đã gắn đúng rồi (enterApp có thể gọi nhiều lần)
   if(cur && cur.query) cur.query.off();
+  if(cur && cur.delta) cur.delta.off();
   scopedSubs[name] = {key, query};
   if(!query){ apply([]); return; }
+  const dNode = childMode ? deltaNodeOfRef(query) : null;
+  if(dNode){ // ⚡ nhánh lớn tải cả nhánh → thử chế độ tiết kiệm (nếu Quản lý chung đã bật)
+    const me = scopedSubs[name]; me.query = null;
+    deltaLoadCfg().then(()=>{
+      if(scopedSubs[name]!==me) return;
+      if(deltaEnabled()){
+        let first = true;
+        me.delta = deltaAttach(dNode, query, {ready: map=>{ apply(Object.values(map), map); if(first){ first = false; if(onFirstLoad) onFirstLoad(); } }, update: map=>apply(Object.values(map), map)});
+      } else { me.query = query; attachScopedPlain(name, key, query, apply, onFirstLoad); }
+    });
+    return;
+  }
   if(!childMode){
     query.on('value', snap=>apply(Object.values(snap.val()||{}), snap.val()));
     return;
   }
+  attachScopedPlain(name, key, query, apply, onFirstLoad);
+}
+function attachScopedPlain(name, key, query, apply, onFirstLoad){
   const map = {}; let ready = false;
   const sync = ()=>{ if(ready) apply(Object.values(map), map); };
   query.on('child_added',   s=>{ map[s.key]=s.val(); sync(); });
@@ -16462,6 +16629,20 @@ function subscribeLeadsForUser(user){
     state.leads = Object.values(merged).concat(leadsArchiveList.filter(a=>!merged[a.id])); // + kho lưu trữ (nếu đã tải)
     onDataChanged();
   };
+  if(key==='all'){ // ⚡ cả kho data (Quản lý chung / Quản lý Data): nếu đã bật tiết kiệm → nhớ trên máy, chỉ tải phần thay đổi
+    const holder = {off(){ this.dead = true; if(this.d) this.d.off(); }}; leadsSubQueries.push(holder);
+    deltaLoadCfg().then(()=>{
+      if(holder.dead || leadsSubKey!==myKey) return;
+      if(!deltaEnabled()){ leadsSubQueries = leadsSubQueries.filter(x=>x!==holder); leadsAttachPlain(); return; }
+      holder.d = deltaAttach('leads', fbLeads, {
+        ready: map=>{ if(leadsSubKey!==myKey) return; maps[0] = map; ready = true; leadsDataReady = true; sync(); tryAutoDistribute(); backfillLeadPhoneNorm(); setTimeout(()=>{ try{ archiveOldLeadsIfDue(); }catch(e){ console.error(e); } }, 4000); },
+        update: (map, nAdded)=>{ if(leadsSubKey!==myKey) return; maps[0] = map; sync(); if(nAdded) tryAutoDistribute(); }
+      });
+    });
+    return;
+  }
+  leadsAttachPlain();
+  function leadsAttachPlain(){
   queries.forEach((q, qi)=>{
     q.on('child_added',   sn=>{ maps[qi][sn.key]=sn.val(); if(ready){ sync(); tryAutoDistribute(); } });
     q.on('child_changed', sn=>{ maps[qi][sn.key]=sn.val(); sync(); });
@@ -16479,6 +16660,7 @@ function subscribeLeadsForUser(user){
     console.error('Lỗi tải kho data:', err);
     ready = true; leadsDataReady = true; sync();
   });
+  }
 }
 // Mỗi data có thêm trường phoneNorm (SĐT đã chuẩn hoá) để MKT kiểm tra trùng SĐT bằng truy vấn nhỏ,
 // không cần tải cả kho. Máy Quản lý (có cả kho) tự bổ sung phoneNorm cho data cũ — chạy 1 lần/phiên,
@@ -16507,6 +16689,7 @@ function gmEnsureInvoiceItems(){ // Quản lý chung vào trang in → lúc này
 const PACKER_INVOICE_DAYS = 14; // ⚡ (trước 30) // Bàn đóng gói tải hoá đơn đã cọc trong N ngày (trước: 60) — đơn cọc lâu hơn mà chưa đóng gần như không có
 function setupRoleScopedListeners(user){
   subscribeLeadsForUser(user);
+  if(user && user.role==='general_manager') setTimeout(()=>{ try{ deltaCleanTombs(); }catch(e){} }, 60000);
   const r = user ? user.role : null;
   const isWarehouse = r==='warehouse' || r==='packer'; // Bàn đóng gói tải giống Kho (hoá đơn đã cọc để đóng hàng)
   const isPrinter = r==='printer' || isWarehouse; // Kho dùng chung "vùng in": không tải hoá đơn/data/báo cáo Sale
