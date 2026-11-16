@@ -1668,6 +1668,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .roq-btns button{ flex:1; padding:10px 6px; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--ink); font-weight:700; font-size:13px; cursor:pointer; }
   .roq-btns button.on.many{ background:rgba(60,190,110,.18); border-color:#3CBE6E; color:#7BE0A0; }
   .roq-btns button.on.one{ background:rgba(240,166,58,.16); border-color:#F0A63A; color:#F6C27A; }
+  .sett-switches > summary::-webkit-details-marker{ display:none; }
+  .sett-arrow{ display:inline-block; transition:transform .15s; }
+  .sett-switches[open] .sett-arrow{ transform:rotate(90deg); }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
@@ -7512,7 +7515,12 @@ function renderShipLockCard(){
   const el = document.getElementById('shipLockCard'); if(!el) return;
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
   el.style.display = '';
-  el.innerHTML = `<h2>⏱️ Thời gian khoá khi chưa gửi vận đơn</h2>
+  const sum = [`⏱️ ${shipLockMinutes}p`, packHideQueue ? '🙈 ẩn số chờ' : '👀 hiện số chờ', SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting] ? '🎨 ' + SEASON_THEMES[seasonThemeSetting==='auto' ? seasonAutoKey() : seasonThemeSetting].label : '', abitAutoPush ? '🔗 tự đẩy Abit' : '⏸ đẩy tay Abit', saleManualShip ? '✍️ Sale nhập mã' : '🔒 mã tự về', oosShowSale ? '⏳ Sale thấy chờ hàng' : '🙈 ẩn chờ hàng'].filter(Boolean).join(' · ');
+  el.innerHTML = `<details class="sett-switches" ${renderShipLockCard._open ? 'open' : ''} ontoggle="renderShipLockCard._open = this.open">
+    <summary style="cursor:pointer; list-style:none;"><h2 style="display:inline;"><span class="sett-arrow">▸</span> ⚙️ Công tắc vận hành <span style="font-size:13px; font-weight:400; color:var(--ink-soft);">(bấm để mở / thu gọn)</span></h2>
+      <div class="goal-hint" style="margin-top:6px;">${escHtml(sum)}</div></summary>
+    <div style="margin-top:14px;">
+    <h2>⏱️ Thời gian khoá khi chưa gửi vận đơn</h2>
     <p class="goal-hint">Kho đóng xong mà quá thời gian này (tính giờ làm việc 7h–18h, không tính giờ nghỉ) đơn vẫn chưa có mã vận đơn → Sale bị khoá tạo hoá đơn mới. Đơn khách hẹn ngày khác bấm "⏸ Hoãn" thì không bị tính.</p>
     <div class="chip-row">${[30,60].map(m=>`<div class="chip ${shipLockMinutes===m ? 'selected' : ''}" onclick="shipLockMinSet(${m})">${m===60 ? '60 phút (1 giờ)' : '30 phút'}</div>`).join('')}</div>
     <h2 style="margin-top:16px;">📦 Bàn đóng gói: số đơn chờ</h2>
@@ -7529,7 +7537,8 @@ function renderShipLockCard(){
     <div class="chip-row"><div class="chip ${saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(true)">✍️ Cho Sale nhập tay</div><div class="chip ${!saleManualShip ? 'selected' : ''}" onclick="saleManualShipSet(false)">🔒 Chỉ mã tự về từ Abit</div></div>
     <h2 style="margin-top:16px;">⏳ Sale thấy "Chờ hàng về"</h2>
     <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
-    <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>`;
+    <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>
+    </div></details>`;
 }
 const SHIP_WORK_START = 7, SHIP_WORK_END = 18;
 const SHIP_LOCK_START = new Date('2026-10-28T07:00:00+07:00').getTime();
