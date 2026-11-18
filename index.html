@@ -4204,6 +4204,7 @@ function onDataChanged(){
     checkNewLeadNotifications(); try{ abitIssueCheckNew(); abitDirectAutoShip(); }catch(e){}
     try{ syncPendingInvoiceLeadStatuses(); }catch(e){ console.error(e); }
     try{ if(currentInvoiceDraft && currentPageId==='invoices') invDraftDeductSync(); }catch(e){}
+    if(currentPageId==='mktInput'){ clearTimeout(window.__mktRecentT); window.__mktRecentT = setTimeout(()=>{ try{ renderMktRecentTable(); }catch(e){} }, 1500); } // cập nhật "Đã chia cho …" ngay
     // "staffReport", "mktInput" và "invoices" bị loại trừ khỏi việc tự vẽ lại: đây là các trang
     // có form đang gõ/chỉnh dở (nộp báo cáo / nhập data MKT / đang soạn 1 hoá đơn) — nếu cứ có
     // ai đó thay đổi data ở bất kỳ đâu trong hệ thống là tự vẽ lại trang, sẽ làm mất nội dung
@@ -7555,7 +7556,7 @@ function renderShipLockCard(){
     <p class="goal-hint">Hàng kho báo tạm hết: Sale thấy nhãn "⏳ Chờ hàng" trên hoá đơn, thông báo khi có hàng lại, cảnh báo khi lên hoá đơn. Tắt → Sale không thấy gì (kho vẫn xếp đơn tạm hết xuống cuối như thường).</p>
     <div class="chip-row"><div class="chip ${oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(true)">👀 Cho Sale thấy</div><div class="chip ${!oosShowSale ? 'selected' : ''}" onclick="oosShowSaleSet(false)">🙈 Ẩn với Sale</div></div>
     <h2 style="margin-top:16px;">⚡ Tiết kiệm lượt tải (giảm phí Firebase)</h2>
-    <p class="goal-hint">Bật: mỗi máy NHỚ data / hoá đơn / trạng thái đóng hàng trên máy, lần mở sau chỉ tải phần THAY ĐỔI (mỗi máy vẫn tải lại toàn bộ ~1 lần/ngày cho chắc). Rules đã thêm index "_u" (16/11). ${deltaCfg && deltaCfg.on===undefined ? '<b>Tự bật từ 6h sáng 17/11</b> nếu không ai bấm Tắt.' : ''}${deltaCfg===null ? ' (đang tải…)' : ''}</p>
+    <p class="goal-hint">Bật: mỗi máy NHỚ data / hoá đơn / trạng thái đóng hàng trên máy, lần mở sau chỉ tải phần THAY ĐỔI (mỗi máy vẫn tải lại toàn bộ ~1 lần/ngày cho chắc). Rules đã thêm index "_u" (16/11). ${deltaCfg && deltaCfg.on===undefined ? '<b>Tự bật từ 6h sáng 21/11</b> (đợi mọi máy lên bản mới) nếu không ai bấm Tắt.' : ''}${deltaCfg===null ? ' (đang tải…)' : ''}</p>
     <div class="chip-row"><div class="chip ${deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(true)">⚡ Bật tiết kiệm</div><div class="chip ${!deltaEnabled() ? 'selected' : ''}" onclick="deltaSyncSet(false)">Tắt — tải toàn bộ như cũ</div><div class="chip" onclick="deltaForceFull()">🔄 Bắt mọi máy tải lại toàn bộ</div></div>
     ${Object.keys(deltaActive).length ? `<div class="goal-hint">Máy này: ${Object.entries(deltaActive).map(([n, st])=>`${n} ${st.stats.mode==='cache' ? '✅ dùng bản nhớ' : (st.stats.mode==='full' ? '⬇ tải toàn bộ' : '…')} (${st.stats.items} mục, +${st.stats.delta} thay đổi)`).join(' · ')}</div>` : ''}
     </div></details>`;
@@ -9213,7 +9214,20 @@ function appHardReload(){
   catch(e){ location.reload(); }
 }
 (function(){ try{ const u = new URL(location.href); if(u.searchParams.has('v')){ u.searchParams.delete('v'); history.replaceState(null, '', u.pathname + u.search + u.hash); } }catch(e){} })();
-let appVerBase = null, appVerLastCheck = 0;
+let appVerBase = null, appVerLastCheck = 0, appUpdatePending = false;
+// 🔄 Có bản mới → TỰ tải lại khi máy đang rảnh (không gõ dở, không mở hoá đơn chưa lưu, không đang đóng hàng / mở cửa sổ)
+function appAutoReloadTry(){
+  if(!appUpdatePending) return;
+  try{
+    const busy = (typeof isUserActivelyEditing==='function' && isUserActivelyEditing())
+      || (typeof currentInvoiceDraft!=='undefined' && currentInvoiceDraft && invoiceDraftChanged())
+      || (typeof packPanel!=='undefined' && packPanel) || (typeof packSaving!=='undefined' && packSaving)
+      || document.querySelector('.modal-backdrop.show, .pack-cam.show');
+    if(busy) return;
+  }catch(e){ return; }
+  appHardReload();
+}
+setInterval(()=>{ try{ appAutoReloadTry(); }catch(e){} }, 30000);
 async function appCheckUpdate(force){
   if(location.protocol!=='http:' && location.protocol!=='https:') return;
   if(!force && nowMs() - appVerLastCheck < 60000) return;
@@ -9223,7 +9237,7 @@ async function appCheckUpdate(force){
     const tag = r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length') || '';
     if(!tag) return;
     if(appVerBase===null){ appVerBase = tag; return; }
-    if(tag!==appVerBase){ const b = document.getElementById('appUpdateBar'); if(b) b.style.display = 'flex'; }
+    if(tag!==appVerBase){ const b = document.getElementById('appUpdateBar'); if(b) b.style.display = 'flex'; appUpdatePending = true; appAutoReloadTry(); }
   }catch(e){}
 }
 setTimeout(()=>appCheckUpdate(true), 3000);
@@ -13893,7 +13907,11 @@ function renderMktInputPage(){
   resetMktBulkPreview();
   populateMktSourceList();
   renderMktInputLock();
-  const u = currentUser();
+  renderMktRecentTable();
+}
+// Bảng "Vừa thêm hôm nay" — vẽ lại RIÊNG bảng này khi data đổi (đã chia cho ai), không đụng ô đang nhập
+function renderMktRecentTable(){
+  const u = currentUser(); if(!u) return;
   const today = todayStr();
   const mine = state.leads.filter(l=>l.createdBy===u.id && toLocalDateStr(new Date(l.importedAt||0))===today)
     .sort((a,b)=>(b.importedAt||0)-(a.importedAt||0));
@@ -16412,11 +16430,12 @@ const DELTA_MAX_AGE = 20*3600000;   // tải lại toàn bộ tối đa 1 lần 
 const DELTA_MARGIN = 10*60000;      // lùi 10 phút cho chắc (lệch giờ / ghi chậm)
 const DELTA_TOMB_KEEP = 10*86400000; // bia mộ giữ 10 ngày
 const DELTA_VER = 1;
-let deltaCfg = null, deltaCfgP = null; const deltaActive = {};
+let deltaCfg = null, deltaCfgP = null, deltaOrigTx = null; const deltaActive = {};
 function fbPathSegs(ref){ const s = []; let r = ref; while(r && r.key !== null){ s.unshift(r.key); r = r.parent; } return s; }
 function deltaInstallPatch(){
   const P = firebase.database.Reference.prototype; if(!P || P.__deltaPatched) return; P.__deltaPatched = true;
   const oSet = P.set, oUpd = P.update, oRem = P.remove, oTx = P.transaction, oPush = P.push;
+  deltaOrigTx = oTx;
   const TS = firebase.database.ServerValue.TIMESTAMP;
   let mainRoot = ''; const isMain = r=>{ try{ if(!mainRoot) mainRoot = firebase.database().ref().toString(); return r.root.toString()===mainRoot; }catch(e){ return false; } };
   // entries: [[đường dẫn đầy đủ (mảng), giá trị]] → bản ghi multi-path ở gốc, đã gắn _u / bia mộ. null nếu không đụng nhánh theo dõi
@@ -16501,6 +16520,15 @@ function deltaAttach(name, baseRef, h){
     const q = baseRef.orderByChild('_u').startAt(since);
     const onV = s=>{ const v = s.val(); if(v===null) return; if(st.map[s.key]===undefined) st.nAdd++; st.map[s.key] = v; track(v._u); st.stats.delta++; if(st.ready) flush(); };
     q.on('child_added', onV); q.on('child_changed', onV);
+    // Mục CHƯA có dấu _u (máy còn chạy bản cũ tạo / ghi đè) → vẫn bắt được (sau khi đã đóng dấu hết data cũ, nhóm này gần như rỗng)
+    const nq = baseRef.orderByChild('_u').equalTo(null);
+    nq.on('child_added', onV); nq.on('child_changed', onV);
+    st.qs.push(nq);
+    if(name==='leads'){ // 🛟 data ĐANG CHỜ CHIA luôn nghe thẳng máy chủ (nhóm nhỏ) → không bao giờ sót data chưa chia, dù máy khác chạy bản nào
+      const wq = baseRef.orderByChild('assignedTo').equalTo(null);
+      wq.on('child_added', onV); wq.on('child_changed', onV);
+      st.qs.push(wq);
+    }
     const dq = fbRoot.child('_del/' + name).orderByValue().startAt(since);
     dq.on('child_added', s=>{ const t = Number(s.val())||0; const cur = st.map[s.key];
       if(cur && Number(cur._u) > t) return; // xoá rồi tạo lại → giữ bản mới
@@ -16516,6 +16544,7 @@ function deltaAttach(name, baseRef, h){
       st.ready = true; st.stats.items = Object.keys(st.map).length;
       try{ h.ready(st.map); }catch(e){ console.error(e); }
       live(Math.min(st.lastU || Number(c.savedAt) || 0, Number(c.savedAt) || nowMs()) - DELTA_MARGIN);
+      setTimeout(()=>deltaStampMissing(name, baseRef, st), 20000);
       return;
     }
     const t0 = nowMs();
@@ -16526,13 +16555,29 @@ function deltaAttach(name, baseRef, h){
     try{ h.ready(st.map); }catch(e){ console.error(e); }
     save(true);
     live(Math.min(st.lastU || t0, t0) - DELTA_MARGIN);
+    setTimeout(()=>deltaStampMissing(name, baseRef, st), 20000);
   })().catch(e=>{ console.error('delta ' + name, e); });
   return {off(){ st.off = true; clearTimeout(st.flushT); clearTimeout(st.saveT); st.qs.forEach(q=>{ try{ q.off(); }catch(e){} }); if(deltaActive[name]===st) delete deltaActive[name]; }};
+}
+// Đóng dấu _u cho các mục CŨ chưa có (chỉ máy Quản lý chung, chạy nền, 1 lần/ngày/nhánh) — ghi từng đợt 300 mục.
+// Chỉ đóng dấu mục máy này đang thấy còn tồn tại (vừa tải xong + nhận bia mộ trực tiếp) → không tạo lại mục đã xoá.
+async function deltaStampMissing(name, baseRef, st){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || st.off) return;
+  const k = 'delta_stamp_' + name; try{ if(localStorage.getItem(k)===todayStr()) return; }catch(e){ return; }
+  const ids = Object.keys(st.map).filter(id=>st.map[id] && !st.map[id]._u);
+  console.log('⚡ đóng dấu _u', name, ids.length);
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  for(let i = 0; i < ids.length && !st.off; i += 300){
+    const up = {}; ids.slice(i, i + 300).forEach(id=>{ const v = st.map[id]; if(v && !v._u && (v.id || Object.keys(v).length > 1)) up[id + '/_u'] = TS; });
+    if(Object.keys(up).length){ try{ await baseRef.update(up); }catch(e){ console.warn('stamp', e); return; } }
+    await new Promise(r=>setTimeout(r, 800));
+  }
+  if(!st.off) try{ localStorage.setItem(k, todayStr()); }catch(e){}
 }
 function deltaSaveAll(){ Object.values(deltaActive).forEach(st=>{ try{ st.saveNow && st.saveNow(); }catch(e){} }); }
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) deltaSaveAll(); });
 window.addEventListener('pagehide', deltaSaveAll);
-const DELTA_AUTO_ON_AT = new Date('2026-11-17T06:00:00+07:00').getTime(); // ⏰ tự BẬT từ 6h sáng 17/11 (sau khi mọi máy đã lên bản mới) — Quản lý chung bấm Tắt thì thôi
+const DELTA_AUTO_ON_AT = new Date('2026-11-21T06:00:00+07:00').getTime(); // ⏰ tự BẬT từ 6h sáng 21/11 — đợi MỌI máy đã tự tải bản mới (bản cũ không gắn _u → máy khác không thấy thay đổi). Quản lý chung bấm Tắt thì thôi
 function deltaEnabled(){ if(!deltaCfg) return false; if(deltaCfg.on===true) return true; if(deltaCfg.on===false) return false; return nowMs() >= DELTA_AUTO_ON_AT; }
 function deltaNodeOfRef(q){ return q===fbInvoices ? 'invoices' : (q===fbPackStatus ? 'packStatus' : (q===fbInvoiceItems ? 'invoiceItems' : (q===fbLeads ? 'leads' : null))); }
 // Quản lý chung: bật/tắt + bắt mọi máy tải lại toàn bộ
