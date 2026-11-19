@@ -16588,12 +16588,14 @@ function usageMeterInstall(){
   Q.on = function(ev, cb, ...rest){
     if(typeof cb!=='function') return oOn.apply(this, arguments);
     const node = usageNodeOf(this); if(node==='.info') return oOn.apply(this, arguments);
+    if(/^child_/.test(ev)) this.__hasChildL = true;
     const w = function(snap){ usageAdd(node, usageSizeOf(snap)); return cb.apply(this, arguments); };
     cb.__uw = w; return oOn.call(this, ev, w, ...rest);
   };
   const oOff = Q.off; Q.off = function(ev, cb, ...rest){ return oOff.call(this, ev, cb && cb.__uw ? cb.__uw : cb, ...rest); };
   Q.once = function(ev, cb, ...rest){
     const node = usageNodeOf(this);
+    if(this.__hasChildL) return oOnce.apply(this, arguments); // đã có lắng nghe con trên cùng truy vấn → Firebase không tải lại, không cộng 2 lần
     const p = oOnce.call(this, ev, typeof cb==='function' ? function(snap){ return cb.apply(this, arguments); } : cb, ...rest);
     if(p && p.then) p.then(snap=>{ usageAdd(node, usageSizeOf(snap)); }).catch(()=>{});
     return p;
@@ -16668,7 +16670,7 @@ function attachScopedPlain(name, key, query, apply, onFirstLoad){
 //    ⚠ Cần khai báo ".indexOn": ["assignedTo","status"] cho nhánh leads trong Firebase Rules, nếu không
 //    Firebase vẫn gửi cả kho về rồi mới lọc (không tiết kiệm được gì).
 //  - Quản lý chung / Quản lý Data / Trưởng team / MKT / Quản lý MKT: tải cả kho như trước.
-let leadsSubKey = null, leadsSubQueries = [], leadsDataReady = false;
+let leadsSubKey = null, leadsSubQueries = [], leadsDataReady = false, mktWantClosed = false;
 function subscribeLeadsForUser(user){
   const r = user ? user.role : null;
   const fullRoles = ['general_manager','data_manager']; // ⚡ Quản lý team: CHỈ data của team mình (xem bên dưới) — tiết kiệm ~7 MB / lần mở
@@ -16693,7 +16695,7 @@ function subscribeLeadsForUser(user){
   const key = !user ? 'none'
     : (fullRoles.includes(r) ? 'all'
     : (teamIds ? 'team:'+teamIds.join(',')
-    : (mktIds ? 'mkt:'+mktIds.join(',') : 'sale:'+user.id)));
+    : (mktIds ? 'mkt:'+mktIds.join(',') + (mktWantClosed ? ':closed' : '') : 'sale:'+user.id)));
   if(key===leadsSubKey) return;
   leadsSubQueries.forEach(q=>{ try{ q.off(); }catch(e){} });
   leadsSubQueries = []; leadsSubKey = key; leadsDataReady = false; state.leads = [];
@@ -16703,7 +16705,7 @@ function subscribeLeadsForUser(user){
     ? [fbLeads]
     : teamIds ? teamIds.map(id=>fbLeads.orderByChild('assignedTo').equalTo(id))
     : (mktIds
-      ? mktIds.map(id=>fbLeads.orderByChild('createdBy').equalTo(id)).concat([fbLeads.orderByChild('status').equalTo('Đã chốt')])
+      ? mktIds.map(id=>fbLeads.orderByChild('createdBy').equalTo(id)).concat(mktWantClosed ? [fbLeads.orderByChild('status').equalTo('Đã chốt')] : []) // ⚡ data đã chốt của người khác: chỉ khi vào trang Doanh thu
       : [fbLeads.orderByChild('assignedTo').equalTo(user.id)]); // Sale: chỉ data của mình. "Khách cũ" của Sale khác → tra theo SĐT khi cần (closedPhoneLookup)
   const maps = queries.map(()=>({}));
   const myKey = key;
@@ -16931,7 +16933,8 @@ function setupRoleScopedListeners(user){
   const invSetKey = (saleSide==='on' || isWarehouse) ? 'on' : 'none'; // Kho cần tên cửa hàng / STK / QR để in hoá đơn đóng hàng
   attachScoped('invoiceSettings', invSetKey, invSetKey==='on' ? fbInvoiceSettings : null,
     (arr, raw)=>{ state.invoiceSettings = (raw && typeof raw==='object') ? raw : {shopName:'', address:'', phone:'', bankNumber:'', bankOwner:'', bankName:''}; onDataChanged(); }, false);
-  attachScoped('selfLeads', saleSide, saleSide==='on' ? fbSelfLeads : null, setAndRender('selfLeads'), true);
+  const slMine = saleSide==='on' && r==='staff'; // ⚡ Sale chỉ tải data tự tìm CỦA MÌNH (trước: tải của cả công ty)
+  attachScoped('selfLeads', slMine ? 'mine:' + user.id : saleSide, saleSide==='on' ? (slMine ? fbSelfLeads.orderByChild('userId').equalTo(user.id) : fbSelfLeads) : null, setAndRender('selfLeads'), true);
 
   // Quay video / diễn viên / số liệu MKT cũ — chỉ phía MKT + Quản lý Data + Quản lý chung
   const vKey = needVideo ? 'on' : 'none';
@@ -17117,6 +17120,7 @@ const DEFAULT_THISMONTH_PAGES = {
 const defaultRangeApplied = {};
 function goPage(pageId){
   if(['printReport','printOverview','printOrders'].includes(pageId)){ try{ gmEnsureInvoiceItems(); }catch(e){} }
+  if(['mktRevenue','mktOverview','mktReport','mktPersonDetail','mktManagerStats','mktReportsAdmin'].includes(pageId) && !mktWantClosed){ const u1 = currentUser(); if(u1 && ['mkt','mkt_manager'].includes(u1.role)){ mktWantClosed = true; try{ subscribeLeadsForUser(u1); }catch(e){ console.error(e); } } } // ⚡ data "Đã chốt" toàn công ty: chỉ tải khi MKT mở trang thống kê / doanh thu (trang Nhập data không cần)
   { // Quản lý chung: các trang cá nhân (Data của tôi, Hoá đơn…) nằm trong nhóm "🗂️ Data của tôi" đang thu gọn → mở nhóm TRƯỚC khi kiểm tra quyền
     const u0 = currentUser();
     if(u0 && u0.role==='general_manager' && ['myLeads','staffReport','staffHistory','invoices'].includes(pageId)){
