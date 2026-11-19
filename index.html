@@ -4060,7 +4060,8 @@ function initFirebase(){
 }
 function startFirebaseListeners(){
   const db = firebase.database();
-  try{ deltaInstallPatch(); }catch(e){ console.error('delta patch', e); } // ⚡ gắn dấu giờ _u cho mọi lần ghi (để tải phần thay đổi)
+  try{ deltaInstallPatch(); }catch(e){ console.error('delta patch', e); }
+  try{ usageMeterInstall(); }catch(e){ console.error('usage meter', e); } // ⚡ gắn dấu giờ _u cho mọi lần ghi (để tải phần thay đổi)
   fbBranches = db.ref('branches');
   fbMktBranches = db.ref('mktBranches');
   fbMktSources = db.ref('mktSources');
@@ -16573,6 +16574,41 @@ async function deltaStampMissing(name, baseRef, st){
     await new Promise(r=>setTimeout(r, 800));
   }
   if(!st.off) try{ localStorage.setItem(k, todayStr()); }catch(e){}
+}
+// ===== 📊 ĐO LƯỢT TẢI THẬT theo vai trò + nhánh (để tìm chỗ tốn tiền) =====
+// Mỗi dữ liệu nhận về (sự kiện on/once) → cộng độ dài JSON vào usageBytes/{ngày}/{vai trò}/{nhánh} (gộp, ghi 5 phút/lần).
+// + đếm số lần MẤT KẾT NỐI rồi nối lại (mỗi lần nối lại Firebase có thể gửi lại dữ liệu).
+const usageAcc = {}; let usageMeterOn = false;
+function usageNodeOf(ref){ try{ const s = fbPathSegs(ref.ref || ref); return s.length ? s[0] : '(root)'; }catch(e){ return '?'; } }
+function usageAdd(node, n){ if(!n) return; usageAcc[node] = (usageAcc[node]||0) + n; }
+function usageSizeOf(snap){ try{ const v = snap && snap.val(); if(v===null || v===undefined) return 0; return typeof v==='object' ? JSON.stringify(v).length : String(v).length; }catch(e){ return 0; } }
+function usageMeterInstall(){
+  if(usageMeterOn) return; usageMeterOn = true;
+  const Q = firebase.database.Query.prototype; const oOn = Q.on, oOnce = Q.once;
+  Q.on = function(ev, cb, ...rest){
+    if(typeof cb!=='function') return oOn.apply(this, arguments);
+    const node = usageNodeOf(this); if(node==='.info') return oOn.apply(this, arguments);
+    const w = function(snap){ usageAdd(node, usageSizeOf(snap)); return cb.apply(this, arguments); };
+    cb.__uw = w; return oOn.call(this, ev, w, ...rest);
+  };
+  const oOff = Q.off; Q.off = function(ev, cb, ...rest){ return oOff.call(this, ev, cb && cb.__uw ? cb.__uw : cb, ...rest); };
+  Q.once = function(ev, cb, ...rest){
+    const node = usageNodeOf(this);
+    const p = oOnce.call(this, ev, typeof cb==='function' ? function(snap){ return cb.apply(this, arguments); } : cb, ...rest);
+    if(p && p.then) p.then(snap=>{ usageAdd(node, usageSizeOf(snap)); }).catch(()=>{});
+    return p;
+  };
+  let wasOn = null;
+  firebase.database().ref('.info/connected').on('value', s=>{ const v = s.val(); if(v===true && wasOn===false) usageAdd('(nối lại)', 1); wasOn = v; });
+  setInterval(usageFlush, 5*60000);
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) usageFlush(); });
+}
+function usageFlush(){
+  const me = currentUser(); if(!me || !fbRoot) return;
+  const keys = Object.keys(usageAcc); if(!keys.length) return;
+  const inc = firebase.database.ServerValue.increment; const up = {}; const d = todayStr();
+  keys.forEach(k=>{ up[`usageBytes/${d}/${me.role}/${String(k).replace(/[.#$\[\]\/]/g,'_')}`] = inc(usageAcc[k]); delete usageAcc[k]; });
+  fbRoot.update(up).catch(()=>{});
 }
 function deltaSaveAll(){ Object.values(deltaActive).forEach(st=>{ try{ st.saveNow && st.saveNow(); }catch(e){} }); }
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) deltaSaveAll(); });
