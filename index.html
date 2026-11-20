@@ -16638,14 +16638,19 @@ function attachScoped(name, key, query, apply, childMode, onFirstLoad){
   if(cur && cur.delta) cur.delta.off();
   scopedSubs[name] = {key, query};
   if(!query){ apply([]); return; }
-  const dNode = childMode ? deltaNodeOfRef(query) : null;
+  let dNode = childMode ? deltaNodeOfRef(query) : null, dBase = query, dFilter = null;
+  if(!dNode && childMode && name==='invoices' && String(key).startsWith('deposited:')){ // ⚡ Bàn đóng gói: khi bật tiết kiệm → nhớ cả nhánh hoá đơn trên máy, lọc đơn cọc 14 ngày tại máy (mỗi lần nối mạng lại chỉ tải phần đổi)
+    dNode = 'invoices'; dBase = fbInvoices; const cut = nowMs() - PACKER_INVOICE_DAYS*86400000;
+    dFilter = inv=>!!(inv && inv.depositLink && Number(inv.depositLink.markedAt) >= cut);
+  }
   if(dNode){ // ⚡ nhánh lớn tải cả nhánh → thử chế độ tiết kiệm (nếu Quản lý chung đã bật)
     const me = scopedSubs[name]; me.query = null;
     deltaLoadCfg().then(()=>{
       if(scopedSubs[name]!==me) return;
       if(deltaEnabled()){
         let first = true;
-        me.delta = deltaAttach(dNode, query, {ready: map=>{ apply(Object.values(map), map); if(first){ first = false; if(onFirstLoad) onFirstLoad(); } }, update: map=>apply(Object.values(map), map)});
+        const vals = map=>dFilter ? Object.values(map).filter(dFilter) : Object.values(map);
+        me.delta = deltaAttach(dNode, dBase, {ready: map=>{ apply(vals(map), map); if(first){ first = false; if(onFirstLoad) onFirstLoad(); } }, update: map=>apply(vals(map), map)});
       } else { me.query = query; attachScopedPlain(name, key, query, apply, onFirstLoad); }
     });
     return;
