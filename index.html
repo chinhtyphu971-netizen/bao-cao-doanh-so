@@ -3784,10 +3784,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 
+<div class="modal-backdrop" id="invImgModal" style="z-index:94;" onclick="if(event.target===this) invImgClose()">
+  <div class="modal" style="max-width:520px; max-height:92vh; overflow:auto;">
+    <h2 style="margin-bottom:6px;">📷 Ảnh hoá đơn</h2>
+    <p class="goal-hint" id="invImgHint" style="margin:0 0 8px;">Đang tạo ảnh…</p>
+    <div id="invImgBox" style="text-align:center;"></div>
+    <div class="actions" style="flex-wrap:wrap;">
+      <button class="btn-ghost" onclick="invImgClose()">Đóng</button>
+      <button class="btn-ghost" onclick="invImgClose(); setTimeout(()=>window.print(), 150)">🖨️ Thử in</button>
+      <button class="btn-primary" id="invImgShareBtn" onclick="invImgShare()" style="display:none;">📤 Lưu / Gửi ảnh</button>
+    </div>
+  </div>
+</div>
 <div class="modal-backdrop" id="invViewModal" onclick="if(event.target===this) closeInvoiceView()">
   <div class="modal inv-view-modal">
     <div class="inv-view-actions no-print">
-      <button class="btn-ghost btn-small" onclick="printInvoiceView()">🖨️ In / Lưu PDF</button>
+      <button class="btn-ghost btn-small" id="invViewPrintBtn" onclick="printInvoiceView()">🖨️ In / Lưu PDF</button>
       <button class="btn-ghost btn-small" onclick="closeInvoiceView()">✕ Đóng</button>
     </div>
     <div id="invViewBody" class="inv-view"></div>
@@ -6378,12 +6390,15 @@ function deleteInvoice(invoiceId){
 function saveAndPrintInvoice(){
   const d = currentInvoiceDraft;
   if(!d) return;
-  const doPrint = ()=>setTimeout(()=>window.print(), 300); // chờ hoá đơn vẽ lại xong (có Số HĐ) rồi mới in
+  const doPrint = ()=>setTimeout(()=>{ // chờ hoá đơn vẽ lại xong (có Số HĐ) rồi mới in
+    if(invIsPhone()){ const id = currentInvoiceDraft && currentInvoiceDraft.id; const inv = id && (state.invoices||[]).find(x=>x.id===id); if(inv){ invoiceToImage(inv); return; } } // 📱 điện thoại → ảnh hoá đơn
+    window.print(); }, 300);
   if(d.id && !invoiceDraftChanged()){ doPrint(); return; } // đã lưu, không sửa gì thêm → in luôn
   saveInvoiceDraft(doPrint); // thiếu thông tin thì saveInvoiceDraft tự báo lỗi và không in
 }
 function printInvoice(invoiceId){
   editInvoiceDraft(invoiceId, true); // chỉ mở để in, không phải sửa → không hỏi về kho
+  if(invIsPhone()){ const inv = (state.invoices||[]).find(x=>x.id===invoiceId); if(inv){ setTimeout(()=>invoiceToImage(inv), 200); return; } }
   setTimeout(()=>window.print(), 200);
 }
 
@@ -6633,7 +6648,7 @@ function renderInvoiceEditor0(){
   wrap.innerHTML = `
     <div class="no-print" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
       <button class="btn-primary" onclick="saveInvoiceDraft()">💾 Lưu hoá đơn</button>
-      <button class="btn-ghost" onclick="saveAndPrintInvoice()">🖨️ In / Lưu PDF</button>
+      <button class="btn-ghost" onclick="saveAndPrintInvoice()">${invIsPhone() ? '📷 Lưu ảnh hoá đơn' : '🖨️ In / Lưu PDF'}</button>
       <button class="btn-ghost" onclick="startNewInvoiceDraftFromEditor()">🧾 Hoá đơn mới</button>
       <button class="btn-ghost" onclick="refreshInvoiceEditor()">🔄 Làm mới</button>
       <button class="btn-ghost" onclick="cancelInvoiceDraft()">↩️ Quay lại danh sách</button>
@@ -6926,7 +6941,8 @@ function renderInvoicesOverviewPage(){
 function viewInvoiceReadonly(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
-  document.getElementById('invViewBody').innerHTML = invoiceReadonlyHtml(inv);
+  invViewCurrent = inv; document.getElementById('invViewBody').innerHTML = invoiceReadonlyHtml(inv);
+  { const pb = document.getElementById('invViewPrintBtn'); if(pb) pb.textContent = invIsPhone() ? '📷 Lưu ảnh hoá đơn' : '🖨️ In / Lưu PDF'; }
   document.getElementById('invViewModal').classList.add('show');
 }
 // Nội dung hoá đơn (chỉ xem / in) — đúng mẫu Sale đã lên. Dùng chung cho "Xem hoá đơn" và "In hoá đơn đóng hàng".
@@ -6986,8 +7002,47 @@ function invoiceReadonlyHtml(inv){
     </div>
     <div class="inv-ship-note">⚠ TỔNG THANH TOÁN CHƯA BAO GỒM PHÍ SHIP HÀNG</div>`;
 }
+// ===== 📱 ĐIỆN THOẠI: "In / Lưu PDF" không chạy được trên nhiều điện thoại (app thêm ra màn hình chính, mở trong Zalo…)
+// → tạo ẢNH hoá đơn: bấm "Lưu / Gửi ảnh" (lưu vào máy / gửi Zalo) hoặc nhấn giữ ảnh để lưu.
+function invIsPhone(){ try{ return window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820; }catch(e){ return false; } }
+let invImgFile = null, html2canvasP = null;
+function loadHtml2canvas(){
+  if(window.html2canvas) return Promise.resolve(window.html2canvas);
+  if(html2canvasP) return html2canvasP;
+  html2canvasP = new Promise((res, rej)=>{ const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ()=>res(window.html2canvas); sc.onerror = ()=>{ html2canvasP = null; rej(new Error('Không tải được công cụ tạo ảnh')); }; document.head.appendChild(sc); });
+  return html2canvasP;
+}
+async function invoiceToImage(inv){
+  const modal = document.getElementById('invImgModal'); const box = document.getElementById('invImgBox'); const hint = document.getElementById('invImgHint'); const btn = document.getElementById('invImgShareBtn');
+  invImgFile = null; box.innerHTML = ''; btn.style.display = 'none'; hint.textContent = '⏳ Đang tạo ảnh hoá đơn…'; modal.classList.add('show');
+  const wrap = document.createElement('div');
+  wrap.className = 'inv-view inv-img-capture'; wrap.style.cssText = 'position:fixed; left:-10000px; top:0; width:760px; background:#fff; color:#000; padding:24px;';
+  wrap.innerHTML = invoiceReadonlyHtml(inv);
+  wrap.querySelectorAll('.no-print').forEach(e=>e.remove());
+  document.body.appendChild(wrap);
+  try{
+    const h2c = await loadHtml2canvas();
+    await packWaitImages(wrap, 3000);
+    const canvas = await h2c(wrap, {backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false});
+    const url = canvas.toDataURL('image/png');
+    box.innerHTML = `<img src="${url}" alt="Hoá đơn" style="max-width:100%; border:1px solid #ddd; border-radius:8px;">`;
+    const blob = await new Promise(r=>canvas.toBlob(r, 'image/png'));
+    if(blob) invImgFile = new File([blob], `HD-${inv.invoiceNumber || 'hoa-don'}.png`, {type: 'image/png'});
+    btn.style.display = '';
+    hint.innerHTML = 'Bấm <b>📤 Lưu / Gửi ảnh</b> để lưu vào máy hoặc gửi Zalo. Hoặc <b>nhấn giữ vào ảnh</b> → Lưu ảnh.';
+  }catch(e){ console.error(e); hint.textContent = '⚠ Chưa tạo được ảnh (' + (e.message || e) + '). Kiểm tra mạng rồi thử lại, hoặc chụp màn hình hoá đơn.'; }
+  finally{ wrap.remove(); }
+}
+async function invImgShare(){
+  if(!invImgFile) return;
+  try{ if(navigator.canShare && navigator.canShare({files: [invImgFile]})){ await navigator.share({files: [invImgFile], title: invImgFile.name}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(invImgFile); a.download = invImgFile.name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function invImgClose(){ document.getElementById('invImgModal').classList.remove('show'); }
 function closeInvoiceView(){ document.getElementById('invViewModal').classList.remove('show'); }
+let invViewCurrent = null;
 function printInvoiceView(){
+  if(invIsPhone() && invViewCurrent){ invoiceToImage(invViewCurrent); return; } // 📱 điện thoại → ảnh hoá đơn
   document.body.classList.add('printing-inv-view');
   const done = ()=>{ document.body.classList.remove('printing-inv-view'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
