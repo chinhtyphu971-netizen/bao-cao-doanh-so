@@ -7024,7 +7024,13 @@ async function invoiceToImage(inv){
   try{
     const h2c = await loadHtml2canvas();
     await packWaitImages(wrap, 3000);
-    const canvas = await h2c(wrap, {backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false});
+    // Mã QR: iPhone vẽ sai ảnh có object-fit (chỉ ra 1 ô vuông) → ẩn khi chụp rồi TỰ VẼ QR vào đúng chỗ
+    const qrs = Array.from(wrap.querySelectorAll('img.iv-qr')).filter(im=>im.complete && im.naturalWidth);
+    const W0 = wrap.getBoundingClientRect(); const qrPos = qrs.map(im=>{ const r = im.getBoundingClientRect(); return {im, x: r.left - W0.left, y: r.top - W0.top, w: r.width, h: r.height}; });
+    qrs.forEach(im=>{ im.style.visibility = 'hidden'; });
+    const SC = 2;
+    const canvas = await h2c(wrap, {backgroundColor: '#ffffff', scale: SC, useCORS: true, logging: false});
+    try{ const ctx = canvas.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); qrPos.forEach(p=>{ const sz = Math.min(p.w, p.h); ctx.imageSmoothingEnabled = false; ctx.drawImage(p.im, (p.x + (p.w - sz)/2) * SC, (p.y + (p.h - sz)/2) * SC, sz * SC, sz * SC); }); }catch(e){ console.warn('vẽ QR', e); }
     const url = canvas.toDataURL('image/png');
     box.innerHTML = `<img src="${url}" alt="Hoá đơn" style="max-width:100%; border:1px solid #ddd; border-radius:8px;">`;
     const blob = await new Promise(r=>canvas.toBlob(r, 'image/png'));
