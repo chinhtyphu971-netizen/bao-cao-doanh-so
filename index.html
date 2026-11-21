@@ -7019,6 +7019,7 @@ async function invoiceToImage(inv){
   wrap.className = 'inv-view inv-img-capture'; wrap.style.cssText = 'position:fixed; left:-10000px; top:0; width:760px; background:#fff; color:#000; padding:24px;';
   wrap.innerHTML = invoiceReadonlyHtml(inv);
   wrap.querySelectorAll('.no-print').forEach(e=>e.remove());
+  { const st = state.invoiceSettings || {}; if(st.bankName && st.bankNumber) wrap.querySelectorAll('img.iv-qr').forEach(im=>{ im.src = '/api/qr?bank=' + encodeURIComponent(st.bankName) + '&num=' + encodeURIComponent(st.bankNumber); }); } // QR qua máy chủ mình → chụp được vào ảnh
   document.body.appendChild(wrap);
   try{
     const h2c = await loadHtml2canvas();
