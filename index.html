@@ -8234,6 +8234,16 @@ function packCheckUrgentNotices(){
   try{ if(toneCurrent('packUrgent')) playEventTone('packUrgent'); else { playTingSound(); setTimeout(()=>{ try{ playTingSound(); }catch(e){} }, 700); } }catch(e){}
   if(navigator.vibrate) navigator.vibrate([200,100,200]);
 }
+// 🔒 Chống làm TRÙNG: đơn đang do NGƯỜI KHÁC nhận (bấm Nhận đơn / quét phiếu) → không cho đóng / báo thiếu / gửi thiếu.
+// Nhân viên đóng gói: chặn hẳn. Kho trưởng: hỏi xác nhận (khi cần làm thay). Trả về true nếu ĐƯỢC làm tiếp.
+function packOtherClaimGuard(invId, go){
+  const me = currentUser() || {}; const c = packActiveClaimOf(invId);
+  if(!c || c.by===me.id || me.role==='general_manager') return true;
+  packBeep(false);
+  if(me.role==='warehouse'){ if(go){ askConfirm('Đơn đang có người nhận', `${c.byName} đang nhận đơn này (${packClaimMinutes(c)} phút). Vẫn đóng thay? (nhớ báo ${c.byName} để tránh làm trùng)`, go); } return false; }
+  showToast(`🔒 ${c.byName} đang nhận đơn này (${packClaimMinutes(c)} phút) — không làm trùng. Cần đổi người thì nhờ Kho trưởng bấm "↩ Trả lại hàng chờ".`);
+  return false;
+}
 async function packClaimSpecific(invId){
   const me = currentUser(); if(!me || !fbPackClaims) return;
   const mine = packMyClaim();
@@ -10565,6 +10575,7 @@ function packDoPacked(){
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
+  if(!packPanel._claimOk && !packOtherClaimGuard(packPanel.invId, ()=>{ if(packPanel){ packPanel._claimOk = true; packDoPacked(); } })) return;
   const inv = packInvById(packPanel.invId); if(!inv) return;
   const prog = packPickProgress(packInvLines(inv), packStatusMap()[inv.id]);
   if(prog.need && prog.got < prog.need){
@@ -10595,6 +10606,7 @@ function packDoShort(){
   if(!packOnline){ packBeep(false); showToast('📴 Đang mất mạng — tick và ảnh vẫn giữ trên máy. Có mạng lại rồi bấm lưu.'); return; }
   if(packSaving) return; // đang lưu → chặn bấm 2 lần
   if(!packPanel || !packNeedStaff()) return;
+  if(!packPanel._claimOk && !packOtherClaimGuard(packPanel.invId, ()=>{ if(packPanel){ packPanel._claimOk = true; packDoShort(); } })) return;
   const inv = packInvById(packPanel.invId); if(!inv || !inv.depositLink) return;
   const items = packInvLines(inv).filter(l=>(packPanel.miss[l.key]||0) > 0)
     .map(l=>({key:l.key, code:l.code, design:l.design, color:l.color, size:l.size, qty:l.qty, missing: packPanel.miss[l.key]}));
@@ -11040,6 +11052,7 @@ function packDoPartial(){
   if((currentUser()||{}).role==='general_manager') return; // Quản lý chung chỉ xem
   if(packPanel && packPanel.viewOnly) return;
   if(!packPanel || !packNeedStaff()) return;
+  if(!packPanel._claimOk && !packOtherClaimGuard(packPanel.invId, ()=>{ if(packPanel){ packPanel._claimOk = true; packDoPartial(); } })) return;
   const ps = packStatusMap()[packPanel.invId]; if(!ps || ps.state!=='short') return;
   if(!packPanel._pkgOk){ // 📦 bắt buộc xác nhận số kiện — chia theo hàng THỰC GỬI (đã trừ món thiếu)
     const inv0 = packInvById(packPanel.invId), plan0 = inv0 ? packDeductShortPlan(inv0, ps.shortItems) : null;
@@ -11153,6 +11166,11 @@ function packOpenInvoiceByCode(raw){
   if(['packer','warehouse'].includes(me.role) && !packIsSale(me)){
     const ps0 = packStatusMap()[inv.id]; const c0 = packActiveClaimOf(inv.id);
     if(!ps0 && inv.depositLink && !c0) packClaimSpecific(inv.id);
+    if(c0 && c0.by!==me.id){ // 🔒 phiếu giấy của đơn mà người khác đã nhận trên điện thoại → chỉ xem
+      if(me.role==='packer' && packPanel && packPanel.invId===inv.id){ packPanel.viewOnly = true; renderPackPanel(); }
+      packBeep(false); showToast(`🔒 Đơn ${inv.invoiceNumber} đang do ${c0.byName} nhận (${packClaimMinutes(c0)} phút) — KHÔNG làm trùng. Đưa phiếu cho ${c0.byName} hoặc nhờ Kho trưởng trả lại hàng chờ.`);
+      return true;
+    }
   }
   const ps = packStatusMap()[inv.id], pp = packPrintMap()[inv.id];
   const bad = !inv.depositLink || (ps && ps.state==='packed') || (pp && pp.sig!==packSig(inv));
