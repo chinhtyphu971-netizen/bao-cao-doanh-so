@@ -1699,6 +1699,25 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   #invViewShip .inv-ship-line.pin-body{ max-width:none; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
+  .exp-bals{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px; margin-bottom:14px; }
+  .exp-bal{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-m); padding:14px 16px; }
+  .exp-bal-l{ font-size:13px; color:var(--ink-soft); }
+  .exp-bal-v{ font-size:22px; font-weight:800; color:#5FD38D; margin-top:4px; }
+  .exp-bal.neg .exp-bal-v{ color:#FF8A8D; }
+  .exp-form .exp-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:10px; }
+  .exp-form label{ display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--ink-soft); }
+  .exp-toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .exp-toolbar input{ flex:1; min-width:160px; }
+  .exp-sum{ display:flex; gap:18px; flex-wrap:wrap; font-size:14px; margin-bottom:10px; }
+  .exp-out{ color:#FF8A8D; } .exp-in{ color:#5FD38D; }
+  .exp-cats{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; font-size:13px; }
+  .exp-cat{ display:grid; grid-template-columns:minmax(150px,220px) 1fr auto 40px; gap:8px; align-items:center; }
+  .exp-cat-bar{ height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
+  .exp-cat-bar i{ display:block; height:100%; background:#4F8CFF; border-radius:4px; }
+  .exp-tbl{ width:100%; font-size:13px; }
+  .exp-row-in td{ background:rgba(95,211,141,0.06); }
+  .exp-acc{ display:flex; flex-direction:column; gap:4px; margin-top:10px; max-height:360px; overflow:auto; }
+  .exp-acc-row{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dashed var(--line); font-size:13.5px; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
   .lbl-done-mark{ display:inline-block; font-size:11px; font-weight:700; color:#6FD99A; background:rgba(46,160,90,0.15); border:1px solid rgba(46,160,90,0.45); border-radius:6px; padding:0 4px; margin-left:3px; vertical-align:middle; cursor:help; }
@@ -2191,6 +2210,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <div id="navInbox" style="display:none;">
         <div class="nav-item" data-page="myInbox" onclick="goPage('myInbox')"><span class="label" id="navInboxLabel">💬 Tin nhắn</span></div>
       </div>
+      <div id="navExpense" style="display:none;">
+        <div class="nav-item" data-page="expenses" onclick="goPage('expenses')"><span class="label">💰 Chi phí văn phòng</span></div>
+      </div>
       <div id="navGoals" style="display:none;">
         <div class="nav-item" data-page="goals" onclick="goPage('goals')"><span class="label">🎯 Mục tiêu</span></div>
       </div>
@@ -2314,6 +2336,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         </div>
       </div>
 
+      <!-- ---------- 💰 Chi phí văn phòng (chỉ người được anh Thiện QTV cấp quyền) ---------- -->
+      <div id="page-expenses" class="page" style="display:none;">
+        <div class="page-head"><div><h1>💰 Chi phí văn phòng</h1><p>Khoản chi, nạp quỹ, quỹ công đoàn — chỉ người được cấp quyền mới thấy</p></div></div>
+        <div id="expBox"></div>
+      </div>
       <!-- ---------- 🎯 Mục tiêu tháng (Sale, Quản lý team, Quản lý chung) ---------- -->
       <div id="page-goals" class="page" style="display:none;">
         <div class="page-head">
@@ -4200,7 +4227,7 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ setTimeout(()=>{ try{ const cu = currentUser(); if(cu && cu.role==='team_manager' && appReady) subscribeLeadsForUser(cu); }catch(e){} }, 0); state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    onDataChanged(); try{ const cu = currentUser(); if(cu && cu.loginBlocked){ showToast('Tài khoản đã ngừng hoạt động.'); logout(); } }catch(e){} try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
+  fbUsers.on('value',    snap=>{ setTimeout(()=>{ try{ const cu = currentUser(); if(cu && cu.role==='team_manager' && appReady) subscribeLeadsForUser(cu); }catch(e){} }, 0); state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    secApplyPins(); onDataChanged(); try{ const cu = currentUser(); if(cu && cu.loginBlocked){ showToast('Tài khoản đã ngừng hoạt động.'); logout(); } }catch(e){} try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
@@ -11980,8 +12007,28 @@ function fbSetBranch(b){ fbBranches.child(b.id).set(b); }
 function fbSetMktBranch(b){ fbMktBranches.child(b.id).set(b); }
 function fbSetMktSource(s){ fbMktSources.child(s.id).set(s); }
 function fbSetActor(a){ fbActors.child(a.id).set(a); }
-function fbSetUser(u){ fbUsers.child(u.id).set(u); }
-function fbUpdateUser(id, patch){ fbUsers.child(id).update(patch); }
+// 🔒 PIN KHÔNG lưu trong /users nữa (ai đăng nhập cũng đọc được /users) → cất riêng ở /userPins/{id}:
+// chỉ máy chủ, Quản lý chung và người quản lý tài khoản đóng gói (với tài khoản đóng gói) đọc/ghi được.
+function fbSetUser(u){ const rest = Object.assign({}, u); const pin = rest.pin; delete rest.pin; fbUsers.child(u.id).set(rest); if(pin) secPinWrite(u.id, pin); }
+function fbUpdateUser(id, patch){ patch = Object.assign({}, patch); if('pin' in patch){ const pin = patch.pin; delete patch.pin; patch.pin = null; if(pin) secPinWrite(id, pin); } fbUsers.child(id).update(patch); }
+let secPins = {}, secPinRefs = [];
+function secPinWrite(id, pin){ secPins[id] = String(pin); try{ firebase.database().ref('userPins/' + id).set(String(pin)); }catch(e){} }
+function secApplyPins(){ (state.users||[]).forEach(u=>{ if(secPins[u.id]!=null) u.pin = String(secPins[u.id]); }); }
+function secPinsListen(user){ // chỉ máy Quản lý chung / người quản lý tài khoản đóng gói mới tải PIN (để xem, đưa PIN cho nhân viên)
+  secPinRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); secPinRefs = [];
+  if(!user) return;
+  const onV = id=>snap=>{ const v = snap.val(); if(v==null) delete secPins[id]; else secPins[id] = String(v); secApplyPins(); };
+  if(user.role==='general_manager'){ const r = firebase.database().ref('userPins'); r.on('value', snap=>{ secPins = {}; Object.entries(snap.val()||{}).forEach(([k,v])=>{ secPins[k] = String(v); }); secApplyPins(); }, ()=>{}); secPinRefs.push(r); return; }
+  if(user.canManagePackers) (state.users||[]).filter(u=>u.role==='packer').forEach(u=>{ const r = firebase.database().ref('userPins/' + u.id); r.on('value', onV(u.id), ()=>{}); secPinRefs.push(r); });
+}
+// Chuyển PIN cũ từ /users sang /userPins (Quản lý chung bấm 1 lần — chạy trước khi khoá Rules)
+async function secMigratePins(){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return 'chỉ Quản lý chung';
+  const all = (await fbUsers.once('value')).val() || {}; const up = {}; let n = 0;
+  Object.entries(all).forEach(([id,u])=>{ if(u && u.pin){ up['userPins/' + id] = String(u.pin); up['users/' + id + '/pin'] = null; n++; } });
+  if(n) await firebase.database().ref().update(up);
+  return n;
+}
 function fbSetReport(r){ fbReports.child(r.id).set(r); }
 function fbRemoveReport(id){ fbReports.child(id).remove(); }
 function fbSetTrash(r){ fbTrash.child(r.id).set(r); }
@@ -17132,6 +17179,8 @@ function enterApp(){
   const user=currentUser();
   if(!user){ logout(); return; }
   setupRoleScopedListeners(user);
+  try{ secPinsListen(user); }catch(e){ console.error(e); }
+  try{ expListen(user); }catch(e){ console.error(e); } // 💰 Chi phí văn phòng (chỉ người được cấp quyền)
   try{ goalSetupListeners(user); }catch(e){ console.error(e); } // 🎯 Mục tiêu tháng
   try{ usageCountOpen(user); }catch(e){} // 📊 đếm lượt mở app theo vai trò (để biết ai tốn dữ liệu nhất)
   try{ loyalListen(user); loyalTplListen(user); msgTplListen(user); packDoneToneListen(user); toneListen(user); }catch(e){ console.error(e); }
@@ -17304,7 +17353,169 @@ const DEFAULT_THISMONTH_PAGES = {
   videoShootsOverview: 'applyVsOverviewDatePreset',   // Chi phí quay video (tổng)
 };
 const defaultRangeApplied = {};
+// ===================== 💰 CHI PHÍ VĂN PHÒNG =====================
+// Chỉ người được anh Thiện QTV cấp quyền mới thấy (kể cả Quản lý chung). 2 mức: 'view' (xem) · 'edit' (xem + ghi/sửa).
+// Chỉ chủ (anh Thiện) xoá khoản, chỉnh số dư đầu, cấp quyền. 2 quỹ: Chi tiêu (chi) · Công đoàn (cd).
+// Dữ liệu: officeLedger/{id} {date, kind:'out'|'in', fund, item, amount, cat, note, by, byName, at, hist?}
+//          officeLedgerMeta {chi, cd, openDate} — số dư chốt từ bảng cũ; số dư hiện tại = số chốt + các khoản ghi trong app (không tính hist)
+//          expenseAccess/{userId} = 'view' | 'edit'
+const EXP_OWNER_ID = 'mtuxa11rn32zq'; // anh Thiện QTV
+const EXP_CATS = [['sim','📱 Sim / cước gọi Sale'],['fruit','🍎 Hoa quả / bánh kẹo / trà'],['water','💧 Nước lọc'],['supply','🧻 Đồ dùng / vệ sinh'],['equip','🪑 Nội thất / thiết bị'],['soft','💻 Phần mềm / dịch vụ'],['sn','🎂 Sinh nhật / quà / thăm hỏi'],['party','🎉 Liên hoan / đi chơi'],['other','📦 Khác']];
+const EXP_CAT_RX = {sim:/sim|cước|nạp|gọi|tiền dt/i, sn:/\bsn\b|sinh nhật|quà|thăm|thưởng|tân gia/i, party:/đi chơi|đi hát|lẩu|bia|liên hoan|ăn cty|ăn trưa|tiền ăn|xiên|đá viên/i, fruit:/hoa quả|bánh|kẹo|chè|trà|táo|quả/i, water:/nước lọc|bình nước/i, soft:/capcus|chatgpt|gpt|zalo|app|win|phần mềm|ship/i, equip:/bàn|ghế|mic|máy tính|quạt|đèn|tivi|rèm|tủ|kệ|chuột|tai nghe|usb|sạc|ổ điện|dây điện/i, supply:/giấy|túi|rác|chổi|dầu gội|nước rửa|bồn cầu|muối|bột|dép|móc|lọ|sọt|bút|cây|cám/i};
+const EXP_FUNDS = {chi:'Quỹ chi tiêu', cd:'Quỹ công đoàn'};
+let expAccess = {}, expAccessRef = null, expLedger = [], expLedgerRef = null, expMeta = null, expMetaRef = null, expLoaded = false;
+let expMonth = '', expQ = '', expForm = null, expShowAcc = false;
+function expOwnerId(){ if(EXP_OWNER_ID) return EXP_OWNER_ID; const o = (state.users||[]).find(u=>String(u.name||'').trim().normalize('NFC').toLowerCase()==='thiện qtv'.normalize('NFC')); return o ? o.id : ''; }
+function expIsOwner(u){ u = u || currentUser(); return !!(u && expOwnerId() && u.id===expOwnerId()); }
+function expLevel(u){ u = u || currentUser(); if(!u) return ''; if(expIsOwner(u)) return 'owner'; return expAccess[u.id] || ''; }
+function expCanView(u){ return !!expLevel(u); }
+function expCanEdit(u){ const l = expLevel(u); return l==='owner' || l==='edit'; }
+function expGuessCat(t){ t = String(t||''); for(const k of ['sim','sn','party','fruit','water','soft','equip','supply']) if(EXP_CAT_RX[k].test(t)) return k; return 'other'; }
+function expCatLabel(k){ const c = EXP_CATS.find(x=>x[0]===k); return c ? c[1] : '📦 Khác'; }
+function expParseMoney(s){ // "150k" · "1tr5" · "1.250.000" · "2,5tr"
+  s = String(s||'').trim().toLowerCase().replace(/\s+/g,''); if(!s) return 0;
+  let m = s.match(/^(\d+(?:[.,]\d+)?)tr(\d*)$/); if(m){ const a = parseFloat(m[1].replace(',','.')); const b = m[2] ? Number(('0.' + m[2]).slice(0, 5)) : 0; return Math.round((a + b) * 1e6); }
+  m = s.match(/^(\d+(?:[.,]\d+)?)k$/); if(m) return Math.round(parseFloat(m[1].replace(',','.')) * 1000);
+  return Number(s.replace(/[^\d]/g,'')) || 0;
+}
+function expListen(user){
+  if(expAccessRef){ try{ expAccessRef.off(); }catch(e){} expAccessRef = null; }
+  expAccess = {}; expNav();
+  if(!user) return;
+  const db = firebase.database();
+  if(expIsOwner(user)){ expAccessRef = db.ref('expenseAccess'); expAccessRef.on('value', s=>{ expAccess = s.val() || {}; expNav(); if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{}); }
+  else { expAccessRef = db.ref('expenseAccess/' + user.id); expAccessRef.on('value', s=>{ const v = s.val(); expAccess = v ? {[user.id]: v} : {}; expNav(); if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{}); }
+}
+function expNav(){
+  const ok = expCanView(); const n = document.getElementById('navExpense'); if(n) n.style.display = ok ? 'block' : 'none';
+  if(!ok){ if(expLedgerRef){ try{ expLedgerRef.off(); expMetaRef.off(); }catch(e){} expLedgerRef = expMetaRef = null; expLedger = []; expMeta = null; expLoaded = false; }
+    if(currentPageId==='expenses') goPage(homePageForMe()); }
+}
+function expEnsureData(){ // chỉ tải khi mở trang (ít dữ liệu, không tải cho người khác)
+  if(expLedgerRef || !expCanView()) return;
+  const db = firebase.database();
+  expLedgerRef = db.ref('officeLedger'); expMetaRef = db.ref('officeLedgerMeta');
+  expLedgerRef.on('value', s=>{ expLedger = Object.values(s.val() || {}).filter(x=>x && x.id); expLoaded = true; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{ expLoaded = true; });
+  expMetaRef.on('value', s=>{ expMeta = s.val() || null; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{});
+}
+function expBalances(){
+  const m = expMeta || {}; const b = {chi: Number(m.chi)||0, cd: Number(m.cd)||0};
+  expLedger.forEach(x=>{ if(x.hist) return; const f = x.fund==='cd' ? 'cd' : 'chi'; b[f] += (x.kind==='in' ? 1 : -1) * (Number(x.amount)||0); });
+  return b;
+}
+function expMonthsList(){ const s = new Set(expLedger.map(x=>String(x.date||'').slice(0,7)).filter(Boolean)); s.add(todayStr().slice(0,7)); return Array.from(s).sort().reverse(); }
+function expMonthLabel(ym){ const [y, m] = ym.split('-'); return `Tháng ${Number(m)}/${y}`; }
+function renderExpensesPage(){
+  const box = document.getElementById('expBox'); if(!box) return;
+  if(!expCanView()){ box.innerHTML = '<div class="card">Bạn không có quyền xem mục này.</div>'; return; }
+  expEnsureData();
+  if(!expLoaded){ box.innerHTML = '<div class="card pack-note">Đang tải…</div>'; return; }
+  const me = currentUser() || {}; const canEdit = expCanEdit(), owner = expIsOwner();
+  if(!expMonth) expMonth = todayStr().slice(0,7);
+  const bal = expBalances();
+  const fmt = n=>fmtMoney(n) + ' đ';
+  const q = expQ.trim().toLowerCase();
+  const inMonth = expLedger.filter(x=>expMonth==='all' || String(x.date||'').startsWith(expMonth));
+  const list = inMonth.filter(x=>!q || String(x.item||'').toLowerCase().includes(q) || String(x.note||'').toLowerCase().includes(q))
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)) || Number(b.at||0)-Number(a.at||0) || String(b.id).localeCompare(String(a.id)));
+  const outs = inMonth.filter(x=>x.kind==='out'), ins = inMonth.filter(x=>x.kind==='in');
+  const sumOut = outs.reduce((a,x)=>a+(Number(x.amount)||0),0), sumIn = ins.reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const byCat = {}; outs.forEach(x=>{ const k = x.cat || 'other'; byCat[k] = (byCat[k]||0) + (Number(x.amount)||0); });
+  const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const balCard = (f)=>`<div class="exp-bal ${bal[f]<0 ? 'neg' : ''}"><div class="exp-bal-l">${EXP_FUNDS[f]}</div><div class="exp-bal-v">${bal[f]<0 ? 'Âm ' + fmtMoney(-bal[f]) : fmtMoney(bal[f])} đ</div></div>`;
+  const f = expForm;
+  const formHtml = !f ? '' : `<div class="card exp-form">
+    <h3 style="margin-top:0;">${f.id ? '✏️ Sửa' : (f.kind==='in' ? '💵 Nạp quỹ' : '➕ Ghi khoản chi')}</h3>
+    <div class="exp-grid">
+      <label>Ngày<input type="date" id="expFDate" value="${escHtml(f.date)}"></label>
+      <label>${f.kind==='in' ? 'Nội dung (VD: Nạp thêm)' : 'Nội dung chi'}<input id="expFItem" value="${escHtml(f.item||'')}" placeholder="${f.kind==='in' ? 'Nạp thêm' : 'VD: Hoa quả, sim cho Sale…'}" oninput="expFormCatGuess()"></label>
+      <label>Số tiền<input id="expFAmt" inputmode="decimal" value="${f.amount ? fmtMoney(f.amount) : ''}" placeholder="VD: 150k · 1tr5 · 250000" oninput="expFormAmtHint()"><span class="pack-note" id="expFAmtHint"></span></label>
+      <label>Quỹ<select id="expFFund">${Object.entries(EXP_FUNDS).map(([k,l])=>`<option value="${k}" ${f.fund===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${f.kind==='in' ? '' : `<label>Loại<select id="expFCat">${EXP_CATS.map(([k,l])=>`<option value="${k}" ${f.cat===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+      <label>Ghi chú<input id="expFNote" value="${escHtml(f.note||'')}" placeholder="(không bắt buộc)"></label>
+    </div>
+    <div class="login-error" id="expFErr"></div>
+    <div style="display:flex; gap:8px; margin-top:10px;"><button class="btn-primary" onclick="expFormSave()">💾 Lưu</button><button class="btn-ghost" onclick="expForm=null; renderExpensesPage()">Huỷ</button></div>
+  </div>`;
+  const accHtml = !owner ? '' : `<div class="card"><div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;"><h3 style="margin:0;">🔑 Ai được xem / ghi chi phí</h3><button class="btn-ghost btn-small" onclick="expShowAcc=!expShowAcc; renderExpensesPage()">${expShowAcc ? 'Thu gọn' : 'Cấp quyền ›'}</button></div>
+    <div class="pack-note" style="margin-top:6px;">Đang có quyền: ${Object.entries(expAccess).filter(([id,v])=>v && id!==me.id).map(([id,v])=>`<b>${escHtml(userName(id))}</b> (${v==='edit' ? 'xem + ghi' : 'chỉ xem'})`).join(', ') || 'chưa ai'} · Quản lý chung cũng KHÔNG thấy nếu anh không cấp.</div>
+    ${expShowAcc ? `<div class="exp-acc">${(state.users||[]).filter(u=>u.id!==me.id && !u.loginBlocked).sort((a,b)=>String(a.name).localeCompare(String(b.name),'vi')).map(u=>`<div class="exp-acc-row"><span>${escHtml(u.name)} <span class="pack-note">${escHtml(roleLabel(u.role))}</span></span><select onchange="expSetAccess('${u.id}', this.value)"><option value="" ${!expAccess[u.id] ? 'selected' : ''}>Không</option><option value="view" ${expAccess[u.id]==='view' ? 'selected' : ''}>Chỉ xem</option><option value="edit" ${expAccess[u.id]==='edit' ? 'selected' : ''}>Xem + ghi</option></select></div>`).join('')}</div>` : ''}
+  </div>`;
+  box.innerHTML = `
+    <div class="exp-bals">${balCard('chi')}${balCard('cd')}</div>
+    <div class="pack-note" style="margin:-6px 0 12px;">Số dư = số chốt từ bảng cũ (${expMeta && expMeta.openDate ? escHtml(expMeta.openDate.split('-').reverse().join('/')) : '—'}) + các khoản ghi trong app.${owner ? ' <a href="#" onclick="event.preventDefault(); expEditOpening()">✏️ Chỉnh số dư chốt</a>' : ''}</div>
+    ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"><button class="btn-primary" onclick="expFormOpen('out')">➕ Ghi khoản chi</button><button class="btn-ghost" onclick="expFormOpen('in')">💵 Nạp quỹ</button></div>` : '<div class="pack-note" style="margin-bottom:12px;">Bạn được cấp quyền <b>chỉ xem</b>.</div>'}
+    ${formHtml}
+    <div class="card">
+      <div class="exp-toolbar">
+        <select onchange="expMonth=this.value; renderExpensesPage()">${expMonthsList().map(m=>`<option value="${m}" ${expMonth===m ? 'selected' : ''}>${expMonthLabel(m)}</option>`).join('')}<option value="all" ${expMonth==='all' ? 'selected' : ''}>Tất cả</option></select>
+        <input type="search" id="expSearch" placeholder="🔍 Tìm nội dung" value="${escHtml(expQ)}" oninput="expQ=this.value; clearTimeout(window.__expT); window.__expT=setTimeout(()=>{ renderExpensesPage(); const i=document.getElementById('expSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 250)">
+      </div>
+      <div class="exp-sum"><div>Tổng chi: <b class="exp-out">${fmt(sumOut)}</b> <span class="pack-note">(${outs.length} khoản)</span></div>${sumIn ? `<div>Nạp vào: <b class="exp-in">${fmt(sumIn)}</b></div>` : ''}</div>
+      ${catRows.length ? `<div class="exp-cats">${catRows.map(([k,v])=>`<div class="exp-cat"><span>${escHtml(expCatLabel(k))}</span><span class="exp-cat-bar"><i style="width:${Math.max(2, Math.round(v*100/(catRows[0][1]||1)))}%"></i></span><b>${fmtMoney(v)}</b><span class="pack-note">${sumOut ? Math.round(v*100/sumOut) : 0}%</span></div>`).join('')}</div>` : ''}
+      <div class="table-wrap"><table class="rtable exp-tbl"><thead><tr><th>Ngày</th><th>Nội dung</th><th>Loại</th><th>Quỹ</th><th class="num">Số tiền</th><th>Người ghi</th>${canEdit ? '<th></th>' : ''}</tr></thead><tbody>
+      ${list.length ? list.map(x=>`<tr class="${x.kind==='in' ? 'exp-row-in' : ''}">
+        <td data-label="Ngày" style="white-space:nowrap;">${escHtml(String(x.date||'').split('-').reverse().slice(0,2).join('/'))}</td>
+        <td data-label="Nội dung">${escHtml(x.item||'')}${x.note ? `<div class="pack-note">${escHtml(x.note)}</div>` : ''}</td>
+        <td data-label="Loại">${x.kind==='in' ? '💵 Nạp quỹ' : escHtml(expCatLabel(x.cat))}</td>
+        <td data-label="Quỹ">${x.fund==='cd' ? 'Công đoàn' : 'Chi tiêu'}</td>
+        <td data-label="Số tiền" class="num ${x.kind==='in' ? 'exp-in' : 'exp-out'}" style="white-space:nowrap;">${x.kind==='in' ? '+' : '−'}${fmtMoney(x.amount)}</td>
+        <td data-label="Người ghi">${x.hist ? '<span class="pack-note">bảng cũ</span>' : escHtml(x.byName||'')}</td>
+        ${canEdit ? `<td style="white-space:nowrap;">${(owner || (!x.hist && x.by===me.id)) ? `<button class="btn-ghost btn-small" onclick="expFormOpen('${x.kind}', '${x.id}')">✏️</button>` : ''}${owner ? `<button class="btn-ghost btn-small" onclick="expDelete('${x.id}')">🗑</button>` : ''}</td>` : ''}
+      </tr>`).join('') : `<tr><td colspan="7" class="empty-note">Chưa có khoản nào${expMonth!=='all' ? ' trong ' + expMonthLabel(expMonth).toLowerCase() : ''}.</td></tr>`}
+      </tbody></table></div>
+    </div>
+    ${accHtml}`;
+  if(f){ expFormAmtHint(); }
+}
+function expFormOpen(kind, id){
+  if(!expCanEdit()) return;
+  const x = id ? expLedger.find(e=>e.id===id) : null;
+  expForm = x ? Object.assign({}, x) : {kind, date: todayStr(), item: kind==='in' ? 'Nạp thêm' : '', amount: 0, fund: 'chi', cat: 'other', note: ''};
+  renderExpensesPage(); const i = document.getElementById(kind==='in' ? 'expFAmt' : 'expFItem'); if(i) i.focus();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function expFormCatGuess(){ const c = document.getElementById('expFCat'); if(!c || (expForm && expForm.id)) return; c.value = expGuessCat(document.getElementById('expFItem').value); }
+function expFormAmtHint(){ const i = document.getElementById('expFAmt'), h = document.getElementById('expFAmtHint'); if(!i || !h) return; const v = expParseMoney(i.value); h.textContent = v ? '= ' + fmtMoney(v) + ' đ' : ''; }
+function expFormSave(){
+  if(!expCanEdit() || !expForm) return;
+  const err = document.getElementById('expFErr');
+  const date = document.getElementById('expFDate').value, item = document.getElementById('expFItem').value.trim();
+  const amount = expParseMoney(document.getElementById('expFAmt').value);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err.textContent = 'Chọn ngày.';
+  if(!item) return err.textContent = 'Nhập nội dung.';
+  if(!(amount > 0)) return err.textContent = 'Nhập số tiền (VD: 150k, 1tr5, 250000).';
+  const me = currentUser() || {};
+  const id = expForm.id || ('e' + uid());
+  const rec = Object.assign({}, expForm.id ? expLedger.find(e=>e.id===id) || {} : {}, {
+    id, date, item, amount, kind: expForm.kind, fund: document.getElementById('expFFund').value === 'cd' ? 'cd' : 'chi',
+    cat: expForm.kind==='in' ? '' : (document.getElementById('expFCat').value || 'other'),
+    note: document.getElementById('expFNote').value.trim()
+  });
+  if(!expForm.id){ rec.by = me.id || ''; rec.byName = me.name || ''; rec.at = nowMs(); } else { rec.editedBy = me.name || ''; rec.editedAt = nowMs(); }
+  firebase.database().ref('officeLedger/' + id).set(rec).then(()=>{ showToast(expForm && expForm.id ? '✅ Đã sửa' : '✅ Đã ghi'); expForm = null; if(!rec.hist) expMonth = date.slice(0,7); renderExpensesPage(); })
+    .catch(()=>{ err.textContent = 'Không lưu được — kiểm tra mạng hoặc quyền.'; });
+}
+function expDelete(id){
+  if(!expIsOwner()) return; const x = expLedger.find(e=>e.id===id); if(!x) return;
+  askConfirm('Xoá khoản này?', `${x.item} · ${fmtMoney(x.amount)} đ (${String(x.date).split('-').reverse().join('/')})`, ()=>{
+    firebase.database().ref('officeLedger/' + id).remove().then(()=>showToast('Đã xoá')).catch(()=>showToast('Không xoá được.'));
+  });
+}
+function expSetAccess(userId, v){
+  if(!expIsOwner()) return;
+  firebase.database().ref('expenseAccess/' + userId).set(v==='view' || v==='edit' ? v : null)
+    .then(()=>showToast(v ? `✅ ${userName(userId)}: ${v==='edit' ? 'xem + ghi' : 'chỉ xem'}` : `Đã bỏ quyền ${userName(userId)}`)).catch(()=>showToast('Không lưu được.'));
+}
+function expEditOpening(){
+  if(!expIsOwner()) return; const m = expMeta || {};
+  const a = prompt('Số dư chốt QUỸ CHI TIÊU (âm thì ghi dấu -), VD: -4132000', String(m.chi ?? '')); if(a===null) return;
+  const b = prompt('Số dư chốt QUỸ CÔNG ĐOÀN, VD: 4995000', String(m.cd ?? '')); if(b===null) return;
+  const toN = s=>{ s = String(s).trim(); const neg = s.startsWith('-'); const n = expParseMoney(s.replace(/^-/, '')); return neg ? -n : n; };
+  firebase.database().ref('officeLedgerMeta').update({chi: toN(a), cd: toN(b)}).then(()=>showToast('✅ Đã chỉnh số dư chốt'));
+}
 function goPage(pageId){
+  const expWant = pageId==='expenses';
   if(['printReport','printOverview','printOrders'].includes(pageId)){ try{ gmEnsureInvoiceItems(); }catch(e){} }
   if(['mktRevenue','mktOverview','mktReport','mktPersonDetail','mktManagerStats','mktReportsAdmin'].includes(pageId) && !mktWantClosed){ const u1 = currentUser(); if(u1 && ['mkt','mkt_manager'].includes(u1.role)){ mktWantClosed = true; try{ subscribeLeadsForUser(u1); }catch(e){ console.error(e); } } } // ⚡ data "Đã chốt" toàn công ty: chỉ tải khi MKT mở trang thống kê / doanh thu (trang Nhập data không cần)
   { // Quản lý chung: các trang cá nhân (Data của tôi, Hoá đơn…) nằm trong nhóm "🗂️ Data của tôi" đang thu gọn → mở nhóm TRƯỚC khi kiểm tra quyền
@@ -17346,6 +17557,8 @@ function goPage(pageId){
   if(pageId==='invoicesOverview' && u && u.role!=='general_manager' && !(u.role==='warehouse' && u.canViewDeposits)){ pageId = (u.role==='team_manager' || u.role==='data_manager') ? 'mgrLeads' : 'staffReport'; }
   if(u && u.role==='mkt' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // MKT: 5 trang này + Nội quy
   if(u && u.role==='mkt_manager' && pageId!=='mktManagerStats' && pageId!=='mktReportsAdmin' && pageId!=='mktInput' && pageId!=='mktReport' && pageId!=='mktMyLeadsList' && pageId!=='mktRevenue' && pageId!=='videoShoots' && pageId!=='companyRules'){ pageId='mktMyLeadsList'; } // Quản lý team MKT: 6 trang này + Nội quy
+  if(expWant && expCanView(u)) pageId = 'expenses'; // 💰 Chi phí: ai được cấp quyền đều vào được, mọi vai trò
+  else if(pageId==='expenses') pageId = homePageForMe();
   currentPageId = pageId;
   // Chỉ đóng menu khi NGƯỜI DÙNG chuyển trang — lúc app tự làm mới (có dữ liệu mới) thì giữ nguyên menu đang mở/đang cuộn
   if(!isAutoRefreshing) closeSidebar();
@@ -17366,6 +17579,7 @@ function goPage(pageId){
   try{ updateReportDeadlineBar(); }catch(e){}
   try{ updateGoalRemindBar(); }catch(e){ console.error(e); }
   if(pageId==='goals') renderGoalsPage();
+  if(pageId==='expenses'){ try{ renderExpensesPage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
   if(pageId==='myInbox'){ try{ renderInboxPage(); }catch(e){ console.error(e); } }
