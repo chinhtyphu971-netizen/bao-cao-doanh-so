@@ -1708,6 +1708,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .exp-form label{ display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--ink-soft); }
   .exp-toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
   .exp-toolbar input{ flex:1; min-width:160px; }
+  .exp-months{ display:flex; gap:6px; flex-wrap:wrap; width:100%; }
   .exp-sum{ display:flex; gap:18px; flex-wrap:wrap; font-size:14px; margin-bottom:10px; }
   .exp-out{ color:#FF8A8D; } .exp-in{ color:#5FD38D; }
   .exp-cats{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; font-size:13px; }
@@ -17448,7 +17449,7 @@ function renderExpensesPage(){
     ${formHtml}
     <div class="card">
       <div class="exp-toolbar">
-        <select onchange="expMonth=this.value; renderExpensesPage()">${expMonthsList().map(m=>`<option value="${m}" ${expMonth===m ? 'selected' : ''}>${expMonthLabel(m)}</option>`).join('')}<option value="all" ${expMonth==='all' ? 'selected' : ''}>Tất cả</option></select>
+        <div class="exp-months">${[['all','Tất cả']].concat(expMonthsList().map(m=>[m, 'T' + Number(m.slice(5)) + (m.slice(0,4)!==todayStr().slice(0,4) ? '/' + m.slice(0,4) : '')])).map(([v,l])=>`<button class="inv-chip ${expMonth===v ? 'on' : ''}" onclick="expMonth='${v}'; renderExpensesPage()">${l}</button>`).join('')}</div>
         <input type="search" id="expSearch" placeholder="🔍 Tìm nội dung" value="${escHtml(expQ)}" oninput="expQ=this.value; clearTimeout(window.__expT); window.__expT=setTimeout(()=>{ renderExpensesPage(); const i=document.getElementById('expSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 250)">
       </div>
       <div class="exp-sum"><div>Tổng chi: <b class="exp-out">${fmt(sumOut)}</b> <span class="pack-note">(${outs.length} khoản)</span></div>${sumIn ? `<div>Nạp vào: <b class="exp-in">${fmt(sumIn)}</b></div>` : ''}</div>
