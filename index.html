@@ -4078,13 +4078,45 @@ function initFirebase(){
   // Đăng nhập Firebase kiểu ẩn danh (không cần tài khoản, không ảnh hưởng cách đăng nhập
   // tên/PIN của app) — bắt buộc để đọc/ghi được, chặn việc ai đó gõ thẳng link database
   // hoặc bot tự động quét để đọc trộm data khi Rules đã khoá "auth != null".
-  firebase.auth().signInAnonymously().then(()=>{
-    startFirebaseListeners();
-  }).catch(err=>{
-    console.error('Lỗi xác thực Firebase:', err);
-    document.getElementById('loadingText').innerHTML =
-      'Không kết nối được máy chủ (lỗi xác thực Firebase).<br>Kiểm tra đã bật "Anonymous" trong Firebase Console → Authentication → Sign-in method chưa, rồi tải lại trang.';
+  // 🔒 BẢO MẬT: chỉ tải dữ liệu khi đã ĐĂNG NHẬP ĐÚNG qua máy chủ (/api/login cấp vé mang mã người dùng).
+  // Mở link app khi chưa đăng nhập → chỉ thấy màn đăng nhập, không tải gì về máy.
+  const off = firebase.auth().onAuthStateChanged(async fu=>{
+    off();
+    try{
+      if(fu && !fu.isAnonymous && state.session && state.session.userId===fu.uid){ startFirebaseListeners(); return; }
+      // Máy đã đăng nhập từ bản cũ (vé ẩn danh): đổi sang vé mới 1 lần, không bắt nhập lại PIN
+      if(state.session && state.session.userId && await secLegacyUpgrade(state.session.userId)){ startFirebaseListeners(); return; }
+      if(fu) await firebase.auth().signOut();
+    }catch(e){ console.error('auth', e); }
+    secShowLogin();
   });
+}
+async function secLegacyUpgrade(uid){
+  try{
+    let fu = firebase.auth().currentUser;
+    if(!fu) fu = (await firebase.auth().signInAnonymously()).user;
+    if(!fu || !fu.isAnonymous) return false;
+    const u = (await firebase.database().ref('users/' + uid).once('value')).val(); // chỉ đọc được khi Rules còn mở (giai đoạn chuyển đổi)
+    if(!u || !u.pin) return false;
+    const r = await secApiLogin({uid, pin: String(u.pin)});
+    if(!r.token) return false;
+    await firebase.auth().signInWithCustomToken(r.token);
+    return true;
+  }catch(e){ return false; }
+}
+async function secApiLogin(body){
+  const res = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  let j = {}; try{ j = await res.json(); }catch(e){}
+  if(!res.ok && !j.error) j.error = 'Không kết nối được máy chủ, thử lại.';
+  return j;
+}
+function secShowLogin(){
+  state.session = null; persistSession();
+  try{ indexedDB.deleteDatabase('qls_delta'); }catch(e){}
+  document.getElementById('loadingOverlay').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  goStep(1);
+  try{ const pf = sessionStorage.getItem('loginPrefill'); if(pf){ sessionStorage.removeItem('loginPrefill'); document.getElementById('authName').value = pf; setTimeout(()=>{ const p = document.getElementById('authPin'); if(p) p.focus(); }, 100); } }catch(e){}
 }
 function startFirebaseListeners(){
   const db = firebase.database();
@@ -5158,7 +5190,7 @@ function datinaoTryOpen(){
       `Đơn của khách "${j.customerName||''}" do "${j.saleName||'?'}" bấm lên hoá đơn bên app đặt in, nhưng app này đang đăng nhập "${me.name}".\n\n` +
       `👉 Bấm "🔄 Đổi tài khoản" → đăng nhập bằng tài khoản "${j.saleName||'?'}" → hoá đơn sẽ TỰ MỞ, điền sẵn.\nBấm "Huỷ" để giữ tài khoản hiện tại (đơn này bỏ qua, bấm lại bên app đặt in khi cần).\n\n` +
       `(Nếu đúng là cùng 1 người mà vẫn báo: Quản lý sửa tên ở 2 app cho GIỐNG HỆT nhau.)`,
-      ()=>{ try{ sessionStorage.setItem(DATINAO_KEY, JSON.stringify(j)); }catch(e){} logout(); setTimeout(()=>{ try{ const n = document.getElementById('authName'); if(n){ n.value = j.saleName || ''; } const pin = document.getElementById('authPin'); if(pin) pin.focus(); }catch(e){} }, 100); showToast('Đăng nhập tài khoản "' + (j.saleName||'') + '" — hoá đơn sẽ tự mở'); });
+      ()=>{ try{ sessionStorage.setItem(DATINAO_KEY, JSON.stringify(j)); }catch(e){} try{ sessionStorage.setItem('loginPrefill', j.saleName || ''); }catch(e){} logout(); setTimeout(()=>{ try{ const n = document.getElementById('authName'); if(n){ n.value = j.saleName || ''; } const pin = document.getElementById('authPin'); if(pin) pin.focus(); }catch(e){} }, 100); showToast('Đăng nhập tài khoản "' + (j.saleName||'') + '" — hoá đơn sẽ tự mở'); });
     document.getElementById('confirmOkBtn').textContent = '🔄 Đổi tài khoản';
     return;
   }
@@ -8713,7 +8745,9 @@ function packClaimQueue(){
   const normal = invs.filter(inv=>!smap[inv.id]); // mọi đơn đã cọc chưa đóng (in phiếu hay chưa đều vào hàng chờ)
   const ready = invs.filter(inv=>{
     const ps = smap[inv.id]; if(!packReadyShort(ps)) return false;
-    return packShortReporter(ps)===me.id || (nowMs() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
+    if(packShortReporter(ps)===me.id) return true;
+    if(me.role==='packer') return false; // 👷 đơn thiếu Sale đã trả lời của BẠN KHÁC: không vào hàng "Nhận đơn" → khỏi nhận nhầm đơn bù của người khác
+    return (nowMs() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
   });
   const oos = {}; normal.concat(ready).forEach(inv=>{ if(packOosOfInv(inv).length) oos[inv.id] = true; });
   // ⛔ đơn có món tạm hết xếp CUỐI (sau mọi đơn đủ hàng) — trong nhóm vẫn theo giờ cọc
@@ -10832,8 +10866,10 @@ function renderPackDeskPage(){
   const showAllShort = !personal || packDeskShowAllShort;
   const claimedBy = p=>{ const c = packActiveClaimOf(p.id); return c && c.by!==devMe ? c : null; };
   let shortList = (showAllShort ? shorts : myShorts).slice().sort((a,b)=>(packRefillReady(b)?1:0)-(packRefillReady(a)?1:0) || (claimedBy(a)?1:0)-(claimedBy(b)?1:0) || Number(a.shortAt||a.at||0)-Number(b.shortAt||b.at||0)); // ✅ đã có hàng bù lên đầu
+  const hideBusy = me.role==='packer'; // 👷 nhân viên đóng hàng: KHÔNG thấy đơn bù người khác đang làm → khỏi nhận trùng
+  if(hideBusy) shortList = shortList.filter(p=>!claimedBy(p));
   const nFree = shortList.filter(p=>!claimedBy(p)).length, nBusy = shortList.length - nFree;
-  if(packDeskShortFilter==='free') shortList = shortList.filter(p=>!claimedBy(p));
+  if(hideBusy){} else if(packDeskShortFilter==='free') shortList = shortList.filter(p=>!claimedBy(p));
   else if(packDeskShortFilter==='busy') shortList = shortList.filter(p=>claimedBy(p));
   const st2 = document.getElementById('packDeskShortTitle');
   if(st2) st2.innerHTML = personal
@@ -10842,7 +10878,7 @@ function renderPackDeskPage(){
   // Đơn thiếu bạn đã báo và đã được xử lý xong HÔM NAY (bù đủ / gửi thiếu)
   const myShortDone = personal && !showAllShort ? (state.packStatus||[]).filter(p=>p && p.shortStaffId===devMe && (p.state==='packed' || p.state==='partial') && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===todayStr()) : [];
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>` + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${packRefillReady(p) ? ' <span class="refill-ready-tag">✅ Đã có hàng — bù ngay</span>' : ''}${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
+  if(sh) sh.innerHTML = (hideBusy ? '' : `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>`) + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${packRefillReady(p) ? ' <span class="refill-ready-tag">✅ Đã có hàng — bù ngay</span>' : ''}${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
     + (myShortDone.length ? `<div class="pack-short-done"><div class="pack-note" style="margin:10px 0 4px;">Đã xử lý hôm nay (${myShortDone.length}):</div>${myShortDone.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${(p.shortSent || p.state==='partial') ? '📦 gửi thiếu' : '✅ đã bù đủ'} · ${packTimeStr(p.packedAt||p.at)}${p.staffName && p.staffId!==devMe ? ' · ' + escHtml(p.staffName) : ''}</span></div>`).join('')}</div>` : '');
   const dn = document.getElementById('packDeskDone');
   const showAllDone = !personal || packDeskShowAllDone;
@@ -16375,12 +16411,11 @@ document.getElementById('confirmOkBtn').onclick=()=>{ const fn = pendingConfirm;
 document.getElementById('pinConfirmOkBtn').onclick=()=>{
   const entered = document.getElementById('pinConfirmInput').value.trim();
   const u = currentUser();
-  if(!u || entered !== u.pin){
-    document.getElementById('pinConfirmError').textContent = 'Mã PIN không đúng.';
-    return;
-  }
-  if(pendingPinConfirm) pendingPinConfirm();
-  closePinConfirm();
+  if(!u){ document.getElementById('pinConfirmError').textContent = 'Mã PIN không đúng.'; return; }
+  const done = ()=>{ if(pendingPinConfirm) pendingPinConfirm(); closePinConfirm(); };
+  if(u.pin){ if(entered !== u.pin){ document.getElementById('pinConfirmError').textContent = 'Mã PIN không đúng.'; return; } done(); return; }
+  document.getElementById('pinConfirmError').textContent = '⏳ Đang kiểm tra…';
+  secApiLogin({uid: u.id, pin: entered, verify: true}).then(r=>{ if(r.ok){ document.getElementById('pinConfirmError').textContent = ''; done(); } else document.getElementById('pinConfirmError').textContent = r.error || 'Mã PIN không đúng.'; });
 };
 
 /* =========================== LOGIN FLOW =========================== */
@@ -16395,6 +16430,7 @@ function checkNameAndProceed(){
     errEl.textContent='Nhập tên và mã PIN gồm đúng 4 số.'; return;
   }
   errEl.textContent='';
+  if(!appReady || !firebase.auth().currentUser || firebase.auth().currentUser.isAnonymous){ secDoLogin(name, pin); return; }
   const existing = state.users.find(u=>u.name.trim().normalize('NFC').toLowerCase()===name.normalize('NFC').toLowerCase());
   if(existing){
     if(existing.pin!==pin){ errEl.textContent='Sai mã PIN cho tên này.'; return; }
@@ -16415,6 +16451,22 @@ function checkNameAndProceed(){
   pendingName=name; pendingPin=pin;
   skippedRoleStep=false;
   goStep(2);
+}
+let secLoginBusy = false;
+async function secDoLogin(name, pin){
+  const errEl = document.getElementById('loginError');
+  if(secLoginBusy) return; secLoginBusy = true; errEl.textContent = '⏳ Đang đăng nhập…';
+  try{
+    const r = await secApiLogin({name, pin});
+    if(!r.token){ errEl.textContent = r.error || 'Đăng nhập không được, thử lại.'; return; }
+    await firebase.auth().signInWithCustomToken(r.token);
+    state.session = {userId: r.userId}; persistSession();
+    errEl.textContent = '';
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('loadingOverlay').style.display='';
+    startFirebaseListeners(); // tải xong → onReady() tự vào app
+  }catch(e){ console.error(e); errEl.textContent = 'Không kết nối được máy chủ, thử lại.'; }
+  finally{ secLoginBusy = false; }
 }
 function renderBranchChips(){
   const wrap=document.getElementById('branchChips');
@@ -16516,6 +16568,8 @@ function confirmLogout(){
 }
 function logout(){
   state.session=null; persistSession();
+  try{ indexedDB.deleteDatabase('qls_delta'); }catch(e){} // xoá bộ nhớ đệm dữ liệu trên máy khi đăng xuất
+  try{ firebase.auth().signOut().finally(()=>location.reload()); }catch(e){ location.reload(); }
   setupRoleScopedListeners(null); // ngừng tải dữ liệu riêng theo vai trò khi đăng xuất
   try{ goalResetListeners(); goalDailyResetListeners(); }catch(e){}
   try{ inboxListen(null); soundStartWatch(null); packOosListen(null); }catch(e){}
