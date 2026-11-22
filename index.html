@@ -5981,7 +5981,7 @@ function depProofOpen(inv, oldCust, msg, onOk){
 function invShipLineHtml(inv, withEdit){
   if(!inv) return '';
   const a = inv.shipAddress; let body;
-  if(!a){ if(!inv.depositLink) return ''; body = `<span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>`; }
+  if(!a){ if(!inv.depositLink) return ''; { const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return ''; } body = `<span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>`; }
   else if(a==='Khách lấy tại cửa hàng') body = '🏪 Khách lấy tại cửa hàng / gửi xe';
   else body = '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
   const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️ Sửa</a>` : '';
