@@ -1709,6 +1709,12 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .exp-toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
   .exp-toolbar input{ flex:1; min-width:160px; }
   .exp-months{ display:flex; gap:6px; flex-wrap:wrap; width:100%; }
+  .exp-fsum{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; font-size:13.5px; }
+  .exp-frow{ display:flex; gap:14px; flex-wrap:wrap; align-items:baseline; padding:6px 10px; border:1px solid var(--line); border-radius:8px; }
+  .exp-frow > b:first-child{ min-width:120px; }
+  .exp-log{ margin-top:10px; display:flex; flex-direction:column; gap:6px; max-height:420px; overflow:auto; }
+  .exp-log-row{ padding:6px 0; border-bottom:1px dashed var(--line); font-size:13px; }
+  #confirmText{ white-space:pre-line; }
   .exp-sum{ display:flex; gap:18px; flex-wrap:wrap; font-size:14px; margin-bottom:10px; }
   .exp-out{ color:#FF8A8D; } .exp-in{ color:#5FD38D; }
   .exp-cats{ display:flex; flex-direction:column; gap:4px; margin-bottom:12px; font-size:13px; }
@@ -17363,9 +17369,10 @@ const defaultRangeApplied = {};
 const EXP_OWNER_ID = 'mtuxa11rn32zq'; // anh Thiện QTV
 const EXP_CATS = [['sim','📱 Sim / cước gọi Sale'],['fruit','🍎 Hoa quả / bánh kẹo / trà'],['water','💧 Nước lọc'],['supply','🧻 Đồ dùng / vệ sinh'],['equip','🪑 Nội thất / thiết bị'],['soft','💻 Phần mềm / dịch vụ'],['sn','🎂 Sinh nhật / quà / thăm hỏi'],['party','🎉 Liên hoan / đi chơi'],['other','📦 Khác']];
 const EXP_CAT_RX = {sim:/sim|cước|nạp|gọi|tiền dt/i, sn:/\bsn\b|sinh nhật|quà|thăm|thưởng|tân gia/i, party:/đi chơi|đi hát|lẩu|bia|liên hoan|ăn cty|ăn trưa|tiền ăn|xiên|đá viên/i, fruit:/hoa quả|bánh|kẹo|chè|trà|táo|quả/i, water:/nước lọc|bình nước/i, soft:/capcus|chatgpt|gpt|zalo|app|win|phần mềm|ship/i, equip:/bàn|ghế|mic|máy tính|quạt|đèn|tivi|rèm|tủ|kệ|chuột|tai nghe|usb|sạc|ổ điện|dây điện/i, supply:/giấy|túi|rác|chổi|dầu gội|nước rửa|bồn cầu|muối|bột|dép|móc|lọ|sọt|bút|cây|cám/i};
-const EXP_FUNDS = {chi:'Quỹ chi tiêu', cd:'Quỹ công đoàn'};
+const EXP_FUNDS = {chi:'Quỹ chi tiêu', cd:'Quỹ công đoàn', ngoai:'Ngoài quỹ (trả riêng)'};
+const EXP_FUND_SHORT = {chi:'Chi tiêu', cd:'Công đoàn', ngoai:'Ngoài quỹ'};
 let expAccess = {}, expAccessRef = null, expLedger = [], expLedgerRef = null, expMeta = null, expMetaRef = null, expLoaded = false;
-let expMonth = '', expQ = '', expForm = null, expShowAcc = false;
+let expMonth = '', expQ = '', expForm = null, expShowAcc = false, expLog = [], expLogRef = null, expShowLog = false;
 function expOwnerId(){ if(EXP_OWNER_ID) return EXP_OWNER_ID; const o = (state.users||[]).find(u=>String(u.name||'').trim().normalize('NFC').toLowerCase()==='thiện qtv'.normalize('NFC')); return o ? o.id : ''; }
 function expIsOwner(u){ u = u || currentUser(); return !!(u && expOwnerId() && u.id===expOwnerId()); }
 function expLevel(u){ u = u || currentUser(); if(!u) return ''; if(expIsOwner(u)) return 'owner'; return expAccess[u.id] || ''; }
@@ -17389,7 +17396,7 @@ function expListen(user){
 }
 function expNav(){
   const ok = expCanView(); const n = document.getElementById('navExpense'); if(n) n.style.display = ok ? 'block' : 'none';
-  if(!ok){ if(expLedgerRef){ try{ expLedgerRef.off(); expMetaRef.off(); }catch(e){} expLedgerRef = expMetaRef = null; expLedger = []; expMeta = null; expLoaded = false; }
+  if(!ok){ if(expLedgerRef){ try{ expLedgerRef.off(); expMetaRef.off(); if(expLogRef) expLogRef.off(); }catch(e){} expLedgerRef = expMetaRef = expLogRef = null; expLedger = []; expLog = []; expMeta = null; expLoaded = false; }
     if(currentPageId==='expenses') goPage(homePageForMe()); }
 }
 function expEnsureData(){ // chỉ tải khi mở trang (ít dữ liệu, không tải cho người khác)
@@ -17398,12 +17405,22 @@ function expEnsureData(){ // chỉ tải khi mở trang (ít dữ liệu, không
   expLedgerRef = db.ref('officeLedger'); expMetaRef = db.ref('officeLedgerMeta');
   expLedgerRef.on('value', s=>{ expLedger = Object.values(s.val() || {}).filter(x=>x && x.id); expLoaded = true; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{ expLoaded = true; });
   expMetaRef.on('value', s=>{ expMeta = s.val() || null; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{});
+  expLogRef = db.ref('officeLedgerLog').orderByChild('at').limitToLast(300);
+  expLogRef.on('value', s=>{ expLog = Object.values(s.val() || {}).filter(Boolean).sort((a,b)=>b.at-a.at); if(currentPageId==='expenses' && expShowLog) renderExpensesPage(); }, ()=>{});
 }
-function expBalances(){
-  const m = expMeta || {}; const b = {chi: Number(m.chi)||0, cd: Number(m.cd)||0};
-  expLedger.forEach(x=>{ if(x.hist) return; const f = x.fund==='cd' ? 'cd' : 'chi'; b[f] += (x.kind==='in' ? 1 : -1) * (Number(x.amount)||0); });
-  return b;
+// Số dư = cộng/trừ ĐỦ mọi khoản đã ghi (kể cả bảng cũ) → luôn khớp với các con số thống kê.
+// kind: 'in' nạp · 'out' chi · 'move' chuyển từ Quỹ chi tiêu sang Quỹ công đoàn. Quỹ 'ngoai' = trả riêng, không trừ quỹ nào.
+function expFundSums(list){
+  const z = ()=>({inn:0, out:0, moveIn:0, moveOut:0, n:0}); const r = {chi:z(), cd:z(), ngoai:z()};
+  list.forEach(x=>{ const a = Number(x.amount)||0;
+    if(x.kind==='move'){ r.chi.moveOut += a; r.cd.moveIn += a; return; }
+    const f = r[x.fund] ? x.fund : 'chi';
+    if(x.kind==='in') r[f].inn += a; else { r[f].out += a; r[f].n++; } });
+  return r;
 }
+function expBalances(){ const r = expFundSums(expLedger);
+  return {chi: r.chi.inn - r.chi.out - r.chi.moveOut + r.chi.moveIn, cd: r.cd.inn - r.cd.out + r.cd.moveIn - r.cd.moveOut}; }
+function expKindLabel(x){ return x.kind==='move' ? '🔁 Chuyển sang Công đoàn' : (x.kind==='in' ? '💵 Nạp quỹ' : expCatLabel(x.cat)); }
 function expMonthsList(){ const s = new Set(expLedger.map(x=>String(x.date||'').slice(0,7)).filter(Boolean)); s.add(todayStr().slice(0,7)); return Array.from(s).sort().reverse(); }
 function expMonthLabel(ym){ const [y, m] = ym.split('-'); return `Tháng ${Number(m)}/${y}`; }
 function renderExpensesPage(){
@@ -17419,20 +17436,21 @@ function renderExpensesPage(){
   const inMonth = expLedger.filter(x=>expMonth==='all' || String(x.date||'').startsWith(expMonth));
   const list = inMonth.filter(x=>!q || String(x.item||'').toLowerCase().includes(q) || String(x.note||'').toLowerCase().includes(q))
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)) || Number(b.at||0)-Number(a.at||0) || String(b.id).localeCompare(String(a.id)));
-  const outs = inMonth.filter(x=>x.kind==='out'), ins = inMonth.filter(x=>x.kind==='in');
-  const sumOut = outs.reduce((a,x)=>a+(Number(x.amount)||0),0), sumIn = ins.reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const outs = inMonth.filter(x=>x.kind==='out');
+  const sumOut = outs.reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const fs = expFundSums(inMonth);
   const byCat = {}; outs.forEach(x=>{ const k = x.cat || 'other'; byCat[k] = (byCat[k]||0) + (Number(x.amount)||0); });
   const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   const balCard = (f)=>`<div class="exp-bal ${bal[f]<0 ? 'neg' : ''}"><div class="exp-bal-l">${EXP_FUNDS[f]}</div><div class="exp-bal-v">${bal[f]<0 ? 'Âm ' + fmtMoney(-bal[f]) : fmtMoney(bal[f])} đ</div></div>`;
   const f = expForm;
   const formHtml = !f ? '' : `<div class="card exp-form">
-    <h3 style="margin-top:0;">${f.id ? '✏️ Sửa' : (f.kind==='in' ? '💵 Nạp quỹ' : '➕ Ghi khoản chi')}</h3>
+    <h3 style="margin-top:0;">${f.id ? '✏️ Sửa' : (f.kind==='in' ? '💵 Nạp quỹ' : (f.kind==='move' ? '🔁 Chuyển từ Quỹ chi tiêu sang Quỹ công đoàn' : '➕ Ghi khoản chi'))}</h3>
     <div class="exp-grid">
       <label>Ngày<input type="date" id="expFDate" value="${escHtml(f.date)}"></label>
       <label>${f.kind==='in' ? 'Nội dung (VD: Nạp thêm)' : 'Nội dung chi'}<input id="expFItem" value="${escHtml(f.item||'')}" placeholder="${f.kind==='in' ? 'Nạp thêm' : 'VD: Hoa quả, sim cho Sale…'}" oninput="expFormCatGuess()"></label>
       <label>Số tiền<input id="expFAmt" inputmode="decimal" value="${f.amount ? fmtMoney(f.amount) : ''}" placeholder="VD: 150k · 1tr5 · 250000" oninput="expFormAmtHint()"><span class="pack-note" id="expFAmtHint"></span></label>
-      <label>Quỹ<select id="expFFund">${Object.entries(EXP_FUNDS).map(([k,l])=>`<option value="${k}" ${f.fund===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      ${f.kind==='in' ? '' : `<label>Loại<select id="expFCat">${EXP_CATS.map(([k,l])=>`<option value="${k}" ${f.cat===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+      ${f.kind==='move' ? '' : `<label>Quỹ<select id="expFFund">${Object.entries(EXP_FUNDS).filter(([k])=>f.kind!=='in' || k!=='ngoai').map(([k,l])=>`<option value="${k}" ${f.fund===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+      ${f.kind!=='out' ? '' : `<label>Loại<select id="expFCat">${EXP_CATS.map(([k,l])=>`<option value="${k}" ${f.cat===k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
       <label>Ghi chú<input id="expFNote" value="${escHtml(f.note||'')}" placeholder="(không bắt buộc)"></label>
     </div>
     <div class="login-error" id="expFErr"></div>
@@ -17444,35 +17462,41 @@ function renderExpensesPage(){
   </div>`;
   box.innerHTML = `
     <div class="exp-bals">${balCard('chi')}${balCard('cd')}</div>
-    <div class="pack-note" style="margin:-6px 0 12px;">Số dư = số chốt từ bảng cũ (${expMeta && expMeta.openDate ? escHtml(expMeta.openDate.split('-').reverse().join('/')) : '—'}) + các khoản ghi trong app.${owner ? ' <a href="#" onclick="event.preventDefault(); expEditOpening()">✏️ Chỉnh số dư chốt</a>' : ''}</div>
-    ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"><button class="btn-primary" onclick="expFormOpen('out')">➕ Ghi khoản chi</button><button class="btn-ghost" onclick="expFormOpen('in')">💵 Nạp quỹ</button></div>` : '<div class="pack-note" style="margin-bottom:12px;">Bạn được cấp quyền <b>chỉ xem</b>.</div>'}
+    <div class="pack-note" style="margin:-6px 0 12px;">Số dư = tổng nạp − tổng chi của từng quỹ (gồm cả dữ liệu bảng cũ). Quỹ công đoàn lấy tiền từ Quỹ chi tiêu bằng dòng "🔁 Chuyển sang Công đoàn".</div>
+    ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"><button class="btn-primary" onclick="expFormOpen('out')">➕ Ghi khoản chi</button><button class="btn-ghost" onclick="expFormOpen('in')">💵 Nạp quỹ</button><button class="btn-ghost" onclick="expFormOpen('move')">🔁 Chuyển sang Công đoàn</button></div>` : '<div class="pack-note" style="margin-bottom:12px;">Bạn được cấp quyền <b>chỉ xem</b>.</div>'}
     ${formHtml}
     <div class="card">
       <div class="exp-toolbar">
         <div class="exp-months">${[['all','Tất cả']].concat(expMonthsList().map(m=>[m, 'T' + Number(m.slice(5)) + (m.slice(0,4)!==todayStr().slice(0,4) ? '/' + m.slice(0,4) : '')])).map(([v,l])=>`<button class="inv-chip ${expMonth===v ? 'on' : ''}" onclick="expMonth='${v}'; renderExpensesPage()">${l}</button>`).join('')}</div>
         <input type="search" id="expSearch" placeholder="🔍 Tìm nội dung" value="${escHtml(expQ)}" oninput="expQ=this.value; clearTimeout(window.__expT); window.__expT=setTimeout(()=>{ renderExpensesPage(); const i=document.getElementById('expSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }, 250)">
       </div>
-      <div class="exp-sum"><div>Tổng chi: <b class="exp-out">${fmt(sumOut)}</b> <span class="pack-note">(${outs.length} khoản)</span></div>${sumIn ? `<div>Nạp vào: <b class="exp-in">${fmt(sumIn)}</b></div>` : ''}</div>
+      <div class="exp-fsum">
+        <div class="exp-frow"><b>Quỹ chi tiêu</b><span>Nạp <b class="exp-in">+${fmtMoney(fs.chi.inn)}</b></span><span>Chi <b class="exp-out">−${fmtMoney(fs.chi.out)}</b> <span class="pack-note">(${fs.chi.n} khoản)</span></span>${fs.chi.moveOut ? `<span>Chuyển sang Công đoàn <b>−${fmtMoney(fs.chi.moveOut)}</b></span>` : ''}<span>= <b class="${fs.chi.inn - fs.chi.out - fs.chi.moveOut < 0 ? 'exp-out' : 'exp-in'}">${fmtMoney(fs.chi.inn - fs.chi.out - fs.chi.moveOut)}</b></span></div>
+        <div class="exp-frow"><b>Quỹ công đoàn</b><span>Nhận <b class="exp-in">+${fmtMoney(fs.cd.inn + fs.cd.moveIn)}</b></span><span>Chi <b class="exp-out">−${fmtMoney(fs.cd.out)}</b> <span class="pack-note">(${fs.cd.n} khoản)</span></span><span>= <b class="${fs.cd.inn + fs.cd.moveIn - fs.cd.out < 0 ? 'exp-out' : 'exp-in'}">${fmtMoney(fs.cd.inn + fs.cd.moveIn - fs.cd.out)}</b></span></div>
+        ${fs.ngoai.out ? `<div class="exp-frow"><b>Ngoài quỹ</b><span>Chi <b class="exp-out">−${fmtMoney(fs.ngoai.out)}</b> <span class="pack-note">(${fs.ngoai.n} khoản · trả riêng, không trừ quỹ)</span></span></div>` : ''}
+        <div class="pack-note">${expMonth==='all' ? 'Cộng dồn từ đầu = đúng bằng số dư 2 ô phía trên.' : 'Trong ' + expMonthLabel(expMonth).toLowerCase() + '. Thống kê theo loại bên dưới gồm mọi khoản chi (' + fmtMoney(sumOut) + ' đ).'}</div>
+      </div>
       ${catRows.length ? `<div class="exp-cats">${catRows.map(([k,v])=>`<div class="exp-cat"><span>${escHtml(expCatLabel(k))}</span><span class="exp-cat-bar"><i style="width:${Math.max(2, Math.round(v*100/(catRows[0][1]||1)))}%"></i></span><b>${fmtMoney(v)}</b><span class="pack-note">${sumOut ? Math.round(v*100/sumOut) : 0}%</span></div>`).join('')}</div>` : ''}
       <div class="table-wrap"><table class="rtable exp-tbl"><thead><tr><th>Ngày</th><th>Nội dung</th><th>Loại</th><th>Quỹ</th><th class="num">Số tiền</th><th>Người ghi</th>${canEdit ? '<th></th>' : ''}</tr></thead><tbody>
       ${list.length ? list.map(x=>`<tr class="${x.kind==='in' ? 'exp-row-in' : ''}">
         <td data-label="Ngày" style="white-space:nowrap;">${escHtml(String(x.date||'').split('-').reverse().slice(0,2).join('/'))}</td>
-        <td data-label="Nội dung">${escHtml(x.item||'')}${x.note ? `<div class="pack-note">${escHtml(x.note)}</div>` : ''}</td>
-        <td data-label="Loại">${x.kind==='in' ? '💵 Nạp quỹ' : escHtml(expCatLabel(x.cat))}</td>
-        <td data-label="Quỹ">${x.fund==='cd' ? 'Công đoàn' : 'Chi tiêu'}</td>
-        <td data-label="Số tiền" class="num ${x.kind==='in' ? 'exp-in' : 'exp-out'}" style="white-space:nowrap;">${x.kind==='in' ? '+' : '−'}${fmtMoney(x.amount)}</td>
+        <td data-label="Nội dung">${escHtml(x.item||'')}${x.note ? `<div class="pack-note">${escHtml(x.note)}</div>` : ''}${x.editedAt ? `<div class="pack-note">✏️ sửa ${packTimeStr(x.editedAt)}${x.editedBy ? ' · ' + escHtml(x.editedBy) : ''}</div>` : ''}</td>
+        <td data-label="Loại">${escHtml(expKindLabel(x))}</td>
+        <td data-label="Quỹ">${x.kind==='move' ? 'Chi tiêu → Công đoàn' : (EXP_FUND_SHORT[x.fund] || 'Chi tiêu')}</td>
+        <td data-label="Số tiền" class="num ${x.kind==='in' ? 'exp-in' : (x.kind==='move' ? '' : 'exp-out')}" style="white-space:nowrap;">${x.kind==='in' ? '+' : (x.kind==='move' ? '⇄ ' : '−')}${fmtMoney(x.amount)}</td>
         <td data-label="Người ghi">${x.hist ? '<span class="pack-note">bảng cũ</span>' : escHtml(x.byName||'')}</td>
         ${canEdit ? `<td style="white-space:nowrap;">${(owner || (!x.hist && x.by===me.id)) ? `<button class="btn-ghost btn-small" onclick="expFormOpen('${x.kind}', '${x.id}')">✏️</button>` : ''}${owner ? `<button class="btn-ghost btn-small" onclick="expDelete('${x.id}')">🗑</button>` : ''}</td>` : ''}
       </tr>`).join('') : `<tr><td colspan="7" class="empty-note">Chưa có khoản nào${expMonth!=='all' ? ' trong ' + expMonthLabel(expMonth).toLowerCase() : ''}.</td></tr>`}
       </tbody></table></div>
     </div>
+    <div class="card"><div style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><h3 style="margin:0;">🕓 Lịch sử sửa / xoá</h3><button class="btn-ghost btn-small" onclick="expShowLog=!expShowLog; renderExpensesPage()">${expShowLog ? 'Thu gọn' : 'Xem ›'}</button></div>${expLogHtml()}</div>
     ${accHtml}`;
   if(f){ expFormAmtHint(); }
 }
 function expFormOpen(kind, id){
   if(!expCanEdit()) return;
   const x = id ? expLedger.find(e=>e.id===id) : null;
-  expForm = x ? Object.assign({}, x) : {kind, date: todayStr(), item: kind==='in' ? 'Nạp thêm' : '', amount: 0, fund: 'chi', cat: 'other', note: ''};
+  expForm = x ? Object.assign({}, x) : {kind, date: todayStr(), item: kind==='in' ? 'Nạp thêm' : (kind==='move' ? 'Quỹ công đoàn tháng ' + Number(todayStr().slice(5,7)) : ''), amount: 0, fund: kind==='move' ? 'cd' : 'chi', cat: 'other', note: ''};
   renderExpensesPage(); const i = document.getElementById(kind==='in' ? 'expFAmt' : 'expFItem'); if(i) i.focus();
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -17488,32 +17512,52 @@ function expFormSave(){
   if(!(amount > 0)) return err.textContent = 'Nhập số tiền (VD: 150k, 1tr5, 250000).';
   const me = currentUser() || {};
   const id = expForm.id || ('e' + uid());
-  const rec = Object.assign({}, expForm.id ? expLedger.find(e=>e.id===id) || {} : {}, {
-    id, date, item, amount, kind: expForm.kind, fund: document.getElementById('expFFund').value === 'cd' ? 'cd' : 'chi',
-    cat: expForm.kind==='in' ? '' : (document.getElementById('expFCat').value || 'other'),
+  const before = expForm.id ? (expLedger.find(e=>e.id===id) || null) : null;
+  const fEl = document.getElementById('expFFund'), cEl = document.getElementById('expFCat');
+  const fund = expForm.kind==='move' ? 'cd' : ((fEl && EXP_FUNDS[fEl.value]) ? fEl.value : 'chi');
+  const rec = Object.assign({}, before || {}, {
+    id, date, item, amount, kind: expForm.kind, fund,
+    cat: expForm.kind==='out' ? ((cEl && cEl.value) || 'other') : '',
     note: document.getElementById('expFNote').value.trim()
   });
-  if(!expForm.id){ rec.by = me.id || ''; rec.byName = me.name || ''; rec.at = nowMs(); } else { rec.editedBy = me.name || ''; rec.editedAt = nowMs(); }
-  firebase.database().ref('officeLedger/' + id).set(rec).then(()=>{ showToast(expForm && expForm.id ? '✅ Đã sửa' : '✅ Đã ghi'); expForm = null; if(!rec.hist) expMonth = date.slice(0,7); renderExpensesPage(); })
+  if(!before){ rec.by = me.id || ''; rec.byName = me.name || ''; rec.at = nowMs(); } else { rec.editedBy = me.name || ''; rec.editedAt = nowMs(); }
+  const doSave = ()=>firebase.database().ref('officeLedger/' + id).set(rec).then(()=>{
+      expLogWrite(before ? 'edit' : 'add', id, before, rec);
+      showToast(before ? '✅ Đã sửa (đã lưu lịch sử)' : '✅ Đã ghi'); expForm = null; expMonth = date.slice(0,7); renderExpensesPage(); })
     .catch(()=>{ err.textContent = 'Không lưu được — kiểm tra mạng hoặc quyền.'; });
+  if(!before) return doSave();
+  const ch = expDiffText(before, rec);
+  if(!ch){ expForm = null; renderExpensesPage(); showToast('Không có gì thay đổi.'); return; }
+  askConfirm('Xác nhận sửa khoản này?', ch + '\n\nLần sửa này được lưu vào lịch sử (thời gian, người sửa, nội dung cũ → mới).', doSave);
+  const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Lưu sửa';
+}
+const EXP_FIELD_LABEL = {date:'Ngày', item:'Nội dung', amount:'Số tiền', fund:'Quỹ', cat:'Loại', note:'Ghi chú', kind:'Kiểu'};
+function expFieldText(k, v){ if(k==='amount') return fmtMoney(v) + ' đ'; if(k==='fund') return EXP_FUND_SHORT[v] || v || '—'; if(k==='cat') return v ? expCatLabel(v) : '—'; if(k==='date') return String(v||'').split('-').reverse().join('/'); if(k==='kind') return v==='in' ? 'Nạp' : (v==='move' ? 'Chuyển quỹ' : 'Chi'); return v || '—'; }
+function expDiffText(a, b){ return Object.keys(EXP_FIELD_LABEL).filter(k=>String(a[k]??'')!==String(b[k]??'')).map(k=>`• ${EXP_FIELD_LABEL[k]}: ${expFieldText(k, a[k])} → ${expFieldText(k, b[k])}`).join('\n'); }
+function expPlain(x){ if(!x) return null; const o = {}; Object.keys(EXP_FIELD_LABEL).forEach(k=>{ if(x[k]!=null && x[k]!=='') o[k] = x[k]; }); return o; }
+function expLogWrite(action, entryId, before, after){ // nhật ký chỉ THÊM, không sửa / xoá được
+  const me = currentUser() || {}; const id = 'l' + uid();
+  try{ firebase.database().ref('officeLedgerLog/' + id).set({id, action, entryId, at: firebase.database.ServerValue.TIMESTAMP, by: me.id || '', byName: me.name || '', before: expPlain(before), after: expPlain(after)}); }catch(e){}
+}
+function expLogHtml(){
+  if(!expShowLog) return '';
+  const rows = expLog.filter(l=>l.action!=='add').slice(0, 200);
+  return `<div class="exp-log">${rows.length ? rows.map(l=>{ const t = l.action==='delete' ? '🗑 Xoá' : '✏️ Sửa';
+    const body = l.action==='delete' ? `${escHtml(l.before ? l.before.item : '')} · ${l.before ? fmtMoney(l.before.amount) : 0} đ (${escHtml(expFieldText('date', l.before && l.before.date))}, ${escHtml(expFieldText('fund', l.before && l.before.fund))})`
+      : escHtml(expDiffText(l.before||{}, l.after||{})).replace(/\n/g, '<br>');
+    return `<div class="exp-log-row"><div><b>${t}</b> · ${packTimeStr(l.at)} · ${escHtml(l.byName||'')}</div><div class="pack-note">${body}</div></div>`; }).join('') : '<div class="pack-note">Chưa có lần sửa / xoá nào.</div>'}</div>`;
 }
 function expDelete(id){
   if(!expIsOwner()) return; const x = expLedger.find(e=>e.id===id); if(!x) return;
-  askConfirm('Xoá khoản này?', `${x.item} · ${fmtMoney(x.amount)} đ (${String(x.date).split('-').reverse().join('/')})`, ()=>{
-    firebase.database().ref('officeLedger/' + id).remove().then(()=>showToast('Đã xoá')).catch(()=>showToast('Không xoá được.'));
+  askConfirm('Xác nhận XOÁ khoản này?', `${x.item} · ${fmtMoney(x.amount)} đ · ngày ${String(x.date).split('-').reverse().join('/')} · ${x.kind==='move' ? 'Chuyển quỹ' : (EXP_FUND_SHORT[x.fund] || 'Chi tiêu')}\n\nLần xoá được lưu vào lịch sử (thời gian, người xoá, nội dung đã xoá).`, ()=>{
+    firebase.database().ref('officeLedger/' + id).remove().then(()=>{ expLogWrite('delete', id, x, null); showToast('Đã xoá (đã lưu lịch sử)'); }).catch(()=>showToast('Không xoá được.'));
   });
+  const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Xoá';
 }
 function expSetAccess(userId, v){
   if(!expIsOwner()) return;
   firebase.database().ref('expenseAccess/' + userId).set(v==='view' || v==='edit' ? v : null)
     .then(()=>showToast(v ? `✅ ${userName(userId)}: ${v==='edit' ? 'xem + ghi' : 'chỉ xem'}` : `Đã bỏ quyền ${userName(userId)}`)).catch(()=>showToast('Không lưu được.'));
-}
-function expEditOpening(){
-  if(!expIsOwner()) return; const m = expMeta || {};
-  const a = prompt('Số dư chốt QUỸ CHI TIÊU (âm thì ghi dấu -), VD: -4132000', String(m.chi ?? '')); if(a===null) return;
-  const b = prompt('Số dư chốt QUỸ CÔNG ĐOÀN, VD: 4995000', String(m.cd ?? '')); if(b===null) return;
-  const toN = s=>{ s = String(s).trim(); const neg = s.startsWith('-'); const n = expParseMoney(s.replace(/^-/, '')); return neg ? -n : n; };
-  firebase.database().ref('officeLedgerMeta').update({chi: toN(a), cd: toN(b)}).then(()=>showToast('✅ Đã chỉnh số dư chốt'));
 }
 function goPage(pageId){
   const expWant = pageId==='expenses';
