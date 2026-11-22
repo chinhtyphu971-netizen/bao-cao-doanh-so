@@ -1695,6 +1695,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-ship-pin:hover{ opacity:1; }
   .inv-ship-line.pin-body{ display:none; max-width:260px; }
   .inv-ship-line.pin-body.show{ display:block; }
+  .inv-ship-pin.full{ display:inline-block; font-size:13px; opacity:1; margin:0 0 8px; color:#7FC8FF; }
+  #invViewShip .inv-ship-line.pin-body{ max-width:none; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
@@ -5988,23 +5990,17 @@ function depProofOpen(inv, oldCust, msg, onOk){
 // ===== 📍 ĐỊA CHỈ GIAO HÀNG: hiện để kiểm tra (danh sách hoá đơn · xem hoá đơn · màn đóng hàng) — KHÔNG in lên hoá đơn gửi khách
 function invShipShortAddr(a){ return String(a||'').replace(/\bThành phố\s+/g,'TP ').replace(/\bTỉnh\s+/g,'').replace(/\bHuyện\s+/g,'H. ').replace(/\bQuận\s+/g,'Q. ').replace(/\bThị xã\s+/g,'TX ').replace(/\bThị trấn\s+/g,'TT ').replace(/\bPhường\s+/g,'P. ').replace(/\bXã\s+/g,'X. '); }
 function invShipLineHtml(inv, withEdit, full){
+  // Địa chỉ ẨN mặc định (chụp màn hình không lộ) — chỉ để biểu tượng 📍, bấm vào mới hiện. Thiếu địa chỉ thì vẫn hiện cảnh báo.
   if(!inv) return '';
-  const a = inv.shipAddress; let body;
-  if(!a){ if(!inv.depositLink) return ''; { const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return ''; } body = `<span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>`; }
-  else if(a==='Khách lấy tại cửa hàng') body = '🏪 Khách lấy tại cửa hàng / gửi xe';
-  else if(full) body = '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
-  else { // GỌN 1 DÒNG trong danh sách: bỏ tên/SĐT trùng với khách, rút gọn Tỉnh/Huyện/Xã… — bấm vào để xem đủ
-    const norm = x=>String(x||'').trim().toLowerCase(), dig = x=>String(x||'').replace(/\D/g,'');
-    const nm = inv.shipName && norm(inv.shipName)!==norm(inv.customerName) ? inv.shipName : '';
-    const ph = inv.shipPhone && dig(inv.shipPhone)!==dig(inv.customerPhone) ? inv.shipPhone : '';
-    const fullT = [inv.shipName, inv.shipPhone, a].filter(Boolean).join(' · ');
-    body = `<span class="isl-txt" title="${escHtml(fullT)} (bấm để xem đủ)" onclick="event.stopPropagation(); this.classList.toggle('open')">📍 ${[nm, ph, invShipShortAddr(a)].filter(Boolean).map(x=>escHtml(String(x))).join(' · ')}</span>`;
+  const a = inv.shipAddress;
+  const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" title="Sửa địa chỉ" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️ Sửa</a>` : '';
+  if(!a){
+    if(!inv.depositLink) return '';
+    const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return '';
+    return `<div class="inv-ship-line no-print${full ? '' : ' compact'}"><span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>${ed}</div>`;
   }
-  const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" title="Sửa địa chỉ" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️${full ? ' Sửa' : ''}</a>` : '';
-  if(!full){ const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')){ // kho đã đóng → chỉ để biểu tượng 📍 nhỏ, bấm mới hiện
-    const fullT = a==='Khách lấy tại cửa hàng' ? 'Khách lấy tại cửa hàng / gửi xe' : [inv.shipName, inv.shipPhone, a].filter(Boolean).join(' · ');
-    return `<span class="inv-ship-pin no-print" title="${escHtml(fullT)} (bấm để xem)" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('show')">📍</span><div class="inv-ship-line no-print pin-body">${escHtml(fullT)}</div>`; } }
-  return `<div class="inv-ship-line no-print${full ? '' : ' compact'}">${body}${ed}</div>`;
+  const fullT = a==='Khách lấy tại cửa hàng' ? '🏪 Khách lấy tại cửa hàng / gửi xe' : '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
+  return `<span class="inv-ship-pin no-print${full ? ' full' : ''}" title="Bấm để xem địa chỉ giao hàng" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('show')">📍${full ? ' Xem địa chỉ giao hàng' : ''}</span><div class="inv-ship-line no-print pin-body">${fullT}${ed}</div>`;
 }
 function invShipCanEdit(inv){
   const me = currentUser() || {}; if(!inv || !inv.depositLink) return false;
