@@ -1684,6 +1684,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .goal-aim{ font-size:11px; font-weight:700; color:#FF9A6A; white-space:nowrap; }
   .inv-ship-note{ margin-top:14px; padding:10px 12px; text-align:center; font-size:20px; font-weight:800; letter-spacing:.3px; color:#c0392b !important; background:#FFF4E5; border:2px dashed #E67E22; border-radius:10px; line-height:1.35; }
   @media (max-width:640px){ .inv-ship-note{ font-size:17px; } }
+  .inv-ship-line{ font-size:12px; color:var(--ink-soft); margin:2px 0; line-height:1.35; white-space:normal; }
+  .inv-ship-line .isl-warn{ color:#F0A63A; font-weight:700; }
+  .inv-ship-line .isl-edit{ color:#7FC8FF; white-space:nowrap; }
+  #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
   .pick-prog.full{ color:#6FD99A; background:rgba(46,160,90,0.14); border-color:rgba(46,160,90,0.45); }
@@ -3577,7 +3581,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     <div class="pack-p-label" id="depProofLabel" style="margin-top:10px;"></div>
     <div class="pack-thumbs" id="depProofThumbs" style="margin-top:8px;"></div>
     <div class="pack-note" id="depProofBusy" style="display:none; margin-top:6px;">⏳ Đang nén ảnh…</div>
-    <div class="pack-note" style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
+    <div class="pack-note" data-paste-hint style="margin-top:6px;">Máy tính: có thể dán ảnh chụp màn hình bằng Ctrl+V.</div>
     <div id="depAddrWrap" style="margin-top:12px;">
       <label class="pack-p-label">🏠 Địa chỉ giao hàng <span class="pack-note">— bắt buộc · theo địa giới <b>cũ (trước sáp nhập)</b></span></label>
       <div class="dep-paste">
@@ -3802,6 +3806,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <button class="btn-ghost btn-small" id="invViewPrintBtn" onclick="printInvoiceView()">🖨️ In / Lưu PDF</button>
       <button class="btn-ghost btn-small" onclick="closeInvoiceView()">✕ Đóng</button>
     </div>
+    <div id="invViewShip" class="no-print"></div>
     <div id="invViewBody" class="inv-view"></div>
   </div>
 </div>
@@ -5951,7 +5956,7 @@ function markInvoiceDeposited(invoiceId){
 const DEP_PROOF_MAX = 3;
 let depProof = null; // {invId, oldCust, onOk, imgs:[{data}]}
 function depProofOpen(inv, oldCust, msg, onOk){
-  depProof = {invId: inv.id, oldCust, onOk, imgs: []};
+  depProof = {invId: inv.id, oldCust, onOk, imgs: []}; depProofModeUi(false);
   if(inv.customerPhone) closedPhoneLookup(inv.customerPhone); // tra sẵn "khách cũ" để ghi đúng Nguồn khi xác nhận
   document.getElementById('depProofTitle').textContent = oldCust ? '💬 Chốt đơn khách cũ' : '💰 Xác nhận khách đã chuyển cọc';
   document.getElementById('depProofMsg').textContent = msg;
@@ -5972,6 +5977,30 @@ function depProofOpen(inv, oldCust, msg, onOk){
   depProofRender();
   document.getElementById('depProofModal').classList.add('show');
 }
+// ===== 📍 ĐỊA CHỈ GIAO HÀNG: hiện để kiểm tra (danh sách hoá đơn · xem hoá đơn · màn đóng hàng) — KHÔNG in lên hoá đơn gửi khách
+function invShipLineHtml(inv, withEdit){
+  if(!inv) return '';
+  const a = inv.shipAddress; let body;
+  if(!a){ if(!inv.depositLink) return ''; body = `<span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>`; }
+  else if(a==='Khách lấy tại cửa hàng') body = '🏪 Khách lấy tại cửa hàng / gửi xe';
+  else body = '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
+  const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️ Sửa</a>` : '';
+  return `<div class="inv-ship-line no-print">${body}${ed}</div>`;
+}
+function invShipCanEdit(inv){
+  const me = currentUser() || {}; if(!inv || !inv.depositLink) return false;
+  if(!(me.role==='general_manager' || inv.saleId===me.id)) return false;
+  const ps = packStatusMap()[inv.id]; return !(ps && (ps.state==='packed' || ps.state==='partial')); // kho đóng xong → đơn đã sang Abit, sửa trên Abit
+}
+function invShipEdit(invId){
+  const inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv) return;
+  if(!invShipCanEdit(inv)){ showToast('Kho đã đóng xong đơn này (đã sang Abit) — sửa địa chỉ trên Abit.'); return; }
+  depProofOpen(inv, false, 'Sửa địa chỉ / người nhận cho đơn ' + (inv.invoiceNumber||'') + '. Kho chưa đóng nên đơn chưa sang Abit — sửa ở đây là đủ.', ()=>{ showToast('✅ Đã lưu địa chỉ giao hàng'); try{ renderInvoicesPage(); }catch(e){} try{ if(document.getElementById('invViewModal').classList.contains('show')) viewInvoiceReadonly(invId); }catch(e){} try{ if(packPanel) renderPackPanel(); }catch(e){} });
+  depProof.addrOnly = true; depProofModeUi(true);
+  document.getElementById('depProofTitle').textContent = '📍 Sửa địa chỉ giao hàng';
+}
+function depProofModeUi(addrOnly){ ['depProofLabel','depProofThumbs'].forEach(id=>{ const e = document.getElementById(id); if(e) e.style.display = addrOnly ? 'none' : ''; });
+  const n = document.querySelector('#depProofModal .pack-note[data-paste-hint]'); if(n) n.style.display = addrOnly ? 'none' : ''; const ok = document.getElementById('depProofOk'); if(ok) ok.textContent = addrOnly ? 'Lưu địa chỉ' : 'Xác nhận'; }
 function depAddrPickup(on){ ['depAddr','depStreet','depProv','depDist','depWard','depShipPhone','depShipName','depPaste'].forEach(id=>{ const t = document.getElementById(id); if(t){ t.disabled = on; t.style.opacity = on ? 0.4 : 1; } }); }
 // ===== DÁN NGUYÊN ĐỊA CHỈ → TỰ TÁCH Tỉnh / Huyện / Xã / số nhà + tên + SĐT =====
 function vnNormChar(c){ if(c==='đ'||c==='Đ') return 'd'; const b = c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return /[a-z0-9]/.test(b) ? b[0] : ' '; }
@@ -6197,7 +6226,7 @@ document.addEventListener('paste', e=>{
 });
 function depProofSubmit(){
   if(!depProof) return;
-  if(!depProof.imgs.length){ showToast('📎 Chọn ảnh ' + (depProof.oldCust ? 'đoạn chat' : 'chuyển khoản') + ' trước.'); return; }
+  if(!depProof.addrOnly && !depProof.imgs.length){ showToast('📎 Chọn ảnh ' + (depProof.oldCust ? 'đoạn chat' : 'chuyển khoản') + ' trước.'); return; }
   const pickup = document.getElementById('depPickup').checked;
   const ra = pickup ? {ok:true, text:'Khách lấy tại cửa hàng', obj:null} : depAddrRead();
   if(!ra.ok){ showToast(ra.err + ' (hoặc tick "Khách lấy tại cửa hàng")'); return; }
@@ -6491,7 +6520,7 @@ function renderInvoicesPage(){
       return `<tr class="${flow==='short' && !packHasReply(ps) ? 'inv-row-short' : ''}${stale ? ' inv-row-stale' : ''}${reprint ? ' inv-row-reprint' : ''}">
       <td data-label="Số HĐ" class="inv-num-cell" style="font-weight:600;"><span class="inv-num">${inv.invoiceNumber}</span>${invFlowPillHtml(flow)}${
         waitDays >= INV_STALE_DAYS ? `<div class="inv-stale-tag">⏳ ${waitDays} ngày chưa cọc · nhắc khách</div>` : ''}${invoiceDaysLeft(inv)<=3 ? `<div style="font-size:11px; font-weight:400; color:var(--warn);" title="Hoá đơn tự xoá sau ${INVOICE_KEEP_DAYS} ngày kể từ lúc tạo">⏳ còn ${invoiceDaysLeft(inv)} ngày</div>` : ''}</td>
-      <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName)}</span>${packSaleBadgeHtml(inv)}</td>
+      <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName)}</span>${invShipLineHtml(inv, true)}${packSaleBadgeHtml(inv)}</td>
       <td data-label="SĐT">${inv.customerPhone ? (inv.saleId===u.id || canSeeFullPhone()
           ? `<span class="phone-full">${escHtml(cleanPhone(inv.customerPhone))}</span><button class="phone-copy-btn" title="Copy SĐT" onclick="copyPhone('${escHtml(cleanPhone(inv.customerPhone))}', event)">📋</button>`
           : escHtml(maskPhone(inv.customerPhone))) : '<span style="color:var(--ink-soft);">—</span>'}</td>
@@ -6942,6 +6971,7 @@ function viewInvoiceReadonly(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
   invViewCurrent = inv; document.getElementById('invViewBody').innerHTML = invoiceReadonlyHtml(inv);
+  { const sh = document.getElementById('invViewShip'); if(sh) sh.innerHTML = invShipLineHtml(inv, true); }
   { const pb = document.getElementById('invViewPrintBtn'); if(pb) pb.textContent = invIsPhone() ? '📷 Lưu ảnh hoá đơn' : '🖨️ In / Lưu PDF'; }
   document.getElementById('invViewModal').classList.add('show');
 }
