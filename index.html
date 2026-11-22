@@ -1687,6 +1687,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-ship-line{ font-size:12px; color:var(--ink-soft); margin:2px 0; line-height:1.35; white-space:normal; }
   .inv-ship-line .isl-warn{ color:#F0A63A; font-weight:700; }
   .inv-ship-line .isl-edit{ color:#7FC8FF; white-space:nowrap; }
+  .inv-ship-line.compact{ display:flex; align-items:baseline; gap:4px; max-width:260px; }
+  .inv-ship-line.compact .isl-txt{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .inv-ship-line.compact .isl-txt.open{ white-space:normal; }
+  .inv-ship-line.compact .isl-edit{ flex:none; text-decoration:none; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
@@ -5978,14 +5982,22 @@ function depProofOpen(inv, oldCust, msg, onOk){
   document.getElementById('depProofModal').classList.add('show');
 }
 // ===== 📍 ĐỊA CHỈ GIAO HÀNG: hiện để kiểm tra (danh sách hoá đơn · xem hoá đơn · màn đóng hàng) — KHÔNG in lên hoá đơn gửi khách
-function invShipLineHtml(inv, withEdit){
+function invShipShortAddr(a){ return String(a||'').replace(/\bThành phố\s+/g,'TP ').replace(/\bTỉnh\s+/g,'').replace(/\bHuyện\s+/g,'H. ').replace(/\bQuận\s+/g,'Q. ').replace(/\bThị xã\s+/g,'TX ').replace(/\bThị trấn\s+/g,'TT ').replace(/\bPhường\s+/g,'P. ').replace(/\bXã\s+/g,'X. '); }
+function invShipLineHtml(inv, withEdit, full){
   if(!inv) return '';
   const a = inv.shipAddress; let body;
   if(!a){ if(!inv.depositLink) return ''; { const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return ''; } body = `<span class="isl-warn">⚠ Chưa có địa chỉ giao hàng</span>`; }
   else if(a==='Khách lấy tại cửa hàng') body = '🏪 Khách lấy tại cửa hàng / gửi xe';
-  else body = '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
-  const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️ Sửa</a>` : '';
-  return `<div class="inv-ship-line no-print">${body}${ed}</div>`;
+  else if(full) body = '📍 ' + [inv.shipName, inv.shipPhone, a].filter(Boolean).map(x=>escHtml(String(x))).join(' · ');
+  else { // GỌN 1 DÒNG trong danh sách: bỏ tên/SĐT trùng với khách, rút gọn Tỉnh/Huyện/Xã… — bấm vào để xem đủ
+    const norm = x=>String(x||'').trim().toLowerCase(), dig = x=>String(x||'').replace(/\D/g,'');
+    const nm = inv.shipName && norm(inv.shipName)!==norm(inv.customerName) ? inv.shipName : '';
+    const ph = inv.shipPhone && dig(inv.shipPhone)!==dig(inv.customerPhone) ? inv.shipPhone : '';
+    const fullT = [inv.shipName, inv.shipPhone, a].filter(Boolean).join(' · ');
+    body = `<span class="isl-txt" title="${escHtml(fullT)} (bấm để xem đủ)" onclick="event.stopPropagation(); this.classList.toggle('open')">📍 ${[nm, ph, invShipShortAddr(a)].filter(Boolean).map(x=>escHtml(String(x))).join(' · ')}</span>`;
+  }
+  const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" title="Sửa địa chỉ" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️${full ? ' Sửa' : ''}</a>` : '';
+  return `<div class="inv-ship-line no-print${full ? '' : ' compact'}">${body}${ed}</div>`;
 }
 function invShipCanEdit(inv){
   const me = currentUser() || {}; if(!inv || !inv.depositLink) return false;
@@ -6971,7 +6983,7 @@ function viewInvoiceReadonly(invoiceId){
   const inv = state.invoices.find(x=>x.id===invoiceId);
   if(!inv) return;
   invViewCurrent = inv; document.getElementById('invViewBody').innerHTML = invoiceReadonlyHtml(inv);
-  { const sh = document.getElementById('invViewShip'); if(sh) sh.innerHTML = invShipLineHtml(inv, true); }
+  { const sh = document.getElementById('invViewShip'); if(sh) sh.innerHTML = invShipLineHtml(inv, true, true); }
   { const pb = document.getElementById('invViewPrintBtn'); if(pb) pb.textContent = invIsPhone() ? '📷 Lưu ảnh hoá đơn' : '🖨️ In / Lưu PDF'; }
   document.getElementById('invViewModal').classList.add('show');
 }
