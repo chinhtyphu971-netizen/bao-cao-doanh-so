@@ -1691,6 +1691,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .inv-ship-line.compact .isl-txt{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
   .inv-ship-line.compact .isl-txt.open{ white-space:normal; }
   .inv-ship-line.compact .isl-edit{ flex:none; text-decoration:none; }
+  .inv-ship-pin{ cursor:pointer; font-size:12px; margin-left:4px; opacity:.75; vertical-align:middle; }
+  .inv-ship-pin:hover{ opacity:1; }
+  .inv-ship-line.pin-body{ display:none; max-width:260px; }
+  .inv-ship-line.pin-body.show{ display:block; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
   .pick-prog{ display:inline-block; font-size:11.5px; font-weight:800; color:#F6C27A; background:rgba(240,166,58,0.14); border:1px solid rgba(240,166,58,0.45); border-radius:6px; padding:0 6px; margin-left:3px; }
@@ -5997,6 +6001,9 @@ function invShipLineHtml(inv, withEdit, full){
     body = `<span class="isl-txt" title="${escHtml(fullT)} (bấm để xem đủ)" onclick="event.stopPropagation(); this.classList.toggle('open')">📍 ${[nm, ph, invShipShortAddr(a)].filter(Boolean).map(x=>escHtml(String(x))).join(' · ')}</span>`;
   }
   const ed = withEdit && invShipCanEdit(inv) ? ` <a href="#" class="isl-edit" title="Sửa địa chỉ" onclick="event.preventDefault(); event.stopPropagation(); invShipEdit('${inv.id}')">✏️${full ? ' Sửa' : ''}</a>` : '';
+  if(!full){ const ps = packStatusMap()[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')){ // kho đã đóng → chỉ để biểu tượng 📍 nhỏ, bấm mới hiện
+    const fullT = a==='Khách lấy tại cửa hàng' ? 'Khách lấy tại cửa hàng / gửi xe' : [inv.shipName, inv.shipPhone, a].filter(Boolean).join(' · ');
+    return `<span class="inv-ship-pin no-print" title="${escHtml(fullT)} (bấm để xem)" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('show')">📍</span><div class="inv-ship-line no-print pin-body">${escHtml(fullT)}</div>`; } }
   return `<div class="inv-ship-line no-print${full ? '' : ' compact'}">${body}${ed}</div>`;
 }
 function invShipCanEdit(inv){
