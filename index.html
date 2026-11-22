@@ -6005,7 +6005,7 @@ function invShipLineHtml(inv, withEdit, full){
 }
 function invShipCanEdit(inv){
   const me = currentUser() || {}; if(!inv || !inv.depositLink) return false;
-  if(!(me.role==='general_manager' || inv.saleId===me.id)) return false;
+  if(inv.saleId!==me.id) return false; // chỉ Sale của đơn được sửa — Quản lý chỉ xem
   const ps = packStatusMap()[inv.id]; return !(ps && (ps.state==='packed' || ps.state==='partial')); // kho đóng xong → đơn đã sang Abit, sửa trên Abit
 }
 function invShipEdit(invId){
@@ -7352,7 +7352,7 @@ function renderPackInvoicesPage(){
         <td data-label="Số HĐ" style="font-weight:700; white-space:nowrap;">${escHtml(inv.invoiceNumber)}${(()=>{ const lb = (state.packLabels||[]).find(x=>x && x.id===inv.id); return lb ? ` <span class="lbl-done-mark" title="Đã in tem ${lb.n||1} lần · lần cuối ${packTimeStr(lb.at)}${lb.byName ? ' · ' + escHtml(lb.byName) : ''}">🏷️${(lb.n||1) > 1 ? '×' + lb.n : ''}</span>` : ''; })()}${isOldCustomerInvoice(inv) ? '<div class="pack-sub">khách cũ</div>' : ''}</td>
         <td data-label="Trạng thái">${stHtml}</td>
         <td data-label="Sale · cọc lúc" class="pack-sale-col"><div class="psc-name">${escHtml(inv.saleName || (inv.saleId ? userName(inv.saleId) : ''))}</div><div class="psc-time">${packTimeStr(packDepositMs(inv))}</div></td>
-        <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span>${packShowShip ? invShipLineHtml(inv, true) : ''}</td>
+        <td data-label="Khách hàng"><span class="inv-cust-name" title="${escHtml(inv.customerName)}">${escHtml(inv.customerName||'')}</span>${packShowShip ? invShipLineHtml(inv, false) : ''}</td>
         <td data-label="Sản phẩm" class="pack-items"><div class="pack-items-clamp" title="Bấm để xem đủ / thu gọn" onclick="this.classList.toggle('open')">${packItemsSummaryHtml(inv)}</div></td>
         <td class="num" data-label="SL" style="font-weight:700;">${Number(inv.totalQty)||0}</td>
       </tr>`;
