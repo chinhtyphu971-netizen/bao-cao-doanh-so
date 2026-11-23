@@ -16808,6 +16808,52 @@ function deltaAttach(name, baseRef, h){
   })().catch(e=>{ console.error('delta ' + name, e); });
   return {off(){ st.off = true; clearTimeout(st.flushT); clearTimeout(st.saveT); st.qs.forEach(q=>{ try{ q.off(); }catch(e){} }); if(deltaActive[name]===st) delete deltaActive[name]; }};
 }
+// ⚡ Bản "LỌC" của deltaAttach cho máy CHỈ CẦN 1 PHẦN data (VD MKT: data mình nhập). Lần đầu trong ngày tải đủ bằng các truy vấn
+// riêng (như cũ) rồi NHỚ TRÊN MÁY; các lần mở sau chỉ nhận phần thay đổi (_u) của cả kho và giữ lại mục khớp điều kiện.
+// Không đổi cách kiểm tra trùng SĐT (luôn hỏi máy chủ — prefetchPhonesForMkt).
+function deltaAttachFiltered(name, baseRef, queries, match, h){
+  const ck = 'd' + DELTA_VER + '|' + name;
+  const st = {map: {}, lastU: 0, ready: false, off: false, qs: [], fullAt: 0, nAdd: 0, flushT: null, saveT: null, stats: {mode: '', items: 0, delta: 0}};
+  deltaActive[name] = st;
+  const track = u=>{ u = Number(u)||0; if(u > st.lastU) st.lastU = u; };
+  const save = (now)=>{ clearTimeout(st.saveT); const go = ()=>{ if(!st.off && st.ready) deltaPut(ck, {map: st.map, lastU: st.lastU, fullAt: st.fullAt, epoch: (deltaCfg && deltaCfg.epoch) || 0, savedAt: nowMs()}); };
+    if(now) go(); else st.saveT = setTimeout(go, 20000); };
+  st.saveNow = ()=>save(true);
+  const flush = ()=>{ clearTimeout(st.flushT); st.flushT = setTimeout(()=>{ if(st.off || !st.ready) return; const n = st.nAdd; st.nAdd = 0; try{ h.update(st.map, n); }catch(e){ console.error(e); } save(); }, 120); };
+  const onV = s=>{ const v = s.val(); if(v===null) return; track(v._u); st.stats.delta++;
+    if(match(v)){ if(st.map[s.key]===undefined) st.nAdd++; st.map[s.key] = v; if(st.ready) flush(); }
+    else if(st.map[s.key]!==undefined){ delete st.map[s.key]; if(st.ready) flush(); } };
+  const live = since=>{
+    if(st.off) return;
+    const q = baseRef.orderByChild('_u').startAt(since); q.on('child_added', onV); q.on('child_changed', onV);
+    const nq = baseRef.orderByChild('_u').equalTo(null); nq.on('child_added', onV); nq.on('child_changed', onV); // ghi từ máy bản cũ (chưa có _u)
+    const dq = fbRoot.child('_del/leads').orderByValue().startAt(since);
+    dq.on('child_added', s=>{ const t = Number(s.val())||0; const cur = st.map[s.key]; if(cur && Number(cur._u) > t) return; if(cur!==undefined){ delete st.map[s.key]; if(st.ready) flush(); } });
+    st.qs.push(q, nq, dq);
+  };
+  (async ()=>{
+    const cfg = await deltaLoadCfg(); if(st.off) return;
+    const c = await deltaGet(ck); if(st.off) return;
+    const okCache = c && c.map && (c.epoch||0)===(cfg.epoch||0) && nowMs() - Number(c.fullAt||0) < DELTA_MAX_AGE;
+    if(okCache){
+      st.map = c.map; st.lastU = Number(c.lastU)||0; st.fullAt = Number(c.fullAt)||0; st.stats.mode = 'cache';
+      st.ready = true; st.stats.items = Object.keys(st.map).length;
+      try{ h.ready(st.map); }catch(e){ console.error(e); }
+      live(Math.min(st.lastU || Number(c.savedAt) || 0, Number(c.savedAt) || nowMs()) - DELTA_MARGIN);
+      return;
+    }
+    const t0 = nowMs();
+    const snaps = await Promise.all(queries.map(q=>q.once('value'))); if(st.off) return;
+    const m = {}; snaps.forEach(sn=>Object.assign(m, sn.val() || {}));
+    st.map = m; st.fullAt = t0; st.stats.mode = 'full';
+    Object.values(st.map).forEach(v=>{ if(v) track(v._u); });
+    st.ready = true; st.stats.items = Object.keys(st.map).length;
+    try{ h.ready(st.map); }catch(e){ console.error(e); }
+    save(true);
+    live(t0 - DELTA_MARGIN); // chỉ cần thay đổi từ lúc vừa tải
+  })().catch(e=>{ console.error('delta ' + name, e); });
+  return {off(){ st.off = true; clearTimeout(st.flushT); clearTimeout(st.saveT); st.qs.forEach(q=>{ try{ q.off(); }catch(e){} }); if(deltaActive[name]===st) delete deltaActive[name]; }};
+}
 // Đóng dấu _u cho các mục CŨ chưa có (chỉ máy Quản lý chung, chạy nền, 1 lần/ngày/nhánh) — ghi từng đợt 300 mục.
 // Chỉ đóng dấu mục máy này đang thấy còn tồn tại (vừa tải xong + nhận bia mộ trực tiếp) → không tạo lại mục đã xoá.
 async function deltaStampMissing(name, baseRef, st){
@@ -16977,6 +17023,19 @@ function subscribeLeadsForUser(user){
       if(!deltaEnabled()){ leadsSubQueries = leadsSubQueries.filter(x=>x!==holder); leadsAttachPlain(); return; }
       holder.d = deltaAttach('leads', fbLeads, {
         ready: map=>{ if(leadsSubKey!==myKey) return; maps[0] = map; ready = true; leadsDataReady = true; sync(); tryAutoDistribute(); backfillLeadPhoneNorm(); setTimeout(()=>{ try{ archiveOldLeadsIfDue(); }catch(e){ console.error(e); } }, 4000); },
+        update: (map, nAdded)=>{ if(leadsSubKey!==myKey) return; maps[0] = map; sync(); if(nAdded) tryAutoDistribute(); }
+      });
+    });
+    return;
+  }
+  if(mktIds && !mktWantClosed){ // ⚡ MKT / Quản lý MKT: nhớ data trên máy, chỉ tải phần thay đổi (tải đủ ~1 lần/ngày)
+    const holder = {off(){ this.dead = true; if(this.d) this.d.off(); }}; leadsSubQueries.push(holder);
+    const idSet = new Set(mktIds);
+    deltaLoadCfg().then(()=>{
+      if(holder.dead || leadsSubKey!==myKey) return;
+      if(!deltaEnabled()){ leadsSubQueries = leadsSubQueries.filter(x=>x!==holder); leadsAttachPlain(); return; }
+      holder.d = deltaAttachFiltered('leadsMkt:' + mktIds.join(','), fbLeads, queries, v=>!!v && idSet.has(v.createdBy), {
+        ready: map=>{ if(leadsSubKey!==myKey) return; maps[0] = map; ready = true; leadsDataReady = true; sync(); tryAutoDistribute(); },
         update: (map, nAdded)=>{ if(leadsSubKey!==myKey) return; maps[0] = map; sync(); if(nAdded) tryAutoDistribute(); }
       });
     });
