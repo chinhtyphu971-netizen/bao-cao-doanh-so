@@ -4234,7 +4234,20 @@ function startFirebaseListeners(){
     }
   });
   fbCallAttemptOptions.on('value', snap=>{ state.callAttemptOptions = Object.values(snap.val()||{}); onDataChanged(); });
-  fbUsers.on('value',    snap=>{ setTimeout(()=>{ try{ const cu = currentUser(); if(cu && cu.role==='team_manager' && appReady) subscribeLeadsForUser(cu); }catch(e){} }, 0); state.users    = Object.values(snap.val()||{}).map(x=>{ if(Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; }); markLoaded('users');    secApplyPins(); onDataChanged(); try{ const cu = currentUser(); if(cu && cu.loginBlocked){ showToast('Tài khoản đã ngừng hoạt động.'); logout(); } }catch(e){} try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} });
+  // ⚡ /users nghe theo TỪNG TÀI KHOẢN (child_added/changed/removed) thay vì cả nhánh: trước đây mỗi lần 1 tài khoản đổi
+  // (VD tự gọi lại cập nhật số liệu cho 40 Sale) thì MỌI máy tải lại toàn bộ 62 tài khoản ×40 lần. Giờ chỉ nhận đúng tài khoản vừa đổi.
+  { const uMap = {}; let uReady = false, uTimer = null;
+    const norm = x=>{ if(x && Array.isArray(x.assignedSources)) x.assignedSources = Array.from(new Set(x.assignedSources.map(cleanSourceName).filter(Boolean))); return x; };
+    const apply = ()=>{ uTimer = null;
+      setTimeout(()=>{ try{ const cu = currentUser(); if(cu && cu.role==='team_manager' && appReady) subscribeLeadsForUser(cu); }catch(e){} }, 0);
+      state.users = Object.values(uMap); markLoaded('users'); secApplyPins(); onDataChanged();
+      try{ const cu = currentUser(); if(cu && cu.loginBlocked){ showToast('Tài khoản đã ngừng hoạt động.'); logout(); } }catch(e){} try{ checkRecallNotice(); }catch(e){} try{ migrateRecallSplit(); }catch(e){} };
+    const later = ()=>{ if(uReady && !uTimer) uTimer = setTimeout(apply, 80); }; // gộp nhiều thay đổi dồn dập thành 1 lần vẽ lại
+    fbUsers.on('child_added',   s=>{ const v = s.val(); if(v) uMap[s.key] = norm(v); later(); });
+    fbUsers.on('child_changed', s=>{ const v = s.val(); if(v) uMap[s.key] = norm(v); later(); });
+    fbUsers.on('child_removed', s=>{ delete uMap[s.key]; later(); });
+    fbUsers.once('value', ()=>{ uReady = true; apply(); });
+  }
   // Thùng rác: chỉ Quản lý chung / Quản lý Data dùng → tải theo vai trò (xem setupRoleScopedListeners)
   markLoaded('trash');
   // checkins / managerConfirms / dailyRotation đều tổ chức theo NGÀY — app chỉ dùng đúng dữ liệu
