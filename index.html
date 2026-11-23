@@ -17444,7 +17444,7 @@ const EXP_CAT_RX = {sim:/sim|cước|nạp|gọi|tiền dt/i, sn:/\bsn\b|sinh nh
 const EXP_FUNDS = {chi:'Quỹ chi tiêu', cd:'Quỹ công đoàn', ngoai:'Ngoài quỹ (trả riêng)'};
 const EXP_FUND_SHORT = {chi:'Chi tiêu', cd:'Công đoàn', ngoai:'Ngoài quỹ'};
 let expAccess = {}, expAccessRef = null, expLedger = [], expLedgerRef = null, expMeta = null, expMetaRef = null, expLoaded = false;
-let expMonth = '', expQ = '', expForm = null, expShowAcc = false, expLog = [], expLogRef = null, expShowLog = false;
+let expMonth = '', expQ = '', expForm = null, expShowAcc = false, expLog = [], expLogRef = null, expShowLog = false, expSyncState = null, expSyncRef = null;
 function expOwnerId(){ if(EXP_OWNER_ID) return EXP_OWNER_ID; const o = (state.users||[]).find(u=>String(u.name||'').trim().normalize('NFC').toLowerCase()==='thiện qtv'.normalize('NFC')); return o ? o.id : ''; }
 function expIsOwner(u){ u = u || currentUser(); return !!(u && expOwnerId() && u.id===expOwnerId()); }
 function expLevel(u){ u = u || currentUser(); if(!u) return ''; if(expIsOwner(u)) return 'owner'; return expAccess[u.id] || ''; }
@@ -17468,7 +17468,7 @@ function expListen(user){
 }
 function expNav(){
   const ok = expCanView(); const n = document.getElementById('navExpense'); if(n) n.style.display = ok ? 'block' : 'none';
-  if(!ok){ if(expLedgerRef){ try{ expLedgerRef.off(); expMetaRef.off(); if(expLogRef) expLogRef.off(); }catch(e){} expLedgerRef = expMetaRef = expLogRef = null; expLedger = []; expLog = []; expMeta = null; expLoaded = false; }
+  if(!ok){ if(expLedgerRef){ try{ expLedgerRef.off(); expMetaRef.off(); if(expLogRef) expLogRef.off(); if(expSyncRef){ expSyncRef.child('at').off(); expSyncRef.child('result').off(); } }catch(e){} expLedgerRef = expMetaRef = expLogRef = expSyncRef = null; expLedger = []; expLog = []; expMeta = null; expLoaded = false; }
     if(currentPageId==='expenses') goPage(homePageForMe()); }
 }
 function expEnsureData(){ // chỉ tải khi mở trang (ít dữ liệu, không tải cho người khác)
@@ -17477,6 +17477,9 @@ function expEnsureData(){ // chỉ tải khi mở trang (ít dữ liệu, không
   expLedgerRef = db.ref('officeLedger'); expMetaRef = db.ref('officeLedgerMeta');
   expLedgerRef.on('value', s=>{ expLedger = Object.values(s.val() || {}).filter(x=>x && x.id); expLoaded = true; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{ expLoaded = true; });
   expMetaRef.on('value', s=>{ expMeta = s.val() || null; if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{});
+  expSyncRef = db.ref('officeLedgerSync'); // chỉ nghe giờ + kết quả lần đồng bộ (nhỏ), không tải danh sách dòng
+  expSyncRef.child('result').on('value', r=>{ expSyncState = Object.assign(expSyncState || {}, {result: r.val()}); if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{});
+  expSyncRef.child('at').on('value', a=>{ expSyncState = Object.assign(expSyncState || {}, {at: a.val()}); if(currentPageId==='expenses') renderExpensesPage(); }, ()=>{});
   expLogRef = db.ref('officeLedgerLog').orderByChild('at').limitToLast(300);
   expLogRef.on('value', s=>{ expLog = Object.values(s.val() || {}).filter(Boolean).sort((a,b)=>b.at-a.at); if(currentPageId==='expenses' && expShowLog) renderExpensesPage(); }, ()=>{});
 }
@@ -17535,6 +17538,7 @@ function renderExpensesPage(){
   box.innerHTML = `
     <div class="exp-bals">${balCard('chi')}${balCard('cd')}</div>
     <div class="pack-note" style="margin:-6px 0 12px;">Số dư = tổng nạp − tổng chi của từng quỹ (gồm cả dữ liệu bảng cũ). Quỹ công đoàn lấy tiền từ Quỹ chi tiêu bằng dòng "🔁 Chuyển sang Công đoàn".</div>
+    ${expSyncInfoHtml()}
     ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;"><button class="btn-primary" onclick="expFormOpen('out')">➕ Ghi khoản chi</button><button class="btn-ghost" onclick="expFormOpen('in')">💵 Nạp quỹ</button><button class="btn-ghost" onclick="expFormOpen('move')">🔁 Chuyển sang Công đoàn</button></div>` : '<div class="pack-note" style="margin-bottom:12px;">Bạn được cấp quyền <b>chỉ xem</b>.</div>'}
     ${formHtml}
     <div class="card">
@@ -17625,6 +17629,95 @@ function expDelete(id){
     firebase.database().ref('officeLedger/' + id).remove().then(()=>{ expLogWrite('delete', id, x, null); showToast('Đã xoá (đã lưu lịch sử)'); }).catch(()=>showToast('Không xoá được.'));
   });
   const ok = document.getElementById('confirmOkBtn'); if(ok) ok.textContent = 'Xoá';
+}
+// ===== 🔄 ĐỒNG BỘ TỪ "BẢNG CHI TIÊU" (Google Sheet) — chạy 2 lần/ngày trên máy anh Thiện (máy chủ không đọc bảng) =====
+// expSheetSync(csv): so bảng với lần đồng bộ trước (officeLedgerSync) → thêm khoản chi mới, sửa khoản đổi số tiền/nội dung/ngày
+// (ghi lịch sử), dòng ghi chú "thêm Xtr" → Nạp quỹ; ghi chú nhắc tới quỹ công đoàn / dòng bị xoá trên bảng → chỉ BÁO, không tự xử lý.
+function expCsvParse(text){
+  const rows = []; let row = [], cur = '', q = false;
+  for(let i = 0; i < text.length; i++){ const ch = text[i];
+    if(q){ if(ch === '"'){ if(text[i+1] === '"'){ cur += '"'; i++; } else q = false; } else cur += ch; continue; }
+    if(ch === '"') q = true; else if(ch === ','){ row.push(cur); cur = ''; } else if(ch === '\n' || ch === '\r'){ if(ch === '\r' && text[i+1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; } else cur += ch; }
+  if(cur || row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function expSheetDate(s, fallback){
+  const m = String(s||'').match(/(\d{1,2})\s*[-\/.]\s*(\d{1,2})(?:\s*[-\/.]\s*(\d{4}))?/); if(!m) return fallback || '';
+  const d = Number(m[1]), mo = Number(m[2]); if(!(d>=1 && d<=31 && mo>=1 && mo<=12)) return fallback || '';
+  let y = m[3] ? Number(m[3]) : Number(todayStr().slice(0,4));
+  if(!m[3] && mo > Number(todayStr().slice(5,7)) + 1) y--; // VD đang tháng 1 mà ghi 25-12 → năm trước
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function expSheetNorm(s){ return String(s||'').trim().replace(/\s+/g,' ').toLowerCase(); }
+function expSheetRows(csv){
+  const out = {data: [], notes: []}; let lastDate = '';
+  expCsvParse(String(csv||'')).forEach((r, i)=>{
+    const a = String(r[0]||'').trim(), b = String(r[1]||'').trim(), c = String(r[2]||'').trim(), d = String(r[3]||'').trim();
+    if(/BẢNG CHI PHÍ/i.test(a)) return;
+    const amount = Number(b.replace(/[^\d]/g,'')) || 0;
+    const date = expSheetDate(c, lastDate); if(date) lastDate = date;
+    if(a && amount > 0) out.data.push({i, item: a, amount, date, sig: expSheetNorm(a) + '|' + amount + '|' + date});
+    if(d) out.notes.push({i, text: d, date: date || lastDate});
+  });
+  return out;
+}
+async function expSheetSync(csv, opts){
+  opts = opts || {};
+  if(!expIsOwner()) return {error: 'Chỉ anh Thiện QTV chạy được đồng bộ'};
+  const db = firebase.database(); const me = currentUser() || {};
+  const sh = expSheetRows(csv); if(!sh.data.length) return {error: 'Không đọc được dòng nào trong bảng'};
+  const led = (await db.ref('officeLedger').once('value')).val() || {};
+  const st = (await db.ref('officeLedgerSync').once('value')).val() || null;
+  const up = {}, res = {added: [], edited: [], removed: [], topups: [], attention: []};
+  const logs = []; const now = nowMs();
+  const newEntry = (r)=>{ const id = 's' + uid(); const isCd = /thăm ốm|tân gia/i.test(r.item);
+    const rec = {id, date: r.date || todayStr(), kind: 'out', fund: isCd ? 'cd' : 'chi', item: r.item, amount: r.amount, cat: expGuessCat(r.item), note: '', src: 'sheet', by: me.id || '', byName: 'Bảng tính (tự đồng bộ)', at: now};
+    up['officeLedger/' + id] = rec; logs.push(['add', id, null, rec]); res.added.push(`${r.item} · ${fmtMoney(r.amount)}đ · ${r.date.split('-').reverse().slice(0,2).join('/')}`); return id; };
+  // Lần trước: danh sách dòng (chữ ký → mã khoản trong app). Lần đầu: ghép với các khoản đã nhập từ bảng cũ.
+  let prev;
+  if(st && Array.isArray(st.rows)) prev = st.rows.map(x=>Object.assign({}, x));
+  else { const pool = Object.values(led).filter(x=>x && x.kind==='out' && x.hist).map(x=>({sig: expSheetNorm(x.item) + '|' + x.amount + '|' + x.date, id: x.id, i: -1})); prev = pool; }
+  const used = new Set(); const rowsOut = []; const unmatched = [];
+  sh.data.forEach(r=>{ const k = prev.findIndex((p, j)=>!used.has(j) && p.sig===r.sig && led[p.id]);
+    if(k >= 0){ used.add(k); rowsOut.push({sig: r.sig, id: prev[k].id, i: r.i}); } else unmatched.push(r); });
+  const left = prev.map((p, j)=>({p, j})).filter(x=>!used.has(x.j) && led[x.p.id]);
+  unmatched.forEach(r=>{
+    // dòng bị SỬA trên bảng: cùng vị trí dòng, hoặc cùng nội dung + ngày (đổi số tiền) → sửa khoản cũ
+    let k = left.findIndex(x=>x.p.i===r.i && x.p.i >= 0);
+    if(k < 0) k = left.findIndex(x=>{ const e = led[x.p.id]; return e && expSheetNorm(e.item)===expSheetNorm(r.item) && e.date===r.date; });
+    if(k < 0) k = left.findIndex(x=>{ const e = led[x.p.id]; return e && Number(e.amount)===r.amount && e.date===r.date; });
+    if(k < 0) k = left.findIndex(x=>{ const e = led[x.p.id]; return e && expSheetNorm(e.item)===expSheetNorm(r.item) && Number(e.amount)===r.amount; });
+    if(k >= 0){ const x = left.splice(k, 1)[0]; const e = led[x.p.id];
+      const after = Object.assign({}, e, {item: r.item, amount: r.amount, date: r.date || e.date, editedBy: 'Bảng tính (tự đồng bộ)', editedAt: now});
+      if(st && (expSheetNorm(e.item)!==expSheetNorm(r.item) || Number(e.amount)!==r.amount || e.date!==after.date)){ // lần đầu chỉ GHÉP, không sửa
+        up['officeLedger/' + e.id] = after; logs.push(['edit', e.id, e, after]); res.edited.push(expDiffText(e, after).replace(/\n/g, ' ')); }
+      rowsOut.push({sig: r.sig, id: e.id, i: r.i});
+    } else rowsOut.push({sig: r.sig, id: newEntry(r), i: r.i});
+  });
+  if(st) left.forEach(x=>{ const e = led[x.p.id]; if(e) res.removed.push(`${e.item} · ${fmtMoney(e.amount)}đ · ${String(e.date).split('-').reverse().slice(0,2).join('/')}`); });
+  // Ghi chú: "thêm Xtr" → Nạp quỹ (1 lần cho mỗi ghi chú mới); nhắc quỹ công đoàn / phép tính khác → báo anh xem
+  const seen = new Set((st && st.notes) || (opts.seenNotes || []));
+  const notesOut = Array.from(seen);
+  sh.notes.forEach(n=>{ const nk = n.text + '|' + (n.date || ''); if(seen.has(nk) || seen.has(n.text)) return; seen.add(nk); notesOut.push(nk);
+    if(!st && !opts.processNotes) return; // lần đầu: coi như đã xem các ghi chú cũ (trừ khi yêu cầu xử lý)
+    const m = n.text.match(/thêm\s*(\d+(?:[.,]\d+)?)\s*tr\b/i);
+    if(m){ const amt = Math.round(parseFloat(m[1].replace(',','.')) * 1e6); const id = 's' + uid();
+      const rec = {id, date: n.date || todayStr(), kind: 'in', fund: 'chi', item: 'Nạp thêm (theo Bảng chi tiêu)', amount: amt, cat: '', note: n.text, src: 'sheet', by: me.id || '', byName: 'Bảng tính (tự đồng bộ)', at: now};
+      up['officeLedger/' + id] = rec; logs.push(['add', id, null, rec]); res.topups.push(`+${fmtMoney(amt)}đ (${n.text})`); }
+    if(!m || /quỹ|cđ|công đoàn/i.test(n.text.replace(m ? m[0] : '', ''))) res.attention.push(n.text);
+  });
+  up['officeLedgerSync'] = {rows: rowsOut, notes: notesOut, at: now, by: me.name || '', result: {added: res.added.length, edited: res.edited.length, removed: res.removed, topups: res.topups.length, attention: res.attention}};
+  if(!opts.dryRun){
+    await db.ref().update(up);
+    logs.forEach(([a, id, b, af])=>expLogWrite(a, id, b, af));
+  }
+  return res;
+}
+function expSyncInfoHtml(){
+  const s = expSyncState; if(!s || !s.at) return '';
+  const r = s.result || {};
+  const warn = (r.attention||[]).length || (r.removed||[]).length;
+  return `<div class="pack-note" style="margin:-4px 0 12px;">🔄 Tự đồng bộ từ <b>Bảng chi tiêu</b> lúc ${packTimeStr(s.at)}: thêm ${r.added||0} khoản, sửa ${r.edited||0}${r.topups ? ', nạp quỹ ' + r.topups : ''}.${warn ? ` <span style="color:#F0A63A;">⚠ Cần xem: ${[].concat((r.removed||[]).map(x=>'dòng đã xoá trên bảng: ' + x), (r.attention||[]).map(x=>'ghi chú: ' + x)).map(escHtml).join(' · ')}</span>` : ''}</div>`;
 }
 function expSetAccess(userId, v){
   if(!expIsOwner()) return;
