@@ -1699,6 +1699,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   #invViewShip .inv-ship-line.pin-body{ max-width:none; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
+  .chat-day-sep{ align-self:stretch; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-soft); margin:4px 0; }
+  .chat-day-sep::before, .chat-day-sep::after{ content:''; flex:1; border-top:1px solid var(--line); }
+  .chat-day-sep span{ text-transform:capitalize; white-space:nowrap; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
   .goal-sort-ar{ font-size:10px; opacity:.45; }
@@ -5846,9 +5849,10 @@ function invoiceItemsRecord(inv){
 function syncInvoiceItems(inv){ if(fbInvoiceItems && inv && inv.id) fbInvoiceItems.child(inv.id).set(invoiceItemsRecord(inv)).catch(()=>{}); }
 function removeInvoiceItems(id){ if(fbInvoiceItems && id) fbInvoiceItems.child(id).remove().catch(()=>{}); }
 // Máy Quản lý chung (có đủ hoá đơn) đồng bộ lại 1 lần/phiên: bù bản rút gọn còn thiếu/cũ + xoá bản thừa
-let invoiceItemsBackfilled = false;
+let invoiceItemsBackfilled = false, invoiceItemsLoaded = false;
 function backfillInvoiceItems(){
-  if(invoiceItemsBackfilled || !fbInvoiceItems || !state.invoices || !state.invoices.length) return;
+  // ⚠ Chỉ chạy khi ĐÃ tải xong danh sách hàng cần in (invoiceItemsLoaded) — nếu chưa tải, danh sách rỗng → tưởng thiếu hết → ghi lại toàn bộ.
+  if(invoiceItemsBackfilled || !invoiceItemsLoaded || !fbInvoiceItems || !state.invoices || !state.invoices.length) return;
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
   invoiceItemsBackfilled = true;
   const have = {}; (state.invoiceItems||[]).forEach(x=>{ have[x.id] = x; });
@@ -16001,12 +16005,19 @@ function renderChatMessages(msgs){
     list.innerHTML = '<div class="empty-note">Chưa có tin nhắn nào'+(currentChatReadOnly?'.':' — gửi lời chào đầu tiên nhé!')+'</div>';
     return;
   }
+  // Hiện theo NGÀY: chèn dòng ngăn cách mỗi khi sang ngày mới (Hôm nay / Hôm qua / Thứ, dd/mm/yyyy)
+  const dayKey = t=>{ const d = new Date(t); return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); };
+  const dayLabel = t=>{ const d = new Date(t), n = new Date(); const y = new Date(n.getTime() - 86400000);
+    if(dayKey(t)===dayKey(n)) return 'Hôm nay'; if(dayKey(t)===dayKey(y)) return 'Hôm qua';
+    return d.toLocaleDateString('vi-VN',{weekday:'long', day:'2-digit', month:'2-digit', year: d.getFullYear()===n.getFullYear() ? undefined : 'numeric'}); };
+  let lastDay = '';
   list.innerHTML = msgs.map(m=>{
     const mine = !currentChatReadOnly && m.senderId===me.id;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:80%; background:${mine?'var(--accent)':'var(--panel)'}; color:${mine?'var(--accent-ink)':'var(--ink)'}; border:1px solid var(--line); border-radius:12px; padding:8px 12px;">
+    const dk = dayKey(m.sentAt||0); const sep = dk!==lastDay ? `<div class="chat-day-sep"><span>${dayLabel(m.sentAt||0)}</span></div>` : ''; lastDay = dk;
+    return sep + `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:80%; background:${mine?'var(--accent)':'var(--panel)'}; color:${mine?'var(--accent-ink)':'var(--ink)'}; border:1px solid var(--line); border-radius:12px; padding:8px 12px;">
       <div style="font-size:11px; color:${mine?'var(--accent-ink)':'var(--ink-soft)'}; opacity:${mine?'0.85':'1'}; margin-bottom:2px;">${escapeHtml(m.senderName)}</div>
       <div style="font-size:14px; white-space:pre-wrap; word-break:break-word;">${escapeHtml(m.text)}</div>
-      <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</div>
+      <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · ${new Date(m.sentAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</div>
     </div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
@@ -17146,6 +17157,7 @@ function setupRoleScopedListeners(user){
     state.invoiceItems = arr;
     // ⚠ Chỉ đồng bộ bù khi máy Quản lý THỰC SỰ đã tải danh sách (iiKey 'on'). Trước đây lúc chưa tải (danh sách rỗng) vẫn gọi →
     // tưởng thiếu hết → GHI LẠI TOÀN BỘ ~3.100 bản mỗi lần Quản lý mở app → máy Kho / Nhân viên in tải lại ~4MB mỗi lần.
+    if(iiKey==='on') invoiceItemsLoaded = true;
     if(r==='general_manager' && iiKey==='on') backfillInvoiceItems();
     if(currentPageId==='printReport') renderPrSummary();
     if(currentPageId==='printOverview') renderPrintOverview();
