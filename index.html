@@ -8806,12 +8806,9 @@ function packClaimQueue(){
   const smap = packStatusMap(), pmap = packPrintMap(), umap = packUrgentMap();
   const invs = (state.invoices||[]).filter(inv=>inv && inv.depositLink && !packActiveClaimOf(inv.id) && !invPickDeferred(inv)); // ⏰ đơn hẹn ngày: chưa vào hàng chờ
   const normal = invs.filter(inv=>!smap[inv.id]); // mọi đơn đã cọc chưa đóng (in phiếu hay chưa đều vào hàng chờ)
-  const ready = invs.filter(inv=>{
-    const ps = smap[inv.id]; if(!packReadyShort(ps)) return false;
-    if(packShortReporter(ps)===me.id) return true;
-    if(me.role==='packer') return false; // 👷 đơn thiếu Sale đã trả lời của BẠN KHÁC: không vào hàng "Nhận đơn" → khỏi nhận nhầm đơn bù của người khác
-    return (nowMs() - Number(ps.saleReply.at||0)) > PACK_RESERVE_MIN*60000;
-  });
+  // "Nhận đơn" CHỈ nhận ĐƠN MỚI. Đơn thiếu (kể cả Sale đã trả lời Gửi thiếu / Đổi mẫu) KHÔNG vào đây —
+  // làm ở mục "Đơn thiếu / Chờ bù": ai cũng thấy & bấm "📥 Nhận bù đơn này" (không phải chờ 2 tiếng).
+  const ready = [];
   const oos = {}; normal.concat(ready).forEach(inv=>{ if(packOosOfInv(inv).length) oos[inv.id] = true; });
   // ⛔ đơn có món tạm hết xếp CUỐI (sau mọi đơn đủ hàng) — trong nhóm vẫn theo giờ cọc
   const rank = inv=>umap[inv.id] ? 0 : (oos[inv.id] ? 4 + (ready.includes(inv) ? 0 : 1) : (ready.includes(inv) ? (packShortReporter(smap[inv.id])===me.id ? 1 : 2) : 3));
@@ -9847,7 +9844,7 @@ function packStatusBadgeInner2(inv, pp, ps){
     // GỌN trong bảng: chi tiết món thiếu xem khi bấm Mở
     const unreadC = chatUnreadMap && chatUnreadMap[packChatConv(inv.id)];
     const rp = `<a href="#" class="tbl-reply ${packHasReply(ps) ? 'ok' : ''}" title="Bấm xem toàn bộ trao đổi kho ↔ Sale và nhắn" onclick="event.preventDefault(); event.stopPropagation(); packOpenChat('${inv.id}')">💬 ${packHasReply(ps) ? escHtml((PACK_REPLY[ps.saleReply.choice]||'').replace(/^\S+\s/, '')) : 'Sale chưa trả lời'}${unreadC ? ' <span class="pack-dot"></span>' : ''}</a>`;
-    const rdy = packReadyShort(ps) && packShortReporter(ps)===(currentUser()||{}).id; // Sale đã trả lời Gửi thiếu / Đổi mẫu → nhãn "Làm ngay" CHỈ hiện cho bạn đóng gói đã báo thiếu đơn đó (người khác vẫn thấy Chờ bù)
+    const rdy = packReadyShort(ps); // Sale đã trả lời Gửi thiếu / Đổi mẫu → làm được ngay (ai cũng nhận bù được ở mục Đơn thiếu)
     return (rdy ? `<span class="pack-badge pack-ready" title="Sale đã trả lời — kho làm được ngay. Thiếu: ${escHtml(packShortText(ps.shortItems))}">✅ Làm ngay · ${ps.saleReply.choice==='partial' ? 'gửi thiếu' : 'đã đổi mẫu'}</span>`
       : `<span class="pack-badge pack-changed" title="${escHtml(packShortText(ps.shortItems))}">🟠 Chờ bù ${packMissTotal(ps)} sp</span>`) + `${rep0 ? ' ' + packWhoTag(rep0, 'Người báo thiếu') : ''}
       <div class="pack-sub tbl-line">${rp}${clK ? ` · <b class="refill-claim-tag">📱 ${escHtml(clK.byName||'')} đang bù · ${packClaimMinutes(clK)} phút</b>${['warehouse','general_manager'].includes((currentUser()||{}).role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại</a>` : ''}` : ''}${ph ? ' · ' + ph : ''}</div>`; }
@@ -10930,7 +10927,8 @@ function renderPackDeskPage(){
   const myShorts = personal ? shorts.filter(p=>shortBy(p)===devMe) : shorts;
   const showAllShort = !personal || packDeskShowAllShort;
   const claimedBy = p=>{ const c = packActiveClaimOf(p.id); return c && c.by!==devMe ? c : null; };
-  let shortList = (showAllShort ? shorts : myShorts).slice().sort((a,b)=>(packRefillReady(b)?1:0)-(packRefillReady(a)?1:0) || (claimedBy(a)?1:0)-(claimedBy(b)?1:0) || Number(a.shortAt||a.at||0)-Number(b.shortAt||b.at||0)); // ✅ đã có hàng bù lên đầu
+  const canDo = p=>packRefillReady(p) || packReadyShort(p); // đã có hàng bù / Sale đã trả lời gửi thiếu·đổi mẫu → làm được ngay → lên đầu
+  let shortList = (showAllShort ? shorts : myShorts).slice().sort((a,b)=>(canDo(b)?1:0)-(canDo(a)?1:0) || (claimedBy(a)?1:0)-(claimedBy(b)?1:0) || Number(a.shortAt||a.at||0)-Number(b.shortAt||b.at||0)); // ✅ đã có hàng bù lên đầu
   const hideBusy = me.role==='packer'; // 👷 nhân viên đóng hàng: KHÔNG thấy đơn bù người khác đang làm → khỏi nhận trùng
   if(hideBusy) shortList = shortList.filter(p=>!claimedBy(p));
   const nFree = shortList.filter(p=>!claimedBy(p)).length, nBusy = shortList.length - nFree;
@@ -10943,7 +10941,7 @@ function renderPackDeskPage(){
   // Đơn thiếu bạn đã báo và đã được xử lý xong HÔM NAY (bù đủ / gửi thiếu)
   const myShortDone = personal && !showAllShort ? (state.packStatus||[]).filter(p=>p && p.shortStaffId===devMe && (p.state==='packed' || p.state==='partial') && toLocalDateStr(new Date(Number(p.packedAt||p.at)))===todayStr()) : [];
   const sh = document.getElementById('packDeskShort');
-  if(sh) sh.innerHTML = (hideBusy ? '' : `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>`) + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${packRefillReady(p) ? ' <span class="refill-ready-tag">✅ Đã có hàng — bù ngay</span>' : ''}${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
+  if(sh) sh.innerHTML = (hideBusy ? '' : `<div class="short-filter">${[['','Tất cả (' + (nFree+nBusy) + ')'],['free','Còn trống (' + nFree + ')'],['busy','Đang có người bù (' + nBusy + ')']].map(([v,l])=>`<button class="${packDeskShortFilter===v ? 'on' : ''}" onclick="packDeskShortFilter='${v}'; renderPackDeskPage()">${l}</button>`).join('')}</div>`) + (shortList.length ? shortList.map(p=>`<div class="pack-list-row ${claimedBy(p) ? 'row-busy' : ''}" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">${claimedBy(p) ? 'Xem ›' : 'Mở ›'}</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${packTimeStr(p.shortAt||p.at)}</span>${packRefillReady(p) ? ' <span class="refill-ready-tag">✅ Đã có hàng — bù ngay</span>' : (packReadyShort(p) ? ` <span class="refill-ready-tag">✅ Sale đã trả lời (${p.saleReply.choice==='partial' ? 'gửi thiếu' : 'đổi mẫu'}) — làm ngay</span>` : '')}${claimedBy(p) ? ` <span class="busy-tag">🔒 ${escHtml(claimedBy(p).byName||'')} đang bù</span>` : ''}<div class="pack-sub" style="color:#F0A63A;">${p.state==='partial' ? '📦 Đã gửi 1 phần · còn nợ: ' : ''}${packMissTag(p)}</div>${packShortGrid(p.shortItems, 'sm')}${packReplyHtml(p, true)}<div class="pack-sale-actions" onclick="event.stopPropagation()">${packZaloShareBtnsHtml(p.id)}</div>${showAllShort && shortBy(p) ? `<div class="pack-sub">Người báo: ${escHtml(p.shortStaffName || p.staffName || '')}</div>` : ''}</div>`).join('') : `<div class="pack-note">${showAllShort ? 'Không có đơn nào chờ bù hàng 🎉' : 'Bạn không có đơn thiếu nào đang chờ 🎉'}</div>`)
     + (myShortDone.length ? `<div class="pack-short-done"><div class="pack-note" style="margin:10px 0 4px;">Đã xử lý hôm nay (${myShortDone.length}):</div>${myShortDone.map(p=>`<div class="pack-list-row" onclick="packPanelOpen('${p.id}')"><span class="pack-row-go">›</span><b>${escHtml(p.invoiceNumber)}</b> ${packSaleTag(p.id)} <span class="pack-sub">${(p.shortSent || p.state==='partial') ? '📦 gửi thiếu' : '✅ đã bù đủ'} · ${packTimeStr(p.packedAt||p.at)}${p.staffName && p.staffId!==devMe ? ' · ' + escHtml(p.staffName) : ''}</span></div>`).join('')}</div>` : '');
   const dn = document.getElementById('packDeskDone');
   const showAllDone = !personal || packDeskShowAllDone;
