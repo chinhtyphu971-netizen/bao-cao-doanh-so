@@ -1702,6 +1702,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .chat-day-sep{ align-self:stretch; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-soft); margin:4px 0; }
   .chat-day-sep::before, .chat-day-sep::after{ content:''; flex:1; border-top:1px solid var(--line); }
   .chat-day-sep span{ text-transform:capitalize; white-space:nowrap; }
+  .pack-badge.pack-ready{ background:rgba(52,199,89,.16); color:#4cd964; border:1px solid rgba(52,199,89,.55); }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
   .goal-sort-ar{ font-size:10px; opacity:.45; }
@@ -8525,7 +8526,10 @@ function packOosLabel(o){ return [o.code, o.color].filter(Boolean).join(' '); } 
 function packOosOfInv(inv){
   if(!inv || !packOosList().length) return [];
   const ps = packStatusMap()[inv.id];
-  const lines = ps && ps.state==='short' ? (ps.shortItems||[]).map(x=>({code: x.code, color: x.color, size: x.size})) : packInvLines(inv);
+  // Sale đã trả lời "Gửi thiếu, không bù" → không cần món thiếu nữa → KHÔNG tính tạm hết (đơn làm được ngay, không bị đẩy xuống cuối)
+  // "Đổi mẫu" → xét theo hoá đơn (mẫu mới Sale sửa vào), không xét món thiếu cũ
+  if(packReadyShort(ps) && ps.saleReply.choice==='partial') return [];
+  const lines = ps && ps.state==='short' && !packReadyShort(ps) ? (ps.shortItems||[]).map(x=>({code: x.code, color: x.color, size: x.size})) : packInvLines(inv);
   const hit = {}; lines.forEach(l=>{ const o = packOosMatch(l); if(o) hit[o.id] = o; });
   return Object.values(hit);
 }
@@ -8681,7 +8685,7 @@ function packOosSaleNotify(){
   (state.invoices||[]).forEach(inv=>{ if(!inv || inv.saleId!==me.id) return; const ps = smap[inv.id]; if(ps && (ps.state==='packed' || ps.state==='partial')) return;
     const h = packOosOfInv(inv); if(h.length) cur[inv.id] = h.map(packOosLabel).join(', '); });
   if(packOosSalePrev){
-    const back = Object.keys(packOosSalePrev).filter(id=>!cur[id] && !(smap[id] && (smap[id].state==='packed' || smap[id].state==='partial')));
+    const back = Object.keys(packOosSalePrev).filter(id=>!cur[id] && !(smap[id] && (smap[id].state==='packed' || smap[id].state==='partial')) && !packReadyShort(smap[id])); // Sale tự trả lời gửi thiếu/đổi mẫu → không báo nhầm "đã có hàng"
     if(back.length){ const inv = (state.invoices||[]).find(x=>x.id===back[0]) || {};
       showToast(`✅ ${packOosSalePrev[back[0]]} đã có hàng — đơn ${inv.invoiceNumber||''} sắp được đóng${back.length>1 ? ` (+${back.length-1} đơn)` : ''}`);
       try{ playTingSound(); }catch(e){} }
@@ -9843,7 +9847,9 @@ function packStatusBadgeInner2(inv, pp, ps){
     // GỌN trong bảng: chi tiết món thiếu xem khi bấm Mở
     const unreadC = chatUnreadMap && chatUnreadMap[packChatConv(inv.id)];
     const rp = `<a href="#" class="tbl-reply ${packHasReply(ps) ? 'ok' : ''}" title="Bấm xem toàn bộ trao đổi kho ↔ Sale và nhắn" onclick="event.preventDefault(); event.stopPropagation(); packOpenChat('${inv.id}')">💬 ${packHasReply(ps) ? escHtml((PACK_REPLY[ps.saleReply.choice]||'').replace(/^\S+\s/, '')) : 'Sale chưa trả lời'}${unreadC ? ' <span class="pack-dot"></span>' : ''}</a>`;
-    return `<span class="pack-badge pack-changed" title="${escHtml(packShortText(ps.shortItems))}">🟠 Chờ bù ${packMissTotal(ps)} sp</span>${rep0 ? ' ' + packWhoTag(rep0, 'Người báo thiếu') : ''}
+    const rdy = packReadyShort(ps); // Sale đã trả lời Gửi thiếu / Đổi mẫu → làm được ngay
+    return (rdy ? `<span class="pack-badge pack-ready" title="Sale đã trả lời — kho làm được ngay. Thiếu: ${escHtml(packShortText(ps.shortItems))}">✅ Làm ngay · ${ps.saleReply.choice==='partial' ? 'gửi thiếu' : 'đã đổi mẫu'}</span>`
+      : `<span class="pack-badge pack-changed" title="${escHtml(packShortText(ps.shortItems))}">🟠 Chờ bù ${packMissTotal(ps)} sp</span>`) + `${rep0 ? ' ' + packWhoTag(rep0, 'Người báo thiếu') : ''}
       <div class="pack-sub tbl-line">${rp}${clK ? ` · <b class="refill-claim-tag">📱 ${escHtml(clK.byName||'')} đang bù · ${packClaimMinutes(clK)} phút</b>${['warehouse','general_manager'].includes((currentUser()||{}).role) ? ` · <a href="#" class="pack-ph-link pack-release-link" onclick="event.preventDefault(); event.stopPropagation(); packClaimReleaseAsk('${inv.id}')">↩ Trả lại</a>` : ''}` : ''}${ph ? ' · ' + ph : ''}</div>`; }
   const stt = packStatusOf(inv, pp);
   if(stt==='new') return '<span class="pack-badge pack-new">Chưa in</span>';
