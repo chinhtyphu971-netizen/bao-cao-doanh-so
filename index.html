@@ -16017,7 +16017,7 @@ function renderChatMessages(msgs){
     return sep + `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:80%; background:${mine?'var(--accent)':'var(--panel)'}; color:${mine?'var(--accent-ink)':'var(--ink)'}; border:1px solid var(--line); border-radius:12px; padding:8px 12px;">
       <div style="font-size:11px; color:${mine?'var(--accent-ink)':'var(--ink-soft)'}; opacity:${mine?'0.85':'1'}; margin-bottom:2px;">${escapeHtml(m.senderName)}</div>
       <div style="font-size:14px; white-space:pre-wrap; word-break:break-word;">${escapeHtml(m.text)}</div>
-      <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · ${new Date(m.sentAt).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</div>
+      <div style="font-size:10px; opacity:0.7; margin-top:2px; text-align:right;">${new Date(m.sentAt).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} · ${String(new Date(m.sentAt).getDate()).padStart(2,'0')}/${String(new Date(m.sentAt).getMonth()+1).padStart(2,'0')}</div>
     </div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
