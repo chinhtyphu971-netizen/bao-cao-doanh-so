@@ -5851,7 +5851,11 @@ function backfillInvoiceItems(){
   const upd = {};
   state.invoices.forEach(inv=>{
     const rec = invoiceItemsRecord(inv); const old = have[inv.id];
-    const same = old && old.deposited===rec.deposited && old.invoiceDate===rec.invoiceDate && old.invoiceNumber===rec.invoiceNumber && old.saleName===rec.saleName && JSON.stringify(old.items||[])===JSON.stringify(rec.items);
+    // ⚠ So từng trường của món (Firebase trả object với khoá xếp A→Z nên so JSON.stringify trực tiếp LUÔN khác → trước đây mỗi lần
+    // Quản lý chung mở trang in là GHI LẠI TOÀN BỘ ~3.100 bản (~4MB) và máy Kho / Nhân viên in phải tải lại hết).
+    const itemKey = it=>[it.code, it.name, it.design, it.color, Number(it.qty)||0].join('\u0001');
+    const same = old && !!old.deposited===!!rec.deposited && (old.invoiceDate||'')===rec.invoiceDate && (old.invoiceNumber||'')===rec.invoiceNumber && (old.saleName||'')===rec.saleName
+      && (old.items||[]).map(itemKey).join('\u0002')===rec.items.map(itemKey).join('\u0002');
     if(!same) upd[inv.id] = rec;
   });
   const ids = new Set(state.invoices.map(i=>i.id));
