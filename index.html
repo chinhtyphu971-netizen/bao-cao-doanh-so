@@ -1699,6 +1699,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   #invViewShip .inv-ship-line.pin-body{ max-width:none; }
   #invViewShip .inv-ship-line{ font-size:13px; margin:0 0 8px; padding:6px 10px; border:1px dashed var(--line); border-radius:8px; }
   .refill-claim-tag{ color:#7FC8FF; font-weight:700; }
+  .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
+  .goal-sort-th:hover{ color:var(--accent); }
+  .goal-sort-ar{ font-size:10px; opacity:.45; }
+  .goal-sort-th.on .goal-sort-ar{ opacity:1; color:var(--accent); }
   .exp-bals{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px; margin-bottom:14px; }
   .exp-bal{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius-m); padding:14px 16px; }
   .exp-bal-l{ font-size:13px; color:var(--ink-soft); }
@@ -17140,7 +17144,9 @@ function setupRoleScopedListeners(user){
   const iiKey = (user && (r==='printer' || r==='warehouse' || (r==='general_manager' && gmWantInvoiceItems))) ? 'on' : 'none';
   attachScoped('invoiceItems', iiKey, iiKey==='on' ? fbInvoiceItems : null, (arr)=>{
     state.invoiceItems = arr;
-    if(r==='general_manager') backfillInvoiceItems();
+    // ⚠ Chỉ đồng bộ bù khi máy Quản lý THỰC SỰ đã tải danh sách (iiKey 'on'). Trước đây lúc chưa tải (danh sách rỗng) vẫn gọi →
+    // tưởng thiếu hết → GHI LẠI TOÀN BỘ ~3.100 bản mỗi lần Quản lý mở app → máy Kho / Nhân viên in tải lại ~4MB mỗi lần.
+    if(r==='general_manager' && iiKey==='on') backfillInvoiceItems();
     if(currentPageId==='printReport') renderPrSummary();
     if(currentPageId==='printOverview') renderPrintOverview();
   }, true);
@@ -19916,6 +19922,13 @@ function goalPeriodTotals(rows, period){
   rows.forEach(r=>{ if(!r.c.amount) return; const v = goalPeriodOf(r.c, period); t.n++; t.t += v.t; t.a += v.a; t.amount += r.c.amount; t.achieved += r.c.achieved; });
   return t;
 }
+// Bảng xếp hạng: bấm tiêu đề cột để sắp xếp (bấm lại để đảo chiều). Mặc định theo Hạng (% đạt).
+let goalSort = {k: 'rank', dir: 1};
+function goalSortBy(k){ if(goalSort.k===k) goalSort.dir = -goalSort.dir; else goalSort = {k, dir: (k==='rank' || k==='name' || k==='team') ? 1 : -1}; renderGoalsPage(); }
+function goalSortTh(label, k, cls){
+  const on = goalSort.k===k; const ar = on ? (goalSort.dir > 0 ? '▲' : '▼') : '⇅';
+  return `<th class="goal-sort-th ${cls||''} ${on ? 'on' : ''}" onclick="goalSortBy('${k}')" title="Bấm để sắp xếp theo cột này">${label} <span class="goal-sort-ar">${ar}</span></th>`;
+}
 function goalGmHtml(m, dep){
   const period = goalRankPeriod;
   if(!goalRankDate || goalRankDate.slice(0,7)!==m) goalRankDate = goalRankDefaultDate(m);
@@ -19930,6 +19943,15 @@ function goalGmHtml(m, dep){
   const pShort = period==='day' ? 'ngày' : (period==='week' ? 'tuần' : 'tháng');
   const offDay = period==='day' && goalOffSundays(m).includes(d);
   const ranked = all.filter(r=>r.c.amount).sort((a,b)=>(b.pct===null ? -1 : b.pct) - (a.pct===null ? -1 : a.pct) || b.v.a - a.v.a);
+  ranked.forEach((r, i)=>{ r.rank = i + 1; });
+  { // sắp xếp theo cột đang chọn (Hạng giữ nguyên số thứ hạng theo % đạt)
+    const val = r=>{ const k = goalSort.k;
+      if(k==='name') return String(r.u.name||'').toLowerCase(); if(k==='team') return String(branchName(r.u.branchId)||'').toLowerCase();
+      if(k==='target') return r.v.off ? -1 : (r.v.t||0); if(k==='achieved') return r.v.a||0; if(k==='pct') return r.pct===null ? -1 : r.pct;
+      if(k==='month') return r.monthPct===null ? -1 : r.monthPct; if(k==='tasks') return r.c.tasks.length ? r.c.tasks.filter(t=>t.done).length / r.c.tasks.length + r.c.tasks.length/1000 : -1;
+      if(k==='commit') return (r.c.g && r.c.g.committedAt) || 0; return r.rank; };
+    if(goalSort.k!=='rank' || goalSort.dir < 0) ranked.sort((a,b)=>{ const x = val(a), y = val(b); return (typeof x==='string' ? x.localeCompare(y,'vi') : x - y) * goalSort.dir || a.rank - b.rank; });
+  }
   const notSet = all.filter(r=>!r.c.amount).sort((a,b)=>branchName(a.u.branchId).localeCompare(branchName(b.u.branchId),'vi') || a.u.name.localeCompare(b.u.name,'vi'));
   const showMonthCol = period!=='month';
   const colN = 7 + (showMonthCol ? 1 : 0);
@@ -19947,7 +19969,7 @@ function goalGmHtml(m, dep){
     if(goalOpenTasks[r.u.id] && c.tasks.length) tr += `<tr class="goal-tasks-row"><td colspan="${colN}">${goalTaskItemsHtml(c.tasks, false)}</td></tr>`;
     return tr;
   };
-  const head = `<thead><tr><th>Hạng · Nhân viên</th><th>Team</th><th class="num">Mục tiêu ${pShort}</th><th class="num">Đã đạt ${pShort}</th><th class="num">% ${pShort}</th>${showMonthCol ? '<th class="num">% tháng</th>' : ''}<th>Việc cần làm</th><th>Cam kết lúc</th></tr></thead>`;
+  const head = `<thead><tr>${goalSortTh('Hạng · Nhân viên', 'rank')}${goalSortTh('Team', 'team')}${goalSortTh('Mục tiêu ' + pShort, 'target', 'num')}${goalSortTh('Đã đạt ' + pShort, 'achieved', 'num')}${goalSortTh('% ' + pShort, 'pct', 'num')}${showMonthCol ? goalSortTh('% tháng', 'month', 'num') : ''}${goalSortTh('Việc cần làm', 'tasks')}${goalSortTh('Cam kết lúc', 'commit')}</tr></thead>`;
   // Theo team (cùng kỳ đang chọn)
   const byTeam = {};
   all.forEach(r=>{ const k = r.u.branchId || '—'; (byTeam[k] = byTeam[k] || []).push(r); });
@@ -19985,7 +20007,7 @@ function goalGmHtml(m, dep){
     <p class="goal-hint">Xếp theo % đạt mục tiêu ${pLabel}. Bấm vào cột Việc cần làm để xem từng việc và tình trạng tick.</p>
     ${pctChart}
     <div class="table-wrap"><table class="rtable goal-table">${head}<tbody>
-      ${ranked.map((r,i)=>rowHtml(r, i+1)).join('') || `<tr><td colspan="${colN}"><div class="empty-note">Chưa ai cam kết mục tiêu ${goalMonthLabel(m)}.</div></td></tr>`}
+      ${ranked.map(r=>rowHtml(r, r.rank)).join('') || `<tr><td colspan="${colN}"><div class="empty-note">Chưa ai cam kết mục tiêu ${goalMonthLabel(m)}.</div></td></tr>`}
       ${notSet.map(r=>rowHtml(r, 0)).join('')}
     </tbody></table></div>
   </div>
