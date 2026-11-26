@@ -2384,6 +2384,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div id="myLeadsSectionAssigned">
           <div class="grid-2" id="myTopGrid" style="margin-bottom:16px; align-items:stretch;">
             <div id="myRecallBanner" class="recall-banner" style="display:none;"></div>
+            <div id="myPenaltyBanner" class="recall-banner" style="display:none;"></div>
             <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
 
             <div class="my-right-col">
@@ -4087,6 +4088,7 @@ function subscribeTodayScopedData(){
   if(refCheckinsToday) refCheckinsToday.off();
   if(refManagerConfirmsToday) refManagerConfirmsToday.off();
   if(refDailyRotationToday) refDailyRotationToday.off();
+  penaltySubscribe(today);
 
   scopedTodayDate = today;
   refCheckinsToday = fbCheckins.child(today);
@@ -12236,6 +12238,75 @@ function priorAssigneesForPhone(lead){
   state.leads.filter(l=>l.id!==lead.id && l.assignedTo && normalizePhone(leadPhone(l))===phoneNorm).forEach(l=>set.add(l.assignedTo));
   return set;
 }
+// =========================== ✂️ PHẠT TEAM: THIẾU BÁO CÁO → CẮT 3 LƯỢT DATA ĐẦU ===========================
+// Hết ngày (00:00) mà 1 thành viên team (Sale / Quản lý team) CHƯA nộp báo cáo ngày đó → HÔM SAU cả team bị cắt
+// 3 lượt data đầu tiên: tới lượt người bị cắt thì data chuyển cho người KHÔNG bị cắt (cùng hàng chờ, rồi team khác),
+// người bị cắt lùi xuống cuối hàng chờ như đã nhận. Ngày nghỉ cũng phải nộp. Không tính: tạm nghỉ / nghỉ việc,
+// "Không cần làm báo cáo", tài khoản tạo từ hôm nay. Không còn ai khác nhận thay → chia bình thường (không để data chờ).
+// dataPenalty/{ngày} = {for, at, branches:{branchId:{missing:[{id,name}]}}}  (máy Quản lý chung/Data tính 1 lần/ngày)
+// dataSkips/{ngày}/{userId} = số lượt đã bị cắt
+const PENALTY_SKIPS = 3;
+const PENALTY_FROM = '2026-11-26'; // bắt đầu xét từ báo cáo ngày này (ngày áp dụng quy định) → phạt sớm nhất ngày 27/11
+let reportsFirstLoaded = false, penaltyToday = null, penaltyTodayDate = '', penaltySkips = {}, penaltyRefs = [];
+function penaltySubscribe(today){
+  penaltyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); penaltyRefs = []; penaltyToday = null; penaltySkips = {}; penaltyTodayDate = today;
+  if(!fbRoot) return; const me = currentUser(); if(!me) return;
+  const pr = fbRoot.child('dataPenalty/' + today); penaltyRefs.push(pr);
+  pr.on('value', s=>{ penaltyToday = s.val(); penaltyRender(); });
+  const all = me.role==='general_manager' || me.role==='data_manager';
+  if(all || isLeadEligibleRole(me)){
+    const sr = all ? fbRoot.child('dataSkips/' + today) : fbRoot.child('dataSkips/' + today + '/' + me.id); penaltyRefs.push(sr);
+    sr.on('value', s=>{ if(all) penaltySkips = s.val() || {}; else penaltySkips = {[me.id]: Number(s.val())||0}; penaltyRender(); });
+  }
+  setTimeout(()=>{ try{ penaltyEnsure(); }catch(e){} }, 3000);
+}
+function penaltyRender(){ try{ if(currentPageId==='myLeads') renderMyLeads(); else if(currentPageId==='mgrLeads') renderMgrLeads(); }catch(e){} }
+function penaltyCompute(day){ // ai trong team chưa nộp báo cáo ngày `day` (tính tới 00:00 hôm sau)
+  const dayEnd = reportLateCutoffTs(day), branches = {};
+  if(day < PENALTY_FROM) return branches;
+  state.users.forEach(u=>{
+    if(!(u.role==='staff' || u.role==='team_manager') || !u.branchId) return;
+    if(userInactive(u) || userNoReport(u)) return;                       // tạm nghỉ / nghỉ việc / không cần báo cáo
+    if(u.createdAt && Number(u.createdAt) >= dayEnd) return;              // tài khoản mới tạo sau ngày đó
+    const r = myReportForDate(u.id, day);
+    if(r && !reportIsLate(r)) return;                                     // đã nộp trước 00:00
+    (branches[u.branchId] = branches[u.branchId] || {missing: []}).missing.push({id: u.id, name: u.name || ''});
+  });
+  return branches;
+}
+function penaltyEnsure(){
+  const me = currentUser(); if(!me || !fbRoot || !(me.role==='general_manager' || me.role==='data_manager')) return;
+  if(!reportsFirstLoaded || !penaltyTodayDate || penaltyTodayDate!==todayStr()) return;
+  const today = penaltyTodayDate, y = toLocalDateStr(new Date(new Date(today + 'T00:00:00').getTime() - 86400000));
+  const branches = penaltyCompute(y);
+  fbRoot.child('dataPenalty/' + today).transaction(cur=>cur ? undefined : {for: y, at: nowMs(), by: me.name || '', branches})
+    .catch(e=>console.warn('dataPenalty', e));
+}
+function penaltyOfBranch(bid){ const p = penaltyToday; return p && p.branches && bid && p.branches[bid] && (p.branches[bid].missing||[]).length ? p.branches[bid] : null; }
+function penaltySkipLeft(u){
+  if(!u || !isLeadEligibleRole(u) || !penaltyOfBranch(u.branchId) || penaltyTodayDate!==todayStr()) return 0;
+  return Math.max(0, PENALTY_SKIPS - (Number(penaltySkips[u.id])||0));
+}
+function penaltyRecordSkip(u){
+  const n = (Number(penaltySkips[u.id])||0) + 1; penaltySkips[u.id] = n;
+  fbRoot.child('dataSkips/' + todayStr() + '/' + u.id).set(n).catch(()=>{});
+}
+function penaltyBannerHtml(u){ // dòng thông báo cho Sale / Quản lý team
+  const pb = u && penaltyOfBranch(u.branchId); if(!pb || !isLeadEligibleRole(u)) return '';
+  const used = Math.min(PENALTY_SKIPS, Number(penaltySkips[u.id])||0);
+  const names = pb.missing.map(x=>x.name).join(', ');
+  return `<span>✂️ <b>Hôm nay team bị cắt ${PENALTY_SKIPS} lượt data đầu</b> vì ${escHtml(names)} chưa nộp báo cáo ngày ${fmtDate(penaltyToday.for)}. Nhắc nhau nộp báo cáo mỗi ngày (kể cả ngày nghỉ) nhé.</span><span class="recall-meta">Bạn đã bị cắt ${used}/${PENALTY_SKIPS} lượt</span>`;
+}
+function penaltyMgrHtml(){ // Quản lý: team nào đang bị cắt
+  const p = penaltyToday; if(!p || !p.for || p.for < PENALTY_FROM) return '';
+  const rows = Object.entries(p.branches||{}).filter(([b, v])=>v && (v.missing||[]).length);
+  if(!rows.length) return `<div style="margin-top:10px; font-size:12.5px; color:var(--ink-soft);">✂️ Báo cáo ngày ${fmtDate(p.for)}: các team nộp đủ — không team nào bị cắt lượt data.</div>`;
+  const sc = scopeBranchId();
+  return `<div class="recall-banner" style="display:block; margin-top:10px;"><b>✂️ Hôm nay bị cắt ${PENALTY_SKIPS} lượt data đầu</b> (thiếu báo cáo ngày ${fmtDate(p.for)}):` +
+    rows.filter(([b])=>!sc || b===sc).map(([b, v])=>{ const mem = state.users.filter(u=>u.branchId===b && isLeadEligibleRole(u) && !u.loginBlocked);
+      const done = mem.reduce((a, u)=>a + Math.min(PENALTY_SKIPS, Number(penaltySkips[u.id])||0), 0);
+      return `<div style="margin-top:4px;">• <b>${escHtml(branchName(b))}</b> — chưa nộp: ${escHtml(v.missing.map(x=>x.name).join(', '))}${sc ? '' : ` · đã cắt ${done}/${mem.length*PENALTY_SKIPS} lượt`}</div>`; }).join('') + `</div>`;
+}
 function runDistribution(){
   const today=todayStr();
   const unassigned = state.leads.filter(l=>!l.assignedTo);
@@ -12245,6 +12316,9 @@ function runDistribution(){
   try{ fixFutureLastDataAt(); }catch(e){}
   let assignedCount = 0;
 
+  // ✂️ Chưa nhận được bản phạt hôm nay từ máy chủ (vừa mở app / vừa qua 0h) → tự tính ngay tại máy để lần chia này vẫn áp dụng đúng
+  if(penaltyTodayDate!==today || !penaltyToday){ try{ if(reportsFirstLoaded){ const y = toLocalDateStr(new Date(new Date(today + 'T00:00:00').getTime() - 86400000));
+    if(penaltyTodayDate!==today){ penaltyTodayDate = today; penaltySkips = {}; } penaltyToday = {for: y, branches: penaltyCompute(y)}; penaltyEnsure(); } }catch(e){ console.error(e); } }
   let pool = buildLeadPool(rotation.branchIds, today).concat(buildAdminPool(today));
   const otherBranchIds = state.branches.map(b=>b.id).filter(id=>!rotation.branchIds.includes(id));
   let overflowPool = null;
@@ -12276,7 +12350,19 @@ function runDistribution(){
     const priorAssignees = priorAssigneesForPhone(lead);
     let personIndex = pool.findIndex(p=>!priorAssignees.has(p.id));
     if(personIndex===-1) personIndex = 0; // ca hang doi deu da tung nhan so nay -> danh chiu, chia binh thuong
-    const person = pool[personIndex];
+    let person = pool[personIndex], src = pool;
+    // ✂️ Team bị phạt thiếu báo cáo: người tới lượt còn lượt bị cắt → mất lượt này, data chuyển cho người KHÔNG bị cắt
+    if(penaltySkipLeft(person) > 0){
+      const pick = arr=>arr.find(p=>penaltySkipLeft(p)===0 && !priorAssignees.has(p.id)) || arr.find(p=>penaltySkipLeft(p)===0);
+      let alt = pick(pool), altSrc = pool;
+      if(!alt){ if(overflowPool===null){ overflowPool = buildLeadPool(otherBranchIds, today); sortPool(overflowPool); } alt = pick(overflowPool); altSrc = overflowPool; }
+      if(alt){ // không còn ai khác → không cắt, chia bình thường (không để data nằm chờ)
+        penaltyRecordSkip(person);
+        person.lastDataAt = nowMs(); fbUpdateUser(person.id, {lastDataAt: person.lastDataAt}); // mất lượt → lùi cuối hàng chờ
+        sortPool(pool);
+        person = alt; src = altSrc; personIndex = src.indexOf(alt);
+      }
+    }
 
     lead.assignedTo = person.id;
     lead.assignedToName = person.name;
@@ -12290,10 +12376,10 @@ function runDistribution(){
     person.lastDataAt = nowMs();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
     todayCount[person.id] = countOf(person.id) + 1;
-    pool.splice(personIndex,1);
+    personIndex = src.indexOf(person); if(personIndex >= 0) src.splice(personIndex,1);
     if(todayCount[person.id] < DAILY_LEAD_CAP){
-      pool.push(person);
-      sortPool(pool); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí cuối hàng đợi
+      src.push(person);
+      sortPool(src); // sắp xếp lại ngay để người vừa nhận lùi về đúng vị trí cuối hàng đợi
     }
   }
   return assignedCount;
@@ -14342,6 +14428,7 @@ function renderMyLeads(){
         rb.innerHTML = `<span>⚠️ <b>Hôm nay bạn bị thu hồi ${rt.n} data</b> do quá ${RECALL_MIN_HOURS} giờ chưa cập nhật tên &amp; tình trạng. Hãy xử lý data ngay khi nhận để không bị thu hồi.</span><span class="recall-meta">Lần gần nhất ${new Date(rt.at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}${rt.by?' · '+escHtml(rt.by):''}</span>`;
       } else rb.style.display = 'none';
     } }
+  { const pb = document.getElementById('myPenaltyBanner'); if(pb){ const h = penaltyBannerHtml(user); pb.style.display = h ? 'flex' : 'none'; if(h) pb.innerHTML = h; } }
   const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && isLeadUnprocessed(l)).length;
   const bannerEl = document.getElementById('myUnprocessedBanner');
   if(unprocessedCount>0){
@@ -15828,6 +15915,7 @@ function renderMgrLeads(){
     `;
     updateRotationPreview();
   }
+  try{ infoEl.insertAdjacentHTML('beforeend', penaltyMgrHtml()); }catch(e){ console.error(e); } // ✂️ team bị cắt lượt vì thiếu báo cáo
 
   const lockToggleWrap = document.getElementById('enforceLockToggleWrap');
   if(lockToggleWrap){
@@ -17145,6 +17233,7 @@ function gmEnsureInvoiceItems(){ // Quản lý chung vào trang in → lúc này
 const PACKER_INVOICE_DAYS = 14; // ⚡ (trước 30) // Bàn đóng gói tải hoá đơn đã cọc trong N ngày (trước: 60) — đơn cọc lâu hơn mà chưa đóng gần như không có
 function setupRoleScopedListeners(user){
   subscribeLeadsForUser(user);
+  try{ if(user && penaltyRefs.length===0) penaltySubscribe(todayStr()); }catch(e){ console.error(e); } // ✂️ phạt thiếu báo cáo (đăng nhập xong mới biết vai trò)
   if(user && user.role==='general_manager') setTimeout(()=>{ try{ deltaCleanTombs(); }catch(e){} }, 60000);
   const r = user ? user.role : null;
   const isWarehouse = r==='warehouse' || r==='packer'; // Bàn đóng gói tải giống Kho (hoá đơn đã cọc để đóng hàng)
@@ -17161,6 +17250,7 @@ function setupRoleScopedListeners(user){
     repKey==='none' ? null : (repKey==='all' ? fbReports.orderByChild('date').startAt(repWin) : fbReports.orderByChild('userId').equalTo(user.id)),
     (arr)=>{ const ids = new Set(arr.map(r=>r.id)); state.reports = arr.concat(oldReportsList.filter(r=>!ids.has(r.id))); onDataChanged(); }, true,
     ()=>{ // lần tải đầu xong: trang Nộp báo cáo không tự vẽ lại → vẽ lại 1 lần cho đúng trạng thái đã nộp
+      reportsFirstLoaded = true; try{ penaltyEnsure(); }catch(e){ console.error(e); }
       if(currentPageId==='staffReport' && !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) goPage('staffReport');
     });
 
@@ -20964,7 +21054,7 @@ function updateReportDeadlineBar(){
   const bar = document.getElementById('reportDeadlineBar'); if(!bar) return;
   const u = currentUser();
   const hide = ()=>{ bar.style.display = 'none'; };
-  if(!u || !['staff','team_manager'].includes(u.role) || userNoReport(u)) return hide();
+  if(!u || !['staff','team_manager'].includes(u.role) || userNoReport(u) || userInactive(u)) return hide(); // 🚪 tạm nghỉ → không phải nộp, không nhắc
   const today = todayStr();
   if(myReportForDate(u.id, today)) return hide();        // đã nộp → không nhắc nữa
   if(currentPageId==='staffReport') return hide();         // đang ở trang nộp báo cáo
