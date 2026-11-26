@@ -7785,7 +7785,7 @@ function shipPendingOf(saleId){
 //               (2) đã quá 4 GIỜ LÀM VIỆC (07h–18h, không tính đêm).
 const SHIP_LOCK_DAY_HOUR = 8; // đơn từ hôm trước chưa lên vận đơn / thiếu mã → khoá từ 8h sáng
 // Đã bấm lên vận đơn bằng hãng vận chuyển nhưng CHƯA có mã → vẫn tính là chưa cập nhật
-function shipMissingCode(ps){ return !!(ps && ps.ship && (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier) && !shipCodesOf(ps.ship).length); }
+function shipMissingCode(ps){ return !!(ps && ps.ship && !ps.ship.abitSent && (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier) && !shipCodesOf(ps.ship).length); } // Abit báo đã gửi (không kèm mã) → không tính thiếu
 // Số giờ LÀM VIỆC (07:00–18:00) giữa 2 mốc — bỏ qua giờ nghỉ đêm 18h → 7h
 function shipWorkHours(from, to){
   if(!(to > from)) return 0;
@@ -7909,15 +7909,22 @@ function abitPushAfterPack(invId){
 // 🏪 Abit báo "Mua trực tiếp" mà đơn chưa có vận đơn → tự ghi nhận "Mua trực tiếp (Abit)" (không cần mã) → hết khoá / hết "chờ lên vận đơn".
 // Chạy trên mọi máy thấy đơn (Sale của đơn, Kho, Quản lý) — ghi 1 lần, các máy sau thấy ship đã có thì bỏ qua.
 const abitDirectDone = {};
+// Trạng thái Abit nghĩa là hàng ĐÃ RỜI KHO (đã giao cho hãng vận chuyển trở đi)
+const ABIT_SENT_STATUSES = ['Daguibuudien','Sent','Chuaphatduoc','Giaohangcovande','Daphatthanhcong','CODDathutien','Dathutien','Dadoisoat','Tuchoinhan','Chuyenhoan','Daphathoanthanhcong'];
+function abitCarrierLabel(c){ const k = String(c||'').trim().toUpperCase(); const m = {VNPOST:'VNPost', SPX:'SPX (Shopee Express)', VIETTEL:'Viettel Post', VIETTELPOST:'Viettel Post', JT:'J&T Express', JNT:'J&T Express', GHTK:'GHTK', GHN:'GHN'}; return m[k] || String(c||'').trim() || null; }
 function abitDirectAutoShip(){
   const me = currentUser(); if(!me || !fbPackStatus) return;
   const ps = packStatusMap();
   (state.invoices||[]).forEach(inv=>{
     const p = inv && ps[inv.id];
     if(!p || p.ship || abitDirectDone[inv.id] || !(p.state==='packed' || p.state==='partial')) return;
-    if(!(inv.abit && inv.abit.status==='Muatructiep')) return;
+    const st = inv.abit && inv.abit.status;
+    if(!(st==='Muatructiep' || ABIT_SENT_STATUSES.includes(st))) return;
     abitDirectDone[inv.id] = true;
-    const ship = {at: Number(inv.abit.statusAt) || nowMs(), by: 'abit', byName: 'Abit tự động', auto: true, direct: true, carrier: 'Mua trực tiếp (Abit)', autoAt: nowMs()};
+    const ship = st==='Muatructiep'
+      ? {at: Number(inv.abit.statusAt) || nowMs(), by: 'abit', byName: 'Abit tự động', auto: true, direct: true, carrier: 'Mua trực tiếp (Abit)', autoAt: nowMs()}
+      // 📮 Abit báo ĐÃ GỬI (VD VNPost "Đã gửi BĐ") nhưng không gửi kèm mã → coi như đã lên vận đơn (hết "Chưa gửi VĐ" / hết khoá). Mã về sau webhook tự điền thêm.
+      : {at: Number(inv.abit.statusAt) || nowMs(), by: 'abit', byName: 'Abit tự động', auto: true, abitSent: true, abitStatus: st, carrier: abitCarrierLabel(inv.abit.carrier), autoAt: nowMs()};
     p.ship = ship;
     fbPackStatus.child(inv.id).child('ship').transaction(cur=>cur ? undefined : ship).catch(()=>{ delete abitDirectDone[inv.id]; });
   });
@@ -8111,6 +8118,7 @@ function shipKhoLine2(ps){
   if(ps.ship){ const si = shipSourceInfo(ps); const multi = Number(ps.pkgs) > 1;
     // GỌN: 🚚 SPX · mã ↗  (Abit gửi → không ghi thêm chữ, đã có nhãn 🔗 dòng dưới) · Sale nhập tay → ✍️ · Lệch mã Abit → cảnh báo đỏ
     if(ps.ship.direct) return `<div class="pack-sub ship-line" style="color:#5FD6C8;">🏪 Mua trực tiếp — Abit đã ghi nhận</div>`;
+    if(ps.ship.abitSent && !shipCodesOf(ps.ship).length) return `<div class="pack-sub ship-line" style="color:#6FD99A;" title="Abit báo đã gửi, chưa gửi kèm mã vận đơn">${multi ? `<b class="pkgs-tag">📦 ${ps.pkgs} kiện</b> ` : ''}🚚 ${escHtml(shipCarrierShort(ps.ship.carrier||''))} · Abit: đã gửi</div>`;
     return `<div class="pack-sub ship-line" style="color:${si.kind==='mismatch' ? 'var(--danger)' : '#6FD99A'};" title="${escHtml(shipSourceLabel(si) + (ps.ship.carrier ? ' · ' + ps.ship.carrier : ''))}${si.kind==='mismatch' ? ` — Sale nhập: ${escHtml(si.sale)} · Abit gửi: ${escHtml(si.abit)}` : ''}">${multi ? `<b class="pkgs-tag">📦 ${ps.pkgs} kiện</b> ` : ''}🚚 ${ps.ship.carrier ? escHtml(shipCarrierShort(ps.ship.carrier)) : ''}${ps.ship.code ? ' · ' + shipCodeLink(ps.ship) : (shipNeedCode(ps.ship.carrier) || !ps.ship.carrier ? ' · <b style="color:#FF8A8D;">⚠ chưa có mã</b>' : '')}${si.kind==='sale' ? ' <span class="ship-src">✍️ Sale nhập</span>' : ''}${si.kind==='mismatch' ? `<div><b>⚠ Mã Sale nhập KHÁC mã Abit (${escHtml(si.abit)})</b></div>` : ''}</div>`; }
   const h = (nowMs() - Number(ps.packedAt||ps.at||nowMs()))/3600000;
   return `<div class="pack-sub" style="color:${h >= SHIP_LATE_HOURS ? '#FF8A8D' : '#F0A63A'}; font-weight:700;">${Number(ps.pkgs) > 1 ? `<b class="pkgs-tag">📦 ${ps.pkgs} kiện</b> ` : ''}<span style="white-space:nowrap;">⏳ Chưa gửi VĐ${h >= 1 ? ' ' + Math.floor(h) + 'h' : ''}</span></div>`;
@@ -8163,6 +8171,7 @@ function packTimeShort(t){ const d = new Date(Number(t||0)); if(!t) return ''; c
 function shipLineHtml(inv, ps){
   if(!ps || ps.legacy) return '';
   if(ps.ship && ps.ship.direct) return `<div class="pack-sale-badge ship-ok">🏪 Mua trực tiếp — Abit đã ghi nhận · ${packTimeStr(ps.ship.at)}</div>`;
+  if(ps.ship && ps.ship.abitSent && !shipCodesOf(ps.ship).length) return `<div class="pack-sale-badge ship-ok">🚚 Abit đã gửi${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''} (chưa có mã) · ${packTimeStr(ps.ship.autoAt || ps.ship.at)}</div>`;
   if(ps.ship){ const si = shipSourceInfo(ps, inv); return `<div class="pack-sale-badge ${si.kind==='mismatch' ? 'bad' : 'ship-ok'}">🚚 ${shipSourceLabel(si, true)}${si.kind==='mismatch' ? ` (Abit: <b>${escHtml(si.abit)}</b> — kiểm tra lại)` : ''}${ps.ship.carrier ? ' · ' + escHtml(ps.ship.carrier) : ''}${ps.ship.code ? ' · <b>' + escHtml((Array.isArray(ps.ship.codes) && ps.ship.codes.length > 1) ? ps.ship.codes.join(', ') : ps.ship.code) + '</b>' : ''} · ${packTimeStr(ps.ship.autoAt || ps.ship.at)} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">sửa</a></div>`; }
   if(shipHoldActive(ps)) return `<div class="pack-sale-badge printed">⏸ Hoãn gửi tới ${escHtml(ps.shipHold.until.split('-').reverse().join('/'))} — ${escHtml(ps.shipHold.reason||'')} <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipHoldOpen('${inv.id}')">sửa</a> · <a href="#" class="pack-ph-link" onclick="event.preventDefault(); event.stopPropagation(); shipOpen('${inv.id}')">lên vận đơn</a></div>`;
   // Đơn đã có trên Abit → Sale chỉ cần bấm "Gửi vận đơn" trên Abit, mã tự về; nhập tay chỉ để dự phòng
