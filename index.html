@@ -16820,8 +16820,9 @@ const DELTA_NODES = ['leads','invoices','invoiceItems','packStatus'];
 const DELTA_MAX_AGE = 20*3600000;   // tải lại toàn bộ tối đa 1 lần / ~1 ngày / máy
 const DELTA_MARGIN = 10*60000;      // lùi 10 phút cho chắc (lệch giờ / ghi chậm)
 const DELTA_TOMB_KEEP = 10*86400000; // bia mộ giữ 10 ngày
-// ⚡ Kho data khách (11MB+): tải lại toàn bộ 3 ngày/lần thay vì mỗi ngày. Vẫn chính xác: mọi sửa có dấu _u, mọi xoá có bia mộ (giữ 10 ngày > 3 ngày).
-const deltaMaxAge = name=>(name==='leads' || String(name).startsWith('leadsMkt:')) ? 3*86400000 : DELTA_MAX_AGE;
+// ⚡ Kho data khách (11MB+), hoá đơn, trạng thái đóng hàng: tải lại toàn bộ 3 ngày/lần thay vì mỗi ngày.
+// Vẫn chính xác: mọi sửa có dấu _u (cả máy chủ Abit cũng gắn), mọi xoá có bia mộ (giữ 10 ngày > 3 ngày).
+const deltaMaxAge = name=>(name==='leads' || name==='invoices' || name==='packStatus' || String(name).startsWith('leadsMkt:')) ? 3*86400000 : DELTA_MAX_AGE;
 const DELTA_VER = 1;
 let deltaCfg = null, deltaCfgP = null, deltaOrigTx = null; const deltaActive = {};
 function fbPathSegs(ref){ const s = []; let r = ref; while(r && r.key !== null){ s.unshift(r.key); r = r.parent; } return s; }
