@@ -9432,8 +9432,18 @@ function appHardReload(){
 (function(){ try{ const u = new URL(location.href); if(u.searchParams.has('v')){ u.searchParams.delete('v'); history.replaceState(null, '', u.pathname + u.search + u.hash); } }catch(e){} })();
 let appVerBase = null, appVerLastCheck = 0, appUpdatePending = false;
 // 🔄 Có bản mới → TỰ tải lại khi máy đang rảnh (không gõ dở, không mở hoá đơn chưa lưu, không đang đóng hàng / mở cửa sổ)
+// ⚡ TIẾT KIỆM: có bản mới KHÔNG tải lại ngay giữa giờ làm (mỗi lần up trước đây ~30 máy tải lại toàn bộ dữ liệu cùng lúc).
+// Chỉ tự cập nhật khi: (1) từ 0h–5h sáng, hoặc (2) app vừa được mở lại sau khi để ẩn ≥ 30 phút. Không hiện thanh "bấm để tải".
+// Việc gấp: Quản lý chung bấm "Làm mới cho tất cả" như cũ.
+let appHiddenAt = 0, appBackFromLongHide = false;
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ appHiddenAt = nowMs(); return; }
+  if(appHiddenAt && nowMs() - appHiddenAt >= 30*60000){ appBackFromLongHide = true; setTimeout(()=>{ try{ appAutoReloadTry(); }catch(e){} appBackFromLongHide = false; }, 4000); }
+  appHiddenAt = 0;
+});
 function appAutoReloadTry(){
   if(!appUpdatePending) return;
+  { const h = new Date(nowMs()).getHours(); if(!(h < 5 || appBackFromLongHide)) return; } // giữa giờ làm → để sau
   try{
     const busy = (typeof isUserActivelyEditing==='function' && isUserActivelyEditing())
       || (typeof currentInvoiceDraft!=='undefined' && currentInvoiceDraft && invoiceDraftChanged())
@@ -9453,7 +9463,7 @@ async function appCheckUpdate(force){
     const tag = r.headers.get('etag') || r.headers.get('last-modified') || r.headers.get('content-length') || '';
     if(!tag) return;
     if(appVerBase===null){ appVerBase = tag; return; }
-    if(tag!==appVerBase){ const b = document.getElementById('appUpdateBar'); if(b) b.style.display = 'flex'; appUpdatePending = true; appAutoReloadTry(); }
+    if(tag!==appVerBase){ appUpdatePending = true; appAutoReloadTry(); } // (không hiện thanh "Đã có bản cập nhật" nữa)
   }catch(e){}
 }
 setTimeout(()=>appCheckUpdate(true), 3000);
@@ -17017,7 +17027,7 @@ async function deltaStampMissing(name, baseRef, st){
 // ===== 📊 ĐO LƯỢT TẢI THẬT theo vai trò + nhánh (để tìm chỗ tốn tiền) =====
 // Mỗi dữ liệu nhận về (sự kiện on/once) → cộng độ dài JSON vào usageBytes/{ngày}/{vai trò}/{nhánh} (gộp, ghi 5 phút/lần).
 // + đếm số lần MẤT KẾT NỐI rồi nối lại (mỗi lần nối lại Firebase có thể gửi lại dữ liệu).
-const usageAcc = {}; let usageMeterOn = false;
+const usageAcc = {}; let usageMeterOn = false; const usageLive = new Set(); // các lắng nghe đang mở (để ước tính phần gửi lại khi nối lại mạng)
 function usageNodeOf(ref){ try{ const s = fbPathSegs(ref.ref || ref); return s.length ? s[0] : '(root)'; }catch(e){ return '?'; } }
 function usageAdd(node, n){ if(!n) return; usageAcc[node] = (usageAcc[node]||0) + n; }
 function usageSizeOf(snap){ try{ const v = snap && snap.val(); if(v===null || v===undefined) return 0; return typeof v==='object' ? JSON.stringify(v).length : String(v).length; }catch(e){ return 0; } }
@@ -17028,10 +17038,18 @@ function usageMeterInstall(){
     if(typeof cb!=='function') return oOn.apply(this, arguments);
     const node = usageNodeOf(this); if(node==='.info') return oOn.apply(this, arguments);
     if(/^child_/.test(ev)) this.__hasChildL = true;
-    const w = function(snap){ usageAdd(node, usageSizeOf(snap)); return cb.apply(this, arguments); };
+    // 📡 nhớ cỡ dữ liệu ĐANG THEO DÕI của từng lắng nghe → lúc nối lại mạng ước tính phần Firebase có thể gửi lại
+    const ent = {q: this, ev, node, size: 0, kids: /^child_/.test(ev) ? {} : null};
+    const w = function(snap){ const n = usageSizeOf(snap); usageAdd(node, n);
+      try{ if(ent.kids){ if(ev==='child_removed') delete ent.kids[snap.key]; else ent.kids[snap.key] = n; } else ent.size = n; }catch(e){}
+      return cb.apply(this, arguments); };
+    usageLive.add(ent); w.__ent = ent;
     cb.__uw = w; return oOn.call(this, ev, w, ...rest);
   };
-  const oOff = Q.off; Q.off = function(ev, cb, ...rest){ return oOff.call(this, ev, cb && cb.__uw ? cb.__uw : cb, ...rest); };
+  const oOff = Q.off; Q.off = function(ev, cb, ...rest){
+    try{ if(cb && cb.__uw && cb.__uw.__ent) usageLive.delete(cb.__uw.__ent);
+      else if(!cb){ const me = this; usageLive.forEach(e=>{ try{ if((!ev || e.ev===ev) && e.q.isEqual(me)) usageLive.delete(e); }catch(x){} }); } }catch(e){}
+    return oOff.call(this, ev, cb && cb.__uw ? cb.__uw : cb, ...rest); };
   Q.once = function(ev, cb, ...rest){
     const node = usageNodeOf(this);
     if(this.__hasChildL) return oOnce.apply(this, arguments); // đã có lắng nghe con trên cùng truy vấn → Firebase không tải lại, không cộng 2 lần
@@ -17040,7 +17058,11 @@ function usageMeterInstall(){
     return p;
   };
   let wasOn = null;
-  firebase.database().ref('.info/connected').on('value', s=>{ const v = s.val(); if(v===true && wasOn===false) usageAdd('(nối lại)', 1); wasOn = v; });
+  firebase.database().ref('.info/connected').on('value', s=>{ const v = s.val();
+    if(v===true && wasOn===false){ usageAdd('(nối lại)', 1);
+      // ước tính TỐI ĐA phần có thể bị gửi lại khi nối lại: cộng cỡ dữ liệu mọi lắng nghe đang mở, ghi riêng "⟳ nhánh"
+      try{ usageLive.forEach(e=>{ const n = e.kids ? Object.values(e.kids).reduce((a,b)=>a+b,0) : e.size; if(n) usageAdd('⟳ ' + e.node, n); }); }catch(e){} }
+    wasOn = v; });
   setInterval(usageFlush, 5*60000);
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden) usageFlush(); });
 }
