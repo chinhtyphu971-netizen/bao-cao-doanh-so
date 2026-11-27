@@ -25,6 +25,21 @@ const DEF_MKT = [
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
 const isGrand = p => !!(p && (p.key === 'iphone' || /iphone/i.test(String(p.name || ''))));
 const GRAND_W = 0.0001; // 🔒 tỉ lệ iPhone tối đa 0,0001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
+// ⏰ Vòng quay CHUYÊN CẦN (làm sẵn, bật/tắt ở luckyCfgAtt.enabled): quay bằng lượt trong attBal/{uid} (left = thường, vip = VIP)
+const DEF_ATT = [
+  {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
+  {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:20},
+  {key:'tea', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:15},
+  {key:'star5', name:'Tặng 5 sao', short:'5 sao', kind:'manual', w:35},
+  {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12},
+  {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15}];
+const DEF_ATTVIP = [
+  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001},
+  {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
+  {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40},
+  {key:'earlyhalf', name:'Phiếu về sớm nửa ngày', short:'Về sớm ½ ngày', kind:'early', n:240, w:15},
+  {key:'milk', name:'1 ly trà sữa', short:'Trà sữa', kind:'manual', w:25},
+  {key:'attspin2', name:'Thêm 2 lượt quay chuyên cần', short:'+2 lượt', kind:'attspin', n:2, w:15}];
 const vnDay = t => new Date(t + 7 * 3600000).toISOString().slice(0, 10);
 const money = n => (Number(n) || 0).toLocaleString('vi-VN');
 
@@ -38,6 +53,8 @@ module.exports = async (req, res) => {
     let dec; try { dec = await admin.auth().verifyIdToken(m[1]); } catch (e) { return res.status(401).json({error: 'Phiên đăng nhập hết hạn — tải lại app rồi thử lại.'}); }
     const uid = dec.uid;
     const u = (await D.ref('users/' + uid).once('value')).val();
+    let body = req.body || {}; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+    if (body.pool === 'att' || body.pool === 'attvip') return await attSpin(D, uid, u, body.pool === 'attvip' ? 'attvip' : 'att', res);
     // Vòng quay Sale (staff / team_manager) hoặc vòng quay MKT (mkt / mkt_manager) — theo vai trò, không tin vào máy gửi lên
     const pool = u && ['mkt', 'mkt_manager'].includes(u.role) ? 'mkt' : 'sale';
     if (!u || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role) || u.active === false || u.loginBlocked)
@@ -127,3 +144,33 @@ module.exports = async (req, res) => {
     return res.status(500).json({error: 'Máy chủ lỗi, thử lại sau ít phút.'});
   }
 };
+
+// ⏰ Quay vòng chuyên cần: trừ 1 lượt (transaction) → chọn giải → ghi luckySpin/{ngày}/{push} (pool att / attvip) → áp quyền lợi
+async function attSpin(D, uid, u, pool, res) {
+  if (!u || u.active === false || u.loginBlocked) return res.status(403).json({error: 'Tài khoản này không quay được.'});
+  const cfg = (await D.ref('luckyCfgAtt').once('value')).val() || {};
+  if (!cfg.enabled) return res.status(403).json({error: 'Vòng quay chuyên cần chưa áp dụng.'});
+  const cv = pool === 'attvip' ? ((await D.ref('luckyCfgAttVip').once('value')).val() || {}) : cfg;
+  let prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : (pool === 'attvip' ? DEF_ATTVIP : DEF_ATT)).filter(p => p && p.key && Number(p.w) > 0);
+  prizes = pool === 'attvip' ? prizes.map(x => isGrand(x) ? Object.assign({}, x, {w: Math.min(Number(x.w), GRAND_W)}) : x) : prizes.filter(x => !isGrand(x)); // iPhone chỉ ở vòng VIP
+  const now = Date.now(), day = vnDay(now), year = day.slice(0, 4), grandRef = D.ref('luckyGrand/' + year);
+  if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
+  if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
+  const f = pool === 'attvip' ? 'vip' : 'left', bRef = D.ref('attBal/' + uid);
+  const held = await bRef.transaction(cur => (cur && Number(cur[f]) > 0) ? Object.assign({}, cur, {[f]: Number(cur[f]) - 1}) : undefined);
+  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — chấm công đúng giờ cả 2 lần trong ngày để có.'});
+  const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
+    for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
+  let p = pick(prizes);
+  if (isGrand(p)) { const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool, day, at: now});
+    if (!g.committed) { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); } }
+  const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
+  const ref = D.ref('luckySpin/' + day).push(), key = ref.key;
+  try { await ref.set({uid, k: key, name: u.name || '', branchId: u.branchId || u.mktBranchId || null, pool, revenue: null, prize, at: now}); }
+  catch (e) { try { await bRef.child(f).transaction(v => (Number(v) || 0) + 1); } catch (e2) {} throw e; }
+  const inc = admin.database.ServerValue.increment, up = {};
+  if (prize.kind === 'attspin') up[`attBal/${uid}/left`] = inc(Number(prize.n) || 1);
+  if (prize.kind === 'early') { const pk = D.ref('earlyPasses/' + uid).push().key; up[`earlyPasses/${uid}/${pk}`] = {min: Number(prize.n) || 30, at: now, exp: now + 7 * 86400000, from: key}; }
+  if (Object.keys(up).length) await D.ref().update(up);
+  return res.json({ok: true, prize, pool});
+}
