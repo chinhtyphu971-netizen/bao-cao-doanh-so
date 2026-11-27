@@ -3755,7 +3755,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <!-- Người báo thiếu: Sale đã trả lời → xử lý ngay -->
 <div class="modal-backdrop" id="luckyModal" onclick="if(event.target===this && !luckySpinning) this.classList.remove('show')">
   <div class="modal lucky-modal">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><h2 style="margin:0;">🎡 Vòng quay may mắn</h2><button class="btn-ghost btn-small" onclick="if(!luckySpinning) document.getElementById('luckyModal').classList.remove('show')" aria-label="Đóng">✕</button></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><h2 id="luckyModalTitle" style="margin:0;">👑 Vòng quay VIP</h2><button class="btn-ghost btn-small" onclick="if(!luckySpinning) document.getElementById('luckyModal').classList.remove('show')" aria-label="Đóng">✕</button></div>
     <div id="luckyModalBody"></div>
   </div>
 </div>
@@ -11946,8 +11946,8 @@ const TONE_EVENTS = [
   {key:'chat', label:'Có tin nhắn mới', who:'Mọi người', roles: null},
   {key:'goalNudge', label:'Quản lý nhắc mục tiêu', who:'Sale', roles: SALE_ROLES},
   {key:'reportDeadline', label:'Sắp hết hạn nộp báo cáo', who:'Sale', roles: SALE_ROLES},
-  {key:'luckyReach', label:'Đạt mốc — được quay Vòng quay may mắn', who:'Sale đạt mốc', roles: SALE_ROLES},
-  {key:'luckyWin', label:'Trúng thưởng Vòng quay may mắn', who:'Sale vừa quay', roles: SALE_ROLES},
+  {key:'luckyReach', label:'Đạt mốc — được quay Vòng quay VIP', who:'Sale đạt mốc', roles: SALE_ROLES},
+  {key:'luckyWin', label:'Trúng thưởng Vòng quay VIP', who:'Sale vừa quay', roles: SALE_ROLES},
   {key:'luckyJackpot', label:'Có người trúng JACKPOT vòng quay', who:'Mọi người', roles: null},
   {key:'printDone', label:'Thợ in đã in xong', who:'Người đặt in', roles: null},
   {key:'packUrgent', label:'Có đơn GẤP cần đóng', who:'Kho', roles: KHO_ROLES},
@@ -12358,7 +12358,7 @@ const LUCKY_DEFAULT_ATTVIP = {prizes: [
   {key:'milk', name:'1 ly trà sữa', short:'Trà sữa', kind:'manual', w:25, color:'#0F766E'},
   {key:'attspin2', name:'Thêm 2 lượt quay chuyên cần', short:'+2 lượt', kind:'attspin', n:2, w:15, color:'#7C3AED'}]};
 let luckyCfgAtt = null, luckyCfgAttVip = null, attBalMe = {}, luckyModalPool = null;
-const LUCKY_POOL_NAME = {sale:'Sale', mkt:'MKT', att:'Chuyên cần', attvip:'Chuyên cần VIP'};
+const LUCKY_POOL_NAME = {sale:'VIP Sale', mkt:'VIP MKT', att:'Chuyên cần', attvip:'Chuyên cần VIP'};
 let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {}, luckyGrandYear = null;
 let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
 let luckySpinning = false, luckyRot = 0, luckyResult = null, luckyAutoShown = '';
@@ -12453,7 +12453,7 @@ function luckyJackpotCheck(){
   fresh.forEach(r=>{ seen[luckyDate + '/' + r._k] = 1; }); try{ localStorage.setItem('lucky_jp_seen', JSON.stringify(seen)); }catch(e){}
   const r = fresh[fresh.length-1], mine = r.uid===me.id;
   const pz = (r.prize && (r.prize.short || r.prize.name)) || 'Jackpot';
-  luckyJackpotShow(mine ? `🎉 Chúc mừng BẠN trúng JACKPOT: ${pz}!` : `🎉 ${r.name || 'Đồng đội'} vừa trúng JACKPOT: ${pz}!`, mine ? 'Giải lớn nhất của Vòng quay may mắn hôm nay' : `${escHtml(branchName(r.branchId)||'')} · đạt mốc lúc ${packTimeShort(r.at)} — bạn cũng đạt mốc để có cơ hội nhé!`);
+  luckyJackpotShow(mine ? `🎉 Chúc mừng BẠN trúng JACKPOT: ${pz}!` : `🎉 ${r.name || 'Đồng đội'} vừa trúng JACKPOT: ${pz}!`, mine ? 'Giải lớn nhất của Vòng quay hôm nay' : `${escHtml(branchName(r.branchId)||'')} · đạt mốc lúc ${packTimeShort(r.at)} — bạn cũng đạt mốc để có cơ hội nhé!`);
   if(!mine) try{ playEventTone('luckyJackpot'); }catch(e){}
 }
 function luckyJackpotShow(title, sub){
@@ -12473,7 +12473,7 @@ function luckyCardRender(){
     const g = s && !luckyGrandYear ? (s.c.prizes||[]).find(luckyIsGrand) : null;
     if(!g){ el.style.display = 'none'; return; }
     el.style.display = '';
-    el.innerHTML = `<div class="lucky-teaser">📱 <b>Cơ hội trúng ${escHtml(g.short || g.name || 'iPhone')}!</b> ${s.pool==='mkt' ? `Nhập đủ ${fmtMoney(s.c.threshold)} số hợp lệ trong ngày` : `Đạt ${fmtMoney(s.c.threshold)}đ đã cọc trong ngày`} là được quay Vòng quay may mắn, cứ thêm mỗi mốc là thêm 1 lượt — không giới hạn số người, số lượt. Ô ${escHtml(g.short || g.name)} tỉ lệ ${luckyPctFmt(g.w, s.c.prizes)}, tối đa 1 giải / năm.</div>`;
+    el.innerHTML = `<div class="lucky-teaser">📱 <b>Cơ hội trúng ${escHtml(g.short || g.name || 'iPhone')}!</b> ${s.pool==='mkt' ? `Nhập đủ ${fmtMoney(s.c.threshold)} số hợp lệ trong ngày` : `Đạt ${fmtMoney(s.c.threshold)}đ đã cọc trong ngày`} là được quay 👑 Vòng quay VIP, cứ thêm mỗi mốc là thêm 1 lượt — không giới hạn số người, số lượt. Ô ${escHtml(g.short || g.name)} tỉ lệ ${luckyPctFmt(g.w, s.c.prizes)}, tối đa 1 giải / năm.</div>`;
     return;
   }
   el.style.display = '';
@@ -12484,7 +12484,7 @@ function luckyCardRender(){
   if(s.canSpin) right = `<button class="btn-primary lucky-go" onclick="luckyOpen()">🎡 QUAY ${s.next==='bonus' ? 'LƯỢT TẶNG 🎁' : s.next==='extra' ? 'LƯỢT THÊM' : (s.next > 1 ? 'LƯỢT ' + s.next : 'NGAY')}</button>`;
   else if(s.mine) right = (s.mine.revoked ? `<span class="lucky-muted">Giải lượt gần nhất đã bị thu hồi (doanh số tụt dưới mốc)</span>` : `<span class="lucky-won">🎉 Bạn đã trúng${s.recs.length > 1 ? ` ${s.recs.filter(r=>!r.revoked).length} giải` : ''}: <b>${escHtml(luckyPrizeLabel(s.mine.prize))}</b></span>`) + nxt;
   else right = `<span class="lucky-muted">Còn ${luckyMetricFmt(Math.max(0, s.c.threshold - s.rev), s.pool)} nữa</span>`;
-  el.innerHTML = `<div class="lucky-card-row"><div class="lucky-card-main"><div class="lucky-card-t">🎡 Vòng quay may mắn <span class="lucky-muted">· ${s.next==='extra' ? 'bạn có 1 lượt quay thêm' : (s.pool==='mkt' ? `mỗi ${fmtMoney(s.c.threshold)} số hợp lệ = 1 lượt` : `mỗi ${fmtMoney(s.c.threshold)}đ đã cọc = 1 lượt`)}${s.top >= 1 ? ` · hôm nay đã quay ${s.recs.length} lượt` : ''} · quay thêm ${s.toBonus} lượt nữa được tặng 1 lượt 🎁${s.bonusLeft ? ` · đang có ${s.bonusLeft} lượt tặng` : ''}</span></div>
+  el.innerHTML = `<div class="lucky-card-row"><div class="lucky-card-main"><div class="lucky-card-t">👑 Vòng quay VIP ${s.pool==='mkt' ? 'MKT' : 'Sale'} <span class="lucky-muted">· ${s.next==='extra' ? 'bạn có 1 lượt quay thêm' : (s.pool==='mkt' ? `mỗi ${fmtMoney(s.c.threshold)} số hợp lệ = 1 lượt` : `mỗi ${fmtMoney(s.c.threshold)}đ đã cọc = 1 lượt`)}${s.top >= 1 ? ` · hôm nay đã quay ${s.recs.length} lượt` : ''} · quay thêm ${s.toBonus} lượt nữa được tặng 1 lượt 🎁${s.bonusLeft ? ` · đang có ${s.bonusLeft} lượt tặng` : ''}</span></div>
     <div class="lucky-bar"><div style="width:${pct}%"></div></div><div class="lucky-muted">${s.pool==='mkt' ? 'Đã nhập hôm nay' : 'Đã cọc hôm nay'} <b style="color:var(--ink);">${luckyMetricFmt(s.rev, s.pool)}</b>${passes ? ` · 🛡️ ${passes} thẻ miễn phạt` : ''} · <a href="#" onclick="event.preventDefault(); luckyOpen()">vinh danh hôm nay</a></div></div>
     <div class="lucky-card-act">${right}</div></div>`;
   try{ luckyAutoPrompt(); }catch(e){}
@@ -12495,7 +12495,7 @@ function luckyAutoPrompt(){
   const k = 'lucky_auto_' + todayStr() + '_' + s.next + (s.next==='bonus' ? '_' + s.bonusN : ''); if(luckyAutoShown===k) return; try{ if(localStorage.getItem(k)) { luckyAutoShown = k; return; } }catch(e){}
   if(document.querySelector('.modal-backdrop.show')) return;
   luckyAutoShown = k; try{ localStorage.setItem(k, '1'); }catch(e){}
-  showToast(s.next==='bonus' ? `🎁 Bạn có ${s.bonusLeft} lượt quay tặng (cứ đủ ${LUCKY_BONUS_EVERY} lượt được tặng 1) — mời quay!` : s.next > 1 ? `🎉 Bạn đạt mốc lượt ${s.next} — mời quay tiếp!` : '🎉 Bạn đã đạt mốc — mời quay Vòng quay may mắn!'); luckyOpen();
+  showToast(s.next==='bonus' ? `🎁 Bạn có ${s.bonusLeft} lượt quay tặng (cứ đủ ${LUCKY_BONUS_EVERY} lượt được tặng 1) — mời quay!` : s.next > 1 ? `🎉 Bạn đạt mốc lượt ${s.next} — mời quay tiếp!` : '🎉 Bạn đã đạt mốc — mời quay 👑 Vòng quay VIP!'); luckyOpen();
   try{ playEventTone('luckyReach'); }catch(e){} if(navigator.vibrate) try{ navigator.vibrate([200,100,200,100,300]); }catch(e){} // 🔔 nhạc báo đạt mốc (Quản lý chọn bài trong Cài đặt › Nhạc chuông)
 }
 // 🎨 Biểu tượng trên từng ô vòng quay: quản lý tự chọn (ô "Hình"), bỏ trống thì app tự đoán theo tên giải
@@ -12527,13 +12527,14 @@ function luckyBoardHtml(pool){
 function luckyOpen(){ const s0 = luckyMyState(); if(!s0 || !(s0.canSpin || s0.mine)) return; luckyModalPool = null; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
 function luckyModalRender(){
   const box = document.getElementById('luckyModalBody'); if(!box) return;
+  const tt = document.getElementById('luckyModalTitle'); if(tt) tt.textContent = luckyModalPool ? '⏰ Vòng quay chuyên cần' : '👑 Vòng quay VIP';
   if(luckyModalPool){ // ⏰ vòng quay chuyên cần (thường / VIP)
     const a = luckyAttState(), P = luckyModalPool, c = luckyConf(P), bal = a ? (P==='attvip' ? a.vip : a.left) : 0;
     const res = luckyResult, k = res && res.prize ? res.prize.kind : '';
     const btn = bal > 0 ? `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : (P==='attvip' ? `📱 QUAY LƯỢT VIP (còn ${bal})` : `⏰ QUAY NGAY (còn ${bal} lượt)`)}</button>` : '';
     const sw = '';
     let act = res && res.prize && !luckySpinning ? `<div class="lucky-result"><div class="lucky-res-t">CHÚC MỪNG BẠN TRÚNG</div><div class="lucky-res-n">${escHtml(luckyIcon(res.prize))} ${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>${btn}` : btn;
-    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở vòng Sale / MKT của bạn (có iPhone 📱).`}</div>`;
+    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở 👑 vòng VIP của bạn (có iPhone 📱).`}</div>`;
     const rows = luckyRecs().filter(r=>r.pool===P).sort((x,y)=>(x.at||0)-(y.at||0));
     box.innerHTML = `${sw}<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(luckyWheelList(c))}</div></div>
       ${act}<div class="lucky-board-t">${P==='attvip' ? 'VÒNG VIP' : 'CHUYÊN CẦN'} HÔM NAY (${rows.length} lượt)</div>${rows.length ? rows.map(r=>`<div class="lucky-row"><span class="lucky-rank">${P==='attvip' ? '📱' : '⏰'}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('') : '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai quay hôm nay.</div>'}`;
@@ -12599,7 +12600,7 @@ function renderLuckyMgrCard(force){
   };
   const slots = []; for(let i = 0; i < Math.max(1, main.length); i++) slots.push(slot(main[i], i)); extra.forEach((r)=>slots.push(slot(r, 99)));
   el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">Sale: hôm nay <b>${luckyUsed('sale')}</b> · MKT: <b>${luckyUsed('mkt')}</b> người đã quay · Chuyên cần: <b>${luckyConf('att').enabled ? 'đang bật' : 'chưa áp dụng'}</b></span></summary>
-  <div class="chip-row" style="margin:10px 0 0;">${[['sale','Vòng quay Sale'],['mkt','Vòng quay MKT'],['att','⏰ Chuyên cần']].map(([k,l])=>`<div class="chip ${P===k ? 'selected' : ''}" onclick="luckyPoolEdit='${k}'; luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">${l}</div>`).join('')}</div>
+  <div class="chip-row" style="margin:10px 0 0;">${[['sale','👑 VIP Sale'],['mkt','👑 VIP MKT'],['att','⏰ Chuyên cần']].map(([k,l])=>`<div class="chip ${P===k ? 'selected' : ''}" onclick="luckyPoolEdit='${k}'; luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">${l}</div>`).join('')}</div>
   <div class="lk-cols">
     <div class="lk-box lk-cond">
       <h3>Điều kiện</h3>
@@ -12610,7 +12611,7 @@ function renderLuckyMgrCard(force){
       <div class="lk-f">Giờ ra (trưa / chiều)<span class="lk-static">Hiện chưa tính — chỉ tính giờ vào làm</span></div>
       <label class="lk-f">Cho trễ (phút)<input type="number" min="0" max="30" value="${mt.grace}" oninput="luckyMetaGet().grace = Number(this.value)||0"></label>
       <label class="lk-f">Âm tối đa (lượt)<input type="number" min="0" max="20" value="${mt.maxNeg}" oninput="luckyMetaGet().maxNeg = Number(this.value)||0"></label>
-      <div class="lk-f">Luật<span class="lk-static">Chỉ tính giờ vào: vào đúng giờ cả sáng và chiều → +1 lượt · vào muộn 1 buổi → −1 lượt · để dành được · 5 ngày liên tiếp → +1 lượt vòng Sale / MKT của mình (có iPhone)</span></div><div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ Sale và MKT (không áp dụng kho, nhặt hàng, người in)</span></div>`) : `
+      <div class="lk-f">Luật<span class="lk-static">Chỉ tính giờ vào: vào đúng giờ cả sáng và chiều → +1 lượt · vào muộn 1 buổi → −1 lượt · để dành được · 5 ngày liên tiếp → +1 lượt 👑 vòng VIP Sale / MKT của mình (có iPhone)</span></div><div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ Sale và MKT (không áp dụng kho, nhặt hàng, người in)</span></div>`) : `
       <label class="lk-f">${isM ? 'Số SĐT hợp lệ nhập trong ngày (số)' : 'Mốc doanh số trong ngày (đ)'}<input id="lkThreshold" type="number" min="0" step="${isM ? 50 : 500000}" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>
       <div class="lk-f">Số người / số lượt mỗi ngày<span class="lk-static">Không giới hạn — mỗi mốc = 1 lượt</span></div>
       <div class="lk-f">${isM ? 'Tính theo' : 'Tính doanh số theo'}<span class="lk-static">${isM ? 'Số SĐT hợp lệ MKT nhập (đã lọc trùng)' : 'Hoá đơn đã cọc trong ngày'}</span></div>
