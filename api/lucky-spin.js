@@ -24,6 +24,7 @@ const DEF_MKT = [
   {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001}];
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
 const isGrand = p => !!(p && (p.key === 'iphone' || /iphone/i.test(String(p.name || ''))));
+const GRAND_W = 0.0001; // 🔒 tỉ lệ iPhone tối đa 0,0001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
 const vnDay = t => new Date(t + 7 * 3600000).toISOString().slice(0, 10);
 const money = n => (Number(n) || 0).toLocaleString('vi-VN');
 
@@ -44,6 +45,7 @@ module.exports = async (req, res) => {
     const cv = (await D.ref(pool === 'mkt' ? 'luckyCfgMkt' : 'luckyCfg').once('value')).val() || {};
     const threshold = Number(cv.threshold) || (pool === 'mkt' ? 500 : 10000000), maxPerDay = Number(cv.maxPerDay) || (pool === 'mkt' ? 3 : 5);
     let prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : (pool === 'mkt' ? DEF_MKT : DEF)).filter(p => p && p.key && Number(p.w) > 0);
+    prizes = prizes.map(x => isGrand(x) ? Object.assign({}, x, {w: Math.min(Number(x.w), GRAND_W)}) : x);
     if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
     const now = Date.now(), day = vnDay(now);
     const dayStart = Date.parse(day + 'T00:00:00+07:00'), tomorrow = vnDay(dayStart + 86400000 + 3600000);
@@ -68,7 +70,7 @@ module.exports = async (req, res) => {
       const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool, day, at: Date.now()});
       if (g.committed) grandHeld = true; else { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); }
     }
-    const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null};
+    const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
     let outcome = '', rank = null;
     const tx = await D.ref('luckySpin/' + day).transaction(cur => {
       cur = cur || {};
