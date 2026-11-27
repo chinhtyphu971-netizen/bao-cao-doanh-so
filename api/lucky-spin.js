@@ -54,7 +54,8 @@ module.exports = async (req, res) => {
     const uid = dec.uid;
     const u = (await D.ref('users/' + uid).once('value')).val();
     let body = req.body || {}; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
-    if (body.pool === 'att' || body.pool === 'attvip') return await attSpin(D, uid, u, body.pool === 'attvip' ? 'attvip' : 'att', res);
+    if (body.pool === 'attvip') return res.status(400).json({error: 'Không có vòng chuyên cần VIP — đủ 5 ngày đúng giờ thì Sale / MKT được thêm lượt ở vòng của mình.'});
+    if (body.pool === 'att') return await attSpin(D, uid, u, 'att', res);
     // Vòng quay Sale (staff / team_manager) hoặc vòng quay MKT (mkt / mkt_manager) — theo vai trò, không tin vào máy gửi lên
     const pool = u && ['mkt', 'mkt_manager'].includes(u.role) ? 'mkt' : 'sale';
     if (!u || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role) || u.active === false || u.loginBlocked)
@@ -147,7 +148,7 @@ module.exports = async (req, res) => {
 
 // ⏰ Quay vòng chuyên cần: trừ 1 lượt (transaction) → chọn giải → ghi luckySpin/{ngày}/{push} (pool att / attvip) → áp quyền lợi
 async function attSpin(D, uid, u, pool, res) {
-  if (!u || u.active === false || u.loginBlocked) return res.status(403).json({error: 'Tài khoản này không quay được.'});
+  if (!u || u.active === false || u.loginBlocked || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role)) return res.status(403).json({error: 'Vòng quay chuyên cần chỉ dành cho Sale và MKT.'});
   const cfg = (await D.ref('luckyCfgAtt').once('value')).val() || {};
   if (!cfg.enabled) return res.status(403).json({error: 'Vòng quay chuyên cần chưa áp dụng.'});
   const cv = pool === 'attvip' ? ((await D.ref('luckyCfgAttVip').once('value')).val() || {}) : cfg;
