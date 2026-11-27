@@ -21,8 +21,9 @@ module.exports = async (req, res) => {
   try {
     const m = String(req.headers.authorization || '').match(/^Bearer (.+)$/);
     if (!m) return res.status(401).json({error: 'Chưa đăng nhập.'});
+    const D = db(); // ⚠ khởi tạo Firebase admin TRƯỚC khi gọi admin.auth()
     let dec; try { dec = await admin.auth().verifyIdToken(m[1]); } catch (e) { return res.status(401).json({error: 'Phiên đăng nhập hết hạn — tải lại app rồi thử lại.'}); }
-    const uid = dec.uid, D = db();
+    const uid = dec.uid;
     const u = (await D.ref('users/' + uid).once('value')).val();
     if (!u || !['staff', 'team_manager'].includes(u.role) || u.active === false || u.loginBlocked)
       return res.status(403).json({error: 'Tài khoản này không tham gia vòng quay. Nếu bạn là Sale: đăng xuất rồi đăng nhập lại.'});
