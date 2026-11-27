@@ -1716,6 +1716,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
   .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
   .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
+  .lk-prize-table input, .lk-prize-table select{ padding:6px 8px; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
   .goal-sort-ar{ font-size:10px; opacity:.45; }
@@ -12396,11 +12397,20 @@ async function luckySpinGo(){
   setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playTingSound(); }catch(e){} if(currentPageId==='myLeads') luckyCardRender(); }, 4400);
 }
 // ----- Quản lý chung: cài đặt + vinh danh + đã trao -----
-function renderLuckyMgrCard(){
+// Bảng giải đang sửa (chưa lưu): sửa tên, chữ trên vòng, loại giải, tỉ lệ, màu · thêm / xoá giải
+let luckyDraft = null;
+const LUCKY_KINDS = [['manual','Quản lý trao tay (bấm "Đã trao")'],['data','+N data ưu tiên ngày mai (app tự áp dụng)'],['pass','Thẻ miễn phạt báo cáo (app tự áp dụng)'],['extra','Thêm 1 lượt quay ngày mai (app tự áp dụng)']];
+const LUCKY_COLORS = ['#F59E0B','#2B3A67','#E8572A','#3D4F86','#0F766E','#C2410C','#7C3AED','#BE185D','#15803D','#0369A1'];
+function luckyDraftGet(){ if(!luckyDraft) luckyDraft = luckyConf().prizes.map(p=>Object.assign({}, p)); return luckyDraft; }
+function luckyDraftSet(i, k, v){ const d = luckyDraftGet(); if(!d[i]) return; if(k==='w' || k==='n') v = Math.max(0, Number(v)||0); d[i][k] = v; if(k==='kind' || k==='color'){ renderLuckyMgrCard(true); } }
+function luckyDraftAdd(){ const d = luckyDraftGet(); if(d.length >= 12){ showToast('Tối đa 12 giải'); return; } d.push({key: 'p' + uid(), name: 'Giải mới', short: 'Giải mới', kind: 'manual', w: 5, color: LUCKY_COLORS[d.length % LUCKY_COLORS.length]}); renderLuckyMgrCard(true); }
+function luckyDraftDel(i){ const d = luckyDraftGet(); if(d.length <= 2){ showToast('Cần ít nhất 2 giải'); return; } d.splice(i, 1); renderLuckyMgrCard(true); }
+function renderLuckyMgrCard(force){
   const el = document.getElementById('luckyMgrCard'); if(!el) return;
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
+  if(!force && document.activeElement && el.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; // đang gõ → không vẽ lại
   el.style.display = '';
-  const c = luckyConf(), tot = c.prizes.reduce((a,p)=>a+(Number(p.w)||0),0);
+  const c = Object.assign({}, luckyConf(), {prizes: luckyDraftGet()}), tot = c.prizes.reduce((a,p)=>a+(Number(p.w)||0),0);
   const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
   el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">mốc ${fmtMoney(c.threshold)}đ · ${c.maxPerDay} người/ngày · hôm nay ${luckyUsed()}/${c.maxPerDay}</span></summary>
     <div class="grid-2" style="max-width:640px; margin-top:8px;">
@@ -12408,10 +12418,16 @@ function renderLuckyMgrCard(){
       <div class="field"><label>Số người tối đa mỗi ngày</label><input id="lkMax" type="number" min="1" max="50" value="${c.maxPerDay}"></div>
     </div>
     <label style="display:flex; gap:8px; align-items:center; margin:4px 0 12px; cursor:pointer;"><input type="checkbox" id="lkRevoke" ${c.revoke ? 'checked' : ''} style="width:16px; height:16px; margin:0;"> Hoá đơn bị xoá / huỷ làm tụt dưới mốc trong ngày → <b>thu hồi giải</b></label>
-    <div class="table-wrap"><table class="rtable"><thead><tr><th>Giải</th><th class="num">Tỉ lệ (%)</th><th>Cách trao</th></tr></thead><tbody>
-      ${c.prizes.map((p,i)=>`<tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:${escHtml(p.color||'#3D4F86')}; margin-right:6px;"></span>${escHtml(p.name)}</td><td class="num"><input class="lk-w" data-i="${i}" type="number" min="0" max="100" value="${Number(p.w)||0}" style="width:70px; text-align:right;"></td><td class="muted-s">${p.kind==='manual' ? 'Quản lý bấm "Đã trao"' : 'App tự áp dụng'}</td></tr>`).join('')}
+    <div class="table-wrap"><table class="rtable lk-prize-table"><thead><tr><th>Màu</th><th>Tên giải (hiện khi trúng)</th><th>Chữ trên vòng</th><th>Loại giải</th><th class="num">Tỉ lệ (%)</th><th></th></tr></thead><tbody>
+      ${c.prizes.map((p,i)=>`<tr>
+        <td><select aria-label="Màu ô" onchange="luckyDraftSet(${i}, 'color', this.value)" style="background:${escHtml(p.color||'#3D4F86')}; color:#fff; width:58px;">${LUCKY_COLORS.concat(LUCKY_COLORS.includes(p.color) || !p.color ? [] : [p.color]).map(col=>`<option value="${col}" style="background:${col};" ${col===p.color ? 'selected' : ''}>■</option>`).join('')}</select></td>
+        <td><input aria-label="Tên giải" value="${escHtml(p.name||'')}" maxlength="60" oninput="luckyDraftSet(${i}, 'name', this.value)" style="min-width:170px;"></td>
+        <td><input aria-label="Chữ trên vòng" value="${escHtml(p.short||'')}" maxlength="14" oninput="luckyDraftSet(${i}, 'short', this.value)" style="width:110px;"></td>
+        <td><select aria-label="Loại giải" onchange="luckyDraftSet(${i}, 'kind', this.value)">${LUCKY_KINDS.map(([k,l])=>`<option value="${k}" ${k===(p.kind||'manual') ? 'selected' : ''}>${escHtml(l)}</option>`).join('')}</select>${p.kind==='data' ? ` <label class="muted-s" style="white-space:nowrap;">N = <input type="number" min="1" max="50" value="${Number(p.n)||5}" oninput="luckyDraftSet(${i}, 'n', this.value)" style="width:56px;"></label>` : ''}</td>
+        <td class="num"><input aria-label="Tỉ lệ" type="number" min="0" max="100" value="${Number(p.w)||0}" oninput="luckyDraftSet(${i}, 'w', this.value)" style="width:70px; text-align:right;"></td>
+        <td><button class="btn-ghost btn-small" onclick="luckyDraftDel(${i})" aria-label="Xoá giải ${escHtml(p.name||'')}">Xoá</button></td></tr>`).join('')}
     </tbody></table></div>
-    <div class="goal-actions" style="margin-top:8px;"><span class="muted-s">Tổng tỉ lệ hiện tại: <b>${tot}%</b> (không cần đúng 100 — app tự chia theo tỉ lệ)</span><button class="btn-primary" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
+    <div class="goal-actions" style="margin-top:8px;"><button class="btn-ghost" onclick="luckyDraftAdd()">+ Thêm giải</button><span class="muted-s">Tổng tỉ lệ: <b>${tot}%</b> (không cần đúng 100 — app tự chia theo tỉ lệ) · "Chữ trên vòng" nên ngắn (≤ 2 từ)</span><button class="btn-ghost" onclick="luckyDraft = null; renderLuckyMgrCard(true)">Huỷ sửa</button><button class="btn-primary" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
     <h3 style="margin:16px 0 6px; font-size:15px;">Vinh danh hôm nay</h3>
     ${rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>#</th><th>Người</th><th>Đạt mốc</th><th class="num">Doanh số lúc quay</th><th>Giải</th><th></th></tr></thead><tbody>
       ${rows.map(r=>{ const man = r.prize && r.prize.kind==='manual';
@@ -12423,10 +12439,12 @@ function renderLuckyMgrCard(){
 function luckySaveCfg(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
   const c = luckyConf(); const th = Math.max(0, Math.round(Number((document.getElementById('lkThreshold')||{}).value)||0)), mx = Math.max(1, Math.min(50, Math.round(Number((document.getElementById('lkMax')||{}).value)||0)));
-  const prizes = c.prizes.map(p=>Object.assign({}, p)); document.querySelectorAll('.lk-w').forEach(inp=>{ const i = Number(inp.dataset.i); if(prizes[i]) prizes[i].w = Math.max(0, Number(inp.value)||0); });
+  const prizes = luckyDraftGet().map(p=>{ const o = {key: p.key || ('p' + uid()), name: String(p.name||'').trim().slice(0,60), short: String(p.short||'').trim().slice(0,14) || String(p.name||'').trim().slice(0,14), kind: p.kind || 'manual', w: Math.max(0, Number(p.w)||0), color: p.color || '#3D4F86'};
+    if(o.kind==='data') o.n = Math.max(1, Math.min(50, Number(p.n)||5)); if(p.ink) o.ink = p.ink; if(o.color==='#F59E0B' && !p.ink) o.ink = '#1a1206'; return o; });
+  if(prizes.some(p=>!p.name)){ showToast('Giải nào cũng cần có tên'); return; }
   if(!th || !prizes.some(p=>p.w > 0)){ showToast('Mốc doanh số và tỉ lệ giải phải lớn hơn 0'); return; }
-  askConfirm('Lưu cài đặt vòng quay?', `Mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${(document.getElementById('lkRevoke')||{}).checked ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
-    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!(document.getElementById('lkRevoke')||{}).checked, prizes, by: me.name || '', at: nowMs()}).then(()=>showToast('Đã lưu cài đặt vòng quay')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  askConfirm('Lưu cài đặt vòng quay?', `${prizes.length} giải · mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${(document.getElementById('lkRevoke')||{}).checked ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
+    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!(document.getElementById('lkRevoke')||{}).checked, prizes, by: me.name || '', at: nowMs()}).then(()=>{ luckyDraft = null; showToast('Đã lưu cài đặt vòng quay'); renderLuckyMgrCard(true); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   });
 }
 function luckyGive(uid, on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
