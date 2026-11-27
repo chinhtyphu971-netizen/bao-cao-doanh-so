@@ -67,16 +67,26 @@ module.exports = async (req, res) => {
     if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
     const now = Date.now(), day = vnDay(now);
     const dayStart = Date.parse(day + 'T00:00:00+07:00'), tomorrow = vnDay(dayStart + 86400000 + 3600000);
-    let revenue = 0;
+    let revenue = 0, revenue2 = 0; // revenue2: doanh thu nguồn (chỉ MKT)
     if (pool === 'mkt') { // MKT: số SĐT hợp lệ đã nhập hôm nay (chỉ số hợp lệ, đã lọc trùng mới được ghi vào kho)
       const ls = await D.ref('leads').orderByChild('createdBy').equalTo(uid).once('value');
       ls.forEach(c => { const v = c.val(); const t = Number(v && v.importedAt); if (t >= dayStart && t < dayStart + 86400000) revenue++; });
+      // 💵 + doanh thu Sale chốt HÔM NAY từ các Nguồn MKT này phụ trách (data chốt hôm nay đều được sửa hôm nay → lọc theo _u)
+      const clean = x => String(x || '').normalize('NFC').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ').replace(/\s+/g, ' ').trim();
+      const srcs = new Set((u.assignedSources || []).map(clean).filter(Boolean));
+      if (srcs.size) {
+        const cs = await D.ref('leads').orderByChild('_u').startAt(dayStart).once('value');
+        cs.forEach(c => { const v = c.val(); if (!v || v.status !== 'Đã chốt' || v.recare || v.closedDate !== day) return;
+          let src = v.source; if (!src && v.raw) { const k = Object.keys(v.raw).find(k => /ngu[oôồ]n/i.test(k) || /source/i.test(k)); if (k) src = v.raw[k]; }
+          if (srcs.has(clean(src))) revenue2 += Number(v.closedAmount) || 0; });
+      }
     } else { // Sale: doanh số ĐÃ CỌC hôm nay (theo giờ đánh dấu cọc — giống phần Mục tiêu)
       const snap = await D.ref('invoices').orderByChild('depositLink/markedAt').startAt(dayStart).endAt(dayStart + 86400000 - 1).once('value');
       snap.forEach(c => { const v = c.val(); if (v && v.saleId === uid && v.depositLink) revenue += Number(v.totalAmount) || 0; });
     }
     const extra = !!(await D.ref(`luckyPerks/${day}/${uid}/extraSpin`).once('value')).val();
-    const earned = Math.floor(revenue / threshold); // 🔁 mỗi 1 mốc = 1 lượt — không giới hạn số lượt, không giới hạn số người
+    const thrRev = Number(cv.thrRev) || 10000000;
+    const earned = Math.floor(revenue / threshold) + (pool === 'mkt' ? Math.floor(revenue2 / thrRev) : 0); // 🔁 mỗi 1 mốc = 1 lượt — không giới hạn số lượt, không giới hạn số người
     // 🎁 LƯỢT TẶNG — đếm GỘP qua các ngày: luckyBonus/{uid} = {n: tổng lượt quay theo mốc, left: lượt tặng còn lại}
     // cứ mỗi 5 lượt theo mốc → left +1; lượt tặng để dành được, quay lúc nào cũng được
     const BONUS_EVERY = 5, bRef = D.ref('luckyBonus/' + uid);
@@ -87,7 +97,7 @@ module.exports = async (req, res) => {
       const b = await bRef.transaction(cur => (cur && Number(cur.left) > 0) ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
       bonusHeld = !!b.committed;
     }
-    if (!extraFree && !bonusHeld && revenue < threshold) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
+    if (!extraFree && !bonusHeld && earned < 1) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ · doanh thu nguồn ${money(revenue2)}đ / ${money(thrRev)}đ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
     // Chọn giải theo tỉ lệ (giải đặc biệt: năm nay đã có người trúng → bỏ khỏi danh sách)
     const year = day.slice(0, 4), grandRef = D.ref('luckyGrand/' + year);
     if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
@@ -113,7 +123,7 @@ module.exports = async (req, res) => {
         tier = 1; rank = used + 1; key = cur[uid] ? uid + '_t1' : uid;
       } else {
         for (let t = 2; t <= earned; t++) if (!tiers.has(t)) { tier = t; break; }
-        if (!tier) { outcome = 'below'; need = (Math.max(...tiers) + 1) * threshold; return; }
+        if (!tier) { outcome = 'below'; need = (Math.max(...tiers) + 1) * threshold; return; } // (MKT: thông báo riêng bên dưới)
         rank = null; key = uid + '_t' + tier;
       }
       outcome = 'ok';
@@ -129,7 +139,7 @@ module.exports = async (req, res) => {
       bonusLeft = b.snapshot.val();
     }
     if (!tx.committed) {
-      if (outcome === 'below') return res.status(400).json({error: pool === 'mkt' ? `Bạn đã quay hết lượt — nhập đủ ${money(need)} số hợp lệ để có lượt tiếp.` : `Bạn đã quay hết lượt — đạt ${money(need)}đ đã cọc để có lượt tiếp.`, revenue});
+      if (outcome === 'below') return res.status(400).json({error: pool === 'mkt' ? `Bạn đã quay hết lượt — nhập thêm ${money(threshold - (revenue % threshold))} số hợp lệ hoặc thêm ${money(thrRev - (revenue2 % thrRev))}đ doanh thu nguồn để có lượt tiếp.` : `Bạn đã quay hết lượt — đạt ${money(need)}đ đã cọc để có lượt tiếp.`, revenue});
       return res.status(409).json({error: `Hôm nay đã đủ ${maxPerDay} người quay — mai nhanh tay hơn nhé!`});
     }
     // Quyền lợi app tự áp dụng
