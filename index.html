@@ -1703,6 +1703,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .chat-day-sep::before, .chat-day-sep::after{ content:''; flex:1; border-top:1px solid var(--line); }
   .chat-day-sep span{ text-transform:capitalize; white-space:nowrap; }
   .pack-badge.pack-ready{ background:rgba(52,199,89,.16); color:#4cd964; border:1px solid rgba(52,199,89,.55); }
+  .lucky-card{ margin-bottom:10px; padding:12px 14px; border-radius:12px; background:linear-gradient(90deg,rgba(255,154,92,.10),rgba(255,194,92,.04)); border:1px solid rgba(255,154,92,.35); }
+  .lucky-card-row{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; } .lucky-card-main{ flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .lucky-card-t{ font-weight:800; } .lucky-card-act{ flex:0 0 auto; } .lucky-muted{ font-size:12.5px; color:var(--ink-soft); font-weight:500; }
+  .lucky-bar{ height:8px; border-radius:99px; background:rgba(0,0,0,.25); overflow:hidden; } .lucky-bar>div{ height:100%; border-radius:99px; background:linear-gradient(90deg,#FF7A3D,#FFC25C); }
+  .lucky-won{ color:#FFC25C; font-weight:700; } .lucky-go{ font-weight:900; }
+  .lucky-modal{ max-width:400px !important; } .lucky-wheel-wrap{ position:relative; width:min(280px,72vw); aspect-ratio:1; margin:18px auto 14px; }
+  .lucky-wheel{ width:100%; height:100%; border-radius:50%; box-shadow:0 0 0 6px #1E2742,0 0 0 8px #FF9A5C,0 14px 34px rgba(0,0,0,.45); }
+  .lucky-wheel svg text{ font-family:inherit; } .lucky-pointer{ position:absolute; left:50%; top:-12px; transform:translateX(-50%); z-index:2; border-left:13px solid transparent; border-right:13px solid transparent; border-top:24px solid #fff; filter:drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+  .lucky-spin-btn{ width:100%; height:52px; font-size:17px; font-weight:900; } .lucky-result{ border:1.5px solid #F59E0B; background:rgba(245,158,11,.12); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; }
+  .lucky-res-t{ font-size:12px; font-weight:800; letter-spacing:.06em; color:#FFC25C; } .lucky-res-n{ font-size:20px; font-weight:900; }
+  .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
+  .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
+  .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
   .goal-sort-ar{ font-size:10px; opacity:.45; }
@@ -2385,6 +2398,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
           <div class="grid-2" id="myTopGrid" style="margin-bottom:16px; align-items:stretch;">
             <div id="myRecallBanner" class="recall-banner" style="display:none;"></div>
             <div id="myPenaltyBanner" class="recall-banner" style="display:none;"></div>
+            <div id="myLuckyCard" class="lucky-card" style="display:none;"></div>
             <div id="myUnprocessedBanner" style="display:none; margin-bottom:0;"></div>
 
             <div class="my-right-col">
@@ -3385,6 +3399,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         <div class="card" id="shipLockCard" style="display:none;"></div>
         <div class="card" id="soundStatusCard" style="display:none;"></div>
         <div class="card" id="ringtoneCard" style="display:none;"></div>
+        <div class="card" id="luckyMgrCard" style="display:none;"></div>
         <div class="card" id="dataUsageCard" style="display:none;"></div>
         <div class="card" id="createAccountCard">
           <h2>Tạo tài khoản mới</h2>
@@ -3709,10 +3724,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   </div>
 </div>
 <!-- Người báo thiếu: Sale đã trả lời → xử lý ngay -->
+<div class="modal-backdrop" id="luckyModal" onclick="if(event.target===this && !luckySpinning) this.classList.remove('show')">
+  <div class="modal lucky-modal">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><h2 style="margin:0;">🎡 Vòng quay may mắn</h2><button class="btn-ghost btn-small" onclick="if(!luckySpinning) document.getElementById('luckyModal').classList.remove('show')" aria-label="Đóng">✕</button></div>
+    <div id="luckyModalBody"></div>
+  </div>
+</div>
 <div class="modal-backdrop" id="packReplyNoticeModal">
   <div class="modal" style="max-width:420px;">
     <h2>↩ Sale đã trả lời đơn thiếu của bạn</h2>
-    <p class="pack-note">Đơn này ưu tiên <b>bạn làm trước</b> (2 tiếng), sau đó mới mở cho người khác.</p>
+    <p class="pack-note">Vào mục <b>Đơn thiếu / Chờ bù</b> bấm nhận bù để làm ngay.</p>
     <div id="packReplyNoticeBody"></div>
     <div class="actions"><button class="btn-ghost" onclick="document.getElementById('packReplyNoticeModal').classList.remove('show')">Để sau</button></div>
   </div>
@@ -12257,6 +12278,180 @@ function priorAssigneesForPhone(lead){
   state.leads.filter(l=>l.id!==lead.id && l.assignedTo && normalizePhone(leadPhone(l))===phoneNorm).forEach(l=>set.add(l.assignedTo));
   return set;
 }
+// =========================== 🎡 VÒNG QUAY MAY MẮN ===========================
+// Sale / Quản lý team đạt MỐC doanh số đã cọc trong ngày (mặc định 10.000.000đ), nằm trong N người SỚM NHẤT (mặc định 5) → quay 1 lượt.
+// MÁY CHỦ (/api/lucky-spin) kiểm tra doanh số + chốt thứ tự + chọn giải → không ai sửa được kết quả trên máy mình.
+// luckyCfg = {threshold, maxPerDay, revoke, prizes:[{key,name,short,kind,n,w,color,ink}]} · luckySpin/{ngày}/{uid} = kết quả
+// Giải app tự áp dụng: kind 'data' → luckyPerks/{ngày mai}/{uid}/priorityData (+N data chia TRƯỚC) · 'extra' → luckyPerks/{ngày mai}/{uid}/extraSpin
+//   'pass' → penaltyPasses/{uid} (thẻ miễn phạt báo cáo: 1 lần quên báo cáo không làm team bị cắt lượt) · 'manual' → Quản lý bấm "Đã trao".
+// Hoá đơn bị xoá / huỷ làm tụt dưới mốc trong ngày → máy Quản lý chung tự THU HỒI giải (nếu bật).
+const LUCKY_DEFAULT = {threshold: 10000000, maxPerDay: 5, revoke: true, prizes: [
+  {key:'jackpot', name:'Jackpot: tặng 50 sao', short:'50 sao', kind:'manual', w:3, color:'#F59E0B', ink:'#1a1206'},
+  {key:'data10', name:'+10 data ưu tiên', short:'+10 data', kind:'data', n:10, w:15, color:'#2B3A67'},
+  {key:'milk', name:'1 ly trà sữa', short:'Trà sữa', kind:'manual', w:20, color:'#E8572A'},
+  {key:'data5', name:'+5 data ưu tiên', short:'+5 data', kind:'data', n:5, w:22, color:'#3D4F86'},
+  {key:'pass', name:'Thẻ miễn phạt báo cáo', short:'Miễn phạt', kind:'pass', w:10, color:'#0F766E'},
+  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10, color:'#2B3A67'},
+  {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10, color:'#C2410C'},
+  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'}]};
+const LUCKY_KIND_NOTE = {data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
+let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
+let luckySpinning = false, luckyRot = 0, luckyResult = null, luckyAutoShown = '';
+function luckyConf(){ const c = Object.assign({}, LUCKY_DEFAULT, luckyCfg||{}); if(!Array.isArray(c.prizes) || !c.prizes.length) c.prizes = LUCKY_DEFAULT.prizes; c.threshold = Number(c.threshold)||LUCKY_DEFAULT.threshold; c.maxPerDay = Number(c.maxPerDay)||LUCKY_DEFAULT.maxPerDay; return c; }
+function luckySubscribe(today){
+  luckyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); luckyRefs = []; luckyToday = {}; luckyPerksToday = {}; luckyDate = today; luckyResult = null;
+  const me = currentUser(); if(!me || !fbRoot) return;
+  const add = (ref, fn)=>{ luckyRefs.push(ref); ref.on('value', s=>{ fn(s.val()); luckyRender(); }); };
+  add(fbRoot.child('luckyCfg'), v=>{ luckyCfg = v; });
+  add(fbRoot.child('luckySpin/' + today), v=>{ luckyToday = v || {}; });
+  if(me.role==='general_manager' || me.role==='data_manager'){
+    add(fbRoot.child('luckyPerks/' + today), v=>{ luckyPerksToday = v || {}; });
+    add(fbRoot.child('penaltyPasses'), v=>{ penaltyPasses = v || {}; if(!penaltyPassesLoaded){ penaltyPassesLoaded = true; try{ penaltyEnsure(); }catch(e){} } });
+  } else if(isLeadEligibleRole(me)){
+    add(fbRoot.child('luckyPerks/' + today + '/' + me.id), v=>{ luckyPerksToday = v ? {[me.id]: v} : {}; });
+    add(fbRoot.child('penaltyPasses/' + me.id), v=>{ penaltyPasses = {[me.id]: Number(v)||0}; });
+  }
+}
+function luckyRevenueOf(uid, day){ let s = 0; (state.invoices||[]).forEach(inv=>{ if(!inv || inv.saleId!==uid || !inv.depositLink) return; const at = Number(inv.depositLink.markedAt); if(at && toLocalDateStr(new Date(at))===day) s += Number(inv.totalAmount)||0; }); return s; }
+function luckyUsed(){ return Object.values(luckyToday||{}).filter(r=>r && !r.extra && !r.revoked).length; }
+function luckyMyState(){
+  const me = currentUser(); if(!me || !isLeadEligibleRole(me) || me.loginBlocked) return null;
+  const c = luckyConf(), d = todayStr(), rev = luckyRevenueOf(me.id, d), mine = luckyToday[me.id] || null;
+  const extra = !!(luckyPerksToday[me.id] && luckyPerksToday[me.id].extraSpin), used = luckyUsed();
+  return {c, rev, mine, extra, used, left: Math.max(0, c.maxPerDay - used), canSpin: !mine && (extra || (rev >= c.threshold && used < c.maxPerDay))};
+}
+function luckyPrizeLabel(p){ return p ? (p.name || p.short || '') : ''; }
+function luckyRender(){
+  try{ if(currentPageId==='myLeads') luckyCardRender(); }catch(e){}
+  try{ if(currentPageId==='mgrSettings') renderLuckyMgrCard(); }catch(e){}
+  try{ const m = document.getElementById('luckyModal'); if(m && m.classList.contains('show') && !luckySpinning) luckyModalRender(); }catch(e){}
+  try{ luckyAutoPrompt(); }catch(e){}
+}
+// Thẻ trên trang "Data của tôi"
+function luckyCardRender(){
+  const el = document.getElementById('myLuckyCard'); if(!el) return;
+  const s = luckyMyState(); if(!s){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const pct = Math.min(100, Math.round(s.rev / s.c.threshold * 100));
+  const passes = Number(penaltyPasses[(currentUser()||{}).id])||0;
+  let right;
+  if(s.mine) right = s.mine.revoked ? `<span class="lucky-muted">Giải đã bị thu hồi (doanh số tụt dưới mốc)</span>` : `<span class="lucky-won">🎉 Bạn đã trúng: <b>${escHtml(luckyPrizeLabel(s.mine.prize))}</b></span>`;
+  else if(s.canSpin) right = `<button class="btn-primary lucky-go" onclick="luckyOpen()">🎡 QUAY NGAY</button>`;
+  else if(s.rev >= s.c.threshold) right = `<span class="lucky-muted">Hôm nay đã đủ ${s.c.maxPerDay} người — mai nhanh tay hơn nhé!</span>`;
+  else right = `<span class="lucky-muted">Còn ${fmtMoney(s.c.threshold - s.rev)}đ nữa${s.left ? ` · còn ${s.left} suất` : ' · đã hết suất'}</span>`;
+  el.innerHTML = `<div class="lucky-card-row"><div class="lucky-card-main"><div class="lucky-card-t">🎡 Vòng quay may mắn <span class="lucky-muted">· ${s.extra && !s.mine ? 'bạn có 1 lượt quay thêm' : `đạt ${fmtMoney(s.c.threshold)}đ đã cọc, ${s.c.maxPerDay} người sớm nhất`}</span></div>
+    <div class="lucky-bar"><div style="width:${pct}%"></div></div><div class="lucky-muted">Đã cọc hôm nay <b style="color:var(--ink);">${fmtMoney(s.rev)}đ</b>${passes ? ` · 🛡️ ${passes} thẻ miễn phạt` : ''} · <a href="#" onclick="event.preventDefault(); luckyOpen()">vinh danh hôm nay</a></div></div>
+    <div class="lucky-card-act">${right}</div></div>`;
+  try{ luckyAutoPrompt(); }catch(e){}
+}
+// Đạt mốc lần đầu trong ngày (còn suất) → tự mở vòng quay 1 lần
+function luckyAutoPrompt(){
+  const s = luckyMyState(); if(!s || !s.canSpin) return;
+  const k = 'lucky_auto_' + todayStr(); if(luckyAutoShown===k) return; try{ if(localStorage.getItem(k)) { luckyAutoShown = k; return; } }catch(e){}
+  if(document.querySelector('.modal-backdrop.show')) return;
+  luckyAutoShown = k; try{ localStorage.setItem(k, '1'); }catch(e){}
+  showToast('🎉 Bạn đã đạt mốc — mời quay Vòng quay may mắn!'); luckyOpen();
+}
+function luckyWheelSvg(prizes){
+  const n = prizes.length, seg = 360/n, R = 146, cx = 150, cy = 150; let out = '';
+  prizes.forEach((p, i)=>{
+    const a0 = (-90 - seg/2 + i*seg) * Math.PI/180, a1 = (-90 - seg/2 + (i+1)*seg) * Math.PI/180;
+    const x0 = cx + R*Math.cos(a0), y0 = cy + R*Math.sin(a0), x1 = cx + R*Math.cos(a1), y1 = cy + R*Math.sin(a1);
+    out += `<path d="M150 150 L${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${seg>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${escHtml(p.color || (i%2 ? '#3D4F86' : '#2B3A67'))}" stroke="#0B1020" stroke-width="2"/>`;
+    const words = String(p.short || p.name || '').split(' '), l1 = words.slice(0, Math.ceil(words.length/2)).join(' '), l2 = words.slice(Math.ceil(words.length/2)).join(' ');
+    const ink = escHtml(p.ink || '#fff');
+    out += `<g transform="rotate(${(i*seg).toFixed(1)} 150 150)"><text x="150" y="${l2 ? 50 : 56}" text-anchor="middle" font-weight="800" font-size="14" fill="${ink}">${escHtml(l1)}</text>${l2 ? `<text x="150" y="67" text-anchor="middle" font-weight="800" font-size="14" fill="${ink}">${escHtml(l2)}</text>` : ''}</g>`;
+  });
+  return `<svg viewBox="0 0 300 300" width="100%" height="100%" aria-hidden="true">${out}<circle cx="150" cy="150" r="28" fill="#0F1424" stroke="#FF9A5C" stroke-width="4"/></svg>`;
+}
+function luckyBoardHtml(){
+  const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
+  if(!rows.length) return '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai — bạn hãy là người đầu tiên!</div>';
+  return rows.map(r=>`<div class="lucky-row ${r.revoked ? 'revoked' : ''}"><span class="lucky-rank">${r.extra ? '+' : (r.rank || '•')}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${r.revoked ? 'đã thu hồi' : escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('');
+}
+function luckyOpen(){ luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
+function luckyModalRender(){
+  const box = document.getElementById('luckyModalBody'); if(!box) return;
+  const s = luckyMyState(), c = luckyConf();
+  const res = luckyResult || (s && s.mine && !s.mine.revoked ? {prize: s.mine.prize, rank: s.mine.rank, old: true} : null);
+  let act = '';
+  if(res && res.prize){ const k = res.prize.kind; act = `<div class="lucky-result"><div class="lucky-res-t">${res.old ? 'GIẢI CỦA BẠN HÔM NAY' : 'CHÚC MỪNG BẠN TRÚNG'}</div><div class="lucky-res-n">${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>`; }
+  else if(s && s.canSpin) act = `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : '🎡 QUAY NGAY'}</button>`;
+  else if(s) act = `<div class="lucky-muted" style="text-align:center;">${s.rev >= c.threshold ? `Hôm nay đã đủ ${c.maxPerDay} người quay.` : `Đạt ${fmtMoney(c.threshold)}đ đã cọc trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.`}</div>`;
+  box.innerHTML = `<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(c.prizes)}</div></div>
+    ${act}<div class="lucky-board-t">VINH DANH HÔM NAY (${luckyUsed()}/${c.maxPerDay})</div>${luckyBoardHtml()}`;
+}
+async function luckySpinGo(){
+  if(luckySpinning) return; luckySpinning = true; luckyModalRender();
+  let j = {};
+  try{
+    const tok = await firebase.auth().currentUser.getIdToken();
+    const r = await fetch('/api/lucky-spin', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + tok}, body:'{}'});
+    j = await r.json().catch(()=>({})); if(!r.ok && !j.error) j.error = 'Máy chủ đang bận, thử lại sau ít phút.';
+  }catch(e){ j = {error: 'Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.'}; }
+  if(j.error || !j.prize){ luckySpinning = false; showToast(j.error || 'Chưa quay được, thử lại.'); luckyModalRender(); return; }
+  const c = luckyConf(), n = c.prizes.length, seg = 360/n; let i = c.prizes.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
+  luckyRot = luckyRot + 5*360 + ((360 - i*seg - (luckyRot % 360)) % 360 + 360) % 360;
+  const w = document.getElementById('luckyWheel'); if(w){ w.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)'; void w.offsetWidth; w.style.transform = `rotate(${luckyRot}deg)`; }
+  setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playTingSound(); }catch(e){} if(currentPageId==='myLeads') luckyCardRender(); }, 4400);
+}
+// ----- Quản lý chung: cài đặt + vinh danh + đã trao -----
+function renderLuckyMgrCard(){
+  const el = document.getElementById('luckyMgrCard'); if(!el) return;
+  const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const c = luckyConf(), tot = c.prizes.reduce((a,p)=>a+(Number(p.w)||0),0);
+  const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">mốc ${fmtMoney(c.threshold)}đ · ${c.maxPerDay} người/ngày · hôm nay ${luckyUsed()}/${c.maxPerDay}</span></summary>
+    <div class="grid-2" style="max-width:640px; margin-top:8px;">
+      <div class="field"><label>Mốc doanh số đã cọc trong ngày (đ)</label><input id="lkThreshold" type="number" min="0" step="500000" value="${c.threshold}"></div>
+      <div class="field"><label>Số người tối đa mỗi ngày</label><input id="lkMax" type="number" min="1" max="50" value="${c.maxPerDay}"></div>
+    </div>
+    <label style="display:flex; gap:8px; align-items:center; margin:4px 0 12px; cursor:pointer;"><input type="checkbox" id="lkRevoke" ${c.revoke ? 'checked' : ''} style="width:16px; height:16px; margin:0;"> Hoá đơn bị xoá / huỷ làm tụt dưới mốc trong ngày → <b>thu hồi giải</b></label>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th>Giải</th><th class="num">Tỉ lệ (%)</th><th>Cách trao</th></tr></thead><tbody>
+      ${c.prizes.map((p,i)=>`<tr><td><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:${escHtml(p.color||'#3D4F86')}; margin-right:6px;"></span>${escHtml(p.name)}</td><td class="num"><input class="lk-w" data-i="${i}" type="number" min="0" max="100" value="${Number(p.w)||0}" style="width:70px; text-align:right;"></td><td class="muted-s">${p.kind==='manual' ? 'Quản lý bấm "Đã trao"' : 'App tự áp dụng'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="goal-actions" style="margin-top:8px;"><span class="muted-s">Tổng tỉ lệ hiện tại: <b>${tot}%</b> (không cần đúng 100 — app tự chia theo tỉ lệ)</span><button class="btn-primary" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
+    <h3 style="margin:16px 0 6px; font-size:15px;">Vinh danh hôm nay</h3>
+    ${rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>#</th><th>Người</th><th>Đạt mốc</th><th class="num">Doanh số lúc quay</th><th>Giải</th><th></th></tr></thead><tbody>
+      ${rows.map(r=>{ const man = r.prize && r.prize.kind==='manual';
+        return `<tr style="${r.revoked ? 'opacity:.5;' : ''}"><td>${r.extra ? '+' : (r.rank||'')}</td><td><b>${escHtml(r.name||'')}</b><div class="muted-s">${escHtml(branchName(r.branchId)||'')}</div></td><td>${packTimeShort(r.at)}</td><td class="num">${fmtMoney(r.revenue)}đ</td><td>${escHtml(luckyPrizeLabel(r.prize))}${r.revoked ? ' <span class="badge badge-warn">đã thu hồi</span>' : ''}</td>
+          <td>${r.revoked ? '' : (man ? (r.given ? `<span class="badge badge-ok">Đã trao ${packTimeShort(r.givenAt)}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); luckyGive('${escHtml(r.uid)}', false)">bỏ</a>` : `<button class="btn-small btn-primary" onclick="luckyGive('${escHtml(r.uid)}', true)">Đã trao</button>`) : '<span class="muted-s">App tự áp dụng</span>')}</td></tr>`; }).join('')}
+    </tbody></table></div>` : '<p class="goal-hint">Hôm nay chưa ai quay.</p>'}
+  </details>`;
+}
+function luckySaveCfg(){
+  const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  const c = luckyConf(); const th = Math.max(0, Math.round(Number((document.getElementById('lkThreshold')||{}).value)||0)), mx = Math.max(1, Math.min(50, Math.round(Number((document.getElementById('lkMax')||{}).value)||0)));
+  const prizes = c.prizes.map(p=>Object.assign({}, p)); document.querySelectorAll('.lk-w').forEach(inp=>{ const i = Number(inp.dataset.i); if(prizes[i]) prizes[i].w = Math.max(0, Number(inp.value)||0); });
+  if(!th || !prizes.some(p=>p.w > 0)){ showToast('Mốc doanh số và tỉ lệ giải phải lớn hơn 0'); return; }
+  askConfirm('Lưu cài đặt vòng quay?', `Mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${(document.getElementById('lkRevoke')||{}).checked ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
+    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!(document.getElementById('lkRevoke')||{}).checked, prizes, by: me.name || '', at: nowMs()}).then(()=>showToast('Đã lưu cài đặt vòng quay')).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  });
+}
+function luckyGive(uid, on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
+  fbRoot.child('luckySpin/' + luckyDate + '/' + uid).update({given: on ? true : null, givenAt: on ? nowMs() : null, givenBy: on ? (me.name||'') : null}).catch(()=>showToast('Chưa lưu được — kiểm tra mạng')); }
+// Thu hồi giải khi doanh số đã cọc tụt dưới mốc (hoá đơn bị xoá / huỷ) — chỉ máy Quản lý chung (có đủ hoá đơn), trong ngày
+function luckyRevokeCheck(){
+  const me = currentUser(); if(!me || me.role!=='general_manager' || !fbRoot || !packInvoicesLoaded || luckyDate!==todayStr()) return;
+  const c = luckyConf(); if(!c.revoke) return;
+  const tm = toLocalDateStr(new Date(new Date(luckyDate + 'T00:00:00').getTime() + 36*3600000));
+  Object.values(luckyToday||{}).forEach(r=>{
+    if(!r || !r.uid || r.revoked || r.extra) return;
+    if(luckyRevenueOf(r.uid, luckyDate) >= c.threshold) return;
+    const up = {[`luckySpin/${luckyDate}/${r.uid}/revoked`]: true, [`luckySpin/${luckyDate}/${r.uid}/revokedAt`]: nowMs()};
+    const inc = firebase.database.ServerValue.increment, k = r.prize && r.prize.kind;
+    if(k==='data') up[`luckyPerks/${tm}/${r.uid}/priorityData`] = inc(-(Number(r.prize.n)||0));
+    if(k==='extra') up[`luckyPerks/${tm}/${r.uid}/extraSpin`] = null;
+    if(k==='pass') up[`penaltyPasses/${r.uid}`] = inc(-1);
+    r.revoked = true; fbRoot.update(up).catch(()=>{ r.revoked = false; });
+  });
+}
+setInterval(()=>{ try{ luckyRevokeCheck(); }catch(e){} }, 60000);
+// Data ưu tiên (giải vòng quay): số còn được chia trước hôm nay
+function luckyPrioLeft(u){ const p = u && luckyPerksToday[u.id]; return p ? Math.max(0, (Number(p.priorityData)||0) - (Number(p.prioUsed)||0)) : 0; }
+function luckyPrioUse(u){ const p = luckyPerksToday[u.id] = Object.assign({}, luckyPerksToday[u.id]); p.prioUsed = (Number(p.prioUsed)||0) + 1;
+  fbRoot.child(`luckyPerks/${todayStr()}/${u.id}/prioUsed`).set(p.prioUsed).catch(()=>{}); }
 // =========================== ✂️ PHẠT TEAM: THIẾU BÁO CÁO → CẮT 3 LƯỢT DATA ĐẦU ===========================
 // Hết ngày (00:00) mà 1 thành viên team (Sale / Quản lý team) CHƯA nộp báo cáo ngày đó → HÔM SAU cả team bị cắt
 // 3 lượt data đầu tiên: tới lượt người bị cắt thì data chuyển cho người KHÔNG bị cắt (cùng hàng chờ, rồi team khác),
@@ -12266,6 +12461,7 @@ function priorAssigneesForPhone(lead){
 // dataSkips/{ngày}/{userId} = số lượt đã bị cắt
 const PENALTY_SKIPS = 3;
 const PENALTY_FROM = '2026-11-26'; // bắt đầu xét từ báo cáo ngày này (ngày áp dụng quy định) → phạt sớm nhất ngày 27/11
+let penaltyPassUsed = [];
 let reportsFirstLoaded = false, penaltyToday = null, penaltyTodayDate = '', penaltySkips = {}, penaltyRefs = [];
 function penaltySubscribe(today){
   penaltyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); penaltyRefs = []; penaltyToday = null; penaltySkips = {}; penaltyTodayDate = today;
@@ -12278,10 +12474,11 @@ function penaltySubscribe(today){
     sr.on('value', s=>{ if(all) penaltySkips = s.val() || {}; else penaltySkips = {[me.id]: Number(s.val())||0}; penaltyRender(); });
   }
   setTimeout(()=>{ try{ penaltyEnsure(); }catch(e){} }, 3000);
+  try{ luckySubscribe(today); }catch(e){ console.error(e); } // 🎡 vòng quay may mắn (cùng vòng đời theo ngày)
 }
 function penaltyRender(){ try{ if(currentPageId==='myLeads') renderMyLeads(); else if(currentPageId==='mgrLeads') renderMgrLeads(); }catch(e){} }
 function penaltyCompute(day){ // ai trong team chưa nộp báo cáo ngày `day` (tính tới 00:00 hôm sau)
-  const dayEnd = reportLateCutoffTs(day), branches = {};
+  const dayEnd = reportLateCutoffTs(day), branches = {}; penaltyPassUsed = [];
   if(day < PENALTY_FROM) return branches;
   state.users.forEach(u=>{
     if(!(u.role==='staff' || u.role==='team_manager') || !u.branchId) return;
@@ -12289,16 +12486,18 @@ function penaltyCompute(day){ // ai trong team chưa nộp báo cáo ngày `day`
     if(u.createdAt && Number(u.createdAt) >= dayEnd) return;              // tài khoản mới tạo sau ngày đó
     const r = myReportForDate(u.id, day);
     if(r && !reportIsLate(r)) return;                                     // đã nộp trước 00:00
+    if((Number(penaltyPasses[u.id])||0) > 0){ penaltyPassUsed.push({id: u.id, name: u.name || ''}); return; } // 🛡️ có thẻ miễn phạt (giải vòng quay) → dùng thẻ, team không bị cắt
     (branches[u.branchId] = branches[u.branchId] || {missing: []}).missing.push({id: u.id, name: u.name || ''});
   });
   return branches;
 }
 function penaltyEnsure(){
   const me = currentUser(); if(!me || !fbRoot || !(me.role==='general_manager' || me.role==='data_manager')) return;
-  if(!reportsFirstLoaded || !penaltyTodayDate || penaltyTodayDate!==todayStr()) return;
+  if(!reportsFirstLoaded || !penaltyPassesLoaded || !penaltyTodayDate || penaltyTodayDate!==todayStr()) return;
   const today = penaltyTodayDate, y = toLocalDateStr(new Date(new Date(today + 'T00:00:00').getTime() - 86400000));
-  const branches = penaltyCompute(y);
-  fbRoot.child('dataPenalty/' + today).transaction(cur=>cur ? undefined : {for: y, at: nowMs(), by: me.name || '', branches})
+  const branches = penaltyCompute(y), passUsed = penaltyPassUsed.slice();
+  fbRoot.child('dataPenalty/' + today).transaction(cur=>cur ? undefined : {for: y, at: nowMs(), by: me.name || '', branches, passUsed: passUsed.length ? passUsed : null})
+    .then(res=>{ if(res && res.committed && passUsed.length){ const up = {}; passUsed.forEach(x=>{ up['penaltyPasses/' + x.id] = firebase.database.ServerValue.increment(-1); }); fbRoot.update(up).catch(()=>{}); } }) // 🛡️ trừ thẻ đã dùng
     .catch(e=>console.warn('dataPenalty', e));
 }
 function penaltyOfBranch(bid){ const p = penaltyToday; return p && p.branches && bid && p.branches[bid] && (p.branches[bid].missing||[]).length ? p.branches[bid] : null; }
@@ -12369,9 +12568,16 @@ function runDistribution(){
     const priorAssignees = priorAssigneesForPhone(lead);
     let personIndex = pool.findIndex(p=>!priorAssignees.has(p.id));
     if(personIndex===-1) personIndex = 0; // ca hang doi deu da tung nhan so nay -> danh chiu, chia binh thuong
-    let person = pool[personIndex], src = pool;
+    let person = pool[personIndex], src = pool, isPrio = false;
+    // 🎡 Giải vòng quay "+N data ưu tiên": người trúng được chia TRƯỚC mọi người (là số thêm — không mất lượt thường)
+    if(Object.keys(luckyPerksToday||{}).length){
+      const pickP = arr=>arr.find(p=>luckyPrioLeft(p) > 0 && !priorAssignees.has(p.id)) || arr.find(p=>luckyPrioLeft(p) > 0);
+      let lp = pickP(pool), lsrc = pool;
+      if(!lp){ if(overflowPool===null){ overflowPool = buildLeadPool(otherBranchIds, today); sortPool(overflowPool); } lp = pickP(overflowPool); lsrc = overflowPool; }
+      if(lp){ person = lp; src = lsrc; isPrio = true; luckyPrioUse(lp); }
+    }
     // ✂️ Team bị phạt thiếu báo cáo: người tới lượt còn lượt bị cắt → mất lượt này, data chuyển cho người KHÔNG bị cắt
-    if(penaltySkipLeft(person) > 0){
+    if(!isPrio && penaltySkipLeft(person) > 0){
       const pick = arr=>arr.find(p=>penaltySkipLeft(p)===0 && !priorAssignees.has(p.id)) || arr.find(p=>penaltySkipLeft(p)===0);
       let alt = pick(pool), altSrc = pool;
       if(!alt){ if(overflowPool===null){ overflowPool = buildLeadPool(otherBranchIds, today); sortPool(overflowPool); } alt = pick(overflowPool); altSrc = overflowPool; }
@@ -12392,9 +12598,10 @@ function runDistribution(){
     if(String(lead.id).startsWith('manual_')){
       sendMktLeadToExternalSheet(lead, person); // chỉ ghi sang Sheet ngoài với data MKT nhập tay
     }
+    todayCount[person.id] = countOf(person.id) + 1;
+    if(isPrio){ if(todayCount[person.id] >= DAILY_LEAD_CAP){ [pool, overflowPool].forEach(a=>{ if(a){ const k = a.indexOf(person); if(k >= 0) a.splice(k, 1); } }); } continue; } // data ưu tiên: giữ nguyên lượt thường
     person.lastDataAt = nowMs();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
-    todayCount[person.id] = countOf(person.id) + 1;
     personIndex = src.indexOf(person); if(personIndex >= 0) src.splice(personIndex,1);
     if(todayCount[person.id] < DAILY_LEAD_CAP){
       src.push(person);
@@ -14447,6 +14654,7 @@ function renderMyLeads(){
         rb.innerHTML = `<span>⚠️ <b>Hôm nay bạn bị thu hồi ${rt.n} data</b> do quá ${RECALL_MIN_HOURS} giờ chưa cập nhật tên &amp; tình trạng. Hãy xử lý data ngay khi nhận để không bị thu hồi.</span><span class="recall-meta">Lần gần nhất ${new Date(rt.at).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}${rt.by?' · '+escHtml(rt.by):''}</span>`;
       } else rb.style.display = 'none';
     } }
+  try{ luckyCardRender(); }catch(e){ console.error(e); }
   { const pb = document.getElementById('myPenaltyBanner'); if(pb){ const h = penaltyBannerHtml(user); pb.style.display = h ? 'flex' : 'none'; if(h) pb.innerHTML = h; } }
   const unprocessedCount = state.leads.filter(l=>l.assignedTo===user.id && isLeadUnprocessed(l)).length;
   const bannerEl = document.getElementById('myUnprocessedBanner');
@@ -17974,7 +18182,7 @@ function goPage(pageId){
   if(pageId==='mgrRecare'){ try{ renderRecarePage(); }catch(e){ console.error(e); } }
   if(pageId==='mgrLoyal'){ try{ renderMgrLoyal(); }catch(e){ console.error(e); } }
   if(pageId==='myInbox'){ try{ renderInboxPage(); }catch(e){ console.error(e); } }
-  if(pageId==='mgrSettings'){ try{ renderSoundStatusCard(); renderShipLockCard(); renderRingtoneCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
+  if(pageId==='mgrSettings'){ try{ renderSoundStatusCard(); renderShipLockCard(); renderRingtoneCard(); renderLuckyMgrCard(); renderDataUsageCard(); }catch(e){ console.error(e); } }
   if(pageId==='printReport') renderPrintReportPage();
   if(pageId==='printOverview') renderPrintOverview();
   if(pageId==='packInvoices'){
