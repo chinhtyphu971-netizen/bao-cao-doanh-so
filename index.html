@@ -1716,6 +1716,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
   .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
   .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
+  .lucky-teaser{ font-size:13.5px; line-height:1.5; padding:2px 0; }
   .lucky-jp{ position:fixed; inset:0; z-index:9999; display:none; align-items:flex-start; justify-content:center; padding-top:12vh; background:rgba(5,8,18,.55); cursor:pointer; overflow:hidden; } .lucky-jp.show{ display:flex; }
   .lucky-jp-box{ position:relative; max-width:min(560px,92vw); text-align:center; padding:22px 26px; border-radius:20px; background:linear-gradient(135deg,#FF7A3D,#FFC25C); color:#1a1206; box-shadow:0 20px 60px rgba(0,0,0,.5); animation:luckyJpPop .5s cubic-bezier(.2,1.4,.4,1); }
   .lucky-jp-t{ font-size:clamp(20px,4.6vw,30px); font-weight:900; line-height:1.25; } .lucky-jp-s{ margin-top:8px; font-size:14px; font-weight:600; opacity:.85; } .lucky-jp-x{ margin-top:10px; font-size:11px; opacity:.6; }
@@ -12323,7 +12324,8 @@ const LUCKY_DEFAULT = {threshold: 10000000, maxPerDay: 5, revoke: true, prizes: 
   {key:'pass', name:'Thẻ miễn phạt báo cáo', short:'Miễn phạt', kind:'pass', w:10, color:'#0F766E'},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10, color:'#2B3A67'},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10, color:'#C2410C'},
-  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'}]};
+  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'},
+  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001, color:'#111827'}]};
 // 🎡 VÒNG QUAY MKT: đạt mốc = nhập ≥ N SĐT HỢP LỆ trong ngày (số đã qua lọc trùng / đúng 10 số — chỉ số hợp lệ mới vào kho)
 const LUCKY_DEFAULT_MKT = {threshold: 500, maxPerDay: 3, revoke: false, prizes: [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3, color:'#F59E0B', ink:'#1a1206'},
@@ -12332,9 +12334,10 @@ const LUCKY_DEFAULT_MKT = {threshold: 500, maxPerDay: 3, revoke: false, prizes: 
   {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:32, color:'#3D4F86'},
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10, color:'#0F766E'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12, color:'#C2410C'},
-  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5, color:'#7C3AED'}]};
+  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5, color:'#7C3AED'},
+  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001, color:'#111827'}]};
 const LUCKY_KIND_NOTE = {mktpass: ()=>'Thẻ lưu trong app: 1 lần quên nộp báo cáo MKT, bấm "Dùng thẻ" ở trang Nhập data là nhập data được ngay.', data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
-let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {};
+let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {}, luckyGrandYear = null;
 let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
 let luckySpinning = false, luckyRot = 0, luckyResult = null, luckyAutoShown = '';
 function luckyConf(pool){ const D = pool==='mkt' ? LUCKY_DEFAULT_MKT : LUCKY_DEFAULT; const c = Object.assign({}, D, (pool==='mkt' ? luckyCfgMkt : luckyCfg)||{}); if(!Array.isArray(c.prizes) || !c.prizes.length) c.prizes = D.prizes; c.threshold = Number(c.threshold)||D.threshold; c.maxPerDay = Number(c.maxPerDay)||D.maxPerDay; c.pool = pool==='mkt' ? 'mkt' : 'sale'; return c; }
@@ -12348,6 +12351,7 @@ function luckySubscribe(today){
   const add = (ref, fn)=>{ luckyRefs.push(ref); ref.on('value', s=>{ fn(s.val()); luckyRender(); }); };
   add(fbRoot.child('luckyCfg'), v=>{ luckyCfg = v; });
   add(fbRoot.child('luckyCfgMkt'), v=>{ luckyCfgMkt = v; });
+  add(fbRoot.child('luckyGrand/' + today.slice(0,4)), v=>{ luckyGrandYear = v || null; });
   if(['mkt','mkt_manager','general_manager','data_manager'].includes(me.role)){ // 🛡️ thẻ miễn khoá nhập data (MKT)
     const rr = ()=>{ try{ if(currentPageId==='mktInput') renderMktInputLock(); }catch(e){} };
     add(fbRoot.child('mktPassUsed'), v=>{ mktPassUsed = v || {}; rr(); });
@@ -12371,6 +12375,7 @@ function luckyMyState(){
   return {pool, c, rev, mine, extra, used, left: Math.max(0, c.maxPerDay - used), canSpin: !mine && (extra || (rev >= c.threshold && used < c.maxPerDay))};
 }
 function luckyPrizeLabel(p){ return p ? (p.name || p.short || '') : ''; }
+function luckyPctFmt(w, prizes){ const tot = (prizes||[]).reduce((a,p)=>a+(Number(p.w)||0),0) || 1, v = (Number(w)||0) / tot * 100; return (v >= 1 ? String(Math.round(v*10)/10) : String(Number(v.toPrecision(2)))).replace('.', ',') + '%'; }
 function luckyRender(){
   try{ if(currentPageId==='myLeads' || currentPageId==='mktInput') luckyCardRender(); }catch(e){}
   try{ if(currentPageId==='mgrSettings') renderLuckyMgrCard(); }catch(e){}
@@ -12380,7 +12385,10 @@ function luckyRender(){
 }
 // 🎉 Có người trúng JACKPOT → báo cho CẢ CÔNG TY (mọi máy đang mở app): băng rôn + pháo giấy + chuông
 // Jackpot = giải có mã 'jackpot' hoặc tên có chữ "Jackpot". Mỗi máy báo 1 lần / lượt trúng; mở app trong 3 tiếng sau vẫn thấy.
-function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test(String(p.name||'')))); }
+function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test(String(p.name||'')) || luckyIsGrand(p))); }
+// 📱 GIẢI ĐẶC BIỆT (iPhone): tỉ lệ THẬT như cài, gộp cả các vòng tối đa 1 lần / năm — trúng rồi thì ô tự ẩn tới hết năm (máy chủ khoá ở luckyGrand/{năm})
+function luckyIsGrand(p){ return !!(p && (p.key==='iphone' || /iphone/i.test(String(p.name||'')))); }
+function luckyWheelList(c){ return (c.prizes||[]).filter(p=>!(luckyGrandYear && luckyIsGrand(p))); }
 function luckyJackpotCheck(){
   const me = currentUser(); if(!me) return;
   let seen = {}; try{ seen = JSON.parse(localStorage.getItem('lucky_jp_seen') || '{}'); }catch(e){}
@@ -12404,7 +12412,14 @@ function luckyCardRender(){
   const s = luckyMyState();
   const el = document.getElementById(s && s.pool==='mkt' ? 'mktLuckyCard' : 'myLuckyCard'); if(!el) return;
   // 🔒 Chỉ hiện khi bạn ĐÃ ĐẠT MỐC (được quay / đã quay hôm nay) — chưa đạt thì ẩn hoàn toàn
-  if(!s || !(s.canSpin || s.mine)){ el.style.display = 'none'; return; }
+  if(!s || !(s.canSpin || s.mine)){
+    // 📱 Chưa đạt mốc: KHÔNG hiện vòng quay — chỉ 1 dòng thông báo cơ hội trúng giải đặc biệt (nếu vòng của bạn có ô iPhone & năm nay chưa ai trúng)
+    const g = s && !luckyGrandYear ? (s.c.prizes||[]).find(luckyIsGrand) : null;
+    if(!g){ el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.innerHTML = `<div class="lucky-teaser">📱 <b>Cơ hội trúng ${escHtml(g.short || g.name || 'iPhone')}!</b> ${s.pool==='mkt' ? `Nhập đủ ${fmtMoney(s.c.threshold)} số hợp lệ trong ngày` : `Đạt ${fmtMoney(s.c.threshold)}đ đã cọc trong ngày`} (${s.c.maxPerDay} người sớm nhất) để được quay Vòng quay may mắn — ô ${escHtml(g.short || g.name)} tỉ lệ ${luckyPctFmt(g.w, s.c.prizes)}, tối đa 1 giải / năm.</div>`;
+    return;
+  }
   el.style.display = '';
   const pct = Math.min(100, Math.round(s.rev / s.c.threshold * 100));
   const passes = Number(penaltyPasses[(currentUser()||{}).id])||0;
@@ -12454,7 +12469,7 @@ function luckyModalRender(){
   if(res && res.prize){ const k = res.prize.kind; act = `<div class="lucky-result"><div class="lucky-res-t">${res.old ? 'GIẢI CỦA BẠN HÔM NAY' : 'CHÚC MỪNG BẠN TRÚNG'}</div><div class="lucky-res-n">${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>`; }
   else if(s && s.canSpin) act = `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : '🎡 QUAY NGAY'}</button>`;
   else if(s) act = `<div class="lucky-muted" style="text-align:center;">${s.rev >= c.threshold ? `Hôm nay đã đủ ${c.maxPerDay} người quay.` : (c.pool==='mkt' ? `Nhập ≥ ${fmtMoney(c.threshold)} số hợp lệ trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.` : `Đạt ${fmtMoney(c.threshold)}đ đã cọc trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.`)}</div>`;
-  box.innerHTML = `<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(c.prizes)}</div></div>
+  box.innerHTML = `<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(luckyWheelList(c))}</div></div>
     ${act}<div class="lucky-board-t">VINH DANH HÔM NAY (${luckyUsed(c.pool)}/${c.maxPerDay})</div>${luckyBoardHtml(c.pool)}`;
 }
 async function luckySpinGo(){
@@ -12466,7 +12481,7 @@ async function luckySpinGo(){
     j = await r.json().catch(()=>({})); if(!r.ok && !j.error) j.error = 'Máy chủ đang bận, thử lại sau ít phút.';
   }catch(e){ j = {error: 'Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.'}; }
   if(j.error || !j.prize){ luckySpinning = false; showToast(j.error || 'Chưa quay được, thử lại.'); luckyModalRender(); return; }
-  const c = luckyConf((luckyMyState()||{}).pool || 'sale'), n = c.prizes.length, seg = 360/n; let i = c.prizes.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
+  const c = luckyConf((luckyMyState()||{}).pool || 'sale'), wl = luckyWheelList(c), n = wl.length, seg = 360/n; let i = wl.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
   luckyRot = luckyRot + 5*360 + ((360 - i*seg - (luckyRot % 360)) % 360 + 360) % 360;
   const w = document.getElementById('luckyWheel'); if(w){ w.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)'; void w.offsetWidth; w.style.transform = `rotate(${luckyRot}deg)`; }
   setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playEventTone('luckyWin'); }catch(e){} if(currentPageId==='myLeads' || currentPageId==='mktInput') luckyCardRender(); }, 4400);
@@ -12517,12 +12532,12 @@ function renderLuckyMgrCard(force){
       ${isM ? '' : `<button type="button" class="lk-toggle" onclick="luckyMetaGet().revoke = !luckyMetaGet().revoke; renderLuckyMgrCard(true)" aria-pressed="${mt.revoke}"><span>Hoá đơn bị xoá / huỷ làm tụt dưới mốc → <b>thu hồi giải</b></span><span class="lk-sw ${mt.revoke ? 'on' : ''}"><i></i></span></button>`}
     </div>
     <div class="lk-box lk-prz">
-      <div class="lk-prz-h"><h3>Giải thưởng</h3><span class="${tot===100 ? 'lk-ok' : 'lk-warn'}">Tổng tỉ lệ ${tot}%${tot===100 ? '' : ' (app tự chia theo tỉ lệ)'}</span></div>
+      <div class="lk-prz-h"><h3>Giải thưởng</h3><span class="${Math.abs(tot-100) < 0.01 ? 'lk-ok' : 'lk-warn'}">Tổng tỉ lệ ${String(Math.round(tot*10000)/10000).replace('.', ',')}%${Math.abs(tot-100) < 0.01 ? '' : ' (app tự chia theo tỉ lệ)'}</span></div>
       <div class="table-wrap"><table class="lk-ptable"><thead><tr><th>Giải (hiện khi trúng)</th><th>Chữ trên vòng</th><th>Tỉ lệ</th><th>Cách trao</th><th class="num">Đã trúng tháng này</th><th></th></tr></thead><tbody>
       ${prizes.map((p,i)=>`<tr>
         <td><div class="lk-name"><span class="lk-dot" style="background:${escHtml(p.color||'#3D4F86')};" title="Đổi màu ô"><select aria-label="Màu ô" onchange="luckyDraftSet(${i}, 'color', this.value)">${LUCKY_COLORS.concat(LUCKY_COLORS.includes(p.color) || !p.color ? [] : [p.color]).map((col,k)=>`<option value="${col}" ${col===p.color ? 'selected' : ''}>Màu ${k+1}</option>`).join('')}</select></span><input aria-label="Tên giải" value="${escHtml(p.name||'')}" maxlength="60" oninput="luckyDraftSet(${i}, 'name', this.value)"></div></td>
         <td><input class="lk-short" aria-label="Chữ trên vòng" value="${escHtml(p.short||'')}" maxlength="14" oninput="luckyDraftSet(${i}, 'short', this.value)"></td>
-        <td><span class="lk-pill"><input aria-label="Tỉ lệ" type="number" min="0" max="100" value="${Number(p.w)||0}" oninput="luckyDraftSet(${i}, 'w', this.value)">%</span></td>
+        <td><span class="lk-pill"><input aria-label="Tỉ lệ" type="number" min="0" max="100" step="any" value="${Number(p.w)||0}" oninput="luckyDraftSet(${i}, 'w', this.value)">%</span></td>
         <td><select class="lk-kind ${(p.kind||'manual')==='manual' ? 'man' : 'auto'}" aria-label="Cách trao" onchange="luckyDraftSet(${i}, 'kind', this.value)">${LUCKY_KINDS.map(([k,l])=>`<option value="${k}" ${k===(p.kind||'manual') ? 'selected' : ''}>${escHtml(l)}</option>`).join('')}</select>${p.kind==='data' ? `<label class="lk-n">N <input type="number" min="1" max="50" value="${Number(p.n)||5}" oninput="luckyDraftSet(${i}, 'n', this.value)"></label>` : ''}</td>
         <td class="num lk-cnt">${luckyMonthCache.data ? (cnt[p.key]||0) : '…'}</td>
         <td><button class="lk-del" onclick="luckyDraftDel(${i})" aria-label="Xoá giải ${escHtml(p.name||'')}" title="Xoá giải">✕</button></td></tr>`).join('')}
