@@ -12326,7 +12326,7 @@ const LUCKY_DEFAULT = {threshold: 10000000, maxPerDay: 5, revoke: true, prizes: 
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10, color:'#2B3A67'},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10, color:'#C2410C'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'},
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001, color:'#111827'}]};
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001, color:'#111827'}]};
 // 🎡 VÒNG QUAY MKT: đạt mốc = nhập ≥ N SĐT HỢP LỆ trong ngày (số đã qua lọc trùng / đúng 10 số — chỉ số hợp lệ mới vào kho)
 const LUCKY_DEFAULT_MKT = {threshold: 500, thrRev: 10000000, maxPerDay: 3, revoke: false, prizes: [ // MKT: mỗi 500 số hợp lệ = 1 lượt, VÀ mỗi 10tr doanh thu Sale chốt theo Nguồn mình phụ trách = 1 lượt
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3, color:'#F59E0B', ink:'#1a1206'},
@@ -12336,7 +12336,7 @@ const LUCKY_DEFAULT_MKT = {threshold: 500, thrRev: 10000000, maxPerDay: 3, revok
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10, color:'#0F766E'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12, color:'#C2410C'},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5, color:'#7C3AED'},
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001, color:'#111827'}]};
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001, color:'#111827'}]};
 const LUCKY_KIND_NOTE = {early: n=>`Phiếu về sớm ${n >= 60 && n % 60 === 0 ? (n/60) + ' tiếng' : n + ' phút'} lưu trong app (hạn 7 ngày). Hôm muốn dùng, bấm "Dùng phiếu" trước khi về — hôm đó về sớm vẫn tính đúng giờ.`, attspin: n=>`+${n||1} lượt quay chuyên cần đã cộng vào số lượt của bạn.`, mktpass: ()=>'Thẻ lưu trong app: 1 lần quên nộp báo cáo MKT, bấm "Dùng thẻ" ở trang Nhập data là nhập data được ngay.', data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
 // ⏰ VÒNG QUAY CHUYÊN CẦN (làm sẵn — đang TẮT, bật khi có máy chấm công): ngày chấm 4 lần nhưng HIỆN CHỈ TÍNH GIỜ VÀO
 // (vào sáng + vào chiều) — vào đúng giờ cả 2 buổi → +1 lượt (mở sau khi chấm vào chiều); giờ ra chưa tính;
@@ -12351,7 +12351,7 @@ const LUCKY_DEFAULT_ATT = {enabled: false, inTime: '08:00', outNoon: '12:00', in
   {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12, color:'#C2410C', icon:'🕐'},
   {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15, color:'#7C3AED'}]};
 const LUCKY_DEFAULT_ATTVIP = {prizes: [
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001, color:'#111827'},
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001, color:'#111827'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5, color:'#F59E0B', ink:'#1a1206', icon:'🏆'},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40, color:'#2B3A67'},
   {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15, color:'#C2410C', icon:'🕐'},
@@ -12450,7 +12450,7 @@ function luckyOpenAtt(){ const s = luckyAttState(); if(!s) return; luckyModalPoo
 // Jackpot = giải có mã 'jackpot' hoặc tên có chữ "Jackpot". Mỗi máy báo 1 lần / lượt trúng; mở app trong 3 tiếng sau vẫn thấy.
 function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test(String(p.name||'')) || luckyIsGrand(p))); }
 // 📱 GIẢI ĐẶC BIỆT (iPhone): tỉ lệ THẬT như cài, gộp cả các vòng tối đa 1 lần / năm — trúng rồi thì ô tự ẩn tới hết năm (máy chủ khoá ở luckyGrand/{năm})
-const LUCKY_GRAND_W = 0.0001; // 🔒 tỉ lệ iPhone CỐ ĐỊNH 0,0001% — không ai sửa được (máy chủ cũng ép về mức này)
+const LUCKY_GRAND_W = 0.00001; // 🔒 tỉ lệ iPhone CỐ ĐỊNH 0,00001% — không ai sửa được (máy chủ cũng ép về mức này)
 function luckyIsGrand(p){ return !!(p && (p.key==='iphone' || /iphone/i.test(String(p.name||'')))); }
 function luckyWheelList(c){ return (c.prizes||[]).filter(p=>!(luckyGrandYear && luckyIsGrand(p))); }
 function luckyJackpotCheck(){
@@ -12481,7 +12481,7 @@ function luckyCardRender(){
     const g = s && !luckyGrandYear ? (s.c.prizes||[]).find(luckyIsGrand) : null;
     if(!g){ el.style.display = 'none'; return; }
     el.style.display = '';
-    el.innerHTML = `<div class="lucky-teaser">📱 <b>Cơ hội trúng ${escHtml(g.short || g.name || 'iPhone')}!</b> ${s.pool==='mkt' ? `Nhập đủ ${fmtMoney(s.c.threshold)} số hợp lệ hoặc doanh thu Sale chốt theo nguồn đạt ${fmtMoney(Number(s.c.thrRev)||10000000)}đ trong ngày` : `Đạt ${fmtMoney(s.c.threshold)}đ đã cọc trong ngày`} là được quay 👑 Vòng quay VIP, cứ thêm mỗi mốc là thêm 1 lượt — không giới hạn số người, số lượt. Ô ${escHtml(g.short || g.name)} tỉ lệ ${luckyPctFmt(g.w, s.c.prizes)}, tối đa 1 giải / năm.</div>`;
+    el.innerHTML = `<div class="lucky-teaser">📱 <b>Cơ hội trúng ${escHtml(g.name || 'iPhone')}!</b> ${s.pool==='mkt' ? `Nhập đủ ${fmtMoney(s.c.threshold)} số hợp lệ hoặc doanh thu Sale chốt theo nguồn đạt ${fmtMoney(Number(s.c.thrRev)||10000000)}đ trong ngày` : `Đạt ${fmtMoney(s.c.threshold)}đ đã cọc trong ngày`} là được quay 👑 Vòng quay VIP và có cơ hội trúng ${escHtml(g.name || 'iPhone')} — cứ thêm mỗi mốc là thêm 1 lượt, không giới hạn số người, số lượt.</div>`;
     return;
   }
   el.style.display = '';
@@ -12648,7 +12648,7 @@ function luckySaveCfg(){
   const prizes = luckyDraftGet().map(p=>{ const o = {key: p.key || ('p' + uid()), name: String(p.name||'').trim().slice(0,60), short: String(p.short||'').trim().slice(0,14) || String(p.name||'').trim().slice(0,14), kind: p.kind || 'manual', w: Math.max(0, Number(p.w)||0), color: p.color || '#3D4F86'};
     if(o.kind==='data' || o.kind==='attspin') o.n = Math.max(1, Math.min(50, Number(p.n)||(o.kind==='attspin' ? 1 : 5))); if(o.kind==='early') o.n = Math.max(5, Math.min(480, Number(p.n)||30)); if(p.ink) o.ink = p.ink; if(o.color==='#F59E0B' && !p.ink) o.ink = '#1a1206';
     const ic = String(p.icon||'').trim().slice(0,4); if(ic) o.icon = ic;
-    if(luckyIsGrand(p)){ o.key = 'iphone'; o.name = 'iPhone 18'; o.short = 'iPhone 18'; o.kind = 'manual'; o.w = LUCKY_GRAND_W; } return o; });
+    if(luckyIsGrand(p)){ o.key = 'iphone'; o.name = 'iPhone 18 Pro Max'; o.short = 'iPhone 18 Pro Max'; o.kind = 'manual'; o.w = LUCKY_GRAND_W; } return o; });
   if(prizes.some(p=>!p.name)){ showToast('Giải nào cũng cần có tên'); return; }
   const P = luckyPoolEdit;
   if(P==='att' || P==='attvip'){
