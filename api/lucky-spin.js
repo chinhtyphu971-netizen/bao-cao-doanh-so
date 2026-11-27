@@ -11,7 +11,8 @@ const DEF = [
   {key:'pass', name:'Thẻ miễn phạt báo cáo', short:'Miễn phạt', kind:'pass', w:10},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10},
-  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10}];
+  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10},
+  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001}];
 const DEF_MKT = [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
   {key:'star15', name:'Tặng 15 sao', short:'15 sao', kind:'manual', w:20},
@@ -19,7 +20,10 @@ const DEF_MKT = [
   {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:32},
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12},
-  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5}];
+  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5},
+  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001}];
+// 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
+const isGrand = p => !!(p && (p.key === 'iphone' || /iphone/i.test(String(p.name || ''))));
 const vnDay = t => new Date(t + 7 * 3600000).toISOString().slice(0, 10);
 const money = n => (Number(n) || 0).toLocaleString('vi-VN');
 
@@ -39,7 +43,7 @@ module.exports = async (req, res) => {
       return res.status(403).json({error: 'Tài khoản này không tham gia vòng quay. Nếu bạn là Sale / MKT: đăng xuất rồi đăng nhập lại.'});
     const cv = (await D.ref(pool === 'mkt' ? 'luckyCfgMkt' : 'luckyCfg').once('value')).val() || {};
     const threshold = Number(cv.threshold) || (pool === 'mkt' ? 500 : 10000000), maxPerDay = Number(cv.maxPerDay) || (pool === 'mkt' ? 3 : 5);
-    const prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : (pool === 'mkt' ? DEF_MKT : DEF)).filter(p => p && p.key && Number(p.w) > 0);
+    let prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : (pool === 'mkt' ? DEF_MKT : DEF)).filter(p => p && p.key && Number(p.w) > 0);
     if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
     const now = Date.now(), day = vnDay(now);
     const dayStart = Date.parse(day + 'T00:00:00+07:00'), tomorrow = vnDay(dayStart + 86400000 + 3600000);
@@ -53,10 +57,17 @@ module.exports = async (req, res) => {
     }
     const extra = !!(await D.ref(`luckyPerks/${day}/${uid}/extraSpin`).once('value')).val();
     if (!extra && revenue < threshold) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
-    // Chọn giải theo tỉ lệ
-    const tot = prizes.reduce((a, p) => a + Number(p.w), 0); let r = Math.random() * tot, i = 0;
-    for (; i < prizes.length; i++) { r -= Number(prizes[i].w); if (r < 0) break; } if (i >= prizes.length) i = prizes.length - 1;
-    const p = prizes[i];
+    // Chọn giải theo tỉ lệ (giải đặc biệt: năm nay đã có người trúng → bỏ khỏi danh sách)
+    const year = day.slice(0, 4), grandRef = D.ref('luckyGrand/' + year);
+    if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
+    if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
+    const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
+      for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
+    let p = pick(prizes), grandHeld = false;
+    if (isGrand(p)) { // giữ suất 1 giải / năm bằng transaction — người khác vừa trúng trước thì quay lại giải khác
+      const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool, day, at: Date.now()});
+      if (g.committed) grandHeld = true; else { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); }
+    }
     const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null};
     let outcome = '', rank = null;
     const tx = await D.ref('luckySpin/' + day).transaction(cur => {
@@ -68,6 +79,7 @@ module.exports = async (req, res) => {
       cur[uid] = {uid, name: u.name || '', branchId: (pool === 'mkt' ? u.mktBranchId : u.branchId) || null, pool: pool === 'mkt' ? 'mkt' : null, rank, extra: extra || null, revenue, prize, at: now};
       return cur;
     });
+    if (!tx.committed && grandHeld) { try { await grandRef.remove(); } catch (e) {} } // không quay được → trả lại suất giải đặc biệt
     if (!tx.committed) {
       if (outcome === 'done') { const old = (tx.snapshot.val() || {})[uid] || {}; return res.json({ok: true, already: true, prize: old.prize, rank: old.rank || null, revenue}); }
       return res.status(409).json({error: `Hôm nay đã đủ ${maxPerDay} người quay — mai nhanh tay hơn nhé!`});
