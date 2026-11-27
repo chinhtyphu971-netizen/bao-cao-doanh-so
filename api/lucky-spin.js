@@ -37,7 +37,7 @@ const DEF_ATTVIP = [
   {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40},
-  {key:'earlyhalf', name:'Phiếu về sớm nửa ngày', short:'Về sớm ½ ngày', kind:'early', n:240, w:15},
+  {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15},
   {key:'milk', name:'1 ly trà sữa', short:'Trà sữa', kind:'manual', w:25},
   {key:'attspin2', name:'Thêm 2 lượt quay chuyên cần', short:'+2 lượt', kind:'attspin', n:2, w:15}];
 const vnDay = t => new Date(t + 7 * 3600000).toISOString().slice(0, 10);
