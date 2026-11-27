@@ -12218,8 +12218,8 @@ function hasUnprocessedBacklog(userId){
 function isEligibleForNewData(userId, date){ // (đã BỎ luật khoá khi tồn data — có tồn vẫn được chia)
   return isEligibleTodayByAttendance(userId, date);
 }
-function dailyReceivedCount(userId, date){
-  return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date).length;
+function dailyReceivedCount(userId, date){ // 🎡 data thưởng vòng quay (luckyPrio) KHÔNG tính vào hạn mức 50/ngày
+  return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date && !l.luckyPrio).length;
 }
 // Team nhận data do Quản lý chung / Quản lý Data TỰ TAY chọn (xem saveTodayRotationSelection),
 // không dùng thuật toán tự động "chờ lâu nhất" nữa. Phải chọn LẠI MỖI NGÀY — sang ngày mới,
@@ -12803,10 +12803,11 @@ function runDistribution(){
     let person = pool[personIndex], src = pool, isPrio = false;
     // 🎡 Giải vòng quay "+N data ưu tiên": người trúng được chia TRƯỚC mọi người (là số thêm — không mất lượt thường)
     if(Object.keys(luckyPerksToday||{}).length){
-      const pickP = arr=>arr.find(p=>luckyPrioLeft(p) > 0 && !priorAssignees.has(p.id)) || arr.find(p=>luckyPrioLeft(p) > 0);
-      let lp = pickP(pool), lsrc = pool;
-      if(!lp){ if(overflowPool===null){ overflowPool = buildLeadPool(otherBranchIds, today); sortPool(overflowPool); } lp = pickP(overflowPool); lsrc = overflowPool; }
-      if(lp){ person = lp; src = lsrc; isPrio = true; luckyPrioUse(lp); }
+      // người trúng có thể đã đủ 50 data thường hoặc team KHÔNG nằm trong lượt chia hôm nay → vẫn được chia data thưởng
+      // (ngoài hạn mức 50, ngoài phần chia team): tìm trong MỌI Sale đã xác nhận nhận data hôm nay, không theo team đang chia
+      const prioCands = state.users.filter(u=>luckyPrioLeft(u) > 0 && isLeadEligibleRole(u) && !u.loginBlocked && u.active!==false && isEligibleForNewData(u.id, today));
+      const lp = prioCands.find(p=>!priorAssignees.has(p.id)) || prioCands[0];
+      if(lp){ person = lp; src = pool; isPrio = true; luckyPrioUse(lp); }
     }
     // ✂️ Team bị phạt thiếu báo cáo: người tới lượt còn lượt bị cắt → mất lượt này, data chuyển cho người KHÔNG bị cắt
     if(!isPrio && penaltySkipLeft(person) > 0){
@@ -12825,13 +12826,14 @@ function runDistribution(){
     lead.assignedToName = person.name;
     lead.assignedAt = nowMs();
     lead.distributedDate = today;
+    if(isPrio) lead.luckyPrio = true; // 🎡 data thưởng — không tính vào hạn mức 50
     fbSetLead(lead);
     assignedCount++;
     if(String(lead.id).startsWith('manual_')){
       sendMktLeadToExternalSheet(lead, person); // chỉ ghi sang Sheet ngoài với data MKT nhập tay
     }
+    if(isPrio) continue; // data thưởng: ngoài hạn mức, giữ nguyên lượt thường & vị trí hàng chờ
     todayCount[person.id] = countOf(person.id) + 1;
-    if(isPrio){ if(todayCount[person.id] >= DAILY_LEAD_CAP){ [pool, overflowPool].forEach(a=>{ if(a){ const k = a.indexOf(person); if(k >= 0) a.splice(k, 1); } }); } continue; } // data ưu tiên: giữ nguyên lượt thường
     person.lastDataAt = nowMs();
     fbUpdateUser(person.id, {lastDataAt: person.lastDataAt});
     personIndex = src.indexOf(person); if(personIndex >= 0) src.splice(personIndex,1);
@@ -14928,7 +14930,7 @@ function renderMyLeads(){
   let allMyLeads = state.leads.filter(l=>l.assignedTo===user.id).sort((a,b)=>b.assignedAt-a.assignedAt);
 
   document.getElementById('myLeadsQuota').innerHTML =
-    `<span class="badge ${myLeadsToday.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${myLeadsToday.length}/${DAILY_LEAD_CAP}</span>` + recallSummaryBadge(user.id);
+    (()=>{ const n = myLeadsToday.filter(l=>!l.luckyPrio).length, b = myLeadsToday.length - n; return `<span class="badge ${n>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${n}/${DAILY_LEAD_CAP}${b ? ` + ${b} thưởng 🎡` : ''}</span>`; })() + recallSummaryBadge(user.id);
 
   if(document.getElementById('myLeadsStatsByDay').style.display !== 'none'){
     renderMyLeadsStatsByDay(allMyLeads);
@@ -15839,7 +15841,7 @@ function renderPersonLeadsPage(){
   const allPersonLeads = state.leads.filter(l=>l.assignedTo===userId);
   const todayLeads = allPersonLeads.filter(l=>l.distributedDate===today);
   document.getElementById('personLeadsQuota').innerHTML =
-    `<span class="badge ${todayLeads.length>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${todayLeads.length}/${DAILY_LEAD_CAP}</span>` + recallSummaryBadge(userId);
+    (()=>{ const n = todayLeads.filter(l=>!l.luckyPrio).length, b = todayLeads.length - n; return `<span class="badge ${n>=DAILY_LEAD_CAP?'badge-warn':'badge-ok'}">Hôm nay: ${n}/${DAILY_LEAD_CAP}${b ? ` + ${b} thưởng 🎡` : ''}</span>`; })() + recallSummaryBadge(userId);
   if(document.getElementById('personLeadsStatsByDay').style.display !== 'none'){
     renderPersonLeadsStatsByDay(allPersonLeads);
   }
@@ -21303,7 +21305,7 @@ function reportSysNewData(date){ // data app chia trong ngày mà Sale ĐÃ XỬ
   const u = currentUser(); if(!u || !date) return 0;
   return state.leads.filter(l=>l.assignedTo===u.id && l.distributedDate===date && String(l.status||'').trim()).length;
 }
-function reportSysNewDataTotal(date){ const u = currentUser(); return u && date ? dailyReceivedCount(u.id, date) : 0; }
+function reportSysNewDataTotal(date){ const u = currentUser(); return u && date ? state.leads.filter(l=>l.assignedTo===u.id && l.distributedDate===date).length : 0; } // gồm cả data thưởng 🎡
 function reportNewDataCheck(){
   const el = document.getElementById('f_newdataHint'), inp = document.getElementById('f_newdata'); if(!el || !inp) return;
   const date = (document.getElementById('f_date')||{}).value, sys = reportSysNewData(date);
