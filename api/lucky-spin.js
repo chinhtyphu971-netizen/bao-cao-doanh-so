@@ -58,7 +58,18 @@ module.exports = async (req, res) => {
       snap.forEach(c => { const v = c.val(); if (v && v.saleId === uid && v.depositLink) revenue += Number(v.totalAmount) || 0; });
     }
     const extra = !!(await D.ref(`luckyPerks/${day}/${uid}/extraSpin`).once('value')).val();
-    if (!extra && revenue < threshold) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
+    const earned = Math.floor(revenue / threshold); // 🔁 mỗi 1 mốc = 1 lượt — không giới hạn số lượt, không giới hạn số người
+    // 🎁 LƯỢT TẶNG — đếm GỘP qua các ngày: luckyBonus/{uid} = {n: tổng lượt quay theo mốc, left: lượt tặng còn lại}
+    // cứ mỗi 5 lượt theo mốc → left +1; lượt tặng để dành được, quay lúc nào cũng được
+    const BONUS_EVERY = 5, bRef = D.ref('luckyBonus/' + uid);
+    const tierOf = x => (x.extra || x.bonus) ? 0 : (Number(x.tier) || 1);
+    const extraFree = !!extra && !Object.values((await D.ref('luckySpin/' + day).once('value')).val() || {}).some(x => x && x.uid === uid && x.extra);
+    let bonusHeld = false;
+    if (!extraFree && Number(((await bRef.once('value')).val() || {}).left) > 0) { // giữ 1 lượt tặng (trừ trước, quay hỏng thì trả lại)
+      const b = await bRef.transaction(cur => (cur && Number(cur.left) > 0) ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
+      bonusHeld = !!b.committed;
+    }
+    if (!extraFree && !bonusHeld && revenue < threshold) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
     // Chọn giải theo tỉ lệ (giải đặc biệt: năm nay đã có người trúng → bỏ khỏi danh sách)
     const year = day.slice(0, 4), grandRef = D.ref('luckyGrand/' + year);
     if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
@@ -71,19 +82,36 @@ module.exports = async (req, res) => {
       if (g.committed) grandHeld = true; else { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); }
     }
     const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
-    let outcome = '', rank = null;
+    let outcome = '', rank = null, tier = 0, key = '', need = 0;
     const tx = await D.ref('luckySpin/' + day).transaction(cur => {
       cur = cur || {};
-      if (cur[uid]) { outcome = 'done'; return; }
-      const used = Object.values(cur).filter(x => x && !x.extra && !x.revoked && (x.pool || 'sale') === pool).length;
-      if (!extra && used >= maxPerDay) { outcome = 'full'; return; }
-      outcome = 'ok'; rank = extra ? null : used + 1;
-      cur[uid] = {uid, name: u.name || '', branchId: (pool === 'mkt' ? u.mktBranchId : u.branchId) || null, pool: pool === 'mkt' ? 'mkt' : null, rank, extra: extra || null, revenue, prize, at: now};
+      const mine = Object.values(cur).filter(x => x && x.uid === uid), tiers = new Set(mine.filter(x => tierOf(x) >= 1).map(tierOf));
+      let isExtra = false, bonus = 0; tier = 0; key = '';
+      if (extra && !mine.some(x => x.extra)) { isExtra = true; key = uid + '_x'; }
+      else if (bonusHeld) { bonus = mine.filter(x => x.bonus).length + 1; key = uid + '_b' + bonus; }
+      else if (!tiers.has(1)) {
+        if (earned < 1) { outcome = 'below'; need = threshold; return; }
+        const used = Object.values(cur).filter(x => x && !x.extra && tierOf(x) === 1 && !x.revoked && (x.pool || 'sale') === pool).length;
+        tier = 1; rank = used + 1; key = cur[uid] ? uid + '_t1' : uid;
+      } else {
+        for (let t = 2; t <= earned; t++) if (!tiers.has(t)) { tier = t; break; }
+        if (!tier) { outcome = 'below'; need = (Math.max(...tiers) + 1) * threshold; return; }
+        rank = null; key = uid + '_t' + tier;
+      }
+      outcome = 'ok';
+      cur[key] = {uid, k: key, name: u.name || '', branchId: (pool === 'mkt' ? u.mktBranchId : u.branchId) || null, pool: pool === 'mkt' ? 'mkt' : null, rank: isExtra || bonus ? null : rank, tier: isExtra || bonus ? null : tier, extra: isExtra || null, bonus: bonus || null, thr: threshold, revenue, prize, at: now};
       return cur;
     });
     if (!tx.committed && grandHeld) { try { await grandRef.remove(); } catch (e) {} } // không quay được → trả lại suất giải đặc biệt
+    const rec = tx.committed ? ((tx.snapshot.val() || {})[key] || {}) : {};
+    if (bonusHeld && !rec.bonus) { try { await bRef.child('left').transaction(v => (Number(v) || 0) + 1); } catch (e) {} } // không dùng lượt tặng → trả lại
+    let bonusLeft = null;
+    if (tx.committed && rec.tier) { // quay theo mốc → cộng dồn; đủ 5 / 10 / 15… lượt → tặng 1 lượt
+      const b = await bRef.transaction(cur => { cur = cur || {}; const n = (Number(cur.n) || 0) + 1; return Object.assign({}, cur, {n, left: (Number(cur.left) || 0) + (n % BONUS_EVERY === 0 ? 1 : 0)}); });
+      bonusLeft = b.snapshot.val();
+    }
     if (!tx.committed) {
-      if (outcome === 'done') { const old = (tx.snapshot.val() || {})[uid] || {}; return res.json({ok: true, already: true, prize: old.prize, rank: old.rank || null, revenue}); }
+      if (outcome === 'below') return res.status(400).json({error: pool === 'mkt' ? `Bạn đã quay hết lượt — nhập đủ ${money(need)} số hợp lệ để có lượt tiếp.` : `Bạn đã quay hết lượt — đạt ${money(need)}đ đã cọc để có lượt tiếp.`, revenue});
       return res.status(409).json({error: `Hôm nay đã đủ ${maxPerDay} người quay — mai nhanh tay hơn nhé!`});
     }
     // Quyền lợi app tự áp dụng
@@ -93,7 +121,7 @@ module.exports = async (req, res) => {
     if (prize.kind === 'pass') up[`penaltyPasses/${uid}`] = inc(1);
     if (prize.kind === 'mktpass') up[`mktPasses/${uid}`] = inc(1); // 🛡️ thẻ miễn khoá nhập data (MKT)
     if (Object.keys(up).length) await D.ref().update(up);
-    return res.json({ok: true, prize, rank, revenue});
+    return res.json({ok: true, prize, rank, tier, bonus: !!rec.bonus, bonusInfo: bonusLeft, revenue});
   } catch (e) {
     console.error('lucky-spin', e);
     return res.status(500).json({error: 'Máy chủ lỗi, thử lại sau ít phút.'});
