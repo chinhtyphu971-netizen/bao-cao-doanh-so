@@ -12353,7 +12353,9 @@ function luckyRender(){
 // Thẻ trên trang "Data của tôi"
 function luckyCardRender(){
   const el = document.getElementById('myLuckyCard'); if(!el) return;
-  const s = luckyMyState(); if(!s){ el.style.display = 'none'; return; }
+  const s = luckyMyState();
+  // 🔒 Chỉ hiện khi bạn ĐÃ ĐẠT MỐC (được quay / đã quay hôm nay) — chưa đạt thì ẩn hoàn toàn
+  if(!s || !(s.canSpin || s.mine)){ el.style.display = 'none'; return; }
   el.style.display = '';
   const pct = Math.min(100, Math.round(s.rev / s.c.threshold * 100));
   const passes = Number(penaltyPasses[(currentUser()||{}).id])||0;
@@ -12393,7 +12395,7 @@ function luckyBoardHtml(){
   if(!rows.length) return '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai — bạn hãy là người đầu tiên!</div>';
   return rows.map(r=>`<div class="lucky-row ${r.revoked ? 'revoked' : ''}"><span class="lucky-rank">${r.extra ? '+' : (r.rank || '•')}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${r.revoked ? 'đã thu hồi' : escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('');
 }
-function luckyOpen(){ luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
+function luckyOpen(){ const s0 = luckyMyState(); if(!s0 || !(s0.canSpin || s0.mine)) return; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
 function luckyModalRender(){
   const box = document.getElementById('luckyModalBody'); if(!box) return;
   const s = luckyMyState(), c = luckyConf();
