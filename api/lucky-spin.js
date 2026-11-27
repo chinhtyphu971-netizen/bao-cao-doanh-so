@@ -12,7 +12,7 @@ const DEF = [
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10},
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001}];
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001}];
 const DEF_MKT = [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
   {key:'star15', name:'Tặng 15 sao', short:'15 sao', kind:'manual', w:20},
@@ -21,10 +21,10 @@ const DEF_MKT = [
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5},
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001}];
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001}];
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
 const isGrand = p => !!(p && (p.key === 'iphone' || /iphone/i.test(String(p.name || ''))));
-const GRAND_W = 0.0001; // 🔒 tỉ lệ iPhone tối đa 0,0001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
+const GRAND_W = 0.00001; // 🔒 tỉ lệ iPhone tối đa 0,00001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
 // ⏰ Vòng quay CHUYÊN CẦN (làm sẵn, bật/tắt ở luckyCfgAtt.enabled): quay bằng lượt trong attBal/{uid} (left = thường, vip = VIP)
 const DEF_ATT = [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
@@ -34,7 +34,7 @@ const DEF_ATT = [
   {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12},
   {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15}];
 const DEF_ATTVIP = [
-  {key:'iphone', name:'iPhone 18', short:'iPhone 18', kind:'manual', w:0.0001},
+  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40},
   {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15},
