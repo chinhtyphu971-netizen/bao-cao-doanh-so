@@ -11938,6 +11938,8 @@ const TONE_EVENTS = [
   {key:'chat', label:'Có tin nhắn mới', who:'Mọi người', roles: null},
   {key:'goalNudge', label:'Quản lý nhắc mục tiêu', who:'Sale', roles: SALE_ROLES},
   {key:'reportDeadline', label:'Sắp hết hạn nộp báo cáo', who:'Sale', roles: SALE_ROLES},
+  {key:'luckyReach', label:'Đạt mốc — được quay Vòng quay may mắn', who:'Sale đạt mốc', roles: SALE_ROLES},
+  {key:'luckyWin', label:'Trúng thưởng Vòng quay may mắn', who:'Sale vừa quay', roles: SALE_ROLES},
   {key:'printDone', label:'Thợ in đã in xong', who:'Người đặt in', roles: null},
   {key:'packUrgent', label:'Có đơn GẤP cần đóng', who:'Kho', roles: KHO_ROLES},
   {key:'packReply', label:'Sale trả lời đơn thiếu', who:'Kho', roles: KHO_ROLES},
@@ -12372,6 +12374,7 @@ function luckyAutoPrompt(){
   if(document.querySelector('.modal-backdrop.show')) return;
   luckyAutoShown = k; try{ localStorage.setItem(k, '1'); }catch(e){}
   showToast('🎉 Bạn đã đạt mốc — mời quay Vòng quay may mắn!'); luckyOpen();
+  try{ playEventTone('luckyReach'); }catch(e){} if(navigator.vibrate) try{ navigator.vibrate([200,100,200,100,300]); }catch(e){} // 🔔 nhạc báo đạt mốc (Quản lý chọn bài trong Cài đặt › Nhạc chuông)
 }
 function luckyWheelSvg(prizes){
   const n = prizes.length, seg = 360/n, R = 146, cx = 150, cy = 150; let out = '';
@@ -12414,7 +12417,7 @@ async function luckySpinGo(){
   const c = luckyConf(), n = c.prizes.length, seg = 360/n; let i = c.prizes.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
   luckyRot = luckyRot + 5*360 + ((360 - i*seg - (luckyRot % 360)) % 360 + 360) % 360;
   const w = document.getElementById('luckyWheel'); if(w){ w.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)'; void w.offsetWidth; w.style.transform = `rotate(${luckyRot}deg)`; }
-  setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playTingSound(); }catch(e){} if(currentPageId==='myLeads') luckyCardRender(); }, 4400);
+  setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playEventTone('luckyWin'); }catch(e){} if(currentPageId==='myLeads') luckyCardRender(); }, 4400);
 }
 // ----- Quản lý chung: cài đặt + vinh danh + đã trao -----
 // Bảng giải đang sửa (chưa lưu): sửa tên, chữ trên vòng, loại giải, tỉ lệ, màu · thêm / xoá giải
