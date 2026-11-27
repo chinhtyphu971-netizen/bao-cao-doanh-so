@@ -1716,6 +1716,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
   .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
   .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
+  .lucky-jp{ position:fixed; inset:0; z-index:9999; display:none; align-items:flex-start; justify-content:center; padding-top:12vh; background:rgba(5,8,18,.55); cursor:pointer; overflow:hidden; } .lucky-jp.show{ display:flex; }
+  .lucky-jp-box{ position:relative; max-width:min(560px,92vw); text-align:center; padding:22px 26px; border-radius:20px; background:linear-gradient(135deg,#FF7A3D,#FFC25C); color:#1a1206; box-shadow:0 20px 60px rgba(0,0,0,.5); animation:luckyJpPop .5s cubic-bezier(.2,1.4,.4,1); }
+  .lucky-jp-t{ font-size:clamp(20px,4.6vw,30px); font-weight:900; line-height:1.25; } .lucky-jp-s{ margin-top:8px; font-size:14px; font-weight:600; opacity:.85; } .lucky-jp-x{ margin-top:10px; font-size:11px; opacity:.6; }
+  .lucky-jp-conf i{ position:absolute; top:-20px; width:9px; height:14px; border-radius:2px; animation:luckyJpFall linear infinite; }
+  @keyframes luckyJpFall{ to{ transform:translateY(110vh) rotate(720deg); } } @keyframes luckyJpPop{ from{ transform:scale(.6); opacity:0; } to{ transform:scale(1); opacity:1; } }
   .lk-cols{ display:flex; flex-direction:column; gap:14px; margin-top:10px; } .lk-box{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:14px; padding:16px; box-sizing:border-box; min-width:0; }
   .lk-box h3{ margin:0 0 12px; font-size:15px; font-weight:800; } .lk-cond{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end; } .lk-cond h3, .lk-cond .lk-toggle{ grid-column:1/-1; } .lk-cond h3{ margin:0; }
   .lk-f{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; font-weight:600; color:var(--ink-soft); } .lk-f input{ font-size:15px; font-weight:700; }
@@ -2671,6 +2676,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       <!-- ---------- MKT: nhập data ---------- -->
       <div id="page-mktInput" class="page" style="display:none;">
         <div class="page-head"><div><h1>Nhập data</h1><p>Data nhập ở đây sẽ tự động đổ chung vào 1 kho với data từ Google Sheet, hệ thống tự chia đều như bình thường</p></div></div>
+        <div id="mktLuckyCard" class="lucky-card" style="display:none;"></div>
 
         <div class="card">
           <h2>Nhập số điện thoại</h2>
@@ -11940,6 +11946,7 @@ const TONE_EVENTS = [
   {key:'reportDeadline', label:'Sắp hết hạn nộp báo cáo', who:'Sale', roles: SALE_ROLES},
   {key:'luckyReach', label:'Đạt mốc — được quay Vòng quay may mắn', who:'Sale đạt mốc', roles: SALE_ROLES},
   {key:'luckyWin', label:'Trúng thưởng Vòng quay may mắn', who:'Sale vừa quay', roles: SALE_ROLES},
+  {key:'luckyJackpot', label:'Có người trúng JACKPOT vòng quay', who:'Mọi người', roles: null},
   {key:'printDone', label:'Thợ in đã in xong', who:'Người đặt in', roles: null},
   {key:'packUrgent', label:'Có đơn GẤP cần đóng', who:'Kho', roles: KHO_ROLES},
   {key:'packReply', label:'Sale trả lời đơn thiếu', who:'Kho', roles: KHO_ROLES},
@@ -12317,43 +12324,85 @@ const LUCKY_DEFAULT = {threshold: 10000000, maxPerDay: 5, revoke: true, prizes: 
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10, color:'#2B3A67'},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10, color:'#C2410C'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'}]};
-const LUCKY_KIND_NOTE = {data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
+// 🎡 VÒNG QUAY MKT: đạt mốc = nhập ≥ N SĐT HỢP LỆ trong ngày (số đã qua lọc trùng / đúng 10 số — chỉ số hợp lệ mới vào kho)
+const LUCKY_DEFAULT_MKT = {threshold: 500, maxPerDay: 3, revoke: false, prizes: [
+  {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3, color:'#F59E0B', ink:'#1a1206'},
+  {key:'star15', name:'Tặng 15 sao', short:'15 sao', kind:'manual', w:20, color:'#2B3A67'},
+  {key:'milk', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:18, color:'#E8572A'},
+  {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:32, color:'#3D4F86'},
+  {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10, color:'#0F766E'},
+  {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12, color:'#C2410C'},
+  {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5, color:'#7C3AED'}]};
+const LUCKY_KIND_NOTE = {mktpass: ()=>'Thẻ lưu trong app: 1 lần quên nộp báo cáo MKT, bấm "Dùng thẻ" ở trang Nhập data là nhập data được ngay.', data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
+let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {};
 let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
 let luckySpinning = false, luckyRot = 0, luckyResult = null, luckyAutoShown = '';
-function luckyConf(){ const c = Object.assign({}, LUCKY_DEFAULT, luckyCfg||{}); if(!Array.isArray(c.prizes) || !c.prizes.length) c.prizes = LUCKY_DEFAULT.prizes; c.threshold = Number(c.threshold)||LUCKY_DEFAULT.threshold; c.maxPerDay = Number(c.maxPerDay)||LUCKY_DEFAULT.maxPerDay; return c; }
+function luckyConf(pool){ const D = pool==='mkt' ? LUCKY_DEFAULT_MKT : LUCKY_DEFAULT; const c = Object.assign({}, D, (pool==='mkt' ? luckyCfgMkt : luckyCfg)||{}); if(!Array.isArray(c.prizes) || !c.prizes.length) c.prizes = D.prizes; c.threshold = Number(c.threshold)||D.threshold; c.maxPerDay = Number(c.maxPerDay)||D.maxPerDay; c.pool = pool==='mkt' ? 'mkt' : 'sale'; return c; }
+function luckyPoolOf(u){ return !u ? null : (['mkt','mkt_manager'].includes(u.role) ? 'mkt' : (isLeadEligibleRole(u) ? 'sale' : null)); }
+function luckyMktCountOf(uid, day){ let n = 0; (state.leads||[]).forEach(l=>{ if(l && l.createdBy===uid && l.importedAt && toLocalDateStr(new Date(Number(l.importedAt)))===day) n++; }); return n; } // số SĐT hợp lệ MKT nhập trong ngày
+function luckyMetricOf(uid, day, pool){ return pool==='mkt' ? luckyMktCountOf(uid, day) : luckyRevenueOf(uid, day); }
+function luckyMetricFmt(v, pool){ return pool==='mkt' ? `${fmtMoney(v)} số` : `${fmtMoney(v)}đ`; }
 function luckySubscribe(today){
   luckyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); luckyRefs = []; luckyToday = {}; luckyPerksToday = {}; luckyDate = today; luckyResult = null;
   const me = currentUser(); if(!me || !fbRoot) return;
   const add = (ref, fn)=>{ luckyRefs.push(ref); ref.on('value', s=>{ fn(s.val()); luckyRender(); }); };
   add(fbRoot.child('luckyCfg'), v=>{ luckyCfg = v; });
+  add(fbRoot.child('luckyCfgMkt'), v=>{ luckyCfgMkt = v; });
+  if(['mkt','mkt_manager','general_manager','data_manager'].includes(me.role)){ // 🛡️ thẻ miễn khoá nhập data (MKT)
+    const rr = ()=>{ try{ if(currentPageId==='mktInput') renderMktInputLock(); }catch(e){} };
+    add(fbRoot.child('mktPassUsed'), v=>{ mktPassUsed = v || {}; rr(); });
+    add(me.role==='mkt' || me.role==='mkt_manager' ? fbRoot.child('mktPasses/' + me.id) : fbRoot.child('mktPasses'), v=>{ mktPasses = (me.role==='mkt' || me.role==='mkt_manager') ? {[me.id]: Number(v)||0} : (v || {}); rr(); });
+  }
   add(fbRoot.child('luckySpin/' + today), v=>{ luckyToday = v || {}; });
   if(me.role==='general_manager' || me.role==='data_manager'){
     add(fbRoot.child('luckyPerks/' + today), v=>{ luckyPerksToday = v || {}; });
     add(fbRoot.child('penaltyPasses'), v=>{ penaltyPasses = v || {}; if(!penaltyPassesLoaded){ penaltyPassesLoaded = true; try{ penaltyEnsure(); }catch(e){} } });
-  } else if(isLeadEligibleRole(me)){
+  } else if(luckyPoolOf(me)){
     add(fbRoot.child('luckyPerks/' + today + '/' + me.id), v=>{ luckyPerksToday = v ? {[me.id]: v} : {}; });
     add(fbRoot.child('penaltyPasses/' + me.id), v=>{ penaltyPasses = {[me.id]: Number(v)||0}; });
   }
 }
 function luckyRevenueOf(uid, day){ let s = 0; (state.invoices||[]).forEach(inv=>{ if(!inv || inv.saleId!==uid || !inv.depositLink) return; const at = Number(inv.depositLink.markedAt); if(at && toLocalDateStr(new Date(at))===day) s += Number(inv.totalAmount)||0; }); return s; }
-function luckyUsed(){ return Object.values(luckyToday||{}).filter(r=>r && !r.extra && !r.revoked).length; }
+function luckyUsed(pool){ pool = pool || 'sale'; return Object.values(luckyToday||{}).filter(r=>r && !r.extra && !r.revoked && (r.pool||'sale')===pool).length; }
 function luckyMyState(){
-  const me = currentUser(); if(!me || !isLeadEligibleRole(me) || me.loginBlocked) return null;
-  const c = luckyConf(), d = todayStr(), rev = luckyRevenueOf(me.id, d), mine = luckyToday[me.id] || null;
-  const extra = !!(luckyPerksToday[me.id] && luckyPerksToday[me.id].extraSpin), used = luckyUsed();
-  return {c, rev, mine, extra, used, left: Math.max(0, c.maxPerDay - used), canSpin: !mine && (extra || (rev >= c.threshold && used < c.maxPerDay))};
+  const me = currentUser(), pool = luckyPoolOf(me); if(!me || !pool || me.loginBlocked || me.active===false) return null;
+  const c = luckyConf(pool), d = todayStr(), rev = luckyMetricOf(me.id, d, pool), mine = luckyToday[me.id] || null;
+  const extra = !!(luckyPerksToday[me.id] && luckyPerksToday[me.id].extraSpin), used = luckyUsed(pool);
+  return {pool, c, rev, mine, extra, used, left: Math.max(0, c.maxPerDay - used), canSpin: !mine && (extra || (rev >= c.threshold && used < c.maxPerDay))};
 }
 function luckyPrizeLabel(p){ return p ? (p.name || p.short || '') : ''; }
 function luckyRender(){
-  try{ if(currentPageId==='myLeads') luckyCardRender(); }catch(e){}
+  try{ if(currentPageId==='myLeads' || currentPageId==='mktInput') luckyCardRender(); }catch(e){}
   try{ if(currentPageId==='mgrSettings') renderLuckyMgrCard(); }catch(e){}
   try{ const m = document.getElementById('luckyModal'); if(m && m.classList.contains('show') && !luckySpinning) luckyModalRender(); }catch(e){}
   try{ luckyAutoPrompt(); }catch(e){}
+  try{ luckyJackpotCheck(); }catch(e){}
+}
+// 🎉 Có người trúng JACKPOT → báo cho CẢ CÔNG TY (mọi máy đang mở app): băng rôn + pháo giấy + chuông
+// Jackpot = giải có mã 'jackpot' hoặc tên có chữ "Jackpot". Mỗi máy báo 1 lần / lượt trúng; mở app trong 3 tiếng sau vẫn thấy.
+function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test(String(p.name||'')))); }
+function luckyJackpotCheck(){
+  const me = currentUser(); if(!me) return;
+  let seen = {}; try{ seen = JSON.parse(localStorage.getItem('lucky_jp_seen') || '{}'); }catch(e){}
+  const fresh = Object.values(luckyToday||{}).filter(r=>r && !r.revoked && luckyIsJackpot(r.prize) && !seen[luckyDate + '/' + r.uid] && nowMs() - Number(r.at||0) < 3*3600000);
+  if(!fresh.length) return;
+  fresh.forEach(r=>{ seen[luckyDate + '/' + r.uid] = 1; }); try{ localStorage.setItem('lucky_jp_seen', JSON.stringify(seen)); }catch(e){}
+  const r = fresh[fresh.length-1], mine = r.uid===me.id;
+  const pz = (r.prize && (r.prize.short || r.prize.name)) || 'Jackpot';
+  luckyJackpotShow(mine ? `🎉 Chúc mừng BẠN trúng JACKPOT: ${pz}!` : `🎉 ${r.name || 'Đồng đội'} vừa trúng JACKPOT: ${pz}!`, mine ? 'Giải lớn nhất của Vòng quay may mắn hôm nay' : `${escHtml(branchName(r.branchId)||'')} · đạt mốc lúc ${packTimeShort(r.at)} — bạn cũng đạt mốc để có cơ hội nhé!`);
+  if(!mine) try{ playEventTone('luckyJackpot'); }catch(e){}
+}
+function luckyJackpotShow(title, sub){
+  let el = document.getElementById('luckyJackpotBanner');
+  if(!el){ el = document.createElement('div'); el.id = 'luckyJackpotBanner'; el.className = 'lucky-jp'; el.setAttribute('role','status'); el.onclick = ()=>el.classList.remove('show'); document.body.appendChild(el); }
+  const conf = Array.from({length: 36}, (_, i)=>`<i style="left:${(i*97)%100}%; background:${['#FFC25C','#FF7A3D','#4BE08A','#6F9BFF','#FF6FB5'][i%5]}; animation-delay:${(i%9)*0.12}s; animation-duration:${2.2 + (i%5)*0.35}s;"></i>`).join('');
+  el.innerHTML = `<div class="lucky-jp-conf" aria-hidden="true">${conf}</div><div class="lucky-jp-box"><div class="lucky-jp-t">${escHtml(title)}</div><div class="lucky-jp-s">${sub}</div><div class="lucky-jp-x">bấm để đóng</div></div>`;
+  el.classList.add('show'); clearTimeout(el.__t); el.__t = setTimeout(()=>el.classList.remove('show'), 10000);
 }
 // Thẻ trên trang "Data của tôi"
 function luckyCardRender(){
-  const el = document.getElementById('myLuckyCard'); if(!el) return;
   const s = luckyMyState();
+  const el = document.getElementById(s && s.pool==='mkt' ? 'mktLuckyCard' : 'myLuckyCard'); if(!el) return;
   // 🔒 Chỉ hiện khi bạn ĐÃ ĐẠT MỐC (được quay / đã quay hôm nay) — chưa đạt thì ẩn hoàn toàn
   if(!s || !(s.canSpin || s.mine)){ el.style.display = 'none'; return; }
   el.style.display = '';
@@ -12363,9 +12412,9 @@ function luckyCardRender(){
   if(s.mine) right = s.mine.revoked ? `<span class="lucky-muted">Giải đã bị thu hồi (doanh số tụt dưới mốc)</span>` : `<span class="lucky-won">🎉 Bạn đã trúng: <b>${escHtml(luckyPrizeLabel(s.mine.prize))}</b></span>`;
   else if(s.canSpin) right = `<button class="btn-primary lucky-go" onclick="luckyOpen()">🎡 QUAY NGAY</button>`;
   else if(s.rev >= s.c.threshold) right = `<span class="lucky-muted">Hôm nay đã đủ ${s.c.maxPerDay} người — mai nhanh tay hơn nhé!</span>`;
-  else right = `<span class="lucky-muted">Còn ${fmtMoney(s.c.threshold - s.rev)}đ nữa${s.left ? ` · còn ${s.left} suất` : ' · đã hết suất'}</span>`;
-  el.innerHTML = `<div class="lucky-card-row"><div class="lucky-card-main"><div class="lucky-card-t">🎡 Vòng quay may mắn <span class="lucky-muted">· ${s.extra && !s.mine ? 'bạn có 1 lượt quay thêm' : `đạt ${fmtMoney(s.c.threshold)}đ đã cọc, ${s.c.maxPerDay} người sớm nhất`}</span></div>
-    <div class="lucky-bar"><div style="width:${pct}%"></div></div><div class="lucky-muted">Đã cọc hôm nay <b style="color:var(--ink);">${fmtMoney(s.rev)}đ</b>${passes ? ` · 🛡️ ${passes} thẻ miễn phạt` : ''} · <a href="#" onclick="event.preventDefault(); luckyOpen()">vinh danh hôm nay</a></div></div>
+  else right = `<span class="lucky-muted">Còn ${luckyMetricFmt(s.c.threshold - s.rev, s.pool)} nữa${s.left ? ` · còn ${s.left} suất` : ' · đã hết suất'}</span>`;
+  el.innerHTML = `<div class="lucky-card-row"><div class="lucky-card-main"><div class="lucky-card-t">🎡 Vòng quay may mắn <span class="lucky-muted">· ${s.extra && !s.mine ? 'bạn có 1 lượt quay thêm' : (s.pool==='mkt' ? `nhập ≥ ${fmtMoney(s.c.threshold)} số hợp lệ, ${s.c.maxPerDay} người sớm nhất` : `đạt ${fmtMoney(s.c.threshold)}đ đã cọc, ${s.c.maxPerDay} người sớm nhất`)}</span></div>
+    <div class="lucky-bar"><div style="width:${pct}%"></div></div><div class="lucky-muted">${s.pool==='mkt' ? 'Đã nhập hôm nay' : 'Đã cọc hôm nay'} <b style="color:var(--ink);">${luckyMetricFmt(s.rev, s.pool)}</b>${passes ? ` · 🛡️ ${passes} thẻ miễn phạt` : ''} · <a href="#" onclick="event.preventDefault(); luckyOpen()">vinh danh hôm nay</a></div></div>
     <div class="lucky-card-act">${right}</div></div>`;
   try{ luckyAutoPrompt(); }catch(e){}
 }
@@ -12390,54 +12439,55 @@ function luckyWheelSvg(prizes){
   });
   return `<svg viewBox="0 0 300 300" width="100%" height="100%" aria-hidden="true">${out}<circle cx="150" cy="150" r="28" fill="#0F1424" stroke="#FF9A5C" stroke-width="4"/></svg>`;
 }
-function luckyBoardHtml(){
-  const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
+function luckyBoardHtml(pool){
+  pool = pool || 'sale';
+  const rows = Object.values(luckyToday||{}).filter(r=>r && (r.pool||'sale')===pool).sort((a,b)=>(a.at||0)-(b.at||0));
   if(!rows.length) return '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai — bạn hãy là người đầu tiên!</div>';
   return rows.map(r=>`<div class="lucky-row ${r.revoked ? 'revoked' : ''}"><span class="lucky-rank">${r.extra ? '+' : (r.rank || '•')}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${r.revoked ? 'đã thu hồi' : escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('');
 }
 function luckyOpen(){ const s0 = luckyMyState(); if(!s0 || !(s0.canSpin || s0.mine)) return; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
 function luckyModalRender(){
   const box = document.getElementById('luckyModalBody'); if(!box) return;
-  const s = luckyMyState(), c = luckyConf();
+  const s = luckyMyState(), c = luckyConf(s ? s.pool : 'sale');
   const res = luckyResult || (s && s.mine && !s.mine.revoked ? {prize: s.mine.prize, rank: s.mine.rank, old: true} : null);
   let act = '';
   if(res && res.prize){ const k = res.prize.kind; act = `<div class="lucky-result"><div class="lucky-res-t">${res.old ? 'GIẢI CỦA BẠN HÔM NAY' : 'CHÚC MỪNG BẠN TRÚNG'}</div><div class="lucky-res-n">${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>`; }
   else if(s && s.canSpin) act = `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : '🎡 QUAY NGAY'}</button>`;
-  else if(s) act = `<div class="lucky-muted" style="text-align:center;">${s.rev >= c.threshold ? `Hôm nay đã đủ ${c.maxPerDay} người quay.` : `Đạt ${fmtMoney(c.threshold)}đ đã cọc trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.`}</div>`;
+  else if(s) act = `<div class="lucky-muted" style="text-align:center;">${s.rev >= c.threshold ? `Hôm nay đã đủ ${c.maxPerDay} người quay.` : (c.pool==='mkt' ? `Nhập ≥ ${fmtMoney(c.threshold)} số hợp lệ trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.` : `Đạt ${fmtMoney(c.threshold)}đ đã cọc trong ngày (nằm trong ${c.maxPerDay} người sớm nhất) để được quay.`)}</div>`;
   box.innerHTML = `<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(c.prizes)}</div></div>
-    ${act}<div class="lucky-board-t">VINH DANH HÔM NAY (${luckyUsed()}/${c.maxPerDay})</div>${luckyBoardHtml()}`;
+    ${act}<div class="lucky-board-t">VINH DANH HÔM NAY (${luckyUsed(c.pool)}/${c.maxPerDay})</div>${luckyBoardHtml(c.pool)}`;
 }
 async function luckySpinGo(){
   if(luckySpinning) return; luckySpinning = true; luckyModalRender();
   let j = {};
   try{
     const tok = await firebase.auth().currentUser.getIdToken();
-    const r = await fetch('/api/lucky-spin', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + tok}, body:'{}'});
+    const r = await fetch('/api/lucky-spin', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer ' + tok}, body: JSON.stringify({pool: (luckyMyState()||{}).pool || 'sale'})});
     j = await r.json().catch(()=>({})); if(!r.ok && !j.error) j.error = 'Máy chủ đang bận, thử lại sau ít phút.';
   }catch(e){ j = {error: 'Không kết nối được máy chủ — kiểm tra mạng rồi thử lại.'}; }
   if(j.error || !j.prize){ luckySpinning = false; showToast(j.error || 'Chưa quay được, thử lại.'); luckyModalRender(); return; }
-  const c = luckyConf(), n = c.prizes.length, seg = 360/n; let i = c.prizes.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
+  const c = luckyConf((luckyMyState()||{}).pool || 'sale'), n = c.prizes.length, seg = 360/n; let i = c.prizes.findIndex(p=>p.key===j.prize.key); if(i < 0) i = 0;
   luckyRot = luckyRot + 5*360 + ((360 - i*seg - (luckyRot % 360)) % 360 + 360) % 360;
   const w = document.getElementById('luckyWheel'); if(w){ w.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)'; void w.offsetWidth; w.style.transform = `rotate(${luckyRot}deg)`; }
-  setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playEventTone('luckyWin'); }catch(e){} if(currentPageId==='myLeads') luckyCardRender(); }, 4400);
+  setTimeout(()=>{ luckySpinning = false; luckyResult = j; luckyModalRender(); try{ playEventTone('luckyWin'); }catch(e){} if(currentPageId==='myLeads' || currentPageId==='mktInput') luckyCardRender(); }, 4400);
 }
 // ----- Quản lý chung: cài đặt + vinh danh + đã trao -----
 // Bảng giải đang sửa (chưa lưu): sửa tên, chữ trên vòng, loại giải, tỉ lệ, màu · thêm / xoá giải
 let luckyDraft = null;
-const LUCKY_KINDS = [['manual','Quản lý bấm "Đã trao"'],['data','App tự áp dụng: +N data'],['pass','App tự áp dụng: thẻ miễn phạt'],['extra','App tự áp dụng: +1 lượt quay']];
+const LUCKY_KINDS = [['manual','Quản lý bấm "Đã trao"'],['data','App tự áp dụng: +N data'],['pass','App tự áp dụng: thẻ miễn phạt'],['extra','App tự áp dụng: +1 lượt quay'],['mktpass','App tự áp dụng: thẻ miễn khoá nhập data (MKT)']];
 const LUCKY_COLORS = ['#F59E0B','#2B3A67','#E8572A','#3D4F86','#0F766E','#C2410C','#7C3AED','#BE185D','#15803D','#0369A1'];
-function luckyDraftGet(){ if(!luckyDraft) luckyDraft = luckyConf().prizes.map(p=>Object.assign({}, p)); return luckyDraft; }
+function luckyDraftGet(){ if(!luckyDraft) luckyDraft = luckyConf(luckyPoolEdit).prizes.map(p=>Object.assign({}, p)); return luckyDraft; }
 function luckyDraftSet(i, k, v){ const d = luckyDraftGet(); if(!d[i]) return; if(k==='w' || k==='n') v = Math.max(0, Number(v)||0); d[i][k] = v; if(k==='kind' || k==='color'){ renderLuckyMgrCard(true); } }
 function luckyDraftAdd(){ const d = luckyDraftGet(); if(d.length >= 12){ showToast('Tối đa 12 giải'); return; } d.push({key: 'p' + uid(), name: 'Giải mới', short: 'Giải mới', kind: 'manual', w: 5, color: LUCKY_COLORS[d.length % LUCKY_COLORS.length]}); renderLuckyMgrCard(true); }
 function luckyDraftDel(i){ const d = luckyDraftGet(); if(d.length <= 2){ showToast('Cần ít nhất 2 giải'); return; } d.splice(i, 1); renderLuckyMgrCard(true); }
 let luckyDraftMeta = null, luckyMonthCache = {month: '', data: null, loading: false};
-function luckyMetaGet(){ if(!luckyDraftMeta){ const c = luckyConf(); luckyDraftMeta = {threshold: c.threshold, maxPerDay: c.maxPerDay, revoke: !!c.revoke}; } return luckyDraftMeta; }
+function luckyMetaGet(){ if(!luckyDraftMeta){ const c = luckyConf(luckyPoolEdit); luckyDraftMeta = {threshold: c.threshold, maxPerDay: c.maxPerDay, revoke: !!c.revoke}; } return luckyDraftMeta; }
 function luckyMonthCounts(){ // số lần trúng từng giải trong tháng (bỏ giải đã thu hồi)
   const m = todayStr().slice(0,7);
   if(luckyMonthCache.month!==m && !luckyMonthCache.loading){ luckyMonthCache = {month: m, data: null, loading: true};
     fbRoot.child('luckySpin').orderByKey().startAt(m + '-01').endAt(m + '-31').once('value').then(sn=>{ luckyMonthCache.data = sn.val() || {}; luckyMonthCache.loading = false; renderLuckyMgrCard(); }).catch(()=>{ luckyMonthCache.loading = false; }); }
   const cnt = {}, days = Object.assign({}, luckyMonthCache.data || {}, {[luckyDate]: luckyToday});
-  Object.values(days).forEach(day=>Object.values(day||{}).forEach(r=>{ if(r && r.prize && !r.revoked) cnt[r.prize.key] = (cnt[r.prize.key]||0) + 1; }));
+  Object.values(days).forEach(day=>Object.values(day||{}).forEach(r=>{ if(r && r.prize && !r.revoked && (r.pool||'sale')===luckyPoolEdit) cnt[r.prize.key] = (cnt[r.prize.key]||0) + 1; }));
   return cnt;
 }
 function renderLuckyMgrCard(force){
@@ -12445,24 +12495,26 @@ function renderLuckyMgrCard(force){
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
   if(!force && document.activeElement && el.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; // đang gõ → không vẽ lại
   el.style.display = '';
-  const c = luckyConf(), mt = luckyMetaGet(), prizes = luckyDraftGet(), tot = prizes.reduce((a,p)=>a+(Number(p.w)||0),0), cnt = luckyMonthCounts();
-  const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
+  const P = luckyPoolEdit, isM = P==='mkt';
+  const c = luckyConf(P), mt = luckyMetaGet(), prizes = luckyDraftGet(), tot = prizes.reduce((a,p)=>a+(Number(p.w)||0),0), cnt = luckyMonthCounts();
+  const rows = Object.values(luckyToday||{}).filter(r=>r && (r.pool||'sale')===P).sort((a,b)=>(a.at||0)-(b.at||0));
   const main = rows.filter(r=>!r.extra), extra = rows.filter(r=>r.extra);
   const slot = (r, i)=>{
     if(!r) return `<div class="lk-slot empty"><div class="lk-slot-h"><span class="lk-badge off">${i+1}</span><b>Còn trống</b></div><span class="lk-sub">— · đạt mốc —</span><span class="lk-slot-p">Chờ người đạt mốc</span></div>`;
     const man = r.prize && r.prize.kind==='manual';
     const act = r.revoked ? '<span class="badge badge-warn">Đã thu hồi</span>' : (man ? (r.given ? `<button class="lk-give done" onclick="luckyGive('${escHtml(r.uid)}', false)" title="Bấm để bỏ đánh dấu">Đã trao ✓ ${packTimeShort(r.givenAt)}</button>` : `<button class="lk-give" onclick="luckyGive('${escHtml(r.uid)}', true)">Bấm khi đã trao</button>`) : '<span class="lk-auto">App tự áp dụng</span>');
-    return `<div class="lk-slot ${r.revoked ? 'revoked' : ''}"><div class="lk-slot-h"><span class="lk-badge ${i===0 ? 'gold' : ''}">${r.extra ? '+' : (r.rank || i+1)}</span><b>${escHtml(r.name||'')}</b></div><span class="lk-sub">${escHtml(branchName(r.branchId)||'')} · đạt mốc ${packTimeShort(r.at)} · ${fmtMoney(r.revenue)}đ</span><span class="lk-slot-p">${escHtml(luckyPrizeLabel(r.prize))}</span>${act}</div>`;
+    return `<div class="lk-slot ${r.revoked ? 'revoked' : ''}"><div class="lk-slot-h"><span class="lk-badge ${i===0 ? 'gold' : ''}">${r.extra ? '+' : (r.rank || i+1)}</span><b>${escHtml(r.name||'')}</b></div><span class="lk-sub">${escHtml(isM ? '' : (branchName(r.branchId)||''))}${isM ? '' : ' · '}đạt mốc ${packTimeShort(r.at)} · ${luckyMetricFmt(r.revenue, P)}</span><span class="lk-slot-p">${escHtml(luckyPrizeLabel(r.prize))}</span>${act}</div>`;
   };
   const slots = []; for(let i = 0; i < Math.max(c.maxPerDay, main.length); i++) slots.push(slot(main[i], i)); extra.forEach((r)=>slots.push(slot(r, 99)));
-  el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">mốc ${fmtMoney(c.threshold)}đ · ${c.maxPerDay} người/ngày · hôm nay <b>${luckyUsed()}/${c.maxPerDay}</b> người đã quay</span></summary>
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">Sale: hôm nay <b>${luckyUsed('sale')}/${luckyConf('sale').maxPerDay}</b> · MKT: <b>${luckyUsed('mkt')}/${luckyConf('mkt').maxPerDay}</b> người đã quay</span></summary>
+  <div class="chip-row" style="margin:10px 0 0;">${[['sale','Vòng quay Sale'],['mkt','Vòng quay MKT']].map(([k,l])=>`<div class="chip ${P===k ? 'selected' : ''}" onclick="luckyPoolEdit='${k}'; luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">${l}</div>`).join('')}</div>
   <div class="lk-cols">
     <div class="lk-box lk-cond">
       <h3>Điều kiện</h3>
-      <label class="lk-f">Mốc doanh số trong ngày (đ)<input id="lkThreshold" type="number" min="0" step="500000" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>
+      <label class="lk-f">${isM ? 'Số SĐT hợp lệ nhập trong ngày (số)' : 'Mốc doanh số trong ngày (đ)'}<input id="lkThreshold" type="number" min="0" step="${isM ? 50 : 500000}" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>
       <label class="lk-f">Số người tối đa mỗi ngày<input id="lkMax" type="number" min="1" max="50" value="${mt.maxPerDay}" oninput="luckyMetaGet().maxPerDay = Number(this.value)||0"></label>
-      <div class="lk-f">Tính doanh số theo<span class="lk-static">Hoá đơn đã cọc trong ngày</span></div>
-      <button type="button" class="lk-toggle" onclick="luckyMetaGet().revoke = !luckyMetaGet().revoke; renderLuckyMgrCard(true)" aria-pressed="${mt.revoke}"><span>Hoá đơn bị xoá / huỷ làm tụt dưới mốc → <b>thu hồi giải</b></span><span class="lk-sw ${mt.revoke ? 'on' : ''}"><i></i></span></button>
+      <div class="lk-f">${isM ? 'Tính theo' : 'Tính doanh số theo'}<span class="lk-static">${isM ? 'Số SĐT hợp lệ MKT nhập (đã lọc trùng)' : 'Hoá đơn đã cọc trong ngày'}</span></div>
+      ${isM ? '' : `<button type="button" class="lk-toggle" onclick="luckyMetaGet().revoke = !luckyMetaGet().revoke; renderLuckyMgrCard(true)" aria-pressed="${mt.revoke}"><span>Hoá đơn bị xoá / huỷ làm tụt dưới mốc → <b>thu hồi giải</b></span><span class="lk-sw ${mt.revoke ? 'on' : ''}"><i></i></span></button>`}
     </div>
     <div class="lk-box lk-prz">
       <div class="lk-prz-h"><h3>Giải thưởng</h3><span class="${tot===100 ? 'lk-ok' : 'lk-warn'}">Tổng tỉ lệ ${tot}%${tot===100 ? '' : ' (app tự chia theo tỉ lệ)'}</span></div>
@@ -12478,7 +12530,7 @@ function renderLuckyMgrCard(force){
       <div class="lk-prz-f"><button class="btn-ghost btn-small" onclick="luckyDraftAdd()">+ Thêm giải</button><span style="flex:1;"></span><button class="btn-ghost btn-small" onclick="luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">Huỷ sửa</button><button class="btn-primary btn-small" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
     </div>
   </div>
-  <div class="lk-box" style="margin-top:14px;"><h3>Vinh danh hôm nay</h3><div class="lk-slots">${slots.join('')}</div></div>
+  <div class="lk-box" style="margin-top:14px;"><h3>Vinh danh hôm nay — ${isM ? 'MKT' : 'Sale'}</h3><div class="lk-slots">${slots.join('')}</div></div>
   </details>`;
 }
 function luckySaveCfg(){
@@ -12488,8 +12540,9 @@ function luckySaveCfg(){
     if(o.kind==='data') o.n = Math.max(1, Math.min(50, Number(p.n)||5)); if(p.ink) o.ink = p.ink; if(o.color==='#F59E0B' && !p.ink) o.ink = '#1a1206'; return o; });
   if(prizes.some(p=>!p.name)){ showToast('Giải nào cũng cần có tên'); return; }
   if(!th || !prizes.some(p=>p.w > 0)){ showToast('Mốc doanh số và tỉ lệ giải phải lớn hơn 0'); return; }
-  askConfirm('Lưu cài đặt vòng quay?', `${prizes.length} giải · mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${mt.revoke ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
-    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!mt.revoke, prizes, by: me.name || '', at: nowMs()}).then(()=>{ luckyDraft = null; luckyDraftMeta = null; showToast('Đã lưu cài đặt vòng quay'); renderLuckyMgrCard(true); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  const P = luckyPoolEdit;
+  askConfirm(P==='mkt' ? 'Lưu cài đặt vòng quay MKT?' : 'Lưu cài đặt vòng quay Sale?', `${prizes.length} giải · mốc ${luckyMetricFmt(th, P)} · tối đa ${mx} người/ngày · ${mt.revoke ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
+    fbRoot.child(P==='mkt' ? 'luckyCfgMkt' : 'luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!mt.revoke, prizes, by: me.name || '', at: nowMs()}).then(()=>{ luckyDraft = null; luckyDraftMeta = null; showToast('Đã lưu cài đặt vòng quay'); renderLuckyMgrCard(true); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   });
 }
 function luckyGive(uid, on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
@@ -12500,7 +12553,7 @@ function luckyRevokeCheck(){
   const c = luckyConf(); if(!c.revoke) return;
   const tm = toLocalDateStr(new Date(new Date(luckyDate + 'T00:00:00').getTime() + 36*3600000));
   Object.values(luckyToday||{}).forEach(r=>{
-    if(!r || !r.uid || r.revoked || r.extra) return;
+    if(!r || !r.uid || r.revoked || r.extra || (r.pool||'sale')!=='sale') return;
     if(luckyRevenueOf(r.uid, luckyDate) >= c.threshold) return;
     const up = {[`luckySpin/${luckyDate}/${r.uid}/revoked`]: true, [`luckySpin/${luckyDate}/${r.uid}/revokedAt`]: nowMs()};
     const inc = firebase.database.ServerValue.increment, k = r.prize && r.prize.kind;
@@ -14503,6 +14556,7 @@ function mktMissingReportDates(user){
   const y = mktYesterday();
   if(start > y) return [];
   const done = new Set(state.mktReports.filter(r=>r.userId===user.id).map(r=>r.date));
+  Object.keys((mktPassUsed||{})[user.id] || {}).forEach(d=>done.add(d)); // 🛡️ ngày đã dùng thẻ miễn khoá → coi như đủ
   const out = []; const d = new Date(start+'T00:00:00'); let guard = 0;
   while(toLocalDateStr(d) <= y && guard++ < 800){ const ds = toLocalDateStr(d); if(!done.has(ds)) out.push(ds); d.setDate(d.getDate()+1); }
   return out;
@@ -14550,13 +14604,25 @@ function renderMktInputLock(){
   box.innerHTML = blocked ? `<div class="card" style="border:1px solid #FF6B6B; background:rgba(255,107,107,0.08);">
       <div style="font-weight:700; font-size:16px;">🔒 Tạm khoá nhập data${!lockedDate && team.length ? ` — cả team ${escHtml(teamName)}` : ''}</div>
       ${lockedDate ? `<div style="font-size:13.5px; margin:6px 0 12px; line-height:1.55;">Bạn còn thiếu <b>${missing.length} báo cáo</b>: ${missing.slice(0,10).map(fmtDate).join(', ')}${missing.length>10?'…':''}.<br>Nộp đủ các ngày còn thiếu là nhập data được ngay.</div>
-      <button class="btn-primary" onclick="goSubmitYesterdayMktReport()">🧾 Nộp báo cáo ngày ${fmtDate(lockedDate)}${missing.length>1?` (còn ${missing.length} ngày)`:''}</button>` : ''}
+      <button class="btn-primary" onclick="goSubmitYesterdayMktReport()">🧾 Nộp báo cáo ngày ${fmtDate(lockedDate)}${missing.length>1?` (còn ${missing.length} ngày)`:''}</button>
+      ${(Number(mktPasses[u.id])||0) > 0 ? ` <button class="btn-ghost" onclick="mktPassUse('${lockedDate}')">🛡️ Dùng thẻ miễn khoá cho ngày ${fmtDate(lockedDate)} (còn ${Number(mktPasses[u.id])} thẻ)</button>` : ''}` : ''}
       ${team.length ? `<div style="font-size:13.5px; margin:${lockedDate?'14px':'6px'} 0 0; line-height:1.6;">${lockedDate ? 'Ngoài ra, ' : ''}<b>Cả team đang bị khoá</b> vì đồng đội chưa nộp đủ báo cáo:
         <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px;">${team.map(x=>`<div>• <b>${escHtml(x.u.name)}</b> — thiếu ${x.dates.length} ngày: ${x.dates.slice(0,6).map(d=>fmtDate(d).slice(0,5)).join(', ')}${x.dates.length>6?'…':''}</div>`).join('')}</div>
         <div style="font-size:12.5px; color:var(--ink-soft); margin-top:6px;">Quy định: 1 thành viên chưa nộp báo cáo thì cả team không nhập được data. Khi tất cả đã nộp đủ, team được mở khoá ngay.</div></div>` : ''}
     </div>` : '';
 }
+// 🛡️ Dùng 1 thẻ miễn khoá nhập data (giải vòng quay MKT) cho 1 ngày thiếu báo cáo — trừ thẻ an toàn bằng transaction
+function mktPassUse(date){
+  const me = currentUser(); if(!me || !fbRoot || !date) return;
+  askConfirm('Dùng thẻ miễn khoá?', `Dùng 1 thẻ cho ngày ${fmtDate(date)}: ngày này coi như đã đủ báo cáo, bạn (và team) nhập data được. Còn lại ${Math.max(0, (Number(mktPasses[me.id])||0) - 1)} thẻ.`, ()=>{
+    fbRoot.child('mktPasses/' + me.id).transaction(c=>(Number(c)||0) > 0 ? (Number(c) - 1) : undefined).then(res=>{
+      if(!res || !res.committed){ showToast('Bạn không còn thẻ miễn khoá'); return; }
+      fbRoot.child(`mktPassUsed/${me.id}/${date}`).set(nowMs()).then(()=>{ showToast('🛡️ Đã dùng thẻ — mở khoá nhập data'); try{ renderMktInputLock(); }catch(e){} });
+    }).catch(()=>showToast('Chưa dùng được thẻ — kiểm tra mạng'));
+  });
+}
 function renderMktInputPage(){
+  try{ luckyCardRender(); }catch(e){ console.error(e); }
   resetMktBulkPreview();
   populateMktSourceList();
   renderMktInputLock();
