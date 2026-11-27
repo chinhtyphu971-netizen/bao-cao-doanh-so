@@ -1716,7 +1716,27 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
   .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
   .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
-  .lk-prize-table input, .lk-prize-table select{ padding:6px 8px; }
+  .lk-cols{ display:flex; flex-direction:column; gap:14px; margin-top:10px; } .lk-box{ background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:14px; padding:16px; box-sizing:border-box; min-width:0; }
+  .lk-box h3{ margin:0 0 12px; font-size:15px; font-weight:800; } .lk-cond{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end; } .lk-cond h3, .lk-cond .lk-toggle{ grid-column:1/-1; } .lk-cond h3{ margin:0; }
+  .lk-f{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; font-weight:600; color:var(--ink-soft); } .lk-f input{ font-size:15px; font-weight:700; }
+  .lk-static{ display:block; padding:10px 12px; border-radius:10px; border:1px solid var(--line); color:var(--ink); font-size:14px; font-weight:700; }
+  .lk-toggle{ display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:13px; cursor:pointer; min-height:48px; }
+  .lk-sw{ flex:0 0 42px; height:24px; border-radius:99px; background:#3A4466; display:flex; align-items:center; padding:3px; box-sizing:border-box; } .lk-sw i{ width:18px; height:18px; border-radius:50%; background:#fff; } .lk-sw.on{ background:#34C759; justify-content:flex-end; }
+  .lk-prz-h{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; } .lk-ok{ color:#4BE08A; font-size:12.5px; font-weight:700; } .lk-warn{ color:#F0A63A; font-size:12.5px; font-weight:700; }
+  .lk-ptable{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:660px; } .lk-ptable th{ text-align:left; font-size:11.5px; color:var(--ink-soft); font-weight:700; padding:6px 6px; } .lk-ptable td{ padding:6px; border-top:1px solid var(--line); vertical-align:middle; }
+  .lk-ptable input, .lk-ptable select{ background:transparent; border:1px solid transparent; border-radius:8px; color:var(--ink); padding:6px 8px; font:inherit; } .lk-ptable input:hover, .lk-ptable input:focus, .lk-ptable select:hover{ border-color:var(--line); }
+  .lk-name{ display:flex; align-items:center; gap:6px; } .lk-name input{ font-weight:700; width:100%; min-width:150px; } .lk-ptable input.lk-short{ width:100px !important; }
+  .lk-dot{ position:relative; flex:0 0 16px; width:16px; height:16px; border-radius:5px; cursor:pointer; } .lk-dot select{ position:absolute; inset:0; opacity:0; width:100% !important; height:100% !important; min-width:0 !important; padding:0 !important; cursor:pointer; }
+  .lk-pill{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:8px; padding:0 8px 0 0; font-weight:700; } .lk-pill input{ width:46px !important; text-align:right; font-weight:700; border:0 !important; }
+  .lk-ptable select.lk-kind{ width:auto !important; min-width:0; max-width:230px; font-weight:600; } .lk-kind.auto{ color:#4BE08A !important; } .lk-kind.man{ color:#FFB98A !important; } .lk-kind option{ color:var(--ink); background:var(--panel); }
+  .lk-n{ font-size:12px; color:var(--ink-soft); margin-left:4px; white-space:nowrap; } .lk-n input{ width:50px !important; border:1px solid var(--line) !important; } .lk-cnt{ color:var(--ink-soft); }
+  .lk-del{ background:transparent; border:0; color:var(--ink-soft); cursor:pointer; width:32px; height:32px; border-radius:8px; } .lk-del:hover{ background:rgba(255,255,255,.06); color:#FF8A8D; }
+  .lk-ptable td:nth-child(4){ white-space:nowrap; }
+  .lk-prz-f{ display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .lk-slots{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; } .lk-slot{ border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:6px; background:rgba(0,0,0,.12); } .lk-slot.revoked{ opacity:.5; }
+  .lk-slot-h{ display:flex; align-items:center; gap:8px; } .lk-badge{ width:24px; height:24px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; } .lk-badge.gold{ background:#FFC25C; } .lk-badge.off{ background:#3A4466; color:#AAB3CC; }
+  .lk-sub{ font-size:12px; color:var(--ink-soft); } .lk-slot-p{ font-weight:800; color:#FFC25C; } .lk-slot.empty .lk-slot-p{ color:var(--ink-soft); font-weight:700; } .lk-auto{ font-size:12px; color:#4BE08A; font-weight:700; }
+  .lk-give{ height:38px; border-radius:10px; border:1px solid #FF9A5C; background:#FF9A5C; color:#1a1206; font-weight:800; cursor:pointer; } .lk-give.done{ background:rgba(75,224,138,.12); border-color:#4BE08A; color:#4BE08A; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
   .goal-sort-ar{ font-size:10px; opacity:.45; }
@@ -12399,52 +12419,72 @@ async function luckySpinGo(){
 // ----- Quản lý chung: cài đặt + vinh danh + đã trao -----
 // Bảng giải đang sửa (chưa lưu): sửa tên, chữ trên vòng, loại giải, tỉ lệ, màu · thêm / xoá giải
 let luckyDraft = null;
-const LUCKY_KINDS = [['manual','Quản lý trao tay (bấm "Đã trao")'],['data','+N data ưu tiên ngày mai (app tự áp dụng)'],['pass','Thẻ miễn phạt báo cáo (app tự áp dụng)'],['extra','Thêm 1 lượt quay ngày mai (app tự áp dụng)']];
+const LUCKY_KINDS = [['manual','Quản lý bấm "Đã trao"'],['data','App tự áp dụng: +N data'],['pass','App tự áp dụng: thẻ miễn phạt'],['extra','App tự áp dụng: +1 lượt quay']];
 const LUCKY_COLORS = ['#F59E0B','#2B3A67','#E8572A','#3D4F86','#0F766E','#C2410C','#7C3AED','#BE185D','#15803D','#0369A1'];
 function luckyDraftGet(){ if(!luckyDraft) luckyDraft = luckyConf().prizes.map(p=>Object.assign({}, p)); return luckyDraft; }
 function luckyDraftSet(i, k, v){ const d = luckyDraftGet(); if(!d[i]) return; if(k==='w' || k==='n') v = Math.max(0, Number(v)||0); d[i][k] = v; if(k==='kind' || k==='color'){ renderLuckyMgrCard(true); } }
 function luckyDraftAdd(){ const d = luckyDraftGet(); if(d.length >= 12){ showToast('Tối đa 12 giải'); return; } d.push({key: 'p' + uid(), name: 'Giải mới', short: 'Giải mới', kind: 'manual', w: 5, color: LUCKY_COLORS[d.length % LUCKY_COLORS.length]}); renderLuckyMgrCard(true); }
 function luckyDraftDel(i){ const d = luckyDraftGet(); if(d.length <= 2){ showToast('Cần ít nhất 2 giải'); return; } d.splice(i, 1); renderLuckyMgrCard(true); }
+let luckyDraftMeta = null, luckyMonthCache = {month: '', data: null, loading: false};
+function luckyMetaGet(){ if(!luckyDraftMeta){ const c = luckyConf(); luckyDraftMeta = {threshold: c.threshold, maxPerDay: c.maxPerDay, revoke: !!c.revoke}; } return luckyDraftMeta; }
+function luckyMonthCounts(){ // số lần trúng từng giải trong tháng (bỏ giải đã thu hồi)
+  const m = todayStr().slice(0,7);
+  if(luckyMonthCache.month!==m && !luckyMonthCache.loading){ luckyMonthCache = {month: m, data: null, loading: true};
+    fbRoot.child('luckySpin').orderByKey().startAt(m + '-01').endAt(m + '-31').once('value').then(sn=>{ luckyMonthCache.data = sn.val() || {}; luckyMonthCache.loading = false; renderLuckyMgrCard(); }).catch(()=>{ luckyMonthCache.loading = false; }); }
+  const cnt = {}, days = Object.assign({}, luckyMonthCache.data || {}, {[luckyDate]: luckyToday});
+  Object.values(days).forEach(day=>Object.values(day||{}).forEach(r=>{ if(r && r.prize && !r.revoked) cnt[r.prize.key] = (cnt[r.prize.key]||0) + 1; }));
+  return cnt;
+}
 function renderLuckyMgrCard(force){
   const el = document.getElementById('luckyMgrCard'); if(!el) return;
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
   if(!force && document.activeElement && el.contains(document.activeElement) && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return; // đang gõ → không vẽ lại
   el.style.display = '';
-  const c = Object.assign({}, luckyConf(), {prizes: luckyDraftGet()}), tot = c.prizes.reduce((a,p)=>a+(Number(p.w)||0),0);
+  const c = luckyConf(), mt = luckyMetaGet(), prizes = luckyDraftGet(), tot = prizes.reduce((a,p)=>a+(Number(p.w)||0),0), cnt = luckyMonthCounts();
   const rows = Object.values(luckyToday||{}).filter(Boolean).sort((a,b)=>(a.at||0)-(b.at||0));
-  el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">mốc ${fmtMoney(c.threshold)}đ · ${c.maxPerDay} người/ngày · hôm nay ${luckyUsed()}/${c.maxPerDay}</span></summary>
-    <div class="grid-2" style="max-width:640px; margin-top:8px;">
-      <div class="field"><label>Mốc doanh số đã cọc trong ngày (đ)</label><input id="lkThreshold" type="number" min="0" step="500000" value="${c.threshold}"></div>
-      <div class="field"><label>Số người tối đa mỗi ngày</label><input id="lkMax" type="number" min="1" max="50" value="${c.maxPerDay}"></div>
+  const main = rows.filter(r=>!r.extra), extra = rows.filter(r=>r.extra);
+  const slot = (r, i)=>{
+    if(!r) return `<div class="lk-slot empty"><div class="lk-slot-h"><span class="lk-badge off">${i+1}</span><b>Còn trống</b></div><span class="lk-sub">— · đạt mốc —</span><span class="lk-slot-p">Chờ người đạt mốc</span></div>`;
+    const man = r.prize && r.prize.kind==='manual';
+    const act = r.revoked ? '<span class="badge badge-warn">Đã thu hồi</span>' : (man ? (r.given ? `<button class="lk-give done" onclick="luckyGive('${escHtml(r.uid)}', false)" title="Bấm để bỏ đánh dấu">Đã trao ✓ ${packTimeShort(r.givenAt)}</button>` : `<button class="lk-give" onclick="luckyGive('${escHtml(r.uid)}', true)">Bấm khi đã trao</button>`) : '<span class="lk-auto">App tự áp dụng</span>');
+    return `<div class="lk-slot ${r.revoked ? 'revoked' : ''}"><div class="lk-slot-h"><span class="lk-badge ${i===0 ? 'gold' : ''}">${r.extra ? '+' : (r.rank || i+1)}</span><b>${escHtml(r.name||'')}</b></div><span class="lk-sub">${escHtml(branchName(r.branchId)||'')} · đạt mốc ${packTimeShort(r.at)} · ${fmtMoney(r.revenue)}đ</span><span class="lk-slot-p">${escHtml(luckyPrizeLabel(r.prize))}</span>${act}</div>`;
+  };
+  const slots = []; for(let i = 0; i < Math.max(c.maxPerDay, main.length); i++) slots.push(slot(main[i], i)); extra.forEach((r)=>slots.push(slot(r, 99)));
+  el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">mốc ${fmtMoney(c.threshold)}đ · ${c.maxPerDay} người/ngày · hôm nay <b>${luckyUsed()}/${c.maxPerDay}</b> người đã quay</span></summary>
+  <div class="lk-cols">
+    <div class="lk-box lk-cond">
+      <h3>Điều kiện</h3>
+      <label class="lk-f">Mốc doanh số trong ngày (đ)<input id="lkThreshold" type="number" min="0" step="500000" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>
+      <label class="lk-f">Số người tối đa mỗi ngày<input id="lkMax" type="number" min="1" max="50" value="${mt.maxPerDay}" oninput="luckyMetaGet().maxPerDay = Number(this.value)||0"></label>
+      <div class="lk-f">Tính doanh số theo<span class="lk-static">Hoá đơn đã cọc trong ngày</span></div>
+      <button type="button" class="lk-toggle" onclick="luckyMetaGet().revoke = !luckyMetaGet().revoke; renderLuckyMgrCard(true)" aria-pressed="${mt.revoke}"><span>Hoá đơn bị xoá / huỷ làm tụt dưới mốc → <b>thu hồi giải</b></span><span class="lk-sw ${mt.revoke ? 'on' : ''}"><i></i></span></button>
     </div>
-    <label style="display:flex; gap:8px; align-items:center; margin:4px 0 12px; cursor:pointer;"><input type="checkbox" id="lkRevoke" ${c.revoke ? 'checked' : ''} style="width:16px; height:16px; margin:0;"> Hoá đơn bị xoá / huỷ làm tụt dưới mốc trong ngày → <b>thu hồi giải</b></label>
-    <div class="table-wrap"><table class="rtable lk-prize-table"><thead><tr><th>Màu</th><th>Tên giải (hiện khi trúng)</th><th>Chữ trên vòng</th><th>Loại giải</th><th class="num">Tỉ lệ (%)</th><th></th></tr></thead><tbody>
-      ${c.prizes.map((p,i)=>`<tr>
-        <td><select aria-label="Màu ô" onchange="luckyDraftSet(${i}, 'color', this.value)" style="background:${escHtml(p.color||'#3D4F86')}; color:#fff; width:58px;">${LUCKY_COLORS.concat(LUCKY_COLORS.includes(p.color) || !p.color ? [] : [p.color]).map(col=>`<option value="${col}" style="background:${col};" ${col===p.color ? 'selected' : ''}>■</option>`).join('')}</select></td>
-        <td><input aria-label="Tên giải" value="${escHtml(p.name||'')}" maxlength="60" oninput="luckyDraftSet(${i}, 'name', this.value)" style="min-width:170px;"></td>
-        <td><input aria-label="Chữ trên vòng" value="${escHtml(p.short||'')}" maxlength="14" oninput="luckyDraftSet(${i}, 'short', this.value)" style="width:110px;"></td>
-        <td><select aria-label="Loại giải" onchange="luckyDraftSet(${i}, 'kind', this.value)">${LUCKY_KINDS.map(([k,l])=>`<option value="${k}" ${k===(p.kind||'manual') ? 'selected' : ''}>${escHtml(l)}</option>`).join('')}</select>${p.kind==='data' ? ` <label class="muted-s" style="white-space:nowrap;">N = <input type="number" min="1" max="50" value="${Number(p.n)||5}" oninput="luckyDraftSet(${i}, 'n', this.value)" style="width:56px;"></label>` : ''}</td>
-        <td class="num"><input aria-label="Tỉ lệ" type="number" min="0" max="100" value="${Number(p.w)||0}" oninput="luckyDraftSet(${i}, 'w', this.value)" style="width:70px; text-align:right;"></td>
-        <td><button class="btn-ghost btn-small" onclick="luckyDraftDel(${i})" aria-label="Xoá giải ${escHtml(p.name||'')}">Xoá</button></td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="goal-actions" style="margin-top:8px;"><button class="btn-ghost" onclick="luckyDraftAdd()">+ Thêm giải</button><span class="muted-s">Tổng tỉ lệ: <b>${tot}%</b> (không cần đúng 100 — app tự chia theo tỉ lệ) · "Chữ trên vòng" nên ngắn (≤ 2 từ)</span><button class="btn-ghost" onclick="luckyDraft = null; renderLuckyMgrCard(true)">Huỷ sửa</button><button class="btn-primary" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
-    <h3 style="margin:16px 0 6px; font-size:15px;">Vinh danh hôm nay</h3>
-    ${rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th>#</th><th>Người</th><th>Đạt mốc</th><th class="num">Doanh số lúc quay</th><th>Giải</th><th></th></tr></thead><tbody>
-      ${rows.map(r=>{ const man = r.prize && r.prize.kind==='manual';
-        return `<tr style="${r.revoked ? 'opacity:.5;' : ''}"><td>${r.extra ? '+' : (r.rank||'')}</td><td><b>${escHtml(r.name||'')}</b><div class="muted-s">${escHtml(branchName(r.branchId)||'')}</div></td><td>${packTimeShort(r.at)}</td><td class="num">${fmtMoney(r.revenue)}đ</td><td>${escHtml(luckyPrizeLabel(r.prize))}${r.revoked ? ' <span class="badge badge-warn">đã thu hồi</span>' : ''}</td>
-          <td>${r.revoked ? '' : (man ? (r.given ? `<span class="badge badge-ok">Đã trao ${packTimeShort(r.givenAt)}</span> <a href="#" class="pack-ph-link" onclick="event.preventDefault(); luckyGive('${escHtml(r.uid)}', false)">bỏ</a>` : `<button class="btn-small btn-primary" onclick="luckyGive('${escHtml(r.uid)}', true)">Đã trao</button>`) : '<span class="muted-s">App tự áp dụng</span>')}</td></tr>`; }).join('')}
-    </tbody></table></div>` : '<p class="goal-hint">Hôm nay chưa ai quay.</p>'}
+    <div class="lk-box lk-prz">
+      <div class="lk-prz-h"><h3>Giải thưởng</h3><span class="${tot===100 ? 'lk-ok' : 'lk-warn'}">Tổng tỉ lệ ${tot}%${tot===100 ? '' : ' (app tự chia theo tỉ lệ)'}</span></div>
+      <div class="table-wrap"><table class="lk-ptable"><thead><tr><th>Giải (hiện khi trúng)</th><th>Chữ trên vòng</th><th>Tỉ lệ</th><th>Cách trao</th><th class="num">Đã trúng tháng này</th><th></th></tr></thead><tbody>
+      ${prizes.map((p,i)=>`<tr>
+        <td><div class="lk-name"><span class="lk-dot" style="background:${escHtml(p.color||'#3D4F86')};" title="Đổi màu ô"><select aria-label="Màu ô" onchange="luckyDraftSet(${i}, 'color', this.value)">${LUCKY_COLORS.concat(LUCKY_COLORS.includes(p.color) || !p.color ? [] : [p.color]).map((col,k)=>`<option value="${col}" ${col===p.color ? 'selected' : ''}>Màu ${k+1}</option>`).join('')}</select></span><input aria-label="Tên giải" value="${escHtml(p.name||'')}" maxlength="60" oninput="luckyDraftSet(${i}, 'name', this.value)"></div></td>
+        <td><input class="lk-short" aria-label="Chữ trên vòng" value="${escHtml(p.short||'')}" maxlength="14" oninput="luckyDraftSet(${i}, 'short', this.value)"></td>
+        <td><span class="lk-pill"><input aria-label="Tỉ lệ" type="number" min="0" max="100" value="${Number(p.w)||0}" oninput="luckyDraftSet(${i}, 'w', this.value)">%</span></td>
+        <td><select class="lk-kind ${(p.kind||'manual')==='manual' ? 'man' : 'auto'}" aria-label="Cách trao" onchange="luckyDraftSet(${i}, 'kind', this.value)">${LUCKY_KINDS.map(([k,l])=>`<option value="${k}" ${k===(p.kind||'manual') ? 'selected' : ''}>${escHtml(l)}</option>`).join('')}</select>${p.kind==='data' ? `<label class="lk-n">N <input type="number" min="1" max="50" value="${Number(p.n)||5}" oninput="luckyDraftSet(${i}, 'n', this.value)"></label>` : ''}</td>
+        <td class="num lk-cnt">${luckyMonthCache.data ? (cnt[p.key]||0) : '…'}</td>
+        <td><button class="lk-del" onclick="luckyDraftDel(${i})" aria-label="Xoá giải ${escHtml(p.name||'')}" title="Xoá giải">✕</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="lk-prz-f"><button class="btn-ghost btn-small" onclick="luckyDraftAdd()">+ Thêm giải</button><span style="flex:1;"></span><button class="btn-ghost btn-small" onclick="luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">Huỷ sửa</button><button class="btn-primary btn-small" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
+    </div>
+  </div>
+  <div class="lk-box" style="margin-top:14px;"><h3>Vinh danh hôm nay</h3><div class="lk-slots">${slots.join('')}</div></div>
   </details>`;
 }
 function luckySaveCfg(){
   const me = currentUser(); if(!me || me.role!=='general_manager') return;
-  const c = luckyConf(); const th = Math.max(0, Math.round(Number((document.getElementById('lkThreshold')||{}).value)||0)), mx = Math.max(1, Math.min(50, Math.round(Number((document.getElementById('lkMax')||{}).value)||0)));
+  const mt = luckyMetaGet(); const th = Math.max(0, Math.round(Number(mt.threshold)||0)), mx = Math.max(1, Math.min(50, Math.round(Number(mt.maxPerDay)||0)));
   const prizes = luckyDraftGet().map(p=>{ const o = {key: p.key || ('p' + uid()), name: String(p.name||'').trim().slice(0,60), short: String(p.short||'').trim().slice(0,14) || String(p.name||'').trim().slice(0,14), kind: p.kind || 'manual', w: Math.max(0, Number(p.w)||0), color: p.color || '#3D4F86'};
     if(o.kind==='data') o.n = Math.max(1, Math.min(50, Number(p.n)||5)); if(p.ink) o.ink = p.ink; if(o.color==='#F59E0B' && !p.ink) o.ink = '#1a1206'; return o; });
   if(prizes.some(p=>!p.name)){ showToast('Giải nào cũng cần có tên'); return; }
   if(!th || !prizes.some(p=>p.w > 0)){ showToast('Mốc doanh số và tỉ lệ giải phải lớn hơn 0'); return; }
-  askConfirm('Lưu cài đặt vòng quay?', `${prizes.length} giải · mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${(document.getElementById('lkRevoke')||{}).checked ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
-    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!(document.getElementById('lkRevoke')||{}).checked, prizes, by: me.name || '', at: nowMs()}).then(()=>{ luckyDraft = null; showToast('Đã lưu cài đặt vòng quay'); renderLuckyMgrCard(true); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
+  askConfirm('Lưu cài đặt vòng quay?', `${prizes.length} giải · mốc ${fmtMoney(th)}đ · tối đa ${mx} người/ngày · ${mt.revoke ? 'có' : 'không'} thu hồi giải. Áp dụng ngay cho lượt quay tiếp theo.`, ()=>{
+    fbRoot.child('luckyCfg').set({threshold: th, maxPerDay: mx, revoke: !!mt.revoke, prizes, by: me.name || '', at: nowMs()}).then(()=>{ luckyDraft = null; luckyDraftMeta = null; showToast('Đã lưu cài đặt vòng quay'); renderLuckyMgrCard(true); }).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   });
 }
 function luckyGive(uid, on){ const me = currentUser(); if(!me || me.role!=='general_manager') return;
