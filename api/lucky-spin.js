@@ -56,6 +56,7 @@ module.exports = async (req, res) => {
     let body = req.body || {}; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
     if (body.pool === 'attvip') return res.status(400).json({error: 'Không có vòng chuyên cần VIP — đủ 5 ngày đúng giờ thì Sale / MKT được thêm lượt ở vòng của mình.'});
     if (body.pool === 'att') return await attSpin(D, uid, u, 'att', res);
+    if (u && u.role === 'packer') return await packSpin(D, uid, u, res); // 📦 vòng quay kho
     // Vòng quay Sale (staff / team_manager) hoặc vòng quay MKT (mkt / mkt_manager) — theo vai trò, không tin vào máy gửi lên
     const pool = u && ['mkt', 'mkt_manager'].includes(u.role) ? 'mkt' : 'sale';
     if (!u || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role) || u.active === false || u.loginBlocked)
@@ -184,4 +185,45 @@ async function attSpin(D, uid, u, pool, res) {
   if (prize.kind === 'early') { const pk = D.ref('earlyPasses/' + uid).push().key; up[`earlyPasses/${uid}/${pk}`] = {min: Number(prize.n) || 30, at: now, exp: now + 7 * 86400000, from: key}; }
   if (Object.keys(up).length) await D.ref().update(up);
   return res.json({ok: true, prize, pool});
+}
+
+// 📦 Quay vòng KHO: lượt = floor(tổng sp đã nhặt từ 28/11 / mốc) + lượt +1 trúng thưởng − đã quay; + lượt tặng 🎁 (luckyBonus, đủ 5 tặng 1)
+const DEF_PACK = [
+  {key:'special', name:'Giải đặc biệt 50k', short:'Đặc biệt 50k', kind:'manual', w:2, icon:'🎁'}, {key:'cash5', name:'5k tiền mặt', short:'5k', kind:'manual', w:30, icon:'💵'},
+  {key:'tea', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:8, icon:'🍋'}, {key:'milkbox', name:'1 hộp sữa nhỏ', short:'Hộp sữa', kind:'manual', w:25, icon:'🥛'},
+  {key:'noclean', name:'Miễn dọn kho / đổ rác 1 lần', short:'Miễn dọn kho', kind:'manual', w:10}, {key:'luck', name:'Chúc bạn may mắn lần sau', short:'May mắn sau', kind:'none', w:15},
+  {key:'packspin', name:'Thêm 1 lượt quay', short:'+1 lượt', kind:'packspin', n:1, w:10}];
+async function packSpin(D, uid, u, res) {
+  if (u.active === false || u.loginBlocked || u.sharedDesk) return res.status(403).json({error: 'Tài khoản này không quay được.'});
+  const cv = (await D.ref('luckyCfgPack').once('value')).val() || {};
+  const thr = Math.max(50, Number(cv.threshold) || 500);
+  let prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : DEF_PACK).filter(p => p && p.key && Number(p.w) > 0 && !isGrand(p));
+  if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
+  const pRef = D.ref('packCount/' + uid), bRef = D.ref('luckyBonus/' + uid);
+  let kind = '', qty = 0;
+  const tx = await pRef.transaction(cur => { cur = cur || {}; qty = Object.values(cur.days || {}).reduce((a, x) => a + (Number(x) || 0), 0);
+    const earned = Math.floor(qty / thr) + (Number(cur.extra) || 0), spun = Number(cur.spun) || 0;
+    if (spun >= earned) { kind = ''; return; } kind = 'tier'; return Object.assign({}, cur, {spun: spun + 1}); });
+  let bonusUsed = false;
+  if (!tx.committed) { // hết lượt theo mốc → dùng lượt tặng nếu có
+    const b = await bRef.transaction(cur => (cur && Number(cur.left) > 0) ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
+    if (!b.committed) return res.status(400).json({error: `Bạn chưa có lượt — nhặt thêm ${(thr - (qty % thr)).toLocaleString('vi-VN')} sp để có lượt tiếp.`});
+    bonusUsed = true;
+  }
+  const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
+    for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
+  const now = Date.now(), day = vnDay(now), grandRef = D.ref('luckyGrand/' + day.slice(0, 4));
+  // 🌟 Lượt tặng (đủ 5 lượt) = VÒNG ĐẶC BIỆT: thêm ô iPhone 18 Pro Max, tỉ lệ khoá GRAND_W, mỗi năm 1 giải
+  if (bonusUsed && !(await grandRef.once('value')).exists()) prizes = prizes.concat([{key: 'iphone', name: 'iPhone 18 Pro Max', short: 'iPhone 18 Pro Max', kind: 'manual', w: GRAND_W, icon: '📱'}]);
+  let p = pick(prizes);
+  if (isGrand(p)) { const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool: 'pack', day, at: now});
+    if (!g.committed) { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); } }
+  const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
+  const ref = D.ref('luckySpin/' + day).push(), key = ref.key;
+  await ref.set({uid, k: key, name: u.name || '', pool: 'pack', bonus: bonusUsed || null, thr, revenue: qty, prize, at: now});
+  const inc = admin.database.ServerValue.increment, up = {};
+  if (prize.kind === 'packspin') up[`packCount/${uid}/extra`] = inc(Number(prize.n) || 1);
+  if (Object.keys(up).length) await D.ref().update(up);
+  if (!bonusUsed) await bRef.transaction(cur => { cur = cur || {}; const n = (Number(cur.n) || 0) + 1; return Object.assign({}, cur, {n, left: (Number(cur.left) || 0) + (n % 5 === 0 ? 1 : 0)}); });
+  return res.json({ok: true, prize, pool: 'pack', bonus: bonusUsed});
 }
