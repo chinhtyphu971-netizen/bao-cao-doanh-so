@@ -17498,7 +17498,15 @@ function userName(id){ const u=state.users.find(u=>u.id===id); return u?u.name:'
 // Bật/tắt: appSettings/deltaSync = {on, epoch} (Quản lý chung · Công tắc vận hành). CHỈ BẬT sau khi đã thêm ".indexOn": ["_u"] vào Rules.
 const DELTA_NODES = ['leads','invoices','invoiceItems','packStatus'];
 const DELTA_MAX_AGE = 20*3600000;   // tải lại toàn bộ tối đa 1 lần / ~1 ngày / máy
-const DELTA_MARGIN = 10*60000;      // lùi 10 phút cho chắc (lệch giờ / ghi chậm)
+const DELTA_MARGIN = 10*60000;
+// ⚡ THU HẸP CỬA SỔ NGHE: lắng nghe "_u ≥ mốc" mở từ lúc vào app → càng về chiều cửa sổ càng rộng (gồm mọi mục đổi trong ngày),
+// mỗi lần mất mạng rồi nối lại Firebase gửi lại CẢ cửa sổ đó. → Khi vừa mất mạng (và 20 phút/lần) đặt lại mốc = mục mới nhất đã nhận − 10 phút,
+// nối lại chỉ còn tải phần thay đổi gần đây. Dữ liệu trên máy giữ nguyên, không tải lại.
+function deltaRescope(st){ try{ if(!st || st.off || !st.ready || !st.live) return; const since = Math.max(Number(st.since)||0, (Number(st.lastU)||0) - DELTA_MARGIN);
+  if(since <= (Number(st.since)||0) + 60000) { st.liveAt = nowMs(); return; } // cửa sổ vẫn còn hẹp
+  st.qs.forEach(q=>{ try{ q.off(); }catch(e){} }); st.qs = []; st.live(since); }catch(e){ console.warn('rescope', e); } }
+function deltaRescopeAll(){ Object.values(deltaActive).forEach(deltaRescope); }
+setInterval(()=>{ try{ Object.values(deltaActive).forEach(st=>{ if(st && nowMs() - (Number(st.liveAt)||0) > 20*60000) deltaRescope(st); }); }catch(e){} }, 5*60000);      // lùi 10 phút cho chắc (lệch giờ / ghi chậm)
 const DELTA_TOMB_KEEP = 10*86400000; // bia mộ giữ 10 ngày
 // ⚡ Kho data khách (11MB+), hoá đơn, trạng thái đóng hàng: tải lại toàn bộ 3 ngày/lần thay vì mỗi ngày.
 // Vẫn chính xác: mọi sửa có dấu _u (cả máy chủ Abit cũng gắn), mọi xoá có bia mộ (giữ 10 ngày > 3 ngày).
@@ -17590,7 +17598,7 @@ function deltaAttach(name, baseRef, h){
   st.saveNow = ()=>save(true);
   const flush = ()=>{ clearTimeout(st.flushT); st.flushT = setTimeout(()=>{ if(st.off || !st.ready) return; const n = st.nAdd; st.nAdd = 0; try{ h.update(st.map, n); }catch(e){ console.error(e); } save(); }, 120); };
   const live = since=>{
-    if(st.off) return;
+    if(st.off) return; st.since = since; st.liveAt = nowMs(); st.live = live;
     const q = baseRef.orderByChild('_u').startAt(since);
     const onV = s=>{ const v = s.val(); if(v===null) return; if(st.map[s.key]===undefined) st.nAdd++; st.map[s.key] = v; track(v._u); st.stats.delta++; if(st.ready) flush(); };
     q.on('child_added', onV); q.on('child_changed', onV);
@@ -17649,7 +17657,7 @@ function deltaAttachFiltered(name, baseRef, queries, match, h){
     if(match(v)){ if(st.map[s.key]===undefined) st.nAdd++; st.map[s.key] = v; if(st.ready) flush(); }
     else if(st.map[s.key]!==undefined){ delete st.map[s.key]; if(st.ready) flush(); } };
   const live = since=>{
-    if(st.off) return;
+    if(st.off) return; st.since = since; st.liveAt = nowMs(); st.live = live;
     const q = baseRef.orderByChild('_u').startAt(since); q.on('child_added', onV); q.on('child_changed', onV);
     const nq = baseRef.orderByChild('_u').equalTo(null); nq.on('child_added', onV); nq.on('child_changed', onV); // ghi từ máy bản cũ (chưa có _u)
     const dq = fbRoot.child('_del/leads').orderByValue().startAt(since);
@@ -17734,6 +17742,7 @@ function usageMeterInstall(){
       try{ const w0 = usageWire(); setTimeout(()=>{ try{ const w1 = usageWire(); if(w1 > w0) usageAdd('⟳ (thật)', w1 - w0); }catch(e){} }, 90000); }catch(e){}
       // ước tính TỐI ĐA phần có thể bị gửi lại khi nối lại: cộng cỡ dữ liệu mọi lắng nghe đang mở, ghi riêng "⟳ nhánh"
       try{ usageLive.forEach(e=>{ const n = e.kids ? Object.values(e.kids).reduce((a,b)=>a+b,0) : e.size; if(n) usageAdd('⟳ ' + e.node, n); }); }catch(e){} }
+    if(v===false && wasOn===true){ try{ deltaRescopeAll(); }catch(e){} } // vừa mất mạng → thu hẹp cửa sổ trước khi nối lại
     wasOn = v; });
   setInterval(usageFlush, 5*60000);
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden) usageFlush(); });
@@ -17866,6 +17875,19 @@ function subscribeLeadsForUser(user){
       if(!deltaEnabled()){ leadsSubQueries = leadsSubQueries.filter(x=>x!==holder); leadsAttachPlain(); return; }
       holder.d = deltaAttach('leads', fbLeads, {
         ready: map=>{ if(leadsSubKey!==myKey) return; maps[0] = map; ready = true; leadsDataReady = true; sync(); tryAutoDistribute(); backfillLeadPhoneNorm(); setTimeout(()=>{ try{ archiveOldLeadsIfDue(); }catch(e){ console.error(e); } }, 4000); },
+        update: (map, nAdded)=>{ if(leadsSubKey!==myKey) return; maps[0] = map; sync(); if(nAdded) tryAutoDistribute(); }
+      });
+    });
+    return;
+  }
+  if(!mktIds && (key.startsWith('sale:') || teamIds)){ // ⚡ Sale / Quản lý team: nhớ data trên máy, chỉ nhận phần thay đổi (trước đây mỗi lần nối lại mạng tải lại CẢ danh sách data của mình)
+    const holder = {off(){ this.dead = true; if(this.d) this.d.off(); }}; leadsSubQueries.push(holder);
+    const idSet = new Set(teamIds || [user.id]);
+    deltaLoadCfg().then(()=>{
+      if(holder.dead || leadsSubKey!==myKey) return;
+      if(!deltaEnabled()){ leadsSubQueries = leadsSubQueries.filter(x=>x!==holder); leadsAttachPlain(); return; }
+      holder.d = deltaAttachFiltered('leadsSale:' + [...idSet].join(','), fbLeads, queries, v=>!!v && idSet.has(v.assignedTo), {
+        ready: map=>{ if(leadsSubKey!==myKey) return; maps[0] = map; ready = true; leadsDataReady = true; sync(); tryAutoDistribute(); },
         update: (map, nAdded)=>{ if(leadsSubKey!==myKey) return; maps[0] = map; sync(); if(nAdded) tryAutoDistribute(); }
       });
     });
