@@ -170,11 +170,11 @@ const selfFb = raw => { const m = String(raw || '').trim().toLowerCase().match(/
   if (/^people\//.test(path)) { const id = (path.match(/(\d{6,})$/) || [])[1]; if (id) return 'fb:' + id; }
   return path.length >= 3 ? 'fb:' + path : null; };
 const selfKey = raw => selfNorm(raw) || selfFb(raw); // SĐT HOẶC link Facebook đều tính
-const SELF_OK_STATUS = ['Đã liên hệ', 'nhắn tin chưa gọi', 'Đang tư vấn', 'Đã lên HĐ', 'Đã chốt', 'Không có nhu cầu']; // phải ĐÃ liên hệ / nhắn tin mới tính
+const SELF_OK_STATUS = ['đã liên hệ', 'đã nhắn tin', 'nhắn tin chưa gọi', 'đã gọi', 'đang tư vấn', 'đã lên hđ', 'đã chốt', 'không có nhu cầu']; // phải ĐÃ liên hệ / nhắn tin mới tính
 async function selfEarned(D, uid) {
   const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
   const seen = new Set(), perDay = {};
-  rows.forEach(r => { const ph = selfKey(r && r.phone); if (!ph || seen.has(ph) || !SELF_OK_STATUS.includes(String(r.status || '').trim())) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
+  rows.forEach(r => { const ph = selfKey(r && r.phone); if (!ph || seen.has(ph) || !SELF_OK_STATUS.includes(String(r.status || '').trim().toLowerCase())) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
   return Object.values(perDay).reduce((a, n) => a + Math.floor(n / SELF_PER), 0);
 }
 async function attSpin(D, uid, u, pool, res) {
