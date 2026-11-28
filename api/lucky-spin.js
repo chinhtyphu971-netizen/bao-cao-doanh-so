@@ -96,7 +96,7 @@ module.exports = async (req, res) => {
     // cứ mỗi 5 lượt theo mốc → left +1; lượt tặng để dành được, quay lúc nào cũng được
     const BONUS_EVERY = 5, bRef = D.ref('luckyBonus/' + uid);
     const tierOf = x => (x.extra || x.bonus) ? 0 : (Number(x.tier) || 1);
-    const extraFree = !!extra && !Object.values((await D.ref('luckySpin/' + day).once('value')).val() || {}).some(x => x && x.uid === uid && x.extra);
+    const extraFree = !!extra && !Object.values((await D.ref('luckySpin/' + day).once('value')).val() || {}).some(x => x && x.uid === uid && x.extra && (x.pool || 'sale') === pool); // chỉ xét lượt của VÒNG NÀY (bỏ lượt chuyên cần / kho)
     let bonusHeld = false;
     if (!extraFree && Number(((await bRef.once('value')).val() || {}).left) > 0) { // giữ 1 lượt tặng (trừ trước, quay hỏng thì trả lại)
       const b = await txTake(bRef, cur => Number(cur.left) > 0 ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
@@ -118,7 +118,7 @@ module.exports = async (req, res) => {
     let outcome = '', rank = null, tier = 0, key = '', need = 0;
     const tx = await D.ref('luckySpin/' + day).transaction(cur => {
       cur = cur || {};
-      const mine = Object.values(cur).filter(x => x && x.uid === uid), tiers = new Set(mine.filter(x => tierOf(x) >= 1).map(tierOf));
+      const mine = Object.values(cur).filter(x => x && x.uid === uid && (x.pool || 'sale') === pool), tiers = new Set(mine.filter(x => tierOf(x) >= 1).map(tierOf));
       let isExtra = false, bonus = 0; tier = 0; key = '';
       if (extra && !mine.some(x => x.extra)) { isExtra = true; key = uid + '_x'; }
       else if (bonusHeld) { bonus = mine.filter(x => x.bonus).length + 1; key = uid + '_b' + bonus; }
