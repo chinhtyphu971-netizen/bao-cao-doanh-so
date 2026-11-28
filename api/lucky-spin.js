@@ -164,10 +164,17 @@ module.exports = async (req, res) => {
 const SELF_FROM = '2026-11-28', SELF_PER = 20;
 const selfNorm = raw => { let d = String(raw || '').replace(/[^\d+]/g, ''); if (d.startsWith('+84')) d = '0' + d.slice(3); else if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2);
   d = d.replace(/\D/g, ''); if (d.length === 9 && /^[35789]/.test(d)) d = '0' + d; return /^0[35789]\d{8}$/.test(d) ? d : null; };
+const selfFb = raw => { const m = String(raw || '').trim().toLowerCase().match(/(?:https?:\/\/)?(?:www\.|m\.|web\.|mbasic\.|business\.)?(facebook\.com|fb\.com|fb\.me|m\.me)\/([^\s?#]+)(\?[^\s#]*)?/);
+  if (!m) return null; const path = m[2].replace(/\/+$/, ''), q = m[3] || '';
+  if (/^profile\.php$/.test(path)) { const id = (q.match(/[?&]id=(\d+)/) || [])[1]; return id ? 'fb:' + id : null; }
+  if (/^people\//.test(path)) { const id = (path.match(/(\d{6,})$/) || [])[1]; if (id) return 'fb:' + id; }
+  return path.length >= 3 ? 'fb:' + path : null; };
+const selfKey = raw => selfNorm(raw) || selfFb(raw); // SĐT HOẶC link Facebook đều tính
+const SELF_OK_STATUS = ['Đã liên hệ', 'nhắn tin chưa gọi', 'Đang tư vấn', 'Đã lên HĐ', 'Đã chốt', 'Không có nhu cầu']; // phải ĐÃ liên hệ / nhắn tin mới tính
 async function selfEarned(D, uid) {
   const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
   const seen = new Set(), perDay = {};
-  rows.forEach(r => { const ph = selfNorm(r && r.phone); if (!ph || seen.has(ph)) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
+  rows.forEach(r => { const ph = selfKey(r && r.phone); if (!ph || seen.has(ph) || !SELF_OK_STATUS.includes(String(r.status || '').trim())) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
   return Object.values(perDay).reduce((a, n) => a + Math.floor(n / SELF_PER), 0);
 }
 async function attSpin(D, uid, u, pool, res) {
@@ -188,7 +195,7 @@ async function attSpin(D, uid, u, pool, res) {
     held = await bRef.transaction(cur => { cur = cur || {}; const sp = Number(cur.selfSpun) || 0; return sp < earned ? Object.assign({}, cur, {selfSpun: sp + 1}) : undefined; });
     viaSelf = held.committed;
   }
-  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — vào làm đúng giờ' + (['staff', 'team_manager'].includes(u.role) ? ' hoặc điền đủ 20 SĐT mới vào Data tự tìm trong ngày' : '') + ' để có.'});
+  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — vào làm đúng giờ' + (['staff', 'team_manager'].includes(u.role) ? ' hoặc có đủ 20 SĐT / link FB mới đã liên hệ / nhắn tin trong Data tự tìm hôm nay' : '') + ' để có.'});
   const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
     for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
   let p = pick(prizes);
@@ -202,7 +209,10 @@ async function attSpin(D, uid, u, pool, res) {
   if (prize.kind === 'attspin') up[`attBal/${uid}/left`] = inc(Number(prize.n) || 1);
   if (prize.kind === 'early') { const pk = D.ref('earlyPasses/' + uid).push().key; up[`earlyPasses/${uid}/${pk}`] = {min: Number(prize.n) || 30, at: now, exp: now + 7 * 86400000, from: key}; }
   if (Object.keys(up).length) await D.ref().update(up);
-  return res.json({ok: true, prize, pool});
+  // 🎁 Lượt chuyên cần (kể cả lượt từ Data tự tìm) cũng ĐẾM GỘP vào "5 lượt tặng 1 lượt đặc biệt" (luckyBonus — quay ở vòng Sale / MKT của mình)
+  let gift = false;
+  if (pool === 'att') { try { await D.ref('luckyBonus/' + uid).transaction(cur => { cur = cur || {}; const n = (Number(cur.n) || 0) + 1; gift = n % 5 === 0; return Object.assign({}, cur, {n, left: (Number(cur.left) || 0) + (gift ? 1 : 0)}); }); } catch (e) {} }
+  return res.json({ok: true, prize, pool, gift});
 }
 
 // 📦 Quay vòng KHO: lượt = floor(tổng sp đã nhặt từ 28/11 / mốc) + lượt +1 trúng thưởng − đã quay; + lượt tặng 🎁 (luckyBonus, đủ 5 tặng 1)
