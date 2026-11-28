@@ -12227,7 +12227,7 @@ function isEligibleForNewData(userId, date){ // (đã BỎ luật khoá khi tồ
   return isEligibleTodayByAttendance(userId, date);
 }
 function dailyReceivedCount(userId, date){ // 🎡 data thưởng vòng quay (luckyPrio) KHÔNG tính vào hạn mức 50/ngày
-  return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date && !l.luckyPrio).length;
+  return state.leads.filter(l=>l.assignedTo===userId && l.distributedDate===date && !l.luckyPrio && !l.handedFrom).length; // data bàn giao không tính là data mới được chia
 }
 // Team nhận data do Quản lý chung / Quản lý Data TỰ TAY chọn (xem saveTodayRotationSelection),
 // không dùng thuật toán tự động "chờ lâu nhất" nữa. Phải chọn LẠI MỖI NGÀY — sang ngày mới,
@@ -12416,7 +12416,7 @@ function luckyAttState(){ const me = currentUser(); if(!me || me.loginBlocked ||
 const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 15, SELF_SPIN_MAX_DAY = 9999; // KHÔNG giới hạn lượt / ngày từ Data tự tìm (28/11)
 // Dòng dán hàng loạt (ô "Nhập nhiều SĐT": có cờ bulk, hoặc ≥5 dòng cùng 1 giây của cùng người) KHÔNG tính lượt
 function selfBulkSet(rows){ const by = {}; rows.forEach(r=>{ const k = Math.floor((Number(r.createdAt)||0) / 1000); by[k] = (by[k]||0) + 1; }); return r => !!r.bulk || by[Math.floor((Number(r.createdAt)||0) / 1000)] >= 5; }
-function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
+function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid && !l.handedFrom).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
   const isBulk = selfBulkSet(rows), seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim().toLowerCase())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
   const earned = Object.values(perDay).reduce((a,n)=>a + Math.min(SELF_SPIN_MAX_DAY, Math.floor(n / SELF_SPIN_PER)), 0), spun = Number(attBalMe.selfSpun)||0, today = perDay[todayStr()] || 0;
   const maxed = Math.floor(today / SELF_SPIN_PER) >= SELF_SPIN_MAX_DAY;
@@ -21886,6 +21886,49 @@ function toggleResign(userId){
     renderMgrSettings();
   });
 }
+// 🔁 BÀN GIAO DATA SALE: Sale nghỉ → CHUYỂN (không sao chép) data đang chăm sóc sang Sale mới.
+// Data giữ nguyên Nguồn → Sale mới chốt đơn thì doanh số vẫn tự về đúng MKT. Đơn đã chốt / doanh số / báo cáo cũ GIỮ ở người cũ.
+function handoverIsSale(u){ return !!u && (u.role==='staff' || u.role==='team_manager'); }
+function handoverLeadsOf(uid){ return (state.leads||[]).filter(l=>l && l.assignedTo===uid && String(l.status||'').trim()!=='Đã chốt' && !l.invoiceId); }
+function handoverSelfOf(uid){ return (state.selfLeads||[]).filter(l=>l && l.userId===uid && String(l.status||'').trim()!=='Đã chốt' && !l.invoiceId); }
+function openHandover(fromId){
+  const me = currentUser(), u = state.users.find(x=>x.id===fromId); if(!me || me.role!=='general_manager' || !handoverIsSale(u)) return;
+  const cands = state.users.filter(x=>x.id!==fromId && handoverIsSale(x) && !userResigned(x)).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  const nL = handoverLeadsOf(fromId).length, nS = handoverSelfOf(fromId).length;
+  let m = document.getElementById('handoverModal'); if(!m){ m = document.createElement('div'); m.id = 'handoverModal'; m.className = 'modal-backdrop'; document.body.appendChild(m); }
+  m.innerHTML = `<div class="modal" style="max-width:440px;"><h2>🔁 Bàn giao data của ${escHtml(u.name)}</h2>
+    <p style="margin:6px 0 10px; color:var(--ink-soft); font-size:13.5px;">Data được <b>chuyển</b> sang người mới (không nhân đôi). Nguồn MKT giữ nguyên → người mới chốt đơn, doanh số vẫn về đúng MKT. Đơn đã chốt, doanh số, báo cáo cũ vẫn tính cho ${escHtml(u.name)}.</p>
+    <div class="detail-row"><span class="k">Data đang chăm sóc (chưa chốt)</span><span class="v"><b>${nL}</b></span></div>
+    <div class="detail-row"><span class="k">Data tự tìm (chưa chốt)</span><span class="v"><b>${nS}</b></span></div>
+    <label style="display:block; margin:12px 0 4px; font-weight:700;">Chuyển cho</label>
+    <select id="handoverTo" style="width:100%;"><option value="">— Chọn Sale nhận —</option>${cands.map(x=>`<option value="${x.id}">${escHtml(x.name)} · ${escHtml(x.branchId ? branchName(x.branchId) : '')}</option>`).join('')}</select>
+    ${userResigned(u) ? '' : `<label style="display:flex; gap:8px; align-items:center; margin:12px 0 0; cursor:pointer;"><input type="checkbox" id="handoverResign" checked style="width:16px; height:16px; margin:0;"> Cho ${escHtml(u.name)} nghỉ việc luôn (khoá đăng nhập)</label>`}
+    <p style="margin:10px 0 0; font-size:12.5px; color:var(--ink-soft);">Quà vòng quay ${escHtml(u.name)} chưa nhận vẫn nằm ở mục "Quà chờ trao" — anh tự chọn trao hoặc bỏ qua.</p>
+    <div class="actions"><button class="btn-ghost" onclick="document.getElementById('handoverModal').classList.remove('show')">Huỷ</button><button class="btn-primary" ${nL + nS ? '' : 'disabled style="opacity:.5"'} onclick="doHandover('${fromId}')">Bàn giao ${nL + nS} data</button></div></div>`;
+  m.classList.add('show');
+}
+function doHandover(fromId){
+  const me = currentUser(), u = state.users.find(x=>x.id===fromId); if(!me || me.role!=='general_manager' || !u) return;
+  const toId = (document.getElementById('handoverTo')||{}).value, to = state.users.find(x=>x.id===toId);
+  if(!to){ showToast('Chọn người nhận trước'); return; }
+  const rs = document.getElementById('handoverResign'), resign = !!(rs && rs.checked);
+  const now = nowMs(), entry = {from: u.id, fromName: u.name, to: to.id, toName: to.name, at: now, by: me.name || ''};
+  const upL = {}, upS = {}, L = handoverLeadsOf(fromId), S = handoverSelfOf(fromId);
+  L.forEach(l=>{ const log = (Array.isArray(l.handLog) ? l.handLog : []).concat([entry]).slice(-10);
+    Object.assign(upL, {[l.id+'/assignedTo']: to.id, [l.id+'/assignedToName']: to.name, [l.id+'/handedFrom']: u.id, [l.id+'/handedAt']: now, [l.id+'/handLog']: log}); });
+  S.forEach(l=>{ Object.assign(upS, {[l.id+'/userId']: to.id, [l.id+'/handedFrom']: u.id, [l.id+'/handedAt']: now}); if('userName' in l) upS[l.id+'/userName'] = to.name; });
+  const jobs = []; if(L.length) jobs.push(fbLeads.update(upL)); if(S.length) jobs.push(fbSelfLeads.update(upS));
+  Promise.all(jobs).then(()=>{
+    L.forEach(l=>{ l.assignedTo = to.id; l.assignedToName = to.name; l.handedFrom = u.id; l.handedAt = now; });
+    S.forEach(l=>{ l.userId = to.id; l.handedFrom = u.id; l.handedAt = now; if('userName' in l) l.userName = to.name; });
+    const uu = {handedTo: {id: to.id, name: to.name, at: now, n: L.length + S.length, by: me.name || ''}};
+    if(resign && !userResigned(u)){ Object.assign(uu, {loginBlocked: true, blockedAt: now, blockedBy: me.name}); u.loginBlocked = true; u.blockedAt = now; }
+    u.handedTo = uu.handedTo; fbUpdateUser(u.id, uu);
+    document.getElementById('handoverModal').classList.remove('show');
+    showToast(`✅ Đã bàn giao ${L.length + S.length} data từ ${u.name} sang ${to.name}${resign ? ' · đã cho nghỉ việc' : ''}`);
+    onDataChanged(); renderMgrSettings();
+  }).catch(e=>{ console.error(e); showToast('Bàn giao chưa xong — kiểm tra mạng rồi bấm lại (data đã chuyển sẽ không bị chuyển 2 lần)'); });
+}
 function userNoReport(u){ return !!(u && u.noReport); } // 📋 Quản lý chung tick "Không cần làm báo cáo" (nick test…)
 function reportableUsersInBranch(branchId){
   return state.users.filter(u=>(u.role==='staff' || u.role==='team_manager') && (!branchId || u.branchId===branchId));
@@ -23422,7 +23465,7 @@ function renderMgrSettings(){
     table.innerHTML = `<tr><th class="num" style="width:44px;">STT</th><th>Tên</th><th>Vai trò</th><th>Chi nhánh</th><th>Mã PIN</th><th>Ngày tạo</th>${scope?'':'<th></th>'}</tr>`+
       usersToShow.map((u,idx)=>`<tr class="${userResigned(u) ? 'row-resigned' : ''}">
         <td class="num" data-label="STT" style="color:var(--ink-soft);">${idx+1}</td>
-        <td data-label="Tên">${u.name}${userResigned(u) ? ` <span class="badge resigned-tag">Đã nghỉ việc${userResignDate(u) ? ' ' + goalDM(userResignDate(u)) : ''}</span>` : ''}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
+        <td data-label="Tên">${u.name}${userResigned(u) ? ` <span class="badge resigned-tag">Đã nghỉ việc${userResignDate(u) ? ' ' + goalDM(userResignDate(u)) : ''}</span>` : ''}${u.handedTo ? ` <span class="lk-sub" title="Bàn giao lúc ${new Date(Number(u.handedTo.at)||0).toLocaleString('vi-VN')}">→ đã bàn giao ${Number(u.handedTo.n)||0} data cho ${escHtml(u.handedTo.name||'')}</span>` : ''}${u.abitAccount ? ` <span class="abit-tag" title="Tài khoản Abit: ${escHtml(u.abitAccount)}">🔗 ${escHtml(u.abitAccount)}</span>` : ''}</td>
         <td data-label="Vai trò">${roleLabel(u.role)}</td>
         <td data-label="Chi nhánh">${u.role==='mkt'||u.role==='mkt_manager' ? mktBranchName(u.mktBranchId) : (u.branchId ? branchName(u.branchId) : 'Toàn hệ thống')}</td>
         <td data-label="Mã PIN">
@@ -23433,7 +23476,7 @@ function renderMgrSettings(){
           }
         </td>
         <td data-label="Đăng ký lúc" title="${u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : ''}">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
-        ${scope ? '' : `<td style="white-space:nowrap;"><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-ghost btn-small" title="${userResigned(u) ? 'Mở lại tài khoản — đăng nhập & làm việc lại bình thường' : 'Cho nghỉ việc — chặn đăng nhập, không chia data, vẫn giữ tên & số liệu trong thống kê'}" onclick="toggleResign('${u.id}')">${userResigned(u) ? '↺ Mở lại' : '🚪 Nghỉ'}</button> <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
+        ${scope ? '' : `<td style="white-space:nowrap;"><span class="history-link" onclick="openEditUserModal('${u.id}')">Sửa</span> &nbsp; <button class="btn-ghost btn-small" title="${userResigned(u) ? 'Mở lại tài khoản — đăng nhập & làm việc lại bình thường' : 'Cho nghỉ việc — chặn đăng nhập, không chia data, vẫn giữ tên & số liệu trong thống kê'}" onclick="toggleResign('${u.id}')">${userResigned(u) ? '↺ Mở lại' : '🚪 Nghỉ'}</button>${handoverIsSale(u) ? ` <button class="btn-ghost btn-small" title="Chuyển data đang chăm sóc sang Sale khác (Sale nghỉ việc / đổi người)" onclick="openHandover('${u.id}')">🔁 Bàn giao</button>` : ''} <button class="btn-danger btn-small" onclick="deleteUser('${u.id}')">Xoá</button></td>`}
       </tr>`).join('');
   }
 
