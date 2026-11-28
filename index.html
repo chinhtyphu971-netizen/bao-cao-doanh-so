@@ -12415,7 +12415,7 @@ const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 15, SELF_SPIN_MAX_DAY = 999
 // Dòng dán hàng loạt (ô "Nhập nhiều SĐT": có cờ bulk, hoặc ≥5 dòng cùng 1 giây của cùng người) KHÔNG tính lượt
 function selfBulkSet(rows){ const by = {}; rows.forEach(r=>{ const k = Math.floor((Number(r.createdAt)||0) / 1000); by[k] = (by[k]||0) + 1; }); return r => !!r.bulk || by[Math.floor((Number(r.createdAt)||0) / 1000)] >= 5; }
 function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
-  const isBulk = selfBulkSet(rows), seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || isBulk(r) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim().toLowerCase())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
+  const isBulk = selfBulkSet(rows), seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim().toLowerCase())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
   const earned = Object.values(perDay).reduce((a,n)=>a + Math.min(SELF_SPIN_MAX_DAY, Math.floor(n / SELF_SPIN_PER)), 0), spun = Number(attBalMe.selfSpun)||0, today = perDay[todayStr()] || 0;
   const maxed = Math.floor(today / SELF_SPIN_PER) >= SELF_SPIN_MAX_DAY;
   return {today, earned, spun, left: Math.max(0, earned - spun), need: SELF_SPIN_PER - (today % SELF_SPIN_PER), maxed}; }
@@ -15539,7 +15539,7 @@ function renderSelfLeadsTable(){
   if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
   try{ let sp = document.getElementById('selfSpinLine'); if(luckyPoolOf(user)==='sale' || user.role==='general_manager'){ const f = selfSpinInfo(user.id);
       if(!sp && countEl){ sp = document.createElement('div'); sp.id = 'selfSpinLine'; sp.className = 'lucky-teaser'; sp.style.margin = '6px 0 8px'; countEl.closest('h2').insertAdjacentElement('afterend', sp); }
-      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> ${f.maxed ? ' · <b>đã đủ 2 lượt tối đa hôm nay</b>' : ` · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b>`} (mỗi 15 số = 1 lượt, không giới hạn; số dán hàng loạt không tính; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt. <button class="btn-primary" style="margin-left:6px; padding:6px 14px;" onclick="luckyOpenAtt()">⏰ Quay ngay</button>` : ''}`; }
+      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> ${f.maxed ? ' · <b>đã đủ 2 lượt tối đa hôm nay</b>' : ` · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b>`} (mỗi 15 số = 1 lượt, không giới hạn; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt. <button class="btn-primary" style="margin-left:6px; padding:6px 14px;" onclick="luckyOpenAtt()">⏰ Quay ngay</button>` : ''}`; }
     else if(sp) sp.remove(); }catch(e){}
   try{ luckyAttFab(); }catch(e){} // số lượt đổi theo Data tự tìm → cập nhật nút ⏰ ngay (không chờ dữ liệu vòng quay thay đổi)
   const table = document.getElementById('selfLeadsTable');
@@ -15632,7 +15632,7 @@ function selfBulkSave(){
   const r = selfBulkParse((document.getElementById('selfBulkText')||{}).value); if(!r.ok.length) return;
   const source = (document.getElementById('selfBulkSource')||{}).value || '', status = (document.getElementById('selfBulkStatus')||{}).value || '', note = String((document.getElementById('selfBulkNote')||{}).value||'').trim();
   const now = nowMs(), up = {};
-  r.ok.forEach((x,i)=>{ const row = {id: 'self_' + uid(), userId: me.id, phone: x.phone, customerName: x.name || '', source, status, note, createdAt: now + i, bulk: true}; // dán hàng loạt → KHÔNG tính lượt quay
+  r.ok.forEach((x,i)=>{ const row = {id: 'self_' + uid(), userId: me.id, phone: x.phone, customerName: x.name || '', source, status, note, createdAt: now + i, bulk: true}; // đánh dấu dán hàng loạt (vẫn được tính lượt)
     state.selfLeads.push(row); up['selfLeads/' + row.id] = row; });
   fbRoot.update(up).then(()=>showToast(`✅ Đã thêm ${r.ok.length} số vào Data tự tìm`)).catch(()=>showToast('Chưa lưu được — kiểm tra mạng'));
   loyalCloseModal(); renderSelfLeadsTable();
