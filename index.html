@@ -12328,7 +12328,7 @@ const LUCKY_DEFAULT = {threshold: 10000000, maxPerDay: 5, revoke: true, prizes: 
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10, color:'#2B3A67'},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10, color:'#C2410C'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10, color:'#3D4F86'},
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'}]};
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'}]};
 // 🎡 VÒNG QUAY MKT: đạt mốc = nhập ≥ N SĐT HỢP LỆ trong ngày (số đã qua lọc trùng / đúng 10 số — chỉ số hợp lệ mới vào kho)
 const LUCKY_DEFAULT_MKT = {threshold: 500, thrRev: 10000000, maxPerDay: 3, revoke: false, prizes: [ // MKT: mỗi 500 số hợp lệ = 1 lượt, VÀ mỗi 10tr doanh thu Sale chốt theo Nguồn mình phụ trách = 1 lượt
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3, color:'#F59E0B', ink:'#1a1206'},
@@ -12338,7 +12338,7 @@ const LUCKY_DEFAULT_MKT = {threshold: 500, thrRev: 10000000, maxPerDay: 3, revok
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10, color:'#0F766E'},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12, color:'#C2410C'},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5, color:'#7C3AED'},
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'}]};
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'}]};
 const LUCKY_KIND_NOTE = {none: ()=>'Chúc bạn may mắn lần sau — nhặt thêm để có lượt tiếp nhé! 🍀', packspin: n=>`+${n||1} lượt quay đã cộng vào số lượt của bạn.`, early: n=>`Phiếu về sớm ${n >= 60 && n % 60 === 0 ? (n/60) + ' tiếng' : n + ' phút'} lưu trong app (hạn 7 ngày). Hôm muốn dùng, bấm "Dùng phiếu" trước khi về — hôm đó về sớm vẫn tính đúng giờ.`, attspin: n=>`+${n||1} lượt quay chuyên cần đã cộng vào số lượt của bạn.`, mktpass: ()=>'Thẻ lưu trong app: 1 lần quên nộp báo cáo MKT, bấm "Dùng thẻ" ở trang Nhập data là nhập data được ngay.', data: n=>`Sáng mai bạn được chia TRƯỚC ${n} data (app tự áp dụng).`, pass: ()=>'Thẻ lưu trong app: 1 lần quên báo cáo, team không bị cắt lượt data.', extra: ()=>'Ngày mai bạn được quay ngay, không cần chờ đạt mốc.', manual: ()=>'Quản lý sẽ trao giải cho bạn.'};
 // ⏰ VÒNG QUAY CHUYÊN CẦN (làm sẵn — đang TẮT, bật khi có máy chấm công): ngày chấm 4 lần nhưng HIỆN CHỈ TÍNH GIỜ VÀO
 // (vào sáng + vào chiều) — vào đúng giờ cả 2 buổi → +1 lượt (mở sau khi chấm vào chiều); giờ ra chưa tính;
@@ -12355,7 +12355,7 @@ const LUCKY_DEFAULT_ATT = {enabled: false, inTime: '08:00', outNoon: '12:00', in
   {key:'tea', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:7, color:'#0F766E'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:1, color:'#F59E0B', ink:'#1a1206', icon:'🏆'}]};
 const LUCKY_DEFAULT_ATTVIP = {prizes: [
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'},
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5, color:'#F59E0B', ink:'#1a1206', icon:'🏆'},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40, color:'#2B3A67'},
   {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15, color:'#C2410C', icon:'🕐'},
@@ -12376,7 +12376,7 @@ const LUCKY_DEFAULT_PACK = {threshold: 500, prizes: [
   {key:'packspin', name:'Thêm 1 lượt quay', short:'+1 lượt', kind:'packspin', n:1, w:10, color:'#7C3AED', icon:'🔁'}]};
 let luckyCfgPack = null, packCountMe = {}, luckyPackSpFlag = false;
 // 🌟 Lượt tặng của kho (đủ 5 lượt) quay VÒNG ĐẶC BIỆT có thêm ô iPhone 18 Pro Max (tỉ lệ khoá như vòng VIP)
-const PACK_GRAND = {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'};
+const PACK_GRAND = {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, color:'#111827', icon:'💰'};
 function packWheelList(sp){ const l = luckyWheelList(luckyConf('pack')).filter(p=>!luckyIsGrand(p)); return sp && !luckyGrandYear ? l.concat([PACK_GRAND]) : l; }
 function packIsSpecial(){ if(luckyResult && luckyResult.pool==='pack') return !!luckyResult.bonus; if(luckySpinning) return luckyPackSpFlag; const a = luckyPackState(); return !!(a && a.left===0 && a.bonus>0); }
 function luckyPackState(){ const me = currentUser(); if(!me || me.role!=='packer' || me.sharedDesk || me.loginBlocked || me.active===false) return null;
@@ -12504,8 +12504,8 @@ function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test
 // 📱 GIẢI ĐẶC BIỆT (iPhone): tỉ lệ THẬT như cài, gộp cả các vòng tối đa 1 lần / năm — trúng rồi thì ô tự ẩn tới hết năm (máy chủ khoá ở luckyGrand/{năm})
 const LUCKY_GRAND_W = 0.00001; // 🔒 tỉ lệ giải đặc biệt CỐ ĐỊNH 0,00001% — không ai sửa được (máy chủ cũng ép về mức này)
 function luckyIsGrand(p){ return !!(p && (p.key==='iphone' || p.key==='grand' || /iphone/i.test(String(p.name||'')))); }
-// 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 5.000.000đ (giữ nguyên tỉ lệ khoá 0,00001% + tối đa 1 giải / năm); key nội bộ vẫn 'iphone'
-const LUCKY_GRAND_NAME = 'Tiền mặt 5.000.000đ', LUCKY_GRAND_SHORT = '5 triệu';
+// 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 8.868.000đ (giữ nguyên tỉ lệ khoá 0,00001% + tối đa 1 giải / năm); key nội bộ vẫn 'iphone'
+const LUCKY_GRAND_NAME = 'Tiền mặt 8.868.000đ', LUCKY_GRAND_SHORT = '8,868 triệu';
 function luckyGrandFix(p){ return luckyIsGrand(p) ? Object.assign({}, p, {name: LUCKY_GRAND_NAME, short: LUCKY_GRAND_SHORT, icon: '💰'}) : p; }
 function luckyWheelList(c){ return (c.prizes||[]).filter(p=>!(luckyGrandYear && luckyIsGrand(p))); }
 function luckyJackpotCheck(){
@@ -12596,7 +12596,7 @@ function luckyModalRender(){
     const sp = packIsSpecial(), spNext = a && a.left===0 && a.bonus>0;
     const btn = bal > 0 ? `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : spNext ? `🌟 QUAY VÒNG ĐẶC BIỆT (còn ${bal})` : `📦 QUAY NGAY (còn ${bal} lượt)`}</button>` : '';
     let act = res && res.prize && !luckySpinning ? `<div class="lucky-result"><div class="lucky-res-t">${k==='none' ? 'KẾT QUẢ' : 'CHÚC MỪNG BẠN TRÚNG'}</div><div class="lucky-res-n">${escHtml(luckyIcon(res.prize))} ${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>${btn}` : btn;
-    const info = (sp && !luckyGrandYear ? `<div class="lucky-teaser">💰 <b>Vòng đặc biệt</b> — lượt tặng khi đủ 5 lượt quay, có cơ hội trúng <b>${LUCKY_GRAND_NAME}</b>!</div>` : '') + (a ? `<div class="lucky-muted" style="text-align:center;">Đã nhặt từ ${fmtDate(PACK_LUCKY_FROM)}: <b style="color:var(--ink);">${fmtMoney(a.qty)} sp</b> · mỗi ${fmtMoney(a.thr)} sp = 1 lượt · còn ${fmtMoney(a.need)} sp nữa → +1 lượt · quay thêm ${a.toBonus} lượt được tặng 1 lượt 🌟 vòng đặc biệt (có giải 5 triệu)</div>` : '');
+    const info = (sp && !luckyGrandYear ? `<div class="lucky-teaser">💰 <b>Vòng đặc biệt</b> — lượt tặng khi đủ 5 lượt quay, có cơ hội trúng <b>${LUCKY_GRAND_NAME}</b>!</div>` : '') + (a ? `<div class="lucky-muted" style="text-align:center;">Đã nhặt từ ${fmtDate(PACK_LUCKY_FROM)}: <b style="color:var(--ink);">${fmtMoney(a.qty)} sp</b> · mỗi ${fmtMoney(a.thr)} sp = 1 lượt · còn ${fmtMoney(a.need)} sp nữa → +1 lượt · quay thêm ${a.toBonus} lượt được tặng 1 lượt 🌟 vòng đặc biệt (có giải 8.868.000đ)</div>` : '');
     const rows = luckyRecs().filter(r=>r.pool==='pack').sort((x,y)=>(x.at||0)-(y.at||0));
     box.innerHTML = `<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(packWheelList(sp))}</div></div>
       ${act}${info}<div class="lucky-board-t">KHO HÔM NAY (${rows.length} lượt)</div>${rows.length ? rows.map(r=>`<div class="lucky-row"><span class="lucky-rank">📦</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('') : '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai quay hôm nay.</div>'}`;
@@ -12608,7 +12608,7 @@ function luckyModalRender(){
     const btn = bal > 0 ? `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : (P==='attvip' ? `📱 QUAY LƯỢT VIP (còn ${bal})` : `⏰ QUAY NGAY (còn ${bal} lượt)`)}</button>` : '';
     const sw = '';
     let act = res && res.prize && !luckySpinning ? `<div class="lucky-result"><div class="lucky-res-t">CHÚC MỪNG BẠN TRÚNG</div><div class="lucky-res-n">${escHtml(luckyIcon(res.prize))} ${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>${btn}` : btn;
-    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở 👑 vòng VIP của bạn (có giải 5 triệu 💰).`}</div>`;
+    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở 👑 vòng VIP của bạn (có giải 8.868.000đ 💰).`}</div>`;
     const rows = luckyRecs().filter(r=>r.pool===P).sort((x,y)=>(x.at||0)-(y.at||0));
     box.innerHTML = `${sw}<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(luckyWheelList(c))}</div></div>
       ${act}<div class="lucky-board-t">${P==='attvip' ? 'VÒNG VIP' : 'CHUYÊN CẦN'} HÔM NAY (${rows.length} lượt)</div>${rows.length ? rows.map(r=>`<div class="lucky-row"><span class="lucky-rank">${P==='attvip' ? '📱' : '⏰'}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('') : '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai quay hôm nay.</div>'}`;
@@ -12644,9 +12644,9 @@ let luckyDraft = null;
 const LUCKY_KINDS = [['manual','Quản lý bấm "Đã trao"'],['data','App tự áp dụng: +N data'],['pass','App tự áp dụng: thẻ miễn phạt'],['extra','App tự áp dụng: +1 lượt quay'],['mktpass','App tự áp dụng: thẻ miễn khoá nhập data (MKT)'],['early','App tự áp dụng: phiếu về sớm N phút (chuyên cần)'],['attspin','App tự áp dụng: +N lượt quay chuyên cần'],['packspin','App tự áp dụng: +N lượt quay kho'],['none','Không có quà (chúc may mắn lần sau)']];
 const LUCKY_COLORS = ['#F59E0B','#2B3A67','#E8572A','#3D4F86','#0F766E','#C2410C','#7C3AED','#BE185D','#15803D','#0369A1'];
 function luckyDraftGet(){ if(!luckyDraft) luckyDraft = luckyConf(luckyPoolEdit).prizes.map(p=>Object.assign({}, p)); return luckyDraft; }
-function luckyDraftSet(i, k, v){ const d = luckyDraftGet(); if(!d[i]) return; if(luckyIsGrand(d[i]) && k!=='color' && k!=='icon'){ showToast('🔒 Giải đặc biệt 5 triệu cố định, không sửa được'); return; } if(k==='w' || k==='n') v = Math.max(0, Number(v)||0); d[i][k] = v; if(k==='kind' || k==='color'){ renderLuckyMgrCard(true); } }
+function luckyDraftSet(i, k, v){ const d = luckyDraftGet(); if(!d[i]) return; if(luckyIsGrand(d[i]) && k!=='color' && k!=='icon'){ showToast('🔒 Giải đặc biệt 8.868.000đ cố định, không sửa được'); return; } if(k==='w' || k==='n') v = Math.max(0, Number(v)||0); d[i][k] = v; if(k==='kind' || k==='color'){ renderLuckyMgrCard(true); } }
 function luckyDraftAdd(){ const d = luckyDraftGet(); if(d.length >= 12){ showToast('Tối đa 12 giải'); return; } d.push({key: 'p' + uid(), name: 'Giải mới', short: 'Giải mới', kind: 'manual', w: 5, color: LUCKY_COLORS[d.length % LUCKY_COLORS.length]}); renderLuckyMgrCard(true); }
-function luckyDraftDel(i){ const d = luckyDraftGet(); if(luckyIsGrand(d[i])){ showToast('🔒 Giải đặc biệt 5 triệu cố định, không xoá được'); return; } if(d.length <= 2){ showToast('Cần ít nhất 2 giải'); return; } d.splice(i, 1); renderLuckyMgrCard(true); }
+function luckyDraftDel(i){ const d = luckyDraftGet(); if(luckyIsGrand(d[i])){ showToast('🔒 Giải đặc biệt 8.868.000đ cố định, không xoá được'); return; } if(d.length <= 2){ showToast('Cần ít nhất 2 giải'); return; } d.splice(i, 1); renderLuckyMgrCard(true); }
 let luckyDraftMeta = null, luckyMonthCache = {month: '', data: null, loading: false};
 // 🎁 QUÀ CHỜ TRAO — gộp theo người (mọi vòng, 45 ngày gần nhất): sao cộng dồn, tiền cộng dồn, quà trùng ghi ×N → trao 1 lần, bấm "Đã trao hết"
 let luckyPendCache = {at: 0, data: null, loading: false};
@@ -12704,14 +12704,14 @@ function renderLuckyMgrCard(force){
       <h3>Điều kiện</h3>
       ${isK ? `<label class="lk-f">Số sản phẩm nhặt / đóng cho 1 lượt (sp)<input type="number" min="50" step="50" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>
       <div class="lk-f">Cách tính<span class="lk-static">Cộng dồn từ ${fmtDate(PACK_LUCKY_FROM)}, không reset theo ngày · để dành được · đủ 5 lượt tặng 1 · tính như bảng thống kê kho (người báo thiếu được phần đã nhặt, người bù được phần bù)</span></div>
-      <div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ tài khoản đóng hàng tự đăng nhập (không tính Sale tự đóng, không tính máy dùng chung)</span></div>` : isA ? (P==='attvip' ? `<div class="lk-f">Ai được quay<span class="lk-static">Đúng giờ 5 ngày liên tiếp → 1 lượt VIP (để dành được)</span></div><div class="lk-f">Giải đặc biệt 5 triệu<span class="lk-static">Tối đa 1 chiếc / năm cho mọi vòng</span></div><div class="lk-f">Bật / tắt<span class="lk-static">Theo vòng Chuyên cần (${luckyConf('att').enabled ? 'đang bật' : 'đang tắt'})</span></div>` : `
+      <div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ tài khoản đóng hàng tự đăng nhập (không tính Sale tự đóng, không tính máy dùng chung)</span></div>` : isA ? (P==='attvip' ? `<div class="lk-f">Ai được quay<span class="lk-static">Đúng giờ 5 ngày liên tiếp → 1 lượt VIP (để dành được)</span></div><div class="lk-f">Giải đặc biệt 8.868.000đ<span class="lk-static">Tối đa 1 chiếc / năm cho mọi vòng</span></div><div class="lk-f">Bật / tắt<span class="lk-static">Theo vòng Chuyên cần (${luckyConf('att').enabled ? 'đang bật' : 'đang tắt'})</span></div>` : `
       <button type="button" class="lk-toggle" onclick="luckyMetaGet().enabled = !luckyMetaGet().enabled; renderLuckyMgrCard(true)" aria-pressed="${mt.enabled}"><span><b>${mt.enabled ? 'Đang BẬT' : 'Đang TẮT — chưa áp dụng'}</b> · bật khi đã nối máy chấm công</span><span class="lk-sw ${mt.enabled ? 'on' : ''}"><i></i></span></button>
       <label class="lk-f">① Vào sáng (chấm trước)<input type="time" value="${escHtml(mt.inTime)}" oninput="luckyMetaGet().inTime = this.value"></label>
       <label class="lk-f">② Vào chiều (chấm trước)<input type="time" value="${escHtml(mt.inNoon)}" oninput="luckyMetaGet().inNoon = this.value"></label>
       <div class="lk-f">Giờ ra (trưa / chiều)<span class="lk-static">Hiện chưa tính — chỉ tính giờ vào làm</span></div>
       <label class="lk-f">Cho trễ (phút)<input type="number" min="0" max="30" value="${mt.grace}" oninput="luckyMetaGet().grace = Number(this.value)||0"></label>
       <label class="lk-f">Âm tối đa (lượt)<input type="number" min="0" max="20" value="${mt.maxNeg}" oninput="luckyMetaGet().maxNeg = Number(this.value)||0"></label>
-      <div class="lk-f">Luật<span class="lk-static">Chỉ tính giờ vào: mỗi buổi vào đúng giờ → +1 lượt (sáng 1, chiều 1) · vào muộn 1 buổi → −2 lượt · để dành được · 5 buổi đúng giờ liên tiếp, không ngắt quãng → +1 lượt đặc biệt ở vòng Sale / MKT của mình (có giải 5 triệu)</span></div><div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ Sale và MKT (không áp dụng kho, nhặt hàng, người in)</span></div>`) : `
+      <div class="lk-f">Luật<span class="lk-static">Chỉ tính giờ vào: mỗi buổi vào đúng giờ → +1 lượt (sáng 1, chiều 1) · vào muộn 1 buổi → −2 lượt · để dành được · 5 buổi đúng giờ liên tiếp, không ngắt quãng → +1 lượt đặc biệt ở vòng Sale / MKT của mình (có giải 8.868.000đ)</span></div><div class="lk-f">Áp dụng cho<span class="lk-static">Chỉ Sale và MKT (không áp dụng kho, nhặt hàng, người in)</span></div>`) : `
       <label class="lk-f">${isM ? 'Số SĐT hợp lệ nhập trong ngày (số)' : 'Mốc doanh số trong ngày (đ)'}<input id="lkThreshold" type="number" min="0" step="${isM ? 50 : 500000}" value="${mt.threshold}" oninput="luckyMetaGet().threshold = Number(this.value)||0"></label>${isM ? `<label class="lk-f">HOẶC doanh thu Sale chốt theo Nguồn mình phụ trách (đ)<input type="number" min="0" step="1000000" value="${mt.thrRev}" oninput="luckyMetaGet().thrRev = Number(this.value)||0"></label>` : ''}
       <div class="lk-f">Số người / số lượt mỗi ngày<span class="lk-static">Không giới hạn — mỗi mốc = 1 lượt</span></div>
       <div class="lk-f">${isM ? 'Tính theo' : 'Tính doanh số theo'}<span class="lk-static">${isM ? 'Số SĐT hợp lệ MKT nhập (đã lọc trùng) + doanh thu Sale chốt trong ngày từ Nguồn phụ trách — lượt của 2 điều kiện cộng dồn' : 'Hoá đơn đã cọc trong ngày'}</span></div>
