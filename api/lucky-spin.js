@@ -159,9 +159,9 @@ module.exports = async (req, res) => {
 };
 
 // ⏰ Quay vòng chuyên cần: trừ 1 lượt (transaction) → chọn giải → ghi luckySpin/{ngày}/{push} (pool att / attvip) → áp quyền lợi
-// 📋 DATA TỰ TÌM → lượt chuyên cần: Sale điền mỗi 20 SĐT hợp lệ (mới, không trùng) trong NGÀY vào "Data tự tìm" = +1 lượt chuyên cần
+// 📋 DATA TỰ TÌM → lượt chuyên cần: Sale điền mỗi 15 SĐT hợp lệ (mới, không trùng) trong NGÀY vào "Data tự tìm" = +1 lượt chuyên cần
 // (tính từ 28/11/2026, để dành được; quay khi vòng chuyên cần được bật). Máy chủ tự đếm lại từ selfLeads mỗi lần quay → không sửa tay được.
-const SELF_FROM = '2026-11-28', SELF_PER = 20;
+const SELF_FROM = '2026-11-28', SELF_PER = 15;
 const selfNorm = raw => { let d = String(raw || '').replace(/[^\d+]/g, ''); if (d.startsWith('+84')) d = '0' + d.slice(3); else if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2);
   d = d.replace(/\D/g, ''); if (d.length === 9 && /^[35789]/.test(d)) d = '0' + d; return /^0[35789]\d{8}$/.test(d) ? d : null; };
 const selfFb = raw => { const m = String(raw || '').trim().toLowerCase().match(/(?:https?:\/\/)?(?:www\.|m\.|web\.|mbasic\.|business\.)?(facebook\.com|fb\.com|fb\.me|m\.me)\/([^\s?#]+)(\?[^\s#]*)?/);
@@ -195,7 +195,7 @@ async function attSpin(D, uid, u, pool, res) {
     held = await bRef.transaction(cur => { cur = cur || {}; const sp = Number(cur.selfSpun) || 0; return sp < earned ? Object.assign({}, cur, {selfSpun: sp + 1}) : undefined; });
     viaSelf = held.committed;
   }
-  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — vào làm đúng giờ' + (['staff', 'team_manager'].includes(u.role) ? ' hoặc có đủ 20 SĐT / link FB mới đã liên hệ / nhắn tin trong Data tự tìm hôm nay' : '') + ' để có.'});
+  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — vào làm đúng giờ' + (['staff', 'team_manager'].includes(u.role) ? ' hoặc có đủ 15 SĐT / link FB mới đã liên hệ / nhắn tin trong Data tự tìm hôm nay' : '') + ' để có.'});
   const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
     for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
   let p = pick(prizes);
