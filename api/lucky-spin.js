@@ -12,7 +12,7 @@ const DEF = [
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10},
-  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001}];
+  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'}];
 const DEF_MKT = [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
   {key:'star15', name:'Tặng 15 sao', short:'15 sao', kind:'manual', w:20},
@@ -21,9 +21,12 @@ const DEF_MKT = [
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5},
-  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001}];
+  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'}];
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
-const isGrand = p => !!(p && (p.key === 'iphone' || /iphone/i.test(String(p.name || ''))));
+const isGrand = p => !!(p && (p.key === 'iphone' || p.key === 'grand' || /iphone/i.test(String(p.name || ''))));
+// 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 5.000.000đ (giữ nguyên tỉ lệ khoá + 1 giải / năm; key nội bộ vẫn là 'iphone' để khớp cài đặt cũ)
+const GRAND_NAME = 'Tiền mặt 5.000.000đ', GRAND_SHORT = '5 triệu';
+const grandName = p => isGrand(p) ? Object.assign({}, p, {name: GRAND_NAME, short: GRAND_SHORT, icon: '💰'}) : p;
 const GRAND_W = 0.00001; // 🔒 tỉ lệ iPhone tối đa 0,00001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
 // ⏰ Vòng quay CHUYÊN CẦN (làm sẵn, bật/tắt ở luckyCfgAtt.enabled): quay bằng lượt trong attBal/{uid} (left = thường, vip = VIP)
 const DEF_ATT = [
@@ -34,7 +37,7 @@ const DEF_ATT = [
   {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12},
   {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15}];
 const DEF_ATTVIP = [
-  {key:'iphone', name:'iPhone 18 Pro Max', short:'iPhone 18 Pro Max', kind:'manual', w:0.00001},
+  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40},
   {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15},
@@ -110,7 +113,7 @@ module.exports = async (req, res) => {
       const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool, day, at: Date.now()});
       if (g.committed) grandHeld = true; else { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); }
     }
-    const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
+    p = grandName(p); const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
     let outcome = '', rank = null, tier = 0, key = '', need = 0;
     const tx = await D.ref('luckySpin/' + day).transaction(cur => {
       cur = cur || {};
@@ -176,7 +179,7 @@ async function attSpin(D, uid, u, pool, res) {
   let p = pick(prizes);
   if (isGrand(p)) { const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool, day, at: now});
     if (!g.committed) { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); } }
-  const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
+  p = grandName(p); const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
   const ref = D.ref('luckySpin/' + day).push(), key = ref.key;
   try { await ref.set({uid, k: key, name: u.name || '', branchId: u.branchId || u.mktBranchId || null, pool, revenue: null, prize, at: now}); }
   catch (e) { try { await bRef.child(f).transaction(v => (Number(v) || 0) + 1); } catch (e2) {} throw e; }
@@ -213,12 +216,12 @@ async function packSpin(D, uid, u, res) {
   const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
     for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
   const now = Date.now(), day = vnDay(now), grandRef = D.ref('luckyGrand/' + day.slice(0, 4));
-  // 🌟 Lượt tặng (đủ 5 lượt) = VÒNG ĐẶC BIỆT: thêm ô iPhone 18 Pro Max, tỉ lệ khoá GRAND_W, mỗi năm 1 giải
-  if (bonusUsed && !(await grandRef.once('value')).exists()) prizes = prizes.concat([{key: 'iphone', name: 'iPhone 18 Pro Max', short: 'iPhone 18 Pro Max', kind: 'manual', w: GRAND_W, icon: '📱'}]);
+  // 🌟 Lượt tặng (đủ 5 lượt) = VÒNG ĐẶC BIỆT: thêm ô giải đặc biệt 5 triệu, tỉ lệ khoá GRAND_W, mỗi năm 1 giải
+  if (bonusUsed && !(await grandRef.once('value')).exists()) prizes = prizes.concat([{key: 'iphone', name: GRAND_NAME, short: GRAND_SHORT, kind: 'manual', w: GRAND_W, icon: '💰'}]);
   let p = pick(prizes);
   if (isGrand(p)) { const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool: 'pack', day, at: now});
     if (!g.committed) { prizes = prizes.filter(x => !isGrand(x)); p = pick(prizes); } }
-  const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
+  p = grandName(p); const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
   const ref = D.ref('luckySpin/' + day).push(), key = ref.key;
   await ref.set({uid, k: key, name: u.name || '', pool: 'pack', bonus: bonusUsed || null, thr, revenue: qty, prize, at: now});
   const inc = admin.database.ServerValue.increment, up = {};
