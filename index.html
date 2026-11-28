@@ -1713,6 +1713,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-wheel svg text{ font-family:inherit; } .lucky-pointer{ position:absolute; left:50%; top:-12px; transform:translateX(-50%); z-index:2; border-left:13px solid transparent; border-right:13px solid transparent; border-top:24px solid #fff; filter:drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
   .lucky-spin-btn{ width:100%; height:52px; font-size:17px; font-weight:900; } .lucky-result{ border:1.5px solid #F59E0B; background:rgba(245,158,11,.12); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; }
   .lucky-res-t{ font-size:12px; font-weight:800; letter-spacing:.06em; color:#FFC25C; } .lucky-res-n{ font-size:20px; font-weight:900; }
+  .lucky-board{ max-height:150px; overflow-y:auto; overscroll-behavior:contain; padding-right:2px; border-radius:10px; } .lucky-board-more{ text-align:center; font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
   .lucky-board-t{ margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--ink-soft); }
   .lucky-row{ display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:4px; font-size:13px; } .lucky-row b{ flex:1; } .lucky-row.revoked{ opacity:.5; }
   .lucky-rank{ width:20px; height:20px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:11px; display:flex; align-items:center; justify-content:center; } .lucky-prize{ color:#FFC25C; font-weight:700; }
@@ -1743,6 +1744,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lk-slots{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; } .lk-slot{ border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:6px; background:rgba(0,0,0,.12); } .lk-slot.revoked{ opacity:.5; }
   .lk-slot-h{ display:flex; align-items:center; gap:8px; } .lk-badge{ width:24px; height:24px; border-radius:50%; background:#FF9A5C; color:#1a1206; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; } .lk-badge.gold{ background:#FFC25C; } .lk-badge.off{ background:#3A4466; color:#AAB3CC; }
   .lk-sub{ font-size:12px; color:var(--ink-soft); } .lk-slot-p{ font-weight:800; color:#FFC25C; } .lk-slot.empty .lk-slot-p{ color:var(--ink-soft); font-weight:700; } .lk-auto{ font-size:12px; color:#4BE08A; font-weight:700; }
+  .lucky-pop{ animation: luckyPop .7s cubic-bezier(.2,1.5,.4,1) both; } @keyframes luckyPop{ 0%{ transform:scale(.55) rotate(-4deg); opacity:0; } 60%{ transform:scale(1.04) rotate(1deg); opacity:1; } 100%{ transform:none; } }
+  .lucky-conf{ position:fixed; inset:0; pointer-events:none; z-index:2147483000; overflow:hidden; } .lucky-conf i{ position:absolute; top:-14px; width:9px; height:14px; border-radius:2px; animation: luckyFall linear forwards; } @keyframes luckyFall{ to{ transform:translateY(110vh) rotate(720deg); } }
+  .lucky-intro{ text-align:center; font-weight:800; font-size:16px; margin:0 0 8px; padding:10px 12px; border-radius:12px; background:linear-gradient(90deg, rgba(255,194,92,.18), rgba(75,224,138,.18)); }
   .lk-pend{ margin:10px 0 4px; padding:12px 14px; border:1px solid var(--line, rgba(127,127,127,.25)); border-radius:12px; } .lk-pend-h{ display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; justify-content:space-between; } .lk-pend-h h3{ margin:0; font-size:15px; } .lk-pend-r{ display:grid; grid-template-columns:minmax(90px, 160px) 1fr auto; gap:6px 12px; align-items:center; padding:8px 0; border-top:1px dashed rgba(127,127,127,.25); } @media (max-width:640px){ .lk-pend-r{ grid-template-columns:1fr auto; } .lk-pend-r span{ grid-column:1 / -1; grid-row:2; } }
   .lk-give{ height:38px; border-radius:10px; border:1px solid #FF9A5C; background:#FF9A5C; color:#1a1206; font-weight:800; cursor:pointer; } .lk-give.done{ background:rgba(75,224,138,.12); border-color:#4BE08A; color:#4BE08A; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
@@ -12495,7 +12499,7 @@ function luckyAttFab(){
     if(pk.left + pk.bonus <= 0 && !(document.getElementById('luckyModal')||{classList:{contains:()=>false}}).classList.contains('show')){ el.remove(); return; } // chưa đủ 500 sp → không hiện gì
     el.onclick = ()=>luckyOpenPack(); el.classList.toggle('neg', false); el.classList.toggle('vip', true);
     el.innerHTML = pk.left > 0 ? `📦 <b>${pk.left + pk.bonus}</b> lượt quay` : `🌟 <b>${pk.bonus}</b> lượt quay đặc biệt`;
-    if(pk.left + pk.bonus > 0){ const k = 'lucky_pack_auto_' + pk.spun + '_' + pk.earned; try{ if(!localStorage.getItem(k) && !document.querySelector('.modal-backdrop.show')){ localStorage.setItem(k, '1'); showToast('📦 Bạn có lượt quay thưởng kho — mời quay!'); try{ playEventTone('luckyReach'); }catch(e){} } }catch(e){} }
+    if(pk.left + pk.bonus > 0) luckyAutoOnce('lucky_pack_auto_' + pk.spun + '_' + pk.earned + '_' + pk.bonus, luckyOpenPack, pk.left > 0 ? `🎉 Chúc mừng! Bạn đã nhặt đủ ${fmtMoney(pk.thr)} sp — mời quay thưởng kho!` : '🌟 Bạn được tặng 1 lượt VÒNG ĐẶC BIỆT — mời quay!');
     return; }
   const s = luckyAttState(); let el = document.getElementById('attLuckyFab');
   if(!s){ if(el) el.remove(); return; }
@@ -12503,9 +12507,26 @@ function luckyAttFab(){
   el.onclick = ()=>luckyOpenAtt();
   el.classList.toggle('neg', s.left < 0);
   el.innerHTML = `⏰ <b>${s.left < 0 ? '−' + Math.abs(s.left) : s.left}</b> lượt chuyên cần`;
+  if(s.left > 0){ const me = currentUser() || {}, sf = luckyPoolOf(me)==='sale' ? selfSpinInfo(me.id) : {earned: 0};
+    const plus = luckyRecs().filter(r=>r.uid===me.id && r.pool==='att' && r.prize && r.prize.kind==='attspin').length;
+    luckyAutoOnce('lucky_att_auto_' + me.id + '_' + todayStr() + '_' + sf.earned + '_' + plus, luckyOpenAtt, s.selfOnly ? `🎉 Chúc mừng! Bạn đủ ${SELF_SPIN_PER} data tự tìm đã liên hệ — được quay vòng chuyên cần!` : '🎉 Bạn có lượt quay chuyên cần — mời quay!'); }
 }
-function luckyOpenPack(){ if(!luckyPackState()) return; luckyModalPool = 'pack'; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
-function luckyOpenAtt(){ const s = luckyAttState(); if(!s) return; luckyModalPool = 'att'; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
+// 🎉 TỰ BẬT CỬA SỔ QUAY khi vừa có lượt: hiện vòng quay ngay + pháo giấy + chuông + rung (mỗi lượt mới chỉ bật 1 lần)
+let luckyIntro = '';
+function luckyCelebrate(openFn, intro){
+  const ae = document.activeElement; if(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return false; // đang gõ → chờ lần sau
+  if(document.querySelector('.modal-backdrop.show')) return false;
+  openFn(); luckyIntro = intro || ''; luckyModalRender();
+  const m = document.querySelector('#luckyModal .lucky-modal'); if(m){ m.classList.remove('lucky-pop'); void m.offsetWidth; m.classList.add('lucky-pop'); }
+  try{ let c = document.getElementById('luckyConf'); if(c) c.remove(); c = document.createElement('div'); c.id = 'luckyConf'; c.className = 'lucky-conf';
+    c.innerHTML = Array.from({length: 48}, (_, i)=>`<i style="left:${(i*53)%100}%; background:${['#FFC25C','#FF7A3D','#4BE08A','#6F9BFF','#FF6FB5'][i%5]}; animation-delay:${(i%12)*0.08}s; animation-duration:${2 + (i%5)*0.4}s;"></i>`).join('');
+    document.body.appendChild(c); setTimeout(()=>{ try{ c.remove(); }catch(e){} }, 4800); }catch(e){}
+  try{ playEventTone('luckyReach'); }catch(e){} if(navigator.vibrate) try{ navigator.vibrate([200,100,200,100,300]); }catch(e){}
+  return true;
+}
+function luckyAutoOnce(k, openFn, intro){ try{ if(localStorage.getItem(k)) return; }catch(e){} if(luckyCelebrate(openFn, intro)) try{ localStorage.setItem(k, '1'); }catch(e){} }
+function luckyOpenPack(){ luckyIntro = ''; if(!luckyPackState()) return; luckyModalPool = 'pack'; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
+function luckyOpenAtt(){ luckyIntro = ''; const s = luckyAttState(); if(!s) return; luckyModalPool = 'att'; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
 // 🎉 Có người trúng JACKPOT → báo cho CẢ CÔNG TY (mọi máy đang mở app): băng rôn + pháo giấy + chuông
 // Jackpot = giải có mã 'jackpot' hoặc tên có chữ "Jackpot". Mỗi máy báo 1 lần / lượt trúng; mở app trong 3 tiếng sau vẫn thấy.
 function luckyIsJackpot(p){ return !!(p && (p.key==='jackpot' || /jackpot/i.test(String(p.name||'')) || luckyIsGrand(p))); }
@@ -12565,9 +12586,9 @@ function luckyAutoPrompt(){
   const s = luckyMyState(); if(!s || !s.canSpin) return;
   const k = 'lucky_auto_' + todayStr() + '_' + s.next + (s.next==='bonus' ? '_' + s.bonusN : ''); if(luckyAutoShown===k) return; try{ if(localStorage.getItem(k)) { luckyAutoShown = k; return; } }catch(e){}
   if(document.querySelector('.modal-backdrop.show')) return;
+  if(!luckyCelebrate(luckyOpen, s.next==='bonus' ? '🎁 Bạn được tặng 1 lượt ĐẶC BIỆT — mời quay!' : '🎉 Chúc mừng! Bạn đã đạt mốc — mời quay 👑 Vòng quay VIP!')) return;
   luckyAutoShown = k; try{ localStorage.setItem(k, '1'); }catch(e){}
-  showToast(s.next==='bonus' ? `🎁 Bạn có ${s.bonusLeft} lượt quay tặng (cứ đủ ${LUCKY_BONUS_EVERY} lượt được tặng 1) — mời quay!` : s.next > 1 ? `🎉 Bạn đạt mốc lượt ${s.next} — mời quay tiếp!` : '🎉 Bạn đã đạt mốc — mời quay 👑 Vòng quay VIP!'); luckyOpen();
-  try{ playEventTone('luckyReach'); }catch(e){} if(navigator.vibrate) try{ navigator.vibrate([200,100,200,100,300]); }catch(e){} // 🔔 nhạc báo đạt mốc (Quản lý chọn bài trong Cài đặt › Nhạc chuông)
+  showToast(s.next==='bonus' ? `🎁 Bạn có ${s.bonusLeft} lượt quay tặng (cứ đủ ${LUCKY_BONUS_EVERY} lượt được tặng 1) — mời quay!` : s.next > 1 ? `🎉 Bạn đạt mốc lượt ${s.next} — mời quay tiếp!` : '🎉 Bạn đã đạt mốc — mời quay 👑 Vòng quay VIP!');
 }
 // 🎨 Biểu tượng trên từng ô vòng quay: quản lý tự chọn (ô "Hình"), bỏ trống thì app tự đoán theo tên giải
 function luckyIcon(p){
@@ -12595,8 +12616,14 @@ function luckyBoardHtml(pool){
   if(!rows.length) return '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai — bạn hãy là người đầu tiên!</div>';
   return rows.map(r=>`<div class="lucky-row ${r.revoked ? 'revoked' : ''}"><span class="lucky-rank">${escHtml(String(luckyRankLabel(r)))}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${r.revoked ? 'đã thu hồi' : escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('');
 }
-function luckyOpen(){ const s0 = luckyMyState(); if(!s0 || !(s0.canSpin || s0.mine)) return; luckyModalPool = null; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
-function luckyModalRender(){
+function luckyOpen(){ luckyIntro = ''; const s0 = luckyMyState(); if(!s0 || !(s0.canSpin || s0.mine)) return; luckyModalPool = null; luckyResult = null; luckyModalRender(); document.getElementById('luckyModal').classList.add('show'); }
+function luckyModalRender(){ luckyModalRender0(); luckyBoardWrap(); try{ const box = document.getElementById('luckyModalBody'); if(box && luckyIntro && !luckyResult && !luckySpinning) box.insertAdjacentHTML('afterbegin', `<div class="lucky-intro">${escHtml(luckyIntro)}</div>`); }catch(e){} }
+// Bảng "đã quay hôm nay" gom vào 1 ô cuộn (cao tối đa ~150px), người MỚI NHẤT lên đầu → nhiều người trúng cũng không đẩy vòng quay lên
+function luckyBoardWrap(){ try{ const box = document.getElementById('luckyModalBody'); if(!box) return;
+  const rows = [...box.querySelectorAll(':scope > .lucky-row')]; if(!rows.length) return;
+  const wrap = document.createElement('div'); wrap.className = 'lucky-board'; rows[0].before(wrap); rows.slice().reverse().forEach(r=>wrap.appendChild(r));
+  if(rows.length > 5){ const more = document.createElement('div'); more.className = 'lucky-board-more'; more.textContent = `↕ kéo để xem đủ ${rows.length} lượt`; wrap.after(more); } }catch(e){} }
+function luckyModalRender0(){
   const box = document.getElementById('luckyModalBody'); if(!box) return;
   const tt = document.getElementById('luckyModalTitle'); if(tt) tt.textContent = luckyModalPool==='pack' ? (packIsSpecial() ? '🌟 Vòng quay đặc biệt' : '📦 Vòng quay kho') : luckyModalPool ? '⏰ Vòng quay chuyên cần' : '👑 Vòng quay VIP';
   if(luckyModalPool==='pack'){
@@ -12633,7 +12660,7 @@ function luckyModalRender(){
     ${act}<div class="lucky-board-t">VINH DANH HÔM NAY (${luckyUsed(c.pool)} người)</div>${luckyBoardHtml(c.pool)}`;
 }
 async function luckySpinGo(){
-  if(luckySpinning) return; if(luckyModalPool==='pack'){ luckyResult = null; luckyPackSpFlag = packIsSpecial(); } luckySpinning = true; luckyResult = null; luckyModalRender();
+  if(luckySpinning) return; luckyIntro = ''; if(luckyModalPool==='pack'){ luckyResult = null; luckyPackSpFlag = packIsSpecial(); } luckySpinning = true; luckyResult = null; luckyModalRender();
   let j = {};
   try{
     const tok = await firebase.auth().currentUser.getIdToken();
