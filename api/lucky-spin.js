@@ -176,7 +176,7 @@ const selfFb = raw => { const m = String(raw || '').trim().toLowerCase().match(/
 const selfKey = raw => selfNorm(raw) || selfFb(raw); // SĐT HOẶC link Facebook đều tính
 const SELF_OK_STATUS = ['đã liên hệ', 'đã nhắn tin', 'nhắn tin chưa gọi', 'đã gọi', 'đang tư vấn', 'đã lên hđ', 'đã chốt', 'không có nhu cầu']; // phải ĐÃ liên hệ / nhắn tin mới tính
 async function selfEarned(D, uid) {
-  const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).filter(r => r && !r.handedFrom).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
   const sec = {}; rows.forEach(r => { const k = Math.floor((Number(r.createdAt) || 0) / 1000); sec[k] = (sec[k] || 0) + 1; });
   const isBulk = r => !!r.bulk || sec[Math.floor((Number(r.createdAt) || 0) / 1000)] >= 5;
   const seen = new Set(), perDay = {};
