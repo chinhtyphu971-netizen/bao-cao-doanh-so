@@ -23,6 +23,9 @@ const DEF_MKT = [
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5},
   {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, icon:'💰'}];
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
+// ⚠️ Transaction của Firebase chạy lần đầu với cur = null (chưa có bộ nhớ đệm) → nếu trả undefined là HUỶ luôn, không hỏi lại máy chủ.
+// txTake: gặp null thì gửi thử null để máy chủ trả dữ liệu thật rồi chạy lại; chỉ coi là "lấy được" khi fn thật sự trả giá trị mới.
+const txTake = async (ref, fn) => { let ok = false; const r = await ref.transaction(cur => { ok = false; if (cur === null) return null; const nv = fn(cur); if (nv === undefined) return; ok = true; return nv; }); return {committed: !!(r.committed && ok), snapshot: r.snapshot}; };
 const isGrand = p => !!(p && (p.key === 'iphone' || p.key === 'grand' || /iphone/i.test(String(p.name || ''))));
 // 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 8.868.000đ (giữ nguyên tỉ lệ khoá + 1 giải / năm; key nội bộ vẫn là 'iphone' để khớp cài đặt cũ)
 const GRAND_NAME = 'Tiền mặt 8.868.000đ', GRAND_SHORT = '8,868 triệu';
@@ -96,7 +99,7 @@ module.exports = async (req, res) => {
     const extraFree = !!extra && !Object.values((await D.ref('luckySpin/' + day).once('value')).val() || {}).some(x => x && x.uid === uid && x.extra);
     let bonusHeld = false;
     if (!extraFree && Number(((await bRef.once('value')).val() || {}).left) > 0) { // giữ 1 lượt tặng (trừ trước, quay hỏng thì trả lại)
-      const b = await bRef.transaction(cur => (cur && Number(cur.left) > 0) ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
+      const b = await txTake(bRef, cur => Number(cur.left) > 0 ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
       bonusHeld = !!b.committed;
     }
     if (!extraFree && !bonusHeld && earned < 1) return res.status(400).json({error: pool === 'mkt' ? `Chưa đạt mốc: hôm nay đã nhập ${money(revenue)} / ${money(threshold)} số hợp lệ · doanh thu nguồn ${money(revenue2)}đ / ${money(thrRev)}đ.` : `Chưa đạt mốc: đã cọc hôm nay ${money(revenue)}đ / ${money(threshold)}đ.`, revenue});
@@ -189,7 +192,7 @@ async function attSpin(D, uid, u, pool, res) {
   if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
   if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
   const f = pool === 'attvip' ? 'vip' : 'left', bRef = D.ref('attBal/' + uid);
-  let held = await bRef.transaction(cur => (cur && Number(cur[f]) > 0) ? Object.assign({}, cur, {[f]: Number(cur[f]) - 1}) : undefined), viaSelf = false;
+  let held = await txTake(bRef, cur => Number(cur[f]) > 0 ? Object.assign({}, cur, {[f]: Number(cur[f]) - 1}) : undefined), viaSelf = false;
   if (!held.committed && pool === 'att' && ['staff', 'team_manager'].includes(u.role)) { // hết lượt chấm công → dùng lượt từ Data tự tìm
     const earned = await selfEarned(D, uid);
     held = await bRef.transaction(cur => { cur = cur || {}; const sp = Number(cur.selfSpun) || 0; return sp < earned ? Object.assign({}, cur, {selfSpun: sp + 1}) : undefined; });
@@ -229,12 +232,12 @@ async function packSpin(D, uid, u, res) {
   if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
   const pRef = D.ref('packCount/' + uid), bRef = D.ref('luckyBonus/' + uid);
   let kind = '', qty = 0;
-  const tx = await pRef.transaction(cur => { cur = cur || {}; qty = Object.values(cur.days || {}).reduce((a, x) => a + (Number(x) || 0), 0);
+  const tx = await txTake(pRef, cur => { qty = Object.values(cur.days || {}).reduce((a, x) => a + (Number(x) || 0), 0);
     const earned = Math.floor(qty / thr) + (Number(cur.extra) || 0), spun = Number(cur.spun) || 0;
     if (spun >= earned) { kind = ''; return; } kind = 'tier'; return Object.assign({}, cur, {spun: spun + 1}); });
   let bonusUsed = false;
   if (!tx.committed) { // hết lượt theo mốc → dùng lượt tặng nếu có
-    const b = await bRef.transaction(cur => (cur && Number(cur.left) > 0) ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
+    const b = await txTake(bRef, cur => Number(cur.left) > 0 ? Object.assign({}, cur, {left: Number(cur.left) - 1}) : undefined);
     if (!b.committed) return res.status(400).json({error: `Bạn chưa có lượt — nhặt thêm ${(thr - (qty % thr)).toLocaleString('vi-VN')} sp để có lượt tiếp.`});
     bonusUsed = true;
   }
