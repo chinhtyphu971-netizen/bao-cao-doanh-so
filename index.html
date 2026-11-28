@@ -12813,8 +12813,19 @@ function luckyRevokeCheck(){
   const tm = toLocalDateStr(new Date(new Date(luckyDate + 'T00:00:00').getTime() + 36*3600000));
   luckyRecs().forEach(r=>{
     if(!r || !r.uid || r.revoked || r.extra || r.bonus || (r.pool||'sale')!=='sale') return;
-    if(luckyRevenueOf(r.uid, luckyDate) >= (Number(r.thr) || c.threshold) * luckyTier(r)) return; // lượt n cần n × mốc (mốc lúc quay — đổi mốc giữa ngày không làm thu hồi oan)
-    const up = {[`luckySpin/${luckyDate}/${r._k}/revoked`]: true, [`luckySpin/${luckyDate}/${r._k}/revokedAt`]: nowMs()};
+    const need = (Number(r.thr) || c.threshold) * luckyTier(r);
+    if(luckyRevenueOf(r.uid, luckyDate) >= need) return; // lượt n cần n × mốc (mốc lúc quay — đổi mốc giữa ngày không làm thu hồi oan)
+    // 🛡️ Máy này có thể thiếu hoá đơn (vừa mở app / mất mạng) → HỎI LẠI MÁY CHỦ trước khi thu hồi, tránh thu hồi oan
+    if(luckyRevokeChecking[r._k]) return; luckyRevokeChecking[r._k] = true;
+    const t0 = new Date(luckyDate + 'T00:00:00+07:00').getTime();
+    fbInvoices.orderByChild('saleId').equalTo(r.uid).once('value').then(sn=>{ let rev = 0;
+      sn.forEach(c=>{ const v = c.val(); const at = Number(v && v.depositLink && v.depositLink.markedAt); if(at >= t0 && at < t0 + 86400000) rev += Number(v.totalAmount)||0; });
+      if(rev >= need) return; luckyRevokeDo(r, tm, rev); }).catch(()=>{}).finally(()=>{ setTimeout(()=>{ delete luckyRevokeChecking[r._k]; }, 5*60000); });
+  });
+}
+const luckyRevokeChecking = {};
+function luckyRevokeDo(r, tm, rev){ {
+    const up = {[`luckySpin/${luckyDate}/${r._k}/revoked`]: true, [`luckySpin/${luckyDate}/${r._k}/revokedAt`]: nowMs(), [`luckySpin/${luckyDate}/${r._k}/revokeRev`]: rev};
     const inc = firebase.database.ServerValue.increment, k = r.prize && r.prize.kind;
     if(k==='data') up[`luckyPerks/${tm}/${r.uid}/priorityData`] = inc(-(Number(r.prize.n)||0));
     if(k==='extra') up[`luckyPerks/${tm}/${r.uid}/extraSpin`] = null;
@@ -12824,7 +12835,7 @@ function luckyRevokeCheck(){
       if(!cur) return cur; const n = Number(cur.n)||0; if(n <= 0) return cur;
       return Object.assign({}, cur, {n: n - 1, left: Math.max(0, (Number(cur.left)||0) - (n % LUCKY_BONUS_EVERY === 0 ? 1 : 0))});
     })).catch(()=>{ if(src) src.revoked = false; });
-  });
+  }
 }
 setInterval(()=>{ try{ luckyRevokeCheck(); }catch(e){} }, 60000);
 // Data ưu tiên (giải vòng quay): số còn được chia trước hôm nay
