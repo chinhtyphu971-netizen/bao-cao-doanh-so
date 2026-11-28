@@ -12407,11 +12407,11 @@ let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {}
 let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
 let luckySpinning = false, luckyRot = 0, luckyResult = null, luckyAutoShown = '';
 function luckyConf(pool){ pool = ['mkt','att','attvip','pack'].includes(pool) ? pool : 'sale'; const D = {sale: LUCKY_DEFAULT, mkt: LUCKY_DEFAULT_MKT, att: LUCKY_DEFAULT_ATT, attvip: LUCKY_DEFAULT_ATTVIP, pack: LUCKY_DEFAULT_PACK}[pool]; const c = Object.assign({}, D, ({sale: luckyCfg, mkt: luckyCfgMkt, att: luckyCfgAtt, attvip: luckyCfgAttVip, pack: luckyCfgPack})[pool]||{}); if(!Array.isArray(c.prizes) || !c.prizes.length) c.prizes = D.prizes; c.prizes = c.prizes.map(luckyGrandFix); c.threshold = Number(c.threshold)||D.threshold||0; c.maxPerDay = Number(c.maxPerDay)||D.maxPerDay||0; c.pool = pool; if(pool==='attvip') c.enabled = !!(luckyCfgAtt && luckyCfgAtt.enabled); return c; }
-function luckyAttState(){ const me = currentUser(); if(!me || me.loginBlocked || me.active===false || !luckyPoolOf(me)) return null; /* chỉ Sale + MKT */ const c = luckyConf('att'); const isSale = luckyPoolOf(me)==='sale', sf = isSale ? selfSpinInfo(me.id) : {left: 0}, base = Number(attBalMe.left)||0;
+function luckyAttState(){ const me = currentUser(); if(!me || me.loginBlocked || me.active===false || !(luckyPoolOf(me) || me.role==='general_manager')) return null; /* chỉ Sale + MKT */ const c = luckyConf('att'); const isSale = luckyPoolOf(me)==='sale' || me.role==='general_manager', sf = isSale ? selfSpinInfo(me.id) : {left: 0}, base = Number(attBalMe.left)||0;
   if(!c.enabled){ /* chưa có máy chấm công: Sale vẫn quay lượt từ Data tự tìm (+ lượt "+1" trúng thưởng) */ const n = Math.max(0, base) + sf.left; const open = document.getElementById('luckyModal'); if(!isSale || (n <= 0 && !(open && open.classList.contains('show') && luckyModalPool==='att'))) return null; return {c, left: n, vip: 0, streak: 0, selfOnly: true}; }
   return {c, left: base + (base >= 0 ? sf.left : 0), vip: Number(attBalMe.vip)||0, streak: Number(attBalMe.streak)||0}; }
 // 📋 Data tự tìm → lượt chuyên cần (giống máy chủ): mỗi 15 SĐT hợp lệ mới / ngày (từ 28/11) = +1 lượt; đã quay = attBal.selfSpun
-const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 15, SELF_SPIN_MAX_DAY = 2; // tối đa 2 lượt / ngày từ Data tự tìm
+const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 15, SELF_SPIN_MAX_DAY = 9999; // KHÔNG giới hạn lượt / ngày từ Data tự tìm (28/11)
 // Dòng dán hàng loạt (ô "Nhập nhiều SĐT": có cờ bulk, hoặc ≥5 dòng cùng 1 giây của cùng người) KHÔNG tính lượt
 function selfBulkSet(rows){ const by = {}; rows.forEach(r=>{ const k = Math.floor((Number(r.createdAt)||0) / 1000); by[k] = (by[k]||0) + 1; }); return r => !!r.bulk || by[Math.floor((Number(r.createdAt)||0) / 1000)] >= 5; }
 function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
@@ -15537,9 +15537,9 @@ function renderSelfLeadsTable(){
   const mine = state.selfLeads.filter(l=>l.userId===user.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)); // dòng MỚI NHẤT trên cùng
   const countEl = document.getElementById('selfLeadsCount');
   if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
-  try{ let sp = document.getElementById('selfSpinLine'); if(luckyPoolOf(user)==='sale'){ const f = selfSpinInfo(user.id);
+  try{ let sp = document.getElementById('selfSpinLine'); if(luckyPoolOf(user)==='sale' || user.role==='general_manager'){ const f = selfSpinInfo(user.id);
       if(!sp && countEl){ sp = document.createElement('div'); sp.id = 'selfSpinLine'; sp.className = 'lucky-teaser'; sp.style.margin = '6px 0 8px'; countEl.closest('h2').insertAdjacentElement('afterend', sp); }
-      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> ${f.maxed ? ' · <b>đã đủ 2 lượt tối đa hôm nay</b>' : ` · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b>`} (mỗi 15 số / ngày = 1 lượt, tối đa 2 lượt / ngày; số dán hàng loạt không tính; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt. <button class="btn-primary" style="margin-left:6px; padding:6px 14px;" onclick="luckyOpenAtt()">⏰ Quay ngay</button>` : ''}`; }
+      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> ${f.maxed ? ' · <b>đã đủ 2 lượt tối đa hôm nay</b>' : ` · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b>`} (mỗi 15 số = 1 lượt, không giới hạn; số dán hàng loạt không tính; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt. <button class="btn-primary" style="margin-left:6px; padding:6px 14px;" onclick="luckyOpenAtt()">⏰ Quay ngay</button>` : ''}`; }
     else if(sp) sp.remove(); }catch(e){}
   try{ luckyAttFab(); }catch(e){} // số lượt đổi theo Data tự tìm → cập nhật nút ⏰ ngay (không chờ dữ liệu vòng quay thay đổi)
   const table = document.getElementById('selfLeadsTable');
