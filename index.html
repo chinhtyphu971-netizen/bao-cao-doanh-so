@@ -12397,7 +12397,7 @@ function packCountSync(force){
   }
   if(Object.keys(up).length) fbRoot.update(up).catch(()=>{});
 }
-setInterval(()=>{ try{ packCountSync(); }catch(e){} }, 60000);
+setInterval(()=>{ try{ packCountSync(); }catch(e){} try{ luckyAttFab(); }catch(e){} }, 60000);
 const LUCKY_POOL_NAME = {pack:'📦 Kho', sale:'VIP Sale', mkt:'VIP MKT', att:'Chuyên cần', attvip:'Chuyên cần VIP'};
 let luckyCfgMkt = null, luckyPoolEdit = 'sale', mktPasses = {}, mktPassUsed = {}, luckyGrandYear = null;
 let luckyCfg = null, luckyToday = {}, luckyPerksToday = {}, penaltyPasses = {}, penaltyPassesLoaded = false, luckyRefs = [], luckyDate = '';
@@ -15509,8 +15509,9 @@ function renderSelfLeadsTable(){
   if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
   try{ let sp = document.getElementById('selfSpinLine'); if(luckyPoolOf(user)==='sale'){ const f = selfSpinInfo(user.id);
       if(!sp && countEl){ sp = document.createElement('div'); sp.id = 'selfSpinLine'; sp.className = 'lucky-teaser'; sp.style.margin = '6px 0 8px'; countEl.closest('h2').insertAdjacentElement('afterend', sp); }
-      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b> (mỗi 15 số / ngày = 1 lượt; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt — bấm nút ⏰ ở góc màn hình để quay.` : ''}`; }
+      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b> (mỗi 15 số / ngày = 1 lượt; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt. <button class="btn-primary" style="margin-left:6px; padding:6px 14px;" onclick="luckyOpenAtt()">⏰ Quay ngay</button>` : ''}`; }
     else if(sp) sp.remove(); }catch(e){}
+  try{ luckyAttFab(); }catch(e){} // số lượt đổi theo Data tự tìm → cập nhật nút ⏰ ngay (không chờ dữ liệu vòng quay thay đổi)
   const table = document.getElementById('selfLeadsTable');
   if(!table) return;
   if(mine.length===0){
