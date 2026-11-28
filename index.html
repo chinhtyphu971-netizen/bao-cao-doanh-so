@@ -17646,14 +17646,20 @@ function usageMeterInstall(){
   let wasOn = null;
   firebase.database().ref('.info/connected').on('value', s=>{ const v = s.val();
     if(v===true && wasOn===false){ usageAdd('(nối lại)', 1);
+      // 📡 đo THẬT phần tải về trong 90 giây đầu sau khi nối lại (gồm cả phần Firebase gửi lại) → ghi "⟳ (thật)"
+      try{ const w0 = usageWire(); setTimeout(()=>{ try{ const w1 = usageWire(); if(w1 > w0) usageAdd('⟳ (thật)', w1 - w0); }catch(e){} }, 90000); }catch(e){}
       // ước tính TỐI ĐA phần có thể bị gửi lại khi nối lại: cộng cỡ dữ liệu mọi lắng nghe đang mở, ghi riêng "⟳ nhánh"
       try{ usageLive.forEach(e=>{ const n = e.kids ? Object.values(e.kids).reduce((a,b)=>a+b,0) : e.size; if(n) usageAdd('⟳ ' + e.node, n); }); }catch(e){} }
     wasOn = v; });
   setInterval(usageFlush, 5*60000);
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden) usageFlush(); });
 }
+// 📡 Số byte THẬT nhận qua kết nối Firebase (bộ đếm nội bộ của SDK) — so với tổng đo theo nhánh để biết phần chênh (gửi lại, phụ phí giao thức)
+function usageWire(){ try{ const d = firebase.database()._delegate, r = d && (d._repoInternal || d._repo), g = r && r.stats_ && r.stats_.get(); return Number(g && g.bytes_received) || 0; }catch(e){ return 0; } }
+let usageWireLast = 0;
 function usageFlush(){
   const me = currentUser(); if(!me || !fbRoot) return;
+  try{ const w = usageWire(); if(w > usageWireLast){ usageAdd('(thật)', w - usageWireLast); usageWireLast = w; } }catch(e){}
   const keys = Object.keys(usageAcc); if(!keys.length) return;
   const inc = firebase.database.ServerValue.increment; const up = {}; const d = todayStr();
   keys.forEach(k=>{ up[`usageBytes/${d}/${me.role}/${String(k).replace(/[.#$\[\]\/]/g,'_')}`] = inc(usageAcc[k]); delete usageAcc[k]; });
