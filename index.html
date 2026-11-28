@@ -6156,7 +6156,7 @@ function invShipEdit(invId){
   const inv = (state.invoices||[]).find(x=>x.id===invId); if(!inv) return;
   if(!invShipCanEdit(inv)){ showToast('Kho đã đóng xong đơn này (đã sang Abit) — sửa địa chỉ trên Abit.'); return; }
   depProofOpen(inv, false, 'Sửa địa chỉ / người nhận cho đơn ' + (inv.invoiceNumber||'') + '. Kho chưa đóng nên đơn chưa sang Abit — sửa ở đây là đủ.', ()=>{ showToast('✅ Đã lưu địa chỉ giao hàng'); try{ renderInvoicesPage(); }catch(e){} try{ if(document.getElementById('invViewModal').classList.contains('show')) viewInvoiceReadonly(invId); }catch(e){} try{ if(packPanel) renderPackPanel(); }catch(e){} });
-  depProof.addrOnly = true; depProofModeUi(true);
+  depProof.addrOnly = true; depProofModeUi(true); depProofRender(); // bật nút Lưu (sửa địa chỉ không cần ảnh)
   document.getElementById('depProofTitle').textContent = '📍 Sửa địa chỉ giao hàng';
 }
 function depProofModeUi(addrOnly){ ['depProofLabel','depProofThumbs'].forEach(id=>{ const e = document.getElementById(id); if(e) e.style.display = addrOnly ? 'none' : ''; });
@@ -6347,6 +6347,7 @@ function depProofRender(){
   document.getElementById('depProofThumbs').innerHTML = depProof.imgs.map((p,i)=>`<div class="pack-thumb"><img src="${p.data}" onclick="packPhotoZoom(this.src)"><button class="pack-thumb-x" onclick="depProof.imgs.splice(${i},1); depProofRender()">×</button></div>`).join('') +
     (n < DEP_PROOF_MAX ? `<label class="pack-photo-add ${n ? '' : 'need'}">📎<span>${n ? 'Thêm ảnh' : 'Chọn ảnh'}</span><input type="file" accept="image/*" multiple onchange="depProofPicked(this.files); this.value=''" style="display:none;"></label>` : '');
   const ok = document.getElementById('depProofOk');
+  if(depProof.addrOnly){ ok.disabled = false; ok.style.opacity = '1'; ok.textContent = '💾 Lưu địa chỉ'; return; } // 📍 chỉ sửa địa chỉ: không cần ảnh
   ok.disabled = !n; ok.style.opacity = n ? '1' : '0.45';
   ok.textContent = n ? (depProof.oldCust ? '✅ Chốt đơn' : '✅ Xác nhận đã cọc') : 'Chọn ảnh trước';
 }
@@ -12703,15 +12704,25 @@ const PENALTY_SKIPS = 3;
 const PENALTY_FROM = '2026-11-26'; // bắt đầu xét từ báo cáo ngày này (ngày áp dụng quy định) → phạt sớm nhất ngày 27/11
 let penaltyPassUsed = [];
 let reportsFirstLoaded = false, penaltyToday = null, penaltyTodayDate = '', penaltySkips = {}, penaltyRefs = [];
+// ➕ CỘNG DỒN: lượt bị cắt chưa cắt hết (vd team không đến lượt nhận data hôm đó) → dồn sang ngày sau, tới khi cắt đủ.
+// penaltyDebt/{uid} = {left, since, last} · penaltyDebtApplied/{ngày} = true (phạt của ngày đó đã cộng vào nợ)
+let penaltyDebt = {}, penaltyDebtLoaded = false, penaltyDebtApplied = false, penaltySkipsLoaded = false;
 function penaltySubscribe(today){
-  penaltyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); penaltyRefs = []; penaltyToday = null; penaltySkips = {}; penaltyTodayDate = today;
+  penaltyRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); penaltyRefs = []; penaltyToday = null; penaltySkips = {}; penaltySkipsLoaded = false; penaltyTodayDate = today;
   if(!fbRoot) return; const me = currentUser(); if(!me) return;
   const pr = fbRoot.child('dataPenalty/' + today); penaltyRefs.push(pr);
-  pr.on('value', s=>{ penaltyToday = s.val(); penaltyRender(); });
+  pr.on('value', s=>{ penaltyToday = s.val(); penaltyRender(); try{ penaltyApplyDebt(); }catch(e){} });
   const all = me.role==='general_manager' || me.role==='data_manager';
   if(all || isLeadEligibleRole(me)){
     const sr = all ? fbRoot.child('dataSkips/' + today) : fbRoot.child('dataSkips/' + today + '/' + me.id); penaltyRefs.push(sr);
-    sr.on('value', s=>{ if(all) penaltySkips = s.val() || {}; else penaltySkips = {[me.id]: Number(s.val())||0}; penaltyRender(); });
+    sr.on('value', s=>{ if(all) penaltySkips = s.val() || {}; else penaltySkips = {[me.id]: Number(s.val())||0}; penaltySkipsLoaded = true; penaltyRender(); try{ penaltyApplyDebt(); }catch(e){} });
+  }
+  penaltyDebt = {}; penaltyDebtLoaded = false; penaltyDebtApplied = false;
+  if(all || isLeadEligibleRole(me)){
+    const dr = all ? fbRoot.child('penaltyDebt') : fbRoot.child('penaltyDebt/' + me.id); penaltyRefs.push(dr);
+    dr.on('value', s=>{ const v = s.val(); penaltyDebt = all ? (v || {}) : (v ? {[me.id]: v} : {}); penaltyDebtLoaded = true; penaltyRender(); try{ penaltyApplyDebt(); }catch(e){} });
+    const ar = fbRoot.child('penaltyDebtApplied/' + today); penaltyRefs.push(ar);
+    ar.on('value', s=>{ penaltyDebtApplied = !!s.val(); penaltyRender(); try{ penaltyApplyDebt(); }catch(e){} });
   }
   setTimeout(()=>{ try{ penaltyEnsure(); }catch(e){} }, 3000);
   try{ luckySubscribe(today); }catch(e){ console.error(e); } // 🎡 vòng quay may mắn (cùng vòng đời theo ngày)
@@ -12740,30 +12751,59 @@ function penaltyEnsure(){
     .then(res=>{ if(res && res.committed && passUsed.length){ const up = {}; passUsed.forEach(x=>{ up['penaltyPasses/' + x.id] = firebase.database.ServerValue.increment(-1); }); fbRoot.update(up).catch(()=>{}); } }) // 🛡️ trừ thẻ đã dùng
     .catch(e=>console.warn('dataPenalty', e));
 }
-function penaltyOfBranch(bid){ const p = penaltyToday; return p && p.branches && bid && p.branches[bid] && (p.branches[bid].missing||[]).length ? p.branches[bid] : null; }
-function penaltySkipLeft(u){
-  if(!u || !isLeadEligibleRole(u) || !penaltyOfBranch(u.branchId) || penaltyTodayDate!==todayStr()) return 0;
+// Ai bị cắt khi team bị phạt: Sale / QL team của team đó, đang làm (tạm nghỉ / nghỉ việc không tính)
+function penaltyMembers(bid){ return state.users.filter(u=>u.branchId===bid && isLeadEligibleRole(u) && !userInactive(u)); }
+// Cộng phạt HÔM NAY vào nợ (1 lần / ngày, máy Quản lý chung / Data) — trừ đi số lượt đã cắt hôm nay trước khi cộng
+function penaltyApplyDebt(){
+  const me = currentUser(); if(!me || !fbRoot || !(me.role==='general_manager' || me.role==='data_manager')) return;
+  const today = penaltyTodayDate; if(!today || today!==todayStr() || !penaltyDebtLoaded || !penaltySkipsLoaded || penaltyDebtApplied) return;
+  const p = penaltyToday; if(!p || !p.at) return; // chỉ khi đã có bản phạt chính thức trên máy chủ
+  fbRoot.child('penaltyDebtApplied/' + today).transaction(cur=>cur ? undefined : true).then(res=>{
+    if(!res || !res.committed) return;
+    Object.entries(p.branches||{}).forEach(([bid, v])=>{ if(!v || !(v.missing||[]).length) return;
+      penaltyMembers(bid).forEach(u=>{ const add = Math.max(0, PENALTY_SKIPS - (Number(penaltySkips[u.id])||0)); if(!add) return;
+        fbRoot.child('penaltyDebt/' + u.id).transaction(c=>{ c = c || {}; const left = Math.max(0, Number(c.left)||0);
+          return {left: left + add, since: left > 0 && c.since ? c.since : p.for, last: p.for}; }).catch(()=>{}); });
+    });
+  }).catch(e=>console.warn('penaltyDebt', e));
+}
+function penaltyPendingToday(u){ // phạt hôm nay CHƯA cộng vào nợ (máy chưa kịp cộng) — vẫn áp dụng ngay
+  if(penaltyDebtApplied || !u || !penaltyOfBranch(u.branchId) || userInactive(u)) return 0;
   return Math.max(0, PENALTY_SKIPS - (Number(penaltySkips[u.id])||0));
 }
+function penaltyLeftOf(u){ return !u ? 0 : Math.max(0, Number((penaltyDebt[u.id]||{}).left)||0) + penaltyPendingToday(u); }
+function penaltyOfBranch(bid){ const p = penaltyToday; return p && p.branches && bid && p.branches[bid] && (p.branches[bid].missing||[]).length ? p.branches[bid] : null; }
+function penaltySkipLeft(u){
+  if(!u || !isLeadEligibleRole(u) || penaltyTodayDate!==todayStr()) return 0;
+  return penaltyLeftOf(u);
+}
 function penaltyRecordSkip(u){
+  const pending = penaltyPendingToday(u) > 0; // còn phạt hôm nay chưa vào nợ → chỉ ghi dataSkips (khi cộng nợ sẽ tự trừ phần này)
   const n = (Number(penaltySkips[u.id])||0) + 1; penaltySkips[u.id] = n;
   fbRoot.child('dataSkips/' + todayStr() + '/' + u.id).set(n).catch(()=>{});
+  if(!pending){ const d = penaltyDebt[u.id] = Object.assign({}, penaltyDebt[u.id]); d.left = Math.max(0, (Number(d.left)||0) - 1);
+    fbRoot.child('penaltyDebt/' + u.id + '/left').transaction(c=>Math.max(0, (Number(c)||0) - 1)).catch(()=>{}); }
 }
 function penaltyBannerHtml(u){ // dòng thông báo cho Sale / Quản lý team
-  const pb = u && penaltyOfBranch(u.branchId); if(!pb || !isLeadEligibleRole(u)) return '';
-  const used = Math.min(PENALTY_SKIPS, Number(penaltySkips[u.id])||0);
-  const names = pb.missing.map(x=>x.name).join(', ');
-  return `<span>✂️ <b>Hôm nay team bị cắt ${PENALTY_SKIPS} lượt data đầu</b> vì ${escHtml(names)} chưa nộp báo cáo ngày ${fmtDate(penaltyToday.for)}. Nhắc nhau nộp báo cáo mỗi ngày (kể cả ngày nghỉ) nhé.</span><span class="recall-meta">Bạn đã bị cắt ${used}/${PENALTY_SKIPS} lượt</span>`;
+  if(!u || !isLeadEligibleRole(u)) return '';
+  const pb = penaltyOfBranch(u.branchId), left = penaltyLeftOf(u), d = penaltyDebt[u.id] || {}, cut = Number(penaltySkips[u.id])||0;
+  if(!pb && !left) return '';
+  const head = pb ? `✂️ <b>Team bị cắt ${PENALTY_SKIPS} lượt data đầu</b> vì ${escHtml(pb.missing.map(x=>x.name).join(', '))} chưa nộp báo cáo ngày ${fmtDate(penaltyToday.for)}.`
+    : `✂️ <b>Team còn lượt data bị cắt dồn lại</b> (thiếu báo cáo${d.since ? ` từ ngày ${fmtDate(d.since)}` : ''}).`;
+  return `<span>${head} Lượt chưa cắt hết sẽ <b>dồn sang ngày sau</b> tới khi cắt đủ. Nhắc nhau nộp báo cáo mỗi ngày (kể cả ngày nghỉ) nhé.</span><span class="recall-meta">Hôm nay đã cắt ${cut} · còn ${left} lượt</span>`;
 }
 function penaltyMgrHtml(){ // Quản lý: team nào đang bị cắt
   const p = penaltyToday; if(!p || !p.for || p.for < PENALTY_FROM) return '';
-  const rows = Object.entries(p.branches||{}).filter(([b, v])=>v && (v.missing||[]).length);
+  const sc = scopeBranchId(), bids = new Set();
+  Object.entries(p.branches||{}).forEach(([b, v])=>{ if(v && (v.missing||[]).length) bids.add(b); });
+  state.users.forEach(u=>{ if(u.branchId && isLeadEligibleRole(u) && Number((penaltyDebt[u.id]||{}).left) > 0) bids.add(u.branchId); }); // team còn nợ dồn
+  const rows = [...bids].filter(b=>!sc || b===sc);
   if(!rows.length) return `<div style="margin-top:10px; font-size:12.5px; color:var(--ink-soft);">✂️ Báo cáo ngày ${fmtDate(p.for)}: các team nộp đủ — không team nào bị cắt lượt data.</div>`;
-  const sc = scopeBranchId();
-  return `<div class="recall-banner" style="display:block; margin-top:10px;"><b>✂️ Hôm nay bị cắt ${PENALTY_SKIPS} lượt data đầu</b> (thiếu báo cáo ngày ${fmtDate(p.for)}):` +
-    rows.filter(([b])=>!sc || b===sc).map(([b, v])=>{ const mem = state.users.filter(u=>u.branchId===b && isLeadEligibleRole(u) && !u.loginBlocked);
-      const done = mem.reduce((a, u)=>a + Math.min(PENALTY_SKIPS, Number(penaltySkips[u.id])||0), 0);
-      return `<div style="margin-top:4px;">• <b>${escHtml(branchName(b))}</b> — chưa nộp: ${escHtml(v.missing.map(x=>x.name).join(', '))}${sc ? '' : ` · đã cắt ${done}/${mem.length*PENALTY_SKIPS} lượt`}</div>`; }).join('') + `</div>`;
+  return `<div class="recall-banner" style="display:block; margin-top:10px;"><b>✂️ Đang cắt lượt data đầu</b> (thiếu báo cáo — lượt chưa cắt hết dồn sang ngày sau):` +
+    rows.map(b=>{ const v = (p.branches||{})[b], mem = penaltyMembers(b);
+      const done = mem.reduce((a, u)=>a + (Number(penaltySkips[u.id])||0), 0), left = mem.reduce((a, u)=>a + penaltyLeftOf(u), 0);
+      const since = mem.map(u=>(penaltyDebt[u.id]||{}).since).filter(Boolean).sort()[0];
+      return `<div style="margin-top:4px;">• <b>${escHtml(branchName(b))}</b> — ${v && (v.missing||[]).length ? `chưa nộp ngày ${fmtDate(p.for)}: ${escHtml(v.missing.map(x=>x.name).join(', '))}` : `dồn từ ngày ${since ? fmtDate(since) : 'trước'}`} · hôm nay đã cắt ${done} · <b>còn ${left} lượt</b></div>`; }).join('') + `</div>`;
 }
 function runDistribution(){
   const today=todayStr();
