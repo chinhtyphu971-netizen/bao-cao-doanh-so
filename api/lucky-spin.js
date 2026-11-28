@@ -164,7 +164,7 @@ module.exports = async (req, res) => {
 // ⏰ Quay vòng chuyên cần: trừ 1 lượt (transaction) → chọn giải → ghi luckySpin/{ngày}/{push} (pool att / attvip) → áp quyền lợi
 // 📋 DATA TỰ TÌM → lượt chuyên cần: Sale điền mỗi 15 SĐT hợp lệ (mới, không trùng) trong NGÀY vào "Data tự tìm" = +1 lượt chuyên cần
 // (tính từ 28/11/2026, để dành được; quay khi vòng chuyên cần được bật). Máy chủ tự đếm lại từ selfLeads mỗi lần quay → không sửa tay được.
-const SELF_FROM = '2026-11-28', SELF_PER = 15;
+const SELF_FROM = '2026-11-28', SELF_PER = 15, SELF_MAX_DAY = 2; // tối đa 2 lượt / ngày; dòng dán hàng loạt (bulk hoặc ≥5 dòng cùng 1 giây) không tính
 const selfNorm = raw => { let d = String(raw || '').replace(/[^\d+]/g, ''); if (d.startsWith('+84')) d = '0' + d.slice(3); else if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2);
   d = d.replace(/\D/g, ''); if (d.length === 9 && /^[35789]/.test(d)) d = '0' + d; return /^0[35789]\d{8}$/.test(d) ? d : null; };
 const selfFb = raw => { const m = String(raw || '').trim().toLowerCase().match(/(?:https?:\/\/)?(?:www\.|m\.|web\.|mbasic\.|business\.)?(facebook\.com|fb\.com|fb\.me|m\.me)\/([^\s?#]+)(\?[^\s#]*)?/);
@@ -176,9 +176,11 @@ const selfKey = raw => selfNorm(raw) || selfFb(raw); // SĐT HOẶC link Faceboo
 const SELF_OK_STATUS = ['đã liên hệ', 'đã nhắn tin', 'nhắn tin chưa gọi', 'đã gọi', 'đang tư vấn', 'đã lên hđ', 'đã chốt', 'không có nhu cầu']; // phải ĐÃ liên hệ / nhắn tin mới tính
 async function selfEarned(D, uid) {
   const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const sec = {}; rows.forEach(r => { const k = Math.floor((Number(r.createdAt) || 0) / 1000); sec[k] = (sec[k] || 0) + 1; });
+  const isBulk = r => !!r.bulk || sec[Math.floor((Number(r.createdAt) || 0) / 1000)] >= 5;
   const seen = new Set(), perDay = {};
-  rows.forEach(r => { const ph = selfKey(r && r.phone); if (!ph || seen.has(ph) || !SELF_OK_STATUS.includes(String(r.status || '').trim().toLowerCase())) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
-  return Object.values(perDay).reduce((a, n) => a + Math.floor(n / SELF_PER), 0);
+  rows.forEach(r => { const ph = selfKey(r && r.phone); if (!ph || seen.has(ph) || isBulk(r) || !SELF_OK_STATUS.includes(String(r.status || '').trim().toLowerCase())) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
+  return Object.values(perDay).reduce((a, n) => a + Math.min(SELF_MAX_DAY, Math.floor(n / SELF_PER)), 0);
 }
 async function attSpin(D, uid, u, pool, res) {
   if (!u || u.active === false || u.loginBlocked || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role)) return res.status(403).json({error: 'Vòng quay chuyên cần chỉ dành cho Sale và MKT.'});
