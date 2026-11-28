@@ -12409,7 +12409,7 @@ function luckyAttState(){ const me = currentUser(); if(!me || me.loginBlocked ||
 // 📋 Data tự tìm → lượt chuyên cần (giống máy chủ): mỗi 20 SĐT hợp lệ mới / ngày (từ 28/11) = +1 lượt; đã quay = attBal.selfSpun
 const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 20;
 function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
-  const seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
+  const seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim().toLowerCase())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
   const earned = Object.values(perDay).reduce((a,n)=>a + Math.floor(n / SELF_SPIN_PER), 0), spun = Number(attBalMe.selfSpun)||0, today = perDay[todayStr()] || 0;
   return {today, earned, spun, left: Math.max(0, earned - spun), need: SELF_SPIN_PER - (today % SELF_SPIN_PER)}; }
 function luckyPoolOf(u){ return !u ? null : (['mkt','mkt_manager'].includes(u.role) ? 'mkt' : (isLeadEligibleRole(u) ? 'sale' : null)); }
@@ -15559,7 +15559,7 @@ function selfFbKey(raw){ const m = String(raw||'').trim().toLowerCase().match(/(
   return path.length >= 3 ? 'fb:' + path : null; }
 function selfContactKey(raw){ return selfBulkNormPhone(raw) || selfFbKey(raw); }
 // Chỉ tính lượt khi đã thật sự liên hệ: Đã liên hệ / nhắn tin chưa gọi (và các bước sau đó: đang tư vấn, lên HĐ, chốt, không có nhu cầu)
-const SELF_SPIN_OK_STATUS = ['Đã liên hệ','nhắn tin chưa gọi','Đang tư vấn','Đã lên HĐ','Đã chốt','Không có nhu cầu'];
+const SELF_SPIN_OK_STATUS = ['đã liên hệ','đã nhắn tin','nhắn tin chưa gọi','đã gọi','đang tư vấn','đã lên hđ','đã chốt','không có nhu cầu']; // so khớp không phân biệt hoa thường
 function selfBulkParse(text){
   const me = currentUser() || {};
   const have = new Set(state.selfLeads.filter(l=>l.userId===me.id).map(l=>selfContactKey(l.phone)).filter(Boolean));
