@@ -1748,6 +1748,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   .lucky-conf{ position:fixed; inset:0; pointer-events:none; z-index:2147483000; overflow:hidden; } .lucky-conf i{ position:absolute; top:-14px; width:9px; height:14px; border-radius:2px; animation: luckyFall linear forwards; } @keyframes luckyFall{ to{ transform:translateY(110vh) rotate(720deg); } }
   .lucky-intro{ text-align:center; font-weight:800; font-size:16px; margin:0 0 8px; padding:10px 12px; border-radius:12px; background:linear-gradient(90deg, rgba(255,194,92,.18), rgba(75,224,138,.18)); }
   .lk-pend{ margin:10px 0 4px; padding:12px 14px; border:1px solid var(--line, rgba(127,127,127,.25)); border-radius:12px; } .lk-pend-h{ display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; justify-content:space-between; } .lk-pend-h h3{ margin:0; font-size:15px; } .lk-pend-r{ display:grid; grid-template-columns:minmax(90px, 160px) 1fr auto; gap:6px 12px; align-items:center; padding:8px 0; border-top:1px dashed rgba(127,127,127,.25); } @media (max-width:640px){ .lk-pend-r{ grid-template-columns:1fr auto; } .lk-pend-r span{ grid-column:1 / -1; grid-row:2; } }
+  .lk-rows{ max-height:420px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; } .lk-row{ display:grid; grid-template-columns:24px 42px minmax(90px,160px) 1fr auto; align-items:center; gap:10px; padding:6px 10px; border-bottom:1px solid var(--line); font-size:13px; } .lk-row:last-child{ border-bottom:0; } .lk-row.revoked{ opacity:.5; } .lk-row-t{ color:var(--ink-soft); font-size:12px; } .lk-row-n{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lk-row-p{ color:#FFC25C; font-weight:700; } .lk-row-p.none{ color:var(--ink-soft); font-weight:600; } .lk-give.sm{ height:28px; padding:0 12px; font-size:12px; border-radius:8px; }
+  @media (max-width:600px){ .lk-row{ grid-template-columns:24px 1fr auto; } .lk-row-t{ display:none; } .lk-row-p{ grid-column:2 / 3; } .lk-row-n{ grid-column:2 / 3; } .lk-row-a{ grid-column:3; grid-row:1 / 3; } .lk-row > .lk-badge{ grid-row:1 / 3; } }
   .lk-give{ height:38px; border-radius:10px; border:1px solid #FF9A5C; background:#FF9A5C; color:#1a1206; font-weight:800; cursor:pointer; } .lk-give.done{ background:rgba(75,224,138,.12); border-color:#4BE08A; color:#4BE08A; }
   .goal-sort-th{ cursor:pointer; user-select:none; white-space:nowrap; }
   .goal-sort-th:hover{ color:var(--accent); }
@@ -12717,6 +12719,7 @@ function luckyMonthCounts(){ // số lần trúng từng giải trong tháng (b�
   Object.values(days).forEach(day=>Object.values(day||{}).forEach(r=>{ if(r && r.prize && !r.revoked && (r.pool||'sale')===luckyPoolEdit) cnt[r.prize.key] = (cnt[r.prize.key]||0) + 1; }));
   return cnt;
 }
+let luckyHonorF = 'pend';
 function renderLuckyMgrCard(force){
   const el = document.getElementById('luckyMgrCard'); if(!el) return;
   const me = currentUser(); if(!me || me.role!=='general_manager'){ el.style.display = 'none'; return; }
@@ -12734,6 +12737,15 @@ function renderLuckyMgrCard(force){
     return `<div class="lk-slot ${r.revoked ? 'revoked' : ''}"><div class="lk-slot-h"><span class="lk-badge ${i===0 ? 'gold' : ''}">${r.bonus || r.extra ? luckyRankLabel(r) : (luckyTier(r) > 1 ? 'L' + luckyTier(r) : (r.rank || i+1))}</span><b>${escHtml(r.name||'')}</b></div><span class="lk-sub">${escHtml(isM || isA || isK ? '' : (branchName(r.branchId)||''))}${isM || isA || isK ? '' : ' · '}${isA || isK ? 'quay lúc ' + packTimeShort(r.at) : `đạt mốc ${packTimeShort(r.at)} · ${luckyMetricFmt(r.revenue, P)}`}</span><span class="lk-slot-p">${escHtml(luckyPrizeLabel(r.prize))}</span>${act}</div>`;
   };
   const slots = []; for(let i = 0; i < Math.max(1, main.length); i++) slots.push(slot(main[i], i)); extra.forEach((r)=>slots.push(slot(r, 99)));
+  // 📋 Danh sách gọn: 1 dòng / lượt, mới nhất lên đầu, lọc "Chờ trao" — đỡ tốn chỗ khi 1 ngày cả trăm lượt
+  const hAll = main.map((r,i)=>[r,i]).concat(extra.map(r=>[r,99]));
+  const hPend = x=>x[0].prize && x[0].prize.kind==='manual' && !x[0].given && !x[0].revoked;
+  const hF = luckyHonorF, hList = hAll.filter(x=> hF==='pend' ? hPend(x) : hF==='auto' ? !(x[0].prize && x[0].prize.kind==='manual') : true).reverse();
+  const hCnt = {pend: hAll.filter(hPend).length, all: hAll.length, auto: hAll.filter(x=>!(x[0].prize && x[0].prize.kind==='manual')).length};
+  const hRow = ([r,i])=>{ const man = r.prize && r.prize.kind==='manual', none = r.prize && r.prize.kind==='none';
+    const act = r.revoked ? '<span class="badge badge-warn">Đã thu hồi</span>' : none ? '<span class="lk-sub">Không có quà</span>' : man ? (r.given ? `<button class="lk-give sm done" onclick="luckyGive('${escHtml(r._k)}', false)" title="Bấm để bỏ đánh dấu">✓ ${packTimeShort(r.givenAt)}</button>` : `<button class="lk-give sm" onclick="luckyGive('${escHtml(r._k)}', true)">Đã trao</button>`) : '<span class="lk-auto">Tự áp dụng</span>';
+    return `<div class="lk-row ${r.revoked ? 'revoked' : ''}"><span class="lk-badge ${i===0 ? 'gold' : ''}">${none ? '🍀' : r.bonus || r.extra ? luckyRankLabel(r) : (luckyTier(r) > 1 ? 'L' + luckyTier(r) : (r.rank || i+1))}</span><span class="lk-row-t">${packTimeShort(r.at)}</span><b class="lk-row-n">${escHtml(r.name||'')}</b><span class="lk-row-p ${none ? 'none' : ''}">${escHtml(luckyPrizeLabel(r.prize))}${isM || isA || isK ? '' : ` <span class="lk-sub">· ${luckyMetricFmt(r.revenue, P)}</span>`}</span><span class="lk-row-a">${act}</span></div>`; };
+  const honor = hAll.length ? `<div class="chip-row" style="margin:0 0 8px;">${[['pend','⏳ Chờ trao'],['all','Tất cả'],['auto','App tự áp dụng']].map(([k,l])=>`<div class="chip ${hF===k ? 'selected' : ''}" onclick="luckyHonorF='${k}'; renderLuckyMgrCard(true)">${l} (${hCnt[k]})</div>`).join('')}</div><div class="lk-rows">${hList.map(hRow).join('') || `<div class="lk-sub" style="padding:10px;">${hF==='pend' ? '✓ Không còn quà nào chờ trao' : 'Chưa có lượt nào'}</div>`}</div>` : '<div class="lk-sub">Chưa ai quay hôm nay</div>';
   el.innerHTML = `<details class="mgr-sec in-card" data-k="lucky" ${secOpen('lucky', false)} ontoggle="mgrSecToggle(this)"><summary><h2>🎡 Vòng quay may mắn</h2><span class="mgr-sec-sum">Sale: hôm nay <b>${luckyUsed('sale')}</b> · MKT: <b>${luckyUsed('mkt')}</b> người đã quay · Chuyên cần: <b>${luckyConf('att').enabled ? 'đang bật' : 'chưa áp dụng'}</b></span></summary>
   ${luckyPendHtml()}
   <div class="chip-row" style="margin:10px 0 0;">${[['sale','👑 VIP Sale'],['mkt','👑 VIP MKT'],['pack','📦 Kho'],['att','⏰ Chuyên cần']].map(([k,l])=>`<div class="chip ${P===k ? 'selected' : ''}" onclick="luckyPoolEdit='${k}'; luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">${l}</div>`).join('')}</div>
@@ -12769,7 +12781,7 @@ function renderLuckyMgrCard(force){
       <div class="lk-prz-f"><button class="btn-ghost btn-small" onclick="luckyDraftAdd()">+ Thêm giải</button><span style="flex:1;"></span><button class="btn-ghost btn-small" onclick="luckyDraft = null; luckyDraftMeta = null; renderLuckyMgrCard(true)">Huỷ sửa</button><button class="btn-primary btn-small" onclick="luckySaveCfg()">Lưu cài đặt</button></div>
     </div>
   </div>
-  <div class="lk-box" style="margin-top:14px;"><h3>Vinh danh hôm nay — ${LUCKY_POOL_NAME[P]}</h3><div class="lk-slots">${slots.join('')}</div></div>
+  <div class="lk-box" style="margin-top:14px;"><h3>Vinh danh hôm nay — ${LUCKY_POOL_NAME[P]} <span class="lk-sub">· ${hCnt.all} lượt</span></h3>${honor}</div>
   </details>`;
 }
 function luckySaveCfg(){
