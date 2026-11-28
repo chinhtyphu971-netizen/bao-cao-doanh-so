@@ -30,12 +30,10 @@ const grandName = p => isGrand(p) ? Object.assign({}, p, {name: GRAND_NAME, shor
 const GRAND_W = 0.00001; // 🔒 tỉ lệ iPhone tối đa 0,00001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
 // ⏰ Vòng quay CHUYÊN CẦN (làm sẵn, bật/tắt ở luckyCfgAtt.enabled): quay bằng lượt trong attBal/{uid} (left = thường, vip = VIP)
 const DEF_ATT = [
-  {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
-  {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:20},
-  {key:'tea', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:15},
-  {key:'star5', name:'Tặng 5 sao', short:'5 sao', kind:'manual', w:35},
-  {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12},
-  {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15}];
+  {key:'luck', name:'Chúc bạn may mắn lần sau', short:'May mắn sau', kind:'none', w:30}, {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:20},
+  {key:'star5', name:'Tặng 5 sao', short:'5 sao', kind:'manual', w:20}, {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:14},
+  {key:'star10', name:'Tặng 10 sao', short:'10 sao', kind:'manual', w:8}, {key:'tea', name:'1 ly trà chanh', short:'Trà chanh', kind:'manual', w:7},
+  {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:1}];
 const DEF_ATTVIP = [
   {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, icon:'💰'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
@@ -161,10 +159,22 @@ module.exports = async (req, res) => {
 };
 
 // ⏰ Quay vòng chuyên cần: trừ 1 lượt (transaction) → chọn giải → ghi luckySpin/{ngày}/{push} (pool att / attvip) → áp quyền lợi
+// 📋 DATA TỰ TÌM → lượt chuyên cần: Sale điền mỗi 20 SĐT hợp lệ (mới, không trùng) trong NGÀY vào "Data tự tìm" = +1 lượt chuyên cần
+// (tính từ 28/11/2026, để dành được; quay khi vòng chuyên cần được bật). Máy chủ tự đếm lại từ selfLeads mỗi lần quay → không sửa tay được.
+const SELF_FROM = '2026-11-28', SELF_PER = 20;
+const selfNorm = raw => { let d = String(raw || '').replace(/[^\d+]/g, ''); if (d.startsWith('+84')) d = '0' + d.slice(3); else if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2);
+  d = d.replace(/\D/g, ''); if (d.length === 9 && /^[35789]/.test(d)) d = '0' + d; return /^0[35789]\d{8}$/.test(d) ? d : null; };
+async function selfEarned(D, uid) {
+  const rows = Object.values((await D.ref('selfLeads').orderByChild('userId').equalTo(uid).once('value')).val() || {}).sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+  const seen = new Set(), perDay = {};
+  rows.forEach(r => { const ph = selfNorm(r && r.phone); if (!ph || seen.has(ph)) return; seen.add(ph); const d = vnDay(Number(r.createdAt) || 0); if (d >= SELF_FROM) perDay[d] = (perDay[d] || 0) + 1; });
+  return Object.values(perDay).reduce((a, n) => a + Math.floor(n / SELF_PER), 0);
+}
 async function attSpin(D, uid, u, pool, res) {
   if (!u || u.active === false || u.loginBlocked || !['staff', 'team_manager', 'mkt', 'mkt_manager'].includes(u.role)) return res.status(403).json({error: 'Vòng quay chuyên cần chỉ dành cho Sale và MKT.'});
   const cfg = (await D.ref('luckyCfgAtt').once('value')).val() || {};
-  if (!cfg.enabled) return res.status(403).json({error: 'Vòng quay chuyên cần chưa áp dụng.'});
+  // Chưa bật chấm công: Sale vẫn quay được lượt chuyên cần có từ Data tự tìm (từ 28/11) + lượt "+1" trúng thưởng
+  if (!cfg.enabled && !(pool === 'att' && ['staff', 'team_manager'].includes(u.role))) return res.status(403).json({error: 'Vòng quay chuyên cần chưa áp dụng.'});
   const cv = pool === 'attvip' ? ((await D.ref('luckyCfgAttVip').once('value')).val() || {}) : cfg;
   let prizes = (Array.isArray(cv.prizes) && cv.prizes.length ? cv.prizes : (pool === 'attvip' ? DEF_ATTVIP : DEF_ATT)).filter(p => p && p.key && Number(p.w) > 0);
   prizes = pool === 'attvip' ? prizes.map(x => isGrand(x) ? Object.assign({}, x, {w: Math.min(Number(x.w), GRAND_W)}) : x) : prizes.filter(x => !isGrand(x)); // iPhone chỉ ở vòng VIP
@@ -172,8 +182,13 @@ async function attSpin(D, uid, u, pool, res) {
   if (prizes.some(isGrand) && (await grandRef.once('value')).exists()) prizes = prizes.filter(x => !isGrand(x));
   if (!prizes.length) return res.status(500).json({error: 'Chưa cài giải thưởng.'});
   const f = pool === 'attvip' ? 'vip' : 'left', bRef = D.ref('attBal/' + uid);
-  const held = await bRef.transaction(cur => (cur && Number(cur[f]) > 0) ? Object.assign({}, cur, {[f]: Number(cur[f]) - 1}) : undefined);
-  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — chấm công đúng giờ cả 2 lần trong ngày để có.'});
+  let held = await bRef.transaction(cur => (cur && Number(cur[f]) > 0) ? Object.assign({}, cur, {[f]: Number(cur[f]) - 1}) : undefined), viaSelf = false;
+  if (!held.committed && pool === 'att' && ['staff', 'team_manager'].includes(u.role)) { // hết lượt chấm công → dùng lượt từ Data tự tìm
+    const earned = await selfEarned(D, uid);
+    held = await bRef.transaction(cur => { cur = cur || {}; const sp = Number(cur.selfSpun) || 0; return sp < earned ? Object.assign({}, cur, {selfSpun: sp + 1}) : undefined; });
+    viaSelf = held.committed;
+  }
+  if (!held.committed) return res.status(400).json({error: pool === 'attvip' ? 'Bạn chưa có lượt VIP — đúng giờ 5 ngày liên tiếp để có.' : 'Bạn chưa có lượt quay chuyên cần — vào làm đúng giờ' + (['staff', 'team_manager'].includes(u.role) ? ' hoặc điền đủ 20 SĐT mới vào Data tự tìm trong ngày' : '') + ' để có.'});
   const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
     for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
   let p = pick(prizes);
@@ -182,7 +197,7 @@ async function attSpin(D, uid, u, pool, res) {
   p = grandName(p); const prize = {key: p.key, name: p.name || p.short || p.key, short: p.short || p.name || p.key, kind: p.kind || 'manual', n: Number(p.n) || null, icon: p.icon || null};
   const ref = D.ref('luckySpin/' + day).push(), key = ref.key;
   try { await ref.set({uid, k: key, name: u.name || '', branchId: u.branchId || u.mktBranchId || null, pool, revenue: null, prize, at: now}); }
-  catch (e) { try { await bRef.child(f).transaction(v => (Number(v) || 0) + 1); } catch (e2) {} throw e; }
+  catch (e) { try { if (viaSelf) await bRef.child('selfSpun').transaction(v => Math.max(0, (Number(v) || 0) - 1)); else await bRef.child(f).transaction(v => (Number(v) || 0) + 1); } catch (e2) {} throw e; }
   const inc = admin.database.ServerValue.increment, up = {};
   if (prize.kind === 'attspin') up[`attBal/${uid}/left`] = inc(Number(prize.n) || 1);
   if (prize.kind === 'early') { const pk = D.ref('earlyPasses/' + uid).push().key; up[`earlyPasses/${uid}/${pk}`] = {min: Number(prize.n) || 30, at: now, exp: now + 7 * 86400000, from: key}; }
