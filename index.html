@@ -12409,7 +12409,7 @@ function luckyAttState(){ const me = currentUser(); if(!me || me.loginBlocked ||
 // 📋 Data tự tìm → lượt chuyên cần (giống máy chủ): mỗi 20 SĐT hợp lệ mới / ngày (từ 28/11) = +1 lượt; đã quay = attBal.selfSpun
 const SELF_SPIN_FROM = '2026-11-28', SELF_SPIN_PER = 20;
 function selfSpinInfo(uid){ const rows = (state.selfLeads||[]).filter(l=>l && l.userId===uid).slice().sort((a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0));
-  const seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfBulkNormPhone(r.phone); if(!ph || seen.has(ph)) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
+  const seen = new Set(), perDay = {}; rows.forEach(r=>{ const ph = selfContactKey(r.phone); if(!ph || seen.has(ph) || !SELF_SPIN_OK_STATUS.includes(String(r.status||'').trim())) return; seen.add(ph); const d = toLocalDateStr(new Date(Number(r.createdAt)||0)); if(d >= SELF_SPIN_FROM) perDay[d] = (perDay[d]||0) + 1; });
   const earned = Object.values(perDay).reduce((a,n)=>a + Math.floor(n / SELF_SPIN_PER), 0), spun = Number(attBalMe.selfSpun)||0, today = perDay[todayStr()] || 0;
   return {today, earned, spun, left: Math.max(0, earned - spun), need: SELF_SPIN_PER - (today % SELF_SPIN_PER)}; }
 function luckyPoolOf(u){ return !u ? null : (['mkt','mkt_manager'].includes(u.role) ? 'mkt' : (isLeadEligibleRole(u) ? 'sale' : null)); }
@@ -12615,8 +12615,8 @@ function luckyModalRender(){
     const res = luckyResult, k = res && res.prize ? res.prize.kind : '';
     const btn = bal > 0 ? `<button class="btn-primary lucky-spin-btn" ${luckySpinning ? 'disabled' : ''} onclick="luckySpinGo()">${luckySpinning ? 'Đang quay…' : (P==='attvip' ? `📱 QUAY LƯỢT VIP (còn ${bal})` : `⏰ QUAY NGAY (còn ${bal} lượt)`)}</button>` : '';
     const sw = '';
-    let act = res && res.prize && !luckySpinning ? `<div class="lucky-result"><div class="lucky-res-t">CHÚC MỪNG BẠN TRÚNG</div><div class="lucky-res-n">${escHtml(luckyIcon(res.prize))} ${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div></div>${btn}` : btn;
-    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.selfOnly ? `Hết lượt — điền thêm ${selfSpinInfo((currentUser()||{}).id).need} SĐT mới vào Data tự tìm hôm nay để có lượt tiếp (mỗi 20 số = 1 lượt).` : a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở 👑 vòng VIP của bạn (có giải 8.868.000đ 💰).`}</div>`;
+    let act = res && res.prize && !luckySpinning ? `<div class="lucky-result"><div class="lucky-res-t">CHÚC MỪNG BẠN TRÚNG</div><div class="lucky-res-n">${escHtml(luckyIcon(res.prize))} ${escHtml(luckyPrizeLabel(res.prize))}</div><div class="lucky-muted">${escHtml((LUCKY_KIND_NOTE[k] || LUCKY_KIND_NOTE.manual)(res.prize.n))}</div>${res.gift ? '<div class="lucky-teaser" style="margin-top:8px;">🎁 Đủ 5 lượt — bạn được tặng <b>1 lượt đặc biệt</b> ở vòng quay Sale / MKT của mình!</div>' : ''}</div>${btn}` : btn;
+    if(!act) act = `<div class="lucky-muted" style="text-align:center;">${a && a.selfOnly ? `Hết lượt — thêm ${selfSpinInfo((currentUser()||{}).id).need} SĐT / link FB mới (trạng thái Đã liên hệ / nhắn tin) vào Data tự tìm hôm nay để có lượt tiếp (mỗi 20 số = 1 lượt).` : a && a.left < 0 ? `Bạn đang âm ${Math.abs(a.left)} lượt (vào muộn). Ngày đúng giờ tiếp theo sẽ bù dần về 0.` : `Vào làm đúng giờ cả buổi sáng và buổi chiều để có lượt quay. Đúng giờ 5 ngày liên tiếp được thêm 1 lượt ở 👑 vòng VIP của bạn (có giải 8.868.000đ 💰).`}</div>`;
     const rows = luckyRecs().filter(r=>r.pool===P).sort((x,y)=>(x.at||0)-(y.at||0));
     box.innerHTML = `${sw}<div class="lucky-wheel-wrap"><div class="lucky-pointer"></div><div id="luckyWheel" class="lucky-wheel" style="transform:rotate(${luckyRot}deg);">${luckyWheelSvg(luckyWheelList(c))}</div></div>
       ${act}<div class="lucky-board-t">${P==='attvip' ? 'VÒNG VIP' : 'CHUYÊN CẦN'} HÔM NAY (${rows.length} lượt)</div>${rows.length ? rows.map(r=>`<div class="lucky-row"><span class="lucky-rank">${P==='attvip' ? '📱' : '⏰'}</span><b>${escHtml(r.name||'')}</b><span class="lucky-muted">${packTimeShort(r.at)}</span><span class="lucky-prize">${escHtml((r.prize && (r.prize.short || r.prize.name)) || '')}</span></div>`).join('') : '<div class="lucky-muted" style="padding:6px 0;">Chưa có ai quay hôm nay.</div>'}`;
@@ -15509,7 +15509,7 @@ function renderSelfLeadsTable(){
   if(countEl) countEl.textContent = mine.length>0 ? `(${mine.length})` : '';
   try{ let sp = document.getElementById('selfSpinLine'); if(luckyPoolOf(user)==='sale'){ const f = selfSpinInfo(user.id);
       if(!sp && countEl){ sp = document.createElement('div'); sp.id = 'selfSpinLine'; sp.className = 'lucky-teaser'; sp.style.margin = '6px 0 8px'; countEl.closest('h2').insertAdjacentElement('afterend', sp); }
-      if(sp) sp.innerHTML = `🎡 Hôm nay đã điền <b>${f.today}</b> SĐT hợp lệ mới · còn <b>${f.need}</b> số nữa → <b>+1 lượt quay chuyên cần</b> (mỗi 20 số / ngày = 1 lượt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt — bấm nút ⏰ ở góc màn hình để quay.` : ''}`; }
+      if(sp) sp.innerHTML = `🎡 Hôm nay có <b>${f.today}</b> SĐT / link FB mới <b>đã liên hệ hoặc đã nhắn tin</b> · còn <b>${f.need}</b> nữa → <b>+1 lượt quay chuyên cần</b> (mỗi 20 số / ngày = 1 lượt; cứ quay đủ 5 lượt được tặng 1 lượt đặc biệt).${f.left > 0 ? ` Đang có <b>${f.left}</b> lượt — bấm nút ⏰ ở góc màn hình để quay.` : ''}`; }
     else if(sp) sp.remove(); }catch(e){}
   const table = document.getElementById('selfLeadsTable');
   if(!table) return;
@@ -15551,11 +15551,23 @@ function selfBulkNormPhone(raw){
   if(d.length===9 && /^[35789]/.test(d)) d = '0' + d; // thiếu số 0 đầu
   return /^0[35789]\d{8}$/.test(d) ? d : null;
 }
+// 🔑 Khoá nhận diện 1 khách trong Data tự tìm: SĐT chuẩn hoá, HOẶC link Facebook / Messenger (facebook.com, fb.com, fb.me, m.me) chuẩn hoá
+function selfFbKey(raw){ const m = String(raw||'').trim().toLowerCase().match(/(?:https?:\/\/)?(?:www\.|m\.|web\.|mbasic\.|business\.)?(facebook\.com|fb\.com|fb\.me|m\.me)\/([^\s?#]+)(\?[^\s#]*)?/);
+  if(!m) return null; let path = m[2].replace(/\/+$/, ''); const q = m[3] || '';
+  if(/^profile\.php$/.test(path)){ const id = (q.match(/[?&]id=(\d+)/) || [])[1]; return id ? 'fb:' + id : null; }
+  if(/^people\//.test(path)){ const id = (path.match(/(\d{6,})$/) || [])[1]; if(id) return 'fb:' + id; }
+  return path.length >= 3 ? 'fb:' + path : null; }
+function selfContactKey(raw){ return selfBulkNormPhone(raw) || selfFbKey(raw); }
+// Chỉ tính lượt khi đã thật sự liên hệ: Đã liên hệ / nhắn tin chưa gọi (và các bước sau đó: đang tư vấn, lên HĐ, chốt, không có nhu cầu)
+const SELF_SPIN_OK_STATUS = ['Đã liên hệ','nhắn tin chưa gọi','Đang tư vấn','Đã lên HĐ','Đã chốt','Không có nhu cầu'];
 function selfBulkParse(text){
   const me = currentUser() || {};
-  const have = new Set(state.selfLeads.filter(l=>l.userId===me.id).map(l=>selfBulkNormPhone(l.phone)).filter(Boolean));
+  const have = new Set(state.selfLeads.filter(l=>l.userId===me.id).map(l=>selfContactKey(l.phone)).filter(Boolean));
   const seen = new Set(), ok = [], dup = [], bad = [];
   String(text||'').split(/\n|;|,(?=\s*[\d+])/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
+    const fbm = line.match(/((?:https?:\/\/)?(?:www\.|m\.|web\.|mbasic\.|business\.)?(?:facebook\.com|fb\.com|fb\.me|m\.me)\/\S+)/i);
+    if(fbm && selfFbKey(fbm[1])){ const key = selfFbKey(fbm[1]), name = line.replace(fbm[1], '').replace(/^[\s\-–:|,.]+|[\s\-–:|,.]+$/g, '').slice(0, 80);
+      if(have.has(key) || seen.has(key)){ dup.push(fbm[1]); return; } seen.add(key); ok.push({phone: fbm[1], name}); return; } // 🔗 link Facebook
     const m = line.match(/(\+?\d[\d\s.\-()]{7,16}\d)/);
     const phone = m ? selfBulkNormPhone(m[1]) : null;
     if(!phone){ bad.push(line); return; }
@@ -15567,7 +15579,7 @@ function selfBulkParse(text){
 }
 function selfBulkOpen(){
   document.getElementById('loyalModalBody').innerHTML = `<h2>📋 Nhập nhiều SĐT</h2>
-    <p class="goal-hint" style="margin:0 0 8px;">Dán danh sách số điện thoại — mỗi dòng 1 số (có thể ghi tên khách phía sau, VD <b>0912345678 Chị Hoa</b>), hoặc cách nhau bằng dấu phẩy. App tự làm sạch số, bỏ số trùng.</p>
+    <p class="goal-hint" style="margin:0 0 8px;">Dán danh sách số điện thoại hoặc link Facebook — mỗi dòng 1 số / 1 link (có thể ghi tên khách phía sau, VD <b>0912345678 Chị Hoa</b>), hoặc cách nhau bằng dấu phẩy. App tự làm sạch số, bỏ số trùng.</p>
     <textarea id="selfBulkText" rows="8" style="width:100%; box-sizing:border-box;" placeholder="0912345678 Chị Hoa&#10;0987 654 321&#10;+84 903 111 222 Shop Lan" oninput="selfBulkPreview()"></textarea>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       <select id="selfBulkSource"><option value="">— Nguồn —</option>${SELF_LEAD_SOURCE_OPTIONS.map(x=>`<option>${escHtml(x)}</option>`).join('')}</select>
