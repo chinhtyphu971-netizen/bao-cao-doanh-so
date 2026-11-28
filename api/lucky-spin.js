@@ -12,7 +12,7 @@ const DEF = [
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:10},
   {key:'gift', name:'Quà nhỏ', short:'Quà nhỏ', kind:'manual', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:10},
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'}];
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, icon:'💰'}];
 const DEF_MKT = [
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:3},
   {key:'star15', name:'Tặng 15 sao', short:'15 sao', kind:'manual', w:20},
@@ -21,11 +21,11 @@ const DEF_MKT = [
   {key:'mktpass', name:'Thẻ miễn khoá nhập data', short:'Miễn khoá', kind:'mktpass', w:10},
   {key:'early', name:'Về sớm 1 tiếng', short:'Về sớm', kind:'manual', w:12},
   {key:'extra', name:'Thêm 1 lượt quay ngày mai', short:'+1 lượt', kind:'extra', w:5},
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'}];
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, icon:'💰'}];
 // 📱 Giải đặc biệt (iPhone): tỉ lệ thật như cài; gộp mọi vòng tối đa 1 lần / năm (khoá ở luckyGrand/{năm})
 const isGrand = p => !!(p && (p.key === 'iphone' || p.key === 'grand' || /iphone/i.test(String(p.name || ''))));
-// 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 5.000.000đ (giữ nguyên tỉ lệ khoá + 1 giải / năm; key nội bộ vẫn là 'iphone' để khớp cài đặt cũ)
-const GRAND_NAME = 'Tiền mặt 5.000.000đ', GRAND_SHORT = '5 triệu';
+// 28/11: giải đặc biệt đổi từ iPhone → TIỀN MẶT 8.868.000đ (giữ nguyên tỉ lệ khoá + 1 giải / năm; key nội bộ vẫn là 'iphone' để khớp cài đặt cũ)
+const GRAND_NAME = 'Tiền mặt 8.868.000đ', GRAND_SHORT = '8,868 triệu';
 const grandName = p => isGrand(p) ? Object.assign({}, p, {name: GRAND_NAME, short: GRAND_SHORT, icon: '💰'}) : p;
 const GRAND_W = 0.00001; // 🔒 tỉ lệ iPhone tối đa 0,00001% — dù cài đặt bị sửa cao hơn, máy chủ vẫn ép về mức này
 // ⏰ Vòng quay CHUYÊN CẦN (làm sẵn, bật/tắt ở luckyCfgAtt.enabled): quay bằng lượt trong attBal/{uid} (left = thường, vip = VIP)
@@ -37,7 +37,7 @@ const DEF_ATT = [
   {key:'early30', name:'Phiếu về sớm 30 phút', short:'Về sớm 30p', kind:'early', n:30, w:12},
   {key:'attspin1', name:'Thêm 1 lượt quay chuyên cần', short:'+1 lượt', kind:'attspin', n:1, w:15}];
 const DEF_ATTVIP = [
-  {key:'iphone', name:'Tiền mặt 5.000.000đ', short:'5 triệu', kind:'manual', w:0.00001, icon:'💰'},
+  {key:'iphone', name:'Tiền mặt 8.868.000đ', short:'8,868 triệu', kind:'manual', w:0.00001, icon:'💰'},
   {key:'jackpot', name:'Jackpot: tặng 100 sao', short:'100 sao', kind:'manual', w:5},
   {key:'star30', name:'Tặng 30 sao', short:'30 sao', kind:'manual', w:40},
   {key:'early60', name:'Phiếu về sớm 1 tiếng', short:'Về sớm 1h', kind:'early', n:60, w:15},
@@ -216,7 +216,7 @@ async function packSpin(D, uid, u, res) {
   const pick = list => { const tot = list.reduce((a, x) => a + Number(x.w), 0); let r = Math.random() * tot, k = 0;
     for (; k < list.length; k++) { r -= Number(list[k].w); if (r < 0) break; } return list[Math.min(k, list.length - 1)]; };
   const now = Date.now(), day = vnDay(now), grandRef = D.ref('luckyGrand/' + day.slice(0, 4));
-  // 🌟 Lượt tặng (đủ 5 lượt) = VÒNG ĐẶC BIỆT: thêm ô giải đặc biệt 5 triệu, tỉ lệ khoá GRAND_W, mỗi năm 1 giải
+  // 🌟 Lượt tặng (đủ 5 lượt) = VÒNG ĐẶC BIỆT: thêm ô giải đặc biệt 8.868.000đ, tỉ lệ khoá GRAND_W, mỗi năm 1 giải
   if (bonusUsed && !(await grandRef.once('value')).exists()) prizes = prizes.concat([{key: 'iphone', name: GRAND_NAME, short: GRAND_SHORT, kind: 'manual', w: GRAND_W, icon: '💰'}]);
   let p = pick(prizes);
   if (isGrand(p)) { const g = await grandRef.transaction(cur => cur ? undefined : {uid, name: u.name || '', pool: 'pack', day, at: now});
